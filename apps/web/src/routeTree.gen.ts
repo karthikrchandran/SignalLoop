@@ -15,12 +15,16 @@ import { Route as RecoverPasswordRouteImport } from './routes/recover-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LayoutRouteImport } from './routes/_layout'
 import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
+import { Route as LayoutVoiceAgentsRouteImport } from './routes/_layout/voice-agents'
 import { Route as LayoutTemplatesRouteImport } from './routes/_layout/templates'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
+import { Route as LayoutSequencesRouteImport } from './routes/_layout/sequences'
 import { Route as LayoutOfferPacksRouteImport } from './routes/_layout/offer-packs'
 import { Route as LayoutItemsRouteImport } from './routes/_layout/items'
 import { Route as LayoutGovernanceRouteImport } from './routes/_layout/governance'
+import { Route as LayoutControlsRouteImport } from './routes/_layout/controls'
 import { Route as LayoutCampaignsRouteImport } from './routes/_layout/campaigns'
+import { Route as LayoutAnalyticsRouteImport } from './routes/_layout/analytics'
 import { Route as LayoutAdminRouteImport } from './routes/_layout/admin'
 
 const SignupRoute = SignupRouteImport.update({
@@ -52,6 +56,11 @@ const LayoutIndexRoute = LayoutIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutVoiceAgentsRoute = LayoutVoiceAgentsRouteImport.update({
+  id: '/voice-agents',
+  path: '/voice-agents',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutTemplatesRoute = LayoutTemplatesRouteImport.update({
   id: '/templates',
   path: '/templates',
@@ -60,6 +69,11 @@ const LayoutTemplatesRoute = LayoutTemplatesRouteImport.update({
 const LayoutSettingsRoute = LayoutSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutSequencesRoute = LayoutSequencesRouteImport.update({
+  id: '/sequences',
+  path: '/sequences',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutOfferPacksRoute = LayoutOfferPacksRouteImport.update({
@@ -77,9 +91,19 @@ const LayoutGovernanceRoute = LayoutGovernanceRouteImport.update({
   path: '/governance',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutControlsRoute = LayoutControlsRouteImport.update({
+  id: '/controls',
+  path: '/controls',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutCampaignsRoute = LayoutCampaignsRouteImport.update({
   id: '/campaigns',
   path: '/campaigns',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutAnalyticsRoute = LayoutAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutAdminRoute = LayoutAdminRouteImport.update({
@@ -95,12 +119,16 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/admin': typeof LayoutAdminRoute
+  '/analytics': typeof LayoutAnalyticsRoute
   '/campaigns': typeof LayoutCampaignsRoute
+  '/controls': typeof LayoutControlsRoute
   '/governance': typeof LayoutGovernanceRoute
   '/items': typeof LayoutItemsRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
+  '/sequences': typeof LayoutSequencesRoute
   '/settings': typeof LayoutSettingsRoute
   '/templates': typeof LayoutTemplatesRoute
+  '/voice-agents': typeof LayoutVoiceAgentsRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -108,12 +136,16 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/admin': typeof LayoutAdminRoute
+  '/analytics': typeof LayoutAnalyticsRoute
   '/campaigns': typeof LayoutCampaignsRoute
+  '/controls': typeof LayoutControlsRoute
   '/governance': typeof LayoutGovernanceRoute
   '/items': typeof LayoutItemsRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
+  '/sequences': typeof LayoutSequencesRoute
   '/settings': typeof LayoutSettingsRoute
   '/templates': typeof LayoutTemplatesRoute
+  '/voice-agents': typeof LayoutVoiceAgentsRoute
   '/': typeof LayoutIndexRoute
 }
 export interface FileRoutesById {
@@ -124,12 +156,16 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/_layout/admin': typeof LayoutAdminRoute
+  '/_layout/analytics': typeof LayoutAnalyticsRoute
   '/_layout/campaigns': typeof LayoutCampaignsRoute
+  '/_layout/controls': typeof LayoutControlsRoute
   '/_layout/governance': typeof LayoutGovernanceRoute
   '/_layout/items': typeof LayoutItemsRoute
   '/_layout/offer-packs': typeof LayoutOfferPacksRoute
+  '/_layout/sequences': typeof LayoutSequencesRoute
   '/_layout/settings': typeof LayoutSettingsRoute
   '/_layout/templates': typeof LayoutTemplatesRoute
+  '/_layout/voice-agents': typeof LayoutVoiceAgentsRoute
   '/_layout/': typeof LayoutIndexRoute
 }
 export interface FileRouteTypes {
@@ -141,12 +177,16 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/admin'
+    | '/analytics'
     | '/campaigns'
+    | '/controls'
     | '/governance'
     | '/items'
     | '/offer-packs'
+    | '/sequences'
     | '/settings'
     | '/templates'
+    | '/voice-agents'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -154,12 +194,16 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/admin'
+    | '/analytics'
     | '/campaigns'
+    | '/controls'
     | '/governance'
     | '/items'
     | '/offer-packs'
+    | '/sequences'
     | '/settings'
     | '/templates'
+    | '/voice-agents'
     | '/'
   id:
     | '__root__'
@@ -169,12 +213,16 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/_layout/admin'
+    | '/_layout/analytics'
     | '/_layout/campaigns'
+    | '/_layout/controls'
     | '/_layout/governance'
     | '/_layout/items'
     | '/_layout/offer-packs'
+    | '/_layout/sequences'
     | '/_layout/settings'
     | '/_layout/templates'
+    | '/_layout/voice-agents'
     | '/_layout/'
   fileRoutesById: FileRoutesById
 }
@@ -230,6 +278,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/voice-agents': {
+      id: '/_layout/voice-agents'
+      path: '/voice-agents'
+      fullPath: '/voice-agents'
+      preLoaderRoute: typeof LayoutVoiceAgentsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/templates': {
       id: '/_layout/templates'
       path: '/templates'
@@ -242,6 +297,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof LayoutSettingsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/sequences': {
+      id: '/_layout/sequences'
+      path: '/sequences'
+      fullPath: '/sequences'
+      preLoaderRoute: typeof LayoutSequencesRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/offer-packs': {
@@ -265,11 +327,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutGovernanceRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/controls': {
+      id: '/_layout/controls'
+      path: '/controls'
+      fullPath: '/controls'
+      preLoaderRoute: typeof LayoutControlsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/campaigns': {
       id: '/_layout/campaigns'
       path: '/campaigns'
       fullPath: '/campaigns'
       preLoaderRoute: typeof LayoutCampaignsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/analytics': {
+      id: '/_layout/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof LayoutAnalyticsRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/admin': {
@@ -284,23 +360,31 @@ declare module '@tanstack/react-router' {
 
 interface LayoutRouteChildren {
   LayoutAdminRoute: typeof LayoutAdminRoute
+  LayoutAnalyticsRoute: typeof LayoutAnalyticsRoute
   LayoutCampaignsRoute: typeof LayoutCampaignsRoute
+  LayoutControlsRoute: typeof LayoutControlsRoute
   LayoutGovernanceRoute: typeof LayoutGovernanceRoute
   LayoutItemsRoute: typeof LayoutItemsRoute
   LayoutOfferPacksRoute: typeof LayoutOfferPacksRoute
+  LayoutSequencesRoute: typeof LayoutSequencesRoute
   LayoutSettingsRoute: typeof LayoutSettingsRoute
   LayoutTemplatesRoute: typeof LayoutTemplatesRoute
+  LayoutVoiceAgentsRoute: typeof LayoutVoiceAgentsRoute
   LayoutIndexRoute: typeof LayoutIndexRoute
 }
 
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutAdminRoute: LayoutAdminRoute,
+  LayoutAnalyticsRoute: LayoutAnalyticsRoute,
   LayoutCampaignsRoute: LayoutCampaignsRoute,
+  LayoutControlsRoute: LayoutControlsRoute,
   LayoutGovernanceRoute: LayoutGovernanceRoute,
   LayoutItemsRoute: LayoutItemsRoute,
   LayoutOfferPacksRoute: LayoutOfferPacksRoute,
+  LayoutSequencesRoute: LayoutSequencesRoute,
   LayoutSettingsRoute: LayoutSettingsRoute,
   LayoutTemplatesRoute: LayoutTemplatesRoute,
+  LayoutVoiceAgentsRoute: LayoutVoiceAgentsRoute,
   LayoutIndexRoute: LayoutIndexRoute,
 }
 

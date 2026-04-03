@@ -1,8 +1,11 @@
 import {
-  Boxes,
+  BarChart3,
   Briefcase,
   FileText,
   Home,
+  ListOrdered,
+  Mic2,
+  Settings,
   Shield,
   Users,
 } from "lucide-react"
@@ -22,9 +25,12 @@ import { User } from "./User"
 const baseItems: Item[] = [
   { icon: Home, title: "Dashboard", path: "/" },
   { icon: Briefcase, title: "Campaigns", path: "/campaigns" },
+  { icon: ListOrdered, title: "Sequences", path: "/sequences" },
+  { icon: Mic2, title: "Voice Agents", path: "/voice-agents" },
+  { icon: BarChart3, title: "Analytics", path: "/analytics" },
   { icon: FileText, title: "Templates", path: "/templates" },
-  { icon: Boxes, title: "Offer Packs", path: "/offer-packs" },
-  { icon: Shield, title: "Governance", path: "/governance" },
+  { icon: Shield, title: "Controls", path: "/controls" },
+  { icon: Settings, title: "Settings", path: "/settings" },
 ]
 
 export function AppSidebar() {

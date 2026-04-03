@@ -7,6 +7,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.api.main import api_router
 from app.core.config import settings
+from app.core.db import engine, init_db
 from app.core.middleware import RequestTracingMiddleware, SecurityHeadersMiddleware
 from app.core.rate_limit import (
     RateLimitExceeded,
@@ -27,6 +28,10 @@ if settings.SENTRY_DSN and settings.ENVIRONMENT != "local":
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from sqlmodel import Session  # noqa: PLC0415
+    with Session(engine) as session:
+        init_db(session)
+        session.commit()
     app.state.redis_manager = RedisConnectionManager()
     await app.state.redis_manager.connect(settings.REDIS_URL)
     try:

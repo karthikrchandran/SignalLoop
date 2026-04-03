@@ -1,17 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router"
-import GovernanceControlPage from "@/features/policies/GovernanceControlPage"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
 export const Route = createFileRoute("/_layout/governance")({
-  component: GovernancePage,
-  head: () => ({
-    meta: [
-      {
-        title: "Governance - EngageHub",
-      },
-    ],
-  }),
+  beforeLoad: () => {
+    throw redirect({ to: "/controls" })
+  },
 })
-
-function GovernancePage() {
-  return <GovernanceControlPage />
-}

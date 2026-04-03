@@ -1,17 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router"
-import OfferPackLibraryPage from "@/features/templates/OfferPackLibraryPage"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
 export const Route = createFileRoute("/_layout/offer-packs")({
-  component: OfferPacksPage,
-  head: () => ({
-    meta: [
-      {
-        title: "Offer Packs - EngageHub",
-      },
-    ],
-  }),
+  beforeLoad: () => {
+    throw redirect({ to: "/templates" })
+  },
 })
-
-function OfferPacksPage() {
-  return <OfferPackLibraryPage />
-}
