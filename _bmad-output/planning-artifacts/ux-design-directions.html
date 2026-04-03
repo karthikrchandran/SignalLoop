@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EngageHub UX Design Direction</title>
+  <style>
+    :root {
+      --brand: #1d4ed8;
+      --brand-deep: #1e3a8a;
+      --bg: #f8fafc;
+      --panel: #ffffff;
+      --text: #334155;
+      --muted: #64748b;
+      --border: #cbd5e1;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, "Segoe UI", Roboto, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    header {
+      padding: 36px 24px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--brand) 0%, var(--brand-deep) 100%);
+    }
+
+    header h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+    }
+
+    header p {
+      margin: 0;
+      max-width: 900px;
+      line-height: 1.6;
+    }
+
+    main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    section {
+      margin-bottom: 20px;
+      padding: 22px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 22px;
+    }
+
+    ul {
+      margin: 0 0 0 18px;
+      line-height: 1.8;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>EngageHub UX Design Direction</h1>
+    <p>
+      The revised MVP design direction is simple: build a web-first control tower
+      for outreach operations. The experience should make automation visible,
+      understandable, and safe for non-technical operators.
+    </p>
+  </header>
+
+  <main>
+    <section>
+      <h2>Primary Direction</h2>
+      <ul>
+        <li>Use a responsive web admin experience, not a native mobile app</li>
+        <li>Center the product around campaign operations, lead timelines, and handoff readiness</li>
+        <li>Make reason codes and next actions visible wherever automation decisions appear</li>
+        <li>Keep the interface calm and readable under operational pressure</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>What The MVP Must Show Clearly</h2>
+      <ul>
+        <li>What the system just did</li>
+        <li>Why it did it</li>
+        <li>What it plans to do next</li>
+        <li>What the operator can do if recovery is needed</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Design Priorities</h2>
+      <ul>
+        <li>Fast campaign setup and contact intake</li>
+        <li>Operational dashboard with queue health and KPI visibility</li>
+        <li>Lead timeline with reason codes and booking status</li>
+        <li>Handoff packet that helps the sales engineer prepare quickly</li>
+        <li>Accessibility and responsive behavior across desktop and mobile browser widths</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Explicitly Deferred</h2>
+      <p class="muted">
+        The earlier exploration included additional ideas that are no longer part of the
+        MVP design direction.
+      </p>
+      <ul>
+        <li>Native mobile app flows</li>
+        <li>Sales-engineer feedback workflows</li>
+        <li>Template-insights analytics and outcome tracking</li>
+        <li>Advanced experimentation and optimization surfaces</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,24 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "EngageHub Screen 5.4" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Journey 5 - Admin Feedback Notification
+    - link "Back to Home" [ref=e6] [cursor=pointer]:
+      - /url: index.html
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Screen 5.4
+        - generic [ref=e11]: Admin Feedback Notification
+      - generic [ref=e12]:
+        - text: Inbound feedback activity card with rating and feedback summary snippet.
+        - generic [ref=e13]:
+          - generic [ref=e14]: Admin FeedNew Feedback
+          - generic [ref=e16]: Rating 3/5Objection context unclear
+    - generic [ref=e17]:
+      - 'link "Previous: 5.3" [ref=e18] [cursor=pointer]':
+        - /url: screen-5-3-se-feedback-modal.html
+      - link "Home" [ref=e19] [cursor=pointer]:
+        - /url: index.html
+      - 'link "Next: 5.5" [ref=e20] [cursor=pointer]':
+        - /url: screen-5-5-feedback-action-panel.html

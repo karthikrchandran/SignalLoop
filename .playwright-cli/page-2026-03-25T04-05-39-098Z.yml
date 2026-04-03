@@ -1,0 +1,27 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "EngageHub Screen 3.2" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Journey 3 - Lead Detail - Timeline
+    - link "Back to Home" [ref=e6] [cursor=pointer]:
+      - /url: index.html
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Screen 3.2
+        - generic [ref=e11]: Lead Detail - Timeline
+      - generic [ref=e12]:
+        - text: Chronological action log with reason codes and expandable events.
+        - generic [ref=e13]:
+          - generic [ref=e14]: TimelineChronological
+          - generic [ref=e15]:
+            - generic [ref=e16]: Feb 28 - Email Sent
+            - generic [ref=e17]: Mar 1 - Opened
+            - generic [ref=e18]: Mar 2 - Call Scheduled
+    - generic [ref=e19]:
+      - 'link "Previous: 3.1" [ref=e20] [cursor=pointer]':
+        - /url: screen-3-1-lead-detail-overview.html
+      - link "Home" [ref=e21] [cursor=pointer]:
+        - /url: index.html
+      - 'link "Next: 3.3" [ref=e22] [cursor=pointer]':
+        - /url: screen-3-3-lead-detail-reason-codes.html

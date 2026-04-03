@@ -1,0 +1,24 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "EngageHub Screen 1.5" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Journey 1 - First Activation Feed State
+    - link "Back to Home" [ref=e6] [cursor=pointer]:
+      - /url: index.html
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Screen 1.5
+        - generic [ref=e11]: First Activation Feed State
+      - generic [ref=e12]:
+        - text: Initial feed card confirms activation and next-action preview.
+        - generic [ref=e13]:
+          - generic [ref=e14]: Activity FeedToday
+          - generic [ref=e16]: 47 leads activatedFirst emails sending
+    - generic [ref=e17]:
+      - 'link "Previous: 1.4" [ref=e18] [cursor=pointer]':
+        - /url: screen-1-4-preview-results.html
+      - link "Home" [ref=e19] [cursor=pointer]:
+        - /url: index.html
+      - 'link "Next: 2.1" [ref=e20] [cursor=pointer]':
+        - /url: screen-2-1-daily-monitoring-feed.html

@@ -1,0 +1,88 @@
+# generated: 2026-04-02T20:00:00.0000000-04:00
+# last_updated: 2026-04-02T20:00:00.0000000-04:00
+# project: EngageHub
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: c:\Users\K.Ramachandran\eMailVoice\_bmad-output\implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+# ======================================================================
+# SPRINT RESET — v2-pivot (2026-04-02)
+# ======================================================================
+# Product pivot: automated email sequences + AI voice cold calling
+# Previous epics 1-5 (old platform) are SUPERSEDED.
+# All prior increments from the old platform remain in git history.
+# New epic structure:
+#   Epic 1: Foundation cleanup (remove MongoDB, PyCasbin, approvals) — 1 day
+#   Epic 2: Email sequence engine (SendGrid) — 3-4 days
+#   Epic 3: AI voice pipeline (Twilio + Deepgram + Groq) — 4-5 days
+#   Epic 4: Signal-driven actions + admin visibility — 3-4 days
+# Tech stack decisions:
+#   Email: SendGrid (free tier)
+#   Voice: Twilio Voice + Media Streams
+#   STT: Deepgram Nova-2 (streaming)
+#   LLM: Groq Llama 3.1 8B (LPU inference)
+#   TTS: Deepgram Aura (streaming)
+# ======================================================================
+
+generated: 2026-04-02T20:00:00.0000000-04:00
+last_updated: 2026-04-02T20:00:00.0000000-04:00
+project: EngageHub
+project_key: NOKEY
+tracking_system: file-system
+story_location: c:\Users\K.Ramachandran\eMailVoice\_bmad-output\implementation-artifacts
+
+development_status:
+  epic-1: done
+  1-1-remove-mongodb-dependency: done
+  1-2-remove-pycasbin-and-simplify-authorization: done
+  1-3-remove-approval-workflow-and-simplify-governance: done
+  1-4-remove-legacy-crud-offer-packs-and-out-of-scope-ui: done
+  epic-1-retrospective: optional
+
+  epic-2: done
+  2-1-define-sequence-data-model-and-migration: done
+  2-2-build-sequence-management-api-and-ui: done
+  2-3-implement-sendgrid-email-adapter: done
+  2-4-build-sequence-execution-worker: done
+  2-5-implement-reply-detection-and-signal-branching: done
+  epic-2-retrospective: optional
+
+  epic-3: done
+  3-1-script-and-knowledge-base-management: done
+  3-2-twilio-voice-integration: done
+  3-3-voice-ai-conversation-engine: done
+  3-4-call-scheduling-and-daily-cap-worker: done
+  3-5-post-call-automation: done
+  epic-3-retrospective: optional
+
+  epic-4: done
+  4-1-signal-aggregation-and-contact-state: done
+  4-2-automated-followup-triggers: done
+  4-3-campaign-operations-dashboard: done
+  4-4-call-review-screen: done
+  4-5-sequence-monitor: done
+  epic-4-retrospective: optional

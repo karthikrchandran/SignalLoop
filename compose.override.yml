@@ -1,0 +1,73 @@
+services:
+  db:
+    restart: no
+
+  mongodb:
+    restart: no
+
+  redis:
+    restart: no
+
+  api:
+    restart: no
+    command:
+      - fastapi
+      - run
+      - --reload
+      - app/main.py
+    develop:
+      watch:
+        - path: ./apps/api
+          action: sync
+          target: /app/apps/api
+          ignore:
+            - ./apps/api/.venv
+            - .venv
+        - path: ./apps/api/pyproject.toml
+          action: rebuild
+    volumes:
+      - ./apps/api/htmlcov:/app/apps/api/htmlcov
+    environment:
+      SMTP_HOST: mailcatcher
+      SMTP_PORT: "1025"
+      SMTP_TLS: "false"
+      EMAILS_FROM_EMAIL: noreply@example.com
+
+  mailcatcher:
+    image: schickling/mailcatcher
+    ports:
+      - "1080:1080"
+      - "1025:1025"
+
+  web:
+    restart: no
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000
+        NODE_ENV: development
+
+  playwright:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.playwright
+      args:
+        VITE_API_URL: http://api:8000
+        NODE_ENV: production
+    ipc: host
+    depends_on:
+      - api
+      - mailcatcher
+    env_file:
+      - .env
+    environment:
+      - VITE_API_URL=http://api:8000
+      - MAILCATCHER_HOST=http://mailcatcher:1080
+      - PLAYWRIGHT_HTML_HOST=0.0.0.0
+      - CI=${CI}
+    volumes:
+      - ./apps/web/blob-report:/app/blob-report
+      - ./apps/web/test-results:/app/test-results
+    ports:
+      - 9323:9323

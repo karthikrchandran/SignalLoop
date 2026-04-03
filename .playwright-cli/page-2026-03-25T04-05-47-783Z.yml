@@ -1,0 +1,27 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "EngageHub Screen 4.2" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Journey 4 - Error Detail Panel
+    - link "Back to Home" [ref=e6] [cursor=pointer]:
+      - /url: index.html
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Screen 4.2
+        - generic [ref=e11]: Error Detail Panel
+      - generic [ref=e12]:
+        - text: Recovery decision panel showing options A/B/C and root-cause context.
+        - generic [ref=e13]:
+          - generic [ref=e14]: Recovery OptionsChoose Action
+          - generic [ref=e15]:
+            - generic [ref=e16]: A Retry tomorrow
+            - generic [ref=e17]: B Override reason
+            - generic [ref=e18]: C Acknowledge + Skip
+    - generic [ref=e19]:
+      - 'link "Previous: 4.1" [ref=e20] [cursor=pointer]':
+        - /url: screen-4-1-error-card-in-feed.html
+      - link "Home" [ref=e21] [cursor=pointer]:
+        - /url: index.html
+      - 'link "Next: 4.3" [ref=e22] [cursor=pointer]':
+        - /url: screen-4-3-retry-confirmation-modal.html

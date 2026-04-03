@@ -1,0 +1,380 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - strong [ref=e3]: "EngageHub — UX Direction 3: Activity Feed First"
+    - generic [ref=e4]: "|"
+    - generic [ref=e5]: "Design System: Chakra UI + Corporate Blue/Gray"
+    - generic [ref=e6]: "|"
+    - generic [ref=e7]: WCAG 2.1 AA
+    - generic [ref=e8]:
+      - button "Desktop" [ref=e9] [cursor=pointer]
+      - button "Mobile" [ref=e10] [cursor=pointer]
+  - generic [ref=e12]:
+    - complementary [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]: eV
+        - generic [ref=e16]:
+          - generic [ref=e17]: EngageHub
+          - generic [ref=e18]: Automation Platform
+      - navigation [ref=e19]:
+        - generic [ref=e20]: Operate
+        - generic [ref=e21] [cursor=pointer]:
+          - generic [ref=e22]: 📋
+          - text: Activity Feed
+          - generic [ref=e23]: "1"
+        - generic [ref=e24] [cursor=pointer]:
+          - generic [ref=e25]: 👤
+          - text: Leads
+        - generic [ref=e26] [cursor=pointer]:
+          - generic [ref=e27]: 📞
+          - text: Call Queue
+        - generic [ref=e28] [cursor=pointer]:
+          - generic [ref=e29]: 🔔
+          - text: Exceptions
+          - generic [ref=e30]: "3"
+      - navigation [ref=e31]:
+        - generic [ref=e32]: Configure
+        - generic [ref=e33] [cursor=pointer]:
+          - generic [ref=e34]: 📄
+          - text: Templates
+        - generic [ref=e35] [cursor=pointer]:
+          - generic [ref=e36]: ⚙️
+          - text: Routing Rules
+        - generic [ref=e37] [cursor=pointer]:
+          - generic [ref=e38]: 🤝
+          - text: Handoff Profiles
+      - navigation [ref=e39]:
+        - generic [ref=e40]: Insight
+        - generic [ref=e41] [cursor=pointer]:
+          - generic [ref=e42]: 📊
+          - text: Campaign Health
+        - generic [ref=e43] [cursor=pointer]:
+          - generic [ref=e44]: 🔍
+          - text: Audit Log
+      - generic [ref=e45]:
+        - generic [ref=e46]: KR
+        - generic [ref=e47]:
+          - generic [ref=e48]: K. Ramachandran
+          - generic [ref=e49]: Operations Admin
+    - generic [ref=e50]:
+      - generic [ref=e51]:
+        - generic [ref=e52]: Activity Feed
+        - generic [ref=e53]: Today, March 24 2026
+        - generic [ref=e54]:
+          - button "⬇ Export" [ref=e55] [cursor=pointer]
+          - button "▶ View Lead" [ref=e56] [cursor=pointer]
+          - button "+ Trigger Action" [ref=e57] [cursor=pointer]
+      - generic [ref=e58]:
+        - generic [ref=e59]:
+          - generic [ref=e60]: "47"
+          - generic [ref=e61]: Leads Active Today
+          - generic [ref=e62]: ↑ 8 from yesterday
+        - generic [ref=e64]:
+          - generic [ref=e65]: "23"
+          - generic [ref=e66]: Emails Sent
+          - generic [ref=e67]: 3 opened
+        - generic [ref=e69]:
+          - generic [ref=e70]: "5"
+          - generic [ref=e71]: Awaiting Review
+          - generic [ref=e72]: ↑ needs attention
+        - generic [ref=e74]:
+          - generic [ref=e75]: "1"
+          - generic [ref=e76]: Exception
+          - generic [ref=e77]: Opt-out conflict
+        - generic [ref=e79]:
+          - generic [ref=e80]: "4"
+          - generic [ref=e81]: Booked Demos
+          - generic [ref=e82]: ↑ 2 this week
+      - generic [ref=e83]:
+        - generic [ref=e84]:
+          - generic [ref=e85]:
+            - generic [ref=e86]: 💡
+            - generic [ref=e87]:
+              - strong [ref=e88]: "Design Note:"
+              - text: Each card shows the full [Action Type] → [Reason Code] → [Template Applied] explanation chain. Red left-border = exception requiring acknowledgement. Amber = needs review. Click any card to open the 360px slide-out detail panel.
+          - generic [ref=e90]: Today — 24 March 2026
+          - generic [ref=e91] [cursor=pointer]:
+            - generic [ref=e92]:
+              - generic [ref=e93]: RS
+              - generic [ref=e94]:
+                - generic [ref=e95]:
+                  - text: Ravi Sharma
+                  - generic [ref=e96]: EXCEPTION
+                - generic [ref=e97]: CloudNest Technologies · VP Engineering
+              - generic [ref=e98]: 9:47 AM
+            - generic [ref=e99]:
+              - generic [ref=e100]: 🚫 Send Blocked
+              - generic [ref=e101]: →
+              - generic [ref=e102]: "Opt-Out Conflict: Previous unsubscribe detected"
+              - generic [ref=e103]: →
+              - generic [ref=e104]: SaaS Outreach v2 — skipped
+            - generic [ref=e105]:
+              - text: System detected an existing opt-out record for
+              - strong [ref=e106]: ravi@cloudnest.io
+              - text: from the October 2025 list. Template send was blocked before delivery. Manual review required to determine correct disposition.
+            - generic [ref=e107]:
+              - generic [ref=e108]: "Stage: Opted Out"
+              - generic [ref=e109]:
+                - button "View History" [ref=e110]
+                - button "Acknowledge & Archive" [ref=e111]
+          - generic [ref=e112] [cursor=pointer]:
+            - generic [ref=e113]:
+              - generic [ref=e114]: PM
+              - generic [ref=e115]:
+                - generic [ref=e116]:
+                  - text: Priya Mehta
+                  - generic [ref=e117]: NEEDS REVIEW
+                - generic [ref=e118]: Vertex AI Labs · Head of Product
+              - generic [ref=e119]: 9:22 AM
+            - generic [ref=e120]:
+              - generic [ref=e121]: 📩 Escalation Triggered
+              - generic [ref=e122]: →
+              - generic [ref=e123]: "Positive Reply: \"interested, let's talk\""
+              - generic [ref=e124]: →
+              - generic [ref=e125]: SE Handoff Template · High Intent
+            - generic [ref=e126]:
+              - text: Reply received at 8:58 AM. NLP scored intent at
+              - strong [ref=e127]: high (0.91)
+              - text: ". Handoff packet generated — awaiting your review before routing to Sales Engineer queue. Demo availability auto-checked:"
+              - strong [ref=e128]: 3 slots open this week
+              - text: .
+            - generic [ref=e129]:
+              - generic [ref=e130]: "Stage: Handoff Pending"
+              - generic [ref=e131]:
+                - button "Preview Packet" [ref=e132]
+                - button "Approve & Route" [ref=e133]
+          - generic [ref=e134] [cursor=pointer]:
+            - generic [ref=e135]:
+              - generic [ref=e136]: AL
+              - generic [ref=e137]:
+                - generic [ref=e138]: Aiden Lee
+                - generic [ref=e139]: Flux Robotics · CTO
+              - generic [ref=e140]: 8:30 AM
+            - generic [ref=e141]:
+              - generic [ref=e142]: ✉️ Email Sent
+              - generic [ref=e143]: →
+              - generic [ref=e144]: "Scheduled: Day 3 follow-up cadence"
+              - generic [ref=e145]: →
+              - generic [ref=e146]: Enterprise Follow-Up v3
+            - generic [ref=e147]: "Day 3 follow-up delivered as scheduled. Subject: \"Re: Transforming your lead pipeline.\" Next action in sequence: wait 48 hrs, then check for reply-signal before proceeding to Day 5 call attempt."
+            - generic [ref=e148]:
+              - generic [ref=e149]: "Stage: Nurture — Day 3"
+              - generic [ref=e150]:
+                - button "View Email" [ref=e151]
+                - button "Override Sequence" [ref=e152]
+          - generic [ref=e153] [cursor=pointer]:
+            - generic [ref=e154]:
+              - generic [ref=e155]: SN
+              - generic [ref=e156]:
+                - generic [ref=e157]:
+                  - text: Sofia Novak
+                  - generic [ref=e158]: DEMO BOOKED
+                - generic [ref=e159]: Axon Capital · Head of RevOps
+              - generic [ref=e160]: 7:14 AM
+            - generic [ref=e161]:
+              - generic [ref=e162]: 📅 Demo Confirmed
+              - generic [ref=e163]: →
+              - generic [ref=e164]: Booking Link Clicked — Calendly event created
+              - generic [ref=e165]: →
+              - generic [ref=e166]: SE Handoff + Confirmation Email
+            - generic [ref=e167]:
+              - text: Demo booked for
+              - strong [ref=e168]: March 27, 2:00 PM
+              - text: . Sales Engineer handoff packet generated automatically with full timeline history, call transcript excerpts, and intent rationale. SE alerted via Slack.
+            - generic [ref=e169]:
+              - generic [ref=e170]: "Stage: Demo Scheduled"
+              - generic [ref=e171]:
+                - button "View Packet" [ref=e172]
+                - button "Notify SE" [ref=e173]
+          - generic [ref=e175]: Yesterday — 23 March 2026
+          - generic [ref=e176] [cursor=pointer]:
+            - generic [ref=e177]:
+              - generic [ref=e178]: TK
+              - generic [ref=e179]:
+                - generic [ref=e180]: Tariq Khan
+                - generic [ref=e181]: DevOps.io · Engineering Director
+              - generic [ref=e182]: 4:10 PM
+            - generic [ref=e183]:
+              - generic [ref=e184]: 📞 Call Attempted
+              - generic [ref=e185]: →
+              - generic [ref=e186]: Day 5 cadence — no email reply after 48 hrs
+              - generic [ref=e187]: →
+              - generic [ref=e188]: Cold Call Script v1 — Voicemail left
+            - generic [ref=e189]: "Automated call attempt made. No answer; voicemail delivered at 4:10 PM. Sequence continues: next action is Day 7 follow-up email if no callback registered within 48 hours."
+            - generic [ref=e190]:
+              - generic [ref=e191]: "Stage: Nurture — Day 5"
+              - generic [ref=e192]:
+                - button "Hear Voicemail" [ref=e193]
+                - button "Pause Sequence" [ref=e194]
+        - complementary [ref=e195]:
+          - generic [ref=e196]:
+            - generic [ref=e197]: Filter Feed
+            - generic [ref=e198]:
+              - generic [ref=e199]: By Status
+              - generic [ref=e200] [cursor=pointer]:
+                - text: All Activity
+                - generic [ref=e202]: "47"
+              - generic [ref=e203] [cursor=pointer]:
+                - text: Exceptions
+                - generic [ref=e205]: "1"
+              - generic [ref=e206] [cursor=pointer]:
+                - text: Needs Review
+                - generic [ref=e208]: "5"
+              - generic [ref=e209] [cursor=pointer]:
+                - text: In-Sequence
+                - generic [ref=e211]: "34"
+              - generic [ref=e212] [cursor=pointer]:
+                - text: Demo / Booked
+                - generic [ref=e214]: "4"
+            - generic [ref=e215]:
+              - generic [ref=e216]: By Action Type
+              - generic [ref=e217] [cursor=pointer]: 📩 Email Sent
+              - generic [ref=e218] [cursor=pointer]: 📞 Call Attempted
+              - generic [ref=e219] [cursor=pointer]: 📅 Demo Booked
+              - generic [ref=e220] [cursor=pointer]: 🚫 Blocked / Skipped
+              - generic [ref=e221] [cursor=pointer]: 🤝 Handoff
+          - generic [ref=e222]:
+            - generic [ref=e223]: Today at a Glance
+            - generic [ref=e225]:
+              - generic [ref=e226]: "47"
+              - generic [ref=e227]: leads
+            - generic [ref=e228]:
+              - text: In-Sequence
+              - generic [ref=e230]: "34"
+            - generic [ref=e231]:
+              - text: Needs Review
+              - generic [ref=e233]: "5"
+            - generic [ref=e234]:
+              - text: Exception
+              - generic [ref=e236]: "1"
+            - generic [ref=e237]:
+              - text: Demo Booked
+              - generic [ref=e239]: "4"
+          - generic [ref=e240]:
+            - generic [ref=e241]: Quick Actions
+            - generic [ref=e242]:
+              - button "⚡ Bulk Acknowledge All Exceptions" [ref=e243] [cursor=pointer]:
+                - generic [ref=e244]: ⚡
+                - text: Bulk Acknowledge All Exceptions
+              - button "⏸ Pause All Active Sequences" [ref=e245] [cursor=pointer]:
+                - generic [ref=e246]: ⏸
+                - text: Pause All Active Sequences
+              - button "📤 Export Today's Report" [ref=e247] [cursor=pointer]:
+                - generic [ref=e248]: 📤
+                - text: Export Today's Report
+              - button "🔍 Search All Leads" [ref=e249] [cursor=pointer]:
+                - generic [ref=e250]: 🔍
+                - text: Search All Leads
+  - generic [ref=e251]:
+    - generic [ref=e252]:
+      - generic [ref=e253]: RS
+      - generic [ref=e254]:
+        - generic [ref=e255]: Ravi Sharma
+        - generic [ref=e256]: CloudNest Technologies · VP Engineering
+      - generic [ref=e257] [cursor=pointer]: ✕
+    - generic [ref=e258]:
+      - generic [ref=e259] [cursor=pointer]: Overview
+      - generic [ref=e260] [cursor=pointer]: Timeline
+      - generic [ref=e261] [cursor=pointer]: Reason Codes
+      - generic [ref=e262] [cursor=pointer]: Handoff
+    - generic [ref=e263]:
+      - generic [ref=e264]:
+        - generic [ref=e265]: Lead Details
+        - generic [ref=e266]:
+          - generic [ref=e267]: Email
+          - generic [ref=e268]: ravi@cloudnest.io
+        - generic [ref=e269]:
+          - generic [ref=e270]: Company
+          - generic [ref=e271]: CloudNest Technologies
+        - generic [ref=e272]:
+          - generic [ref=e273]: Title
+          - generic [ref=e274]: VP Engineering
+        - generic [ref=e275]:
+          - generic [ref=e276]: Stage
+          - generic [ref=e277]: Exception — Opted Out
+        - generic [ref=e278]:
+          - generic [ref=e279]: Source
+          - generic [ref=e280]: LinkedIn Campaign · Q3 2025
+      - generic [ref=e281]:
+        - generic [ref=e282]: "⚠ Exception: Opt-Out Conflict"
+        - generic [ref=e283]:
+          - text: System found an existing unsubscribe record for
+          - strong [ref=e284]: ravi@cloudnest.io
+          - text: dated October 14, 2025. The SaaS Outreach v2 template send was blocked before delivery to prevent compliance violation.
+          - strong [ref=e285]: "Required Action:"
+          - text: Acknowledge and archive this lead, or verify the opt-out record is erroneous before re-enabling contact.
+      - generic [ref=e286]:
+        - generic [ref=e287]: Activity Timeline
+        - generic [ref=e288]:
+          - generic [ref=e289]: 🚫
+          - generic [ref=e290]:
+            - generic [ref=e291]: Send Blocked — Opt-Out Detected
+            - generic [ref=e292]: "Today 9:47 AM · Rule: compliance-block-v1"
+        - generic [ref=e293]:
+          - generic [ref=e294]: ✉
+          - generic [ref=e295]:
+            - generic [ref=e296]: "SaaS Outreach v2 — Attempt #1 queued"
+            - generic [ref=e297]: Today 9:46 AM · Scheduled by Day 1 cadence
+        - generic [ref=e298]:
+          - generic [ref=e299]: 👤
+          - generic [ref=e300]:
+            - generic [ref=e301]: Lead created and added to sequence
+            - generic [ref=e302]: "Today 9:30 AM · Source: CSV import batch #47"
+        - generic [ref=e303]:
+          - generic [ref=e304]: 📋
+          - generic [ref=e305]:
+            - generic [ref=e306]: Opt-Out record logged (Oct 2025 campaign)
+            - generic [ref=e307]: Oct 14, 2025 · Self-unsubscribed via email link
+    - generic [ref=e308]:
+      - button "View Full History" [ref=e309] [cursor=pointer]
+      - button "Acknowledge & Archive" [ref=e310] [cursor=pointer]
+  - generic [ref=e311]:
+    - generic [ref=e312]: "Direction 3: Activity Feed First — Design Decisions"
+    - generic [ref=e313]:
+      - generic [ref=e314]:
+        - generic [ref=e315]: Layout Structure
+        - list [ref=e316]:
+          - listitem [ref=e317]: → 240px fixed sidebar — nav + brand identity
+          - listitem [ref=e318]: → Fluid center feed — max-width 1280px, responsive
+          - listitem [ref=e319]: → 280px right rail — filters + summary stats always visible
+          - listitem [ref=e320]: → 360px slide-out panel — lead detail on demand
+          - listitem [ref=e321]: → 56px top bar — page context + primary actions
+      - generic [ref=e322]:
+        - generic [ref=e323]: Transparency Mechanism
+        - list [ref=e324]:
+          - listitem [ref=e325]: → Every card shows full [Action] → [Reason] → [Template] chain
+          - listitem [ref=e326]: "→ Color-coded reason codes: trust-blue / amber / red / green"
+          - listitem [ref=e327]: → Left border color signals card severity at a glance
+          - listitem [ref=e328]: → Exception badge inline on lead name — no separate exceptions page needed for most cases
+          - listitem [ref=e329]: → "12 leads processed today — 1 exception" summary strip pattern
+      - generic [ref=e330]:
+        - generic [ref=e331]: Interaction Patterns
+        - list [ref=e332]:
+          - listitem [ref=e333]: → Card click → 360px slide-out (no page navigation)
+          - listitem [ref=e334]: → Lead name is primary tap target on mobile
+          - listitem [ref=e335]: → Inline action buttons per card for high-frequency operations
+          - listitem [ref=e336]: → Bulk operations in right rail quick actions
+          - listitem [ref=e337]: "→ Tabs in panel: Overview / Timeline / Reason Codes / Handoff"
+      - generic [ref=e338]:
+        - generic [ref=e339]: Brand & Visual
+        - list [ref=e340]:
+          - listitem [ref=e341]: "→ Primary: #1D4ED8 (brand-700) — trust, authority"
+          - listitem [ref=e342]: "→ Sidebar: #1E3A8A (brand-900) — strong identity anchor"
+          - listitem [ref=e343]: "→ Error/Exception: #EF4444 — unmissable red for compliance"
+          - listitem [ref=e344]: "→ Typeface: Inter — clean, professional, readable at small sizes"
+          - listitem [ref=e345]: → 8px base spacing unit — consistent vertical rhythm
+      - generic [ref=e346]:
+        - generic [ref=e347]: Mobile Strategy
+        - list [ref=e348]:
+          - listitem [ref=e349]: → Top nav (brand bar) replaces sidebar
+          - listitem [ref=e350]: → Summary strip below top nav — always visible 4-stat strip
+          - listitem [ref=e351]: → Stacked feed cards fill remaining viewport
+          - listitem [ref=e352]: "→ Bottom tab nav: Feed / Leads / Calls / Templates / Settings"
+          - listitem [ref=e353]: → Right rail collapses — filter accessible via filter icon in top bar
+      - generic [ref=e354]:
+        - generic [ref=e355]: "Design System: Chakra UI"
+        - list [ref=e356]:
+          - listitem [ref=e357]: → Custom theme extending ChakraProvider with brand tokens
+          - listitem [ref=e358]: → FeedCard → custom component wrapping Chakra Box + Stack
+          - listitem [ref=e359]: → ExplanationChain → Badge + HStack pattern
+          - listitem [ref=e360]: → SlidePanel → Chakra Drawer (right placement)
+          - listitem [ref=e361]: → ReasonBlock → Alert component with custom color scheme

@@ -1,0 +1,26 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "EngageHub Screen 5.5" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Journey 5 - Feedback Action Panel
+    - link "Back to Home" [ref=e6] [cursor=pointer]:
+      - /url: index.html
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Screen 5.5
+        - generic [ref=e11]: Feedback Action Panel
+      - generic [ref=e12]:
+        - text: Action panel that links feedback into template rule improvements.
+        - generic [ref=e13]:
+          - generic [ref=e14]: Improve TemplateEdit Rule
+          - generic [ref=e15]:
+            - generic [ref=e16]: Add transcript context
+            - generic [ref=e17]: Suggested by SE feedback
+    - generic [ref=e18]:
+      - 'link "Previous: 5.4" [ref=e19] [cursor=pointer]':
+        - /url: screen-5-4-admin-feedback-notification.html
+      - link "Home" [ref=e20] [cursor=pointer]:
+        - /url: index.html
+      - 'link "Next: 5.6" [ref=e21] [cursor=pointer]':
+        - /url: screen-5-6-30-day-outcome-report.html

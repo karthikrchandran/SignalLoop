@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install backend dependencies
+        run: uv sync --package app --directory apps/api
+      - name: Ruff
+        run: uv run --package app --directory apps/api ruff check app
+      - name: Mypy
+        run: uv run --package app --directory apps/api mypy app
+      - name: Pytest
+        run: uv run --package app --directory apps/api pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Install frontend dependencies
+        run: bun install
+      - name: Lint frontend
+        run: bun run --filter frontend lint
+      - name: Build frontend
+        run: bun run --filter frontend build

@@ -1,0 +1,55 @@
+<mxfile host="app.diagrams.net" modified="2026-04-02T00:00:00.000Z" agent="5.0 (Windows)" version="24.7.8" type="device">
+  <diagram id="system-context" name="System Context">
+    <mxGraphModel dx="1280" dy="720" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="operator" value="Operator / Lead / Admin" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1D4ED8;fillColor=#EFF6FF;fontColor=#1E3A8A;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="60" y="170" width="190" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="web" value="Web App&#xa;apps/web" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1D4ED8;fillColor=#DBEAFE;fontColor=#1E3A8A;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="320" y="170" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="api" value="FastAPI API&#xa;apps/api" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1E3A8A;fillColor=#BFDBFE;fontColor=#1E3A8A;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="550" y="170" width="170" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pg" value="PostgreSQL" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#334155;fillColor=#F3F4F6;fontColor=#1F2937;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="810" y="80" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="mongo" value="MongoDB" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#334155;fillColor=#F3F4F6;fontColor=#1F2937;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="810" y="155" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="redis" value="Redis" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#334155;fillColor=#F3F4F6;fontColor=#1F2937;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="810" y="230" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="worker" value="Worker Scaffold&#xa;apps/workers" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1D4ED8;fillColor=#EFF6FF;fontColor=#1E3A8A;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="550" y="300" width="170" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="providers" value="Email / Voice / Scheduling Providers" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#64748B;fillColor=#FFFFFF;fontColor=#1F2937;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="810" y="320" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="" style="endArrow=block;endFill=1;strokeColor=#1D4ED8;strokeWidth=2;" edge="1" parent="1" source="operator" target="web">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="" style="endArrow=block;endFill=1;strokeColor=#1D4ED8;strokeWidth=2;" edge="1" parent="1" source="web" target="api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="" style="endArrow=block;endFill=1;strokeColor=#334155;" edge="1" parent="1" source="api" target="pg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="" style="endArrow=block;endFill=1;strokeColor=#334155;" edge="1" parent="1" source="api" target="mongo">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="" style="endArrow=block;endFill=1;strokeColor=#334155;" edge="1" parent="1" source="api" target="redis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="" style="endArrow=block;endFill=1;strokeColor=#1D4ED8;" edge="1" parent="1" source="api" target="worker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="" style="endArrow=block;endFill=1;strokeColor=#334155;" edge="1" parent="1" source="worker" target="providers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

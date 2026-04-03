@@ -1,0 +1,22 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "EngageHub Screen 5.6" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Journey 5 - 30-Day Outcome Report
+    - link "Back to Home" [ref=e6] [cursor=pointer]:
+      - /url: index.html
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Screen 5.6
+        - generic [ref=e11]: 30-Day Outcome Report
+      - generic [ref=e12]:
+        - text: Template insight dashboard showing improvement lift and confidence metrics.
+        - generic [ref=e13]:
+          - generic [ref=e14]: Template Insights30-Day View
+          - generic [ref=e16]: +3 demos booked87% confidence
+    - generic [ref=e17]:
+      - 'link "Previous: 5.5" [ref=e18] [cursor=pointer]':
+        - /url: screen-5-5-feedback-action-panel.html
+      - link "Home" [ref=e19] [cursor=pointer]:
+        - /url: index.html

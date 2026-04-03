@@ -1,0 +1,24 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "EngageHub Screen 1.1" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Journey 1 - Template Library
+    - link "Back to Home" [ref=e6] [cursor=pointer]:
+      - /url: index.html
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Screen 1.1
+        - generic [ref=e11]: Template Library
+      - generic [ref=e12]:
+        - text: Template catalog with match-count cards and deploy actions.
+        - generic [ref=e13]:
+          - generic [ref=e14]: Templates+ New Template
+          - generic [ref=e15]:
+            - generic [ref=e16]: Cold Outreach v247 Matched
+            - generic [ref=e17]: SE Handoff Flow12 Matched
+    - generic [ref=e18]:
+      - link "Home" [ref=e19] [cursor=pointer]:
+        - /url: index.html
+      - 'link "Next: 1.2" [ref=e20] [cursor=pointer]':
+        - /url: screen-1-2-template-editor.html

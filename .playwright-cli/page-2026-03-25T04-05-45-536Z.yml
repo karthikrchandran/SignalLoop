@@ -1,0 +1,24 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "EngageHub Screen 4.1" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Journey 4 - Error Card in Feed
+    - link "Back to Home" [ref=e6] [cursor=pointer]:
+      - /url: index.html
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Screen 4.1
+        - generic [ref=e11]: Error Card in Feed
+      - generic [ref=e12]:
+        - text: High-visibility error card with impact count and review entrypoint.
+        - generic [ref=e13]:
+          - generic [ref=e14]: Error47 leads affected
+          - generic [ref=e16]: Duplicate email detected
+    - generic [ref=e17]:
+      - 'link "Previous: 3.4" [ref=e18] [cursor=pointer]':
+        - /url: screen-3-4-lead-detail-handoff.html
+      - link "Home" [ref=e19] [cursor=pointer]:
+        - /url: index.html
+      - 'link "Next: 4.2" [ref=e20] [cursor=pointer]':
+        - /url: screen-4-2-error-detail-panel.html

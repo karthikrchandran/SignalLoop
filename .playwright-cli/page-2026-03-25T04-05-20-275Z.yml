@@ -1,0 +1,26 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "EngageHub Screen 1.2" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Journey 1 - Template Editor
+    - link "Back to Home" [ref=e6] [cursor=pointer]:
+      - /url: index.html
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Screen 1.2
+        - generic [ref=e11]: Template Editor
+      - generic [ref=e12]:
+        - text: Sequence editor with conditional branch logic and preview panel.
+        - generic [ref=e13]:
+          - generic [ref=e14]: Email Sequence BuilderSave + Preview
+          - generic [ref=e15]:
+            - generic [ref=e16]: Email 1Email 2Email 3
+            - generic [ref=e17]: "Condition: No reply in 48h"
+    - generic [ref=e18]:
+      - 'link "Previous: 1.1" [ref=e19] [cursor=pointer]':
+        - /url: screen-1-1-template-library.html
+      - link "Home" [ref=e20] [cursor=pointer]:
+        - /url: index.html
+      - 'link "Next: 1.3" [ref=e21] [cursor=pointer]':
+        - /url: screen-1-3-async-template-scan.html

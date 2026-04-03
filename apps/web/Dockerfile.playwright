@@ -1,0 +1,21 @@
+FROM mcr.microsoft.com/playwright:v1.58.2-noble
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:$PATH"
+
+COPY package.json bun.lock /app/
+
+COPY apps/web/package.json /app/apps/web/
+
+WORKDIR /app/apps/web
+
+RUN bun install
+
+COPY ./apps/web /app/apps/web
+
+ARG VITE_API_URL

@@ -1,0 +1,26 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "EngageHub Screen 5.3" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Journey 5 - SE Feedback Modal
+    - link "Back to Home" [ref=e6] [cursor=pointer]:
+      - /url: index.html
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Screen 5.3
+        - generic [ref=e11]: SE Feedback Modal
+      - generic [ref=e12]:
+        - text: Feedback collection modal with rating, notes, and submission action.
+        - generic [ref=e13]:
+          - generic [ref=e14]: FeedbackSubmit
+          - generic [ref=e15]:
+            - generic [ref=e16]: "Rating: 1-5 stars"
+            - generic [ref=e17]: What was missing?
+    - generic [ref=e18]:
+      - 'link "Previous: 5.2" [ref=e19] [cursor=pointer]':
+        - /url: screen-5-2-se-notification-mock.html
+      - link "Home" [ref=e20] [cursor=pointer]:
+        - /url: index.html
+      - 'link "Next: 5.4" [ref=e21] [cursor=pointer]':
+        - /url: screen-5-4-admin-feedback-notification.html

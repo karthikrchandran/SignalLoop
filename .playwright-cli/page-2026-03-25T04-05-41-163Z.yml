@@ -1,0 +1,24 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "EngageHub Screen 3.3" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Journey 3 - Lead Detail - Reason Codes
+    - link "Back to Home" [ref=e6] [cursor=pointer]:
+      - /url: index.html
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Screen 3.3
+        - generic [ref=e11]: Lead Detail - Reason Codes
+      - generic [ref=e12]:
+        - text: Reason-code table with applied date, descriptions, and expansion rows.
+        - generic [ref=e13]:
+          - generic [ref=e14]: Reason Codes3 Applied
+          - generic [ref=e16]: Template MatchedNo ReplyPositive Signal
+    - generic [ref=e17]:
+      - 'link "Previous: 3.2" [ref=e18] [cursor=pointer]':
+        - /url: screen-3-2-lead-detail-timeline.html
+      - link "Home" [ref=e19] [cursor=pointer]:
+        - /url: index.html
+      - 'link "Next: 3.4" [ref=e20] [cursor=pointer]':
+        - /url: screen-3-4-lead-detail-handoff.html

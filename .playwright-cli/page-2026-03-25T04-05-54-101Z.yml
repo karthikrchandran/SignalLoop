@@ -1,0 +1,24 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "EngageHub Screen 5.1" [level=1] [ref=e4]
+      - paragraph [ref=e5]: Journey 5 - SE Handoff Panel
+    - link "Back to Home" [ref=e6] [cursor=pointer]:
+      - /url: index.html
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Screen 5.1
+        - generic [ref=e11]: SE Handoff Panel
+      - generic [ref=e12]:
+        - text: Lead handoff context builder with summary, objections, and send action.
+        - generic [ref=e13]:
+          - generic [ref=e14]: SE HandoffSend to SE
+          - generic [ref=e16]: Key objections + transcript
+    - generic [ref=e17]:
+      - 'link "Previous: 4.4" [ref=e18] [cursor=pointer]':
+        - /url: screen-4-4-audit-trail-entry.html
+      - link "Home" [ref=e19] [cursor=pointer]:
+        - /url: index.html
+      - 'link "Next: 5.2" [ref=e20] [cursor=pointer]':
+        - /url: screen-5-2-se-notification-mock.html
