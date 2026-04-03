@@ -4,6 +4,8 @@ from fastapi import Depends, HTTPException, status
 
 from app.api.deps import CurrentUser
 
+_AUTH_ERROR = {"error": {"code": "AUTH_ERROR", "semantic": "AUTH_ERROR"}}
+
 
 def require_role(role: str = "admin"):
     """Simple role check — MVP has only admin users."""
@@ -15,7 +17,7 @@ def require_role(role: str = "admin"):
             return current_user
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
+            detail=_AUTH_ERROR,
         )
 
     return dependency
@@ -28,7 +30,7 @@ def require_permission(resource: str, action: str):
             if not getattr(current_user, "role", None):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Insufficient permissions",
+                    detail=_AUTH_ERROR,
                 )
         return current_user
     return dependency

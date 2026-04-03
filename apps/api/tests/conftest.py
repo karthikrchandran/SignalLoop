@@ -6,10 +6,19 @@ from sqlmodel import SQLModel, Session, delete
 
 from app.core.config import settings
 from app.core.db import engine, init_db
+from app.core.rate_limit import limiter
 from app.main import app
 from app.models import User
 from tests.utils.user import authentication_token_from_email
 from tests.utils.utils import get_superuser_token_headers
+
+
+@pytest.fixture(scope="session", autouse=True)
+def disable_rate_limiting():
+    """Disable slowapi rate limiting for all tests so token fixtures don't hit 429."""
+    limiter.enabled = False
+    yield
+    limiter.enabled = True
 
 
 @pytest.fixture(scope="session", autouse=True)
