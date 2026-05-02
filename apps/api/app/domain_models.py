@@ -339,9 +339,11 @@ class ActionQueue(SQLModel, table=True):
     payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     status: str = Field(default="pending", max_length=32, index=True)
     retry_count: int = Field(default=0)
+    failure_reason: str | None = Field(default=None, sa_type=Text)
     next_retry_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True), index=True)
     created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
     executed_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    dead_lettered_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
 
 
 class ProviderCredential(SQLModel, table=True):
@@ -373,6 +375,89 @@ class ProviderEventLog(SQLModel, table=True):
     raw_payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     normalized_event: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     received_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+
+
+# ---------------------------------------------------------------------------
+# Epic 5 — Contact Timeline & Explainability
+# ---------------------------------------------------------------------------
+
+
+class ContactEvent(SQLModel, table=True):
+    """Immutable event store for all contact lifecycle events within a campaign."""
+
+    __tablename__ = "contact_events"
+    __table_args__ = (
+        Index("idx_ce_contact_campaign", "contact_id", "campaign_id"),
+        Index("idx_ce_workspace_type", "workspace_id", "event_type"),
+        Index("idx_ce_created_at", "created_at"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
+    campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
+    workspace_id: str = Field(sa_type=String(64), index=True)
+    event_type: str = Field(max_length=128)
+    channel: str | None = Field(default=None, max_length=32)
+    actor: str | None = Field(default=None, max_length=128)
+    outcome: str | None = Field(default=None, max_length=128)
+    reason_code: str | None = Field(default=None, max_length=255)
+    rule_ref: str | None = Field(default=None, max_length=255)
+    template_ref: str | None = Field(default=None, max_length=255)
+    confidence_tier: str | None = Field(default=None, max_length=32)
+    event_metadata: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON, name="metadata"))
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+
+
+class RoutingDecision(SQLModel, table=True):
+    """Stores automated routing/sequencing decisions for explainability."""
+
+    __tablename__ = "routing_decisions"
+    __table_args__ = (
+        Index("idx_rd_contact_campaign", "contact_id", "campaign_id"),
+        Index("idx_rd_workspace", "workspace_id"),
+        Index("idx_rd_created_at", "created_at"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
+    campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
+    workspace_id: str = Field(sa_type=String(64), index=True)
+    decision_type: str = Field(max_length=128)
+    outcome: str | None = Field(default=None, max_length=128)
+    reason_code: str | None = Field(default=None, max_length=255)
+    rule_name: str | None = Field(default=None, max_length=255)
+    rule_condition: str | None = Field(default=None, sa_type=Text)
+    signal_summary: str | None = Field(default=None, sa_type=Text)
+    confidence_tier: str | None = Field(default=None, max_length=32)
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+
+
+# ---------------------------------------------------------------------------
+# Epic 5 Story 4 — KPI Daily Snapshots (materialized aggregation table)
+# ---------------------------------------------------------------------------
+
+
+class KpiDailySnapshot(SQLModel, table=True):
+    """Materialized daily KPI aggregation — populated by the nightly snapshot job."""
+
+    __tablename__ = "kpi_daily_snapshots"
+    __table_args__ = (
+        Index("idx_kpi_snapshots_workspace_date", "workspace_id", "date"),
+        Index("idx_kpi_snapshots_workspace_campaign_date", "workspace_id", "campaign_id", "date"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    date: datetime = Field(sa_type=DateTime(timezone=False))  # DATE stored as datetime at midnight UTC
+    workspace_id: str = Field(sa_type=String(64), index=True)
+    campaign_id: uuid.UUID | None = Field(default=None, foreign_key="campaigns.id", index=True)
+    contacts_processed: int = Field(default=0)
+    intent_signals: int = Field(default=0)
+    qualified_contacts: int = Field(default=0)
+    bookings_confirmed: int = Field(default=0)
+    provider_errors: int = Field(default=0)
+    booking_sla_met: int = Field(default=0)
+    booking_sla_breached: int = Field(default=0)
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
 
 
 class ImportRowError(SQLModel):
@@ -604,5 +689,129 @@ class ControlStatePublic(SQLModel):
     actor_role: str
     action_at: datetime
 
+
+# ---------------------------------------------------------------------------
+# Epic 5 — Contact Timeline public schemas
+# ---------------------------------------------------------------------------
+
+
+class TimelineEventPublic(SQLModel):
+    """Unified timeline entry returned by the aggregation API."""
+
+    id: str  # prefixed: "csh_<uuid>", "ce_<uuid>", "rd_<uuid>"
+    source_system: str  # "contact_state_history" | "contact_events" | "routing_decisions"
+    event_type: str
+    channel: str | None = None
+    timestamp: datetime
+    actor: str | None = None
+    outcome: str | None = None
+    reason_code: str | None = None
+    rule_ref: str | None = None
+    template_ref: str | None = None
+    confidence_tier: str | None = None
+    has_detail: bool = False
+
+
+class TimelineEventDetailPublic(TimelineEventPublic):
+    """Extended timeline entry with explainability fields."""
+
+    rule_name: str | None = None
+    rule_condition: str | None = None
+    signal_summary: str | None = None
+    transcript_excerpt: str | None = None
+
+
+class TimelinePagePublic(SQLModel):
+    data: list[TimelineEventPublic]
+    count: int
+    next_cursor: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Story 5.2 — Audit trail public schemas
+# ---------------------------------------------------------------------------
+
+
+class AuditEventPublic(SQLModel):
+    id: uuid.UUID
+    event_name: str
+    workspace_id: str
+    actor_id: uuid.UUID | None = None
+    actor_role: str | None = None
+    resource_type: str | None = None
+    resource_id: str | None = None
+    correlation_id: str | None = None
+    payload: dict[str, Any] = {}
+    created_at: datetime
+
+
+class AuditEventsPage(SQLModel):
+    total: int
+    page: int
+    limit: int
+    items: list[AuditEventPublic]
+
+
+class AuditExportJobStatus(SQLModel):
+    job_id: str
+    status: str  # "pending" | "complete" | "failed"
+
+
+# ---------------------------------------------------------------------------
+# Story 5.3 — Campaign health & dead-letter visibility
+# ---------------------------------------------------------------------------
+
+
+class DeadLetterEvent(SQLModel, table=True):
+    """Immutable event log for dead-letter lifecycle (written synchronously for NFR8 SLA)."""
+
+    __tablename__ = "dead_letter_events"
+    __table_args__ = (
+        Index("idx_dle_campaign_id", "campaign_id"),
+        Index("idx_dle_action_queue_id", "action_queue_id"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    action_queue_id: uuid.UUID = Field(foreign_key="action_queue.id", index=True)
+    campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
+    contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
+    workspace_id: str = Field(sa_type=String(64), index=True)
+    action_type: str = Field(max_length=64)
+    failure_reason: str | None = Field(default=None, sa_type=Text)
+    event_type: str = Field(default="dead_lettered", max_length=32)  # dead_lettered|retried|dismissed
+    operator_id: uuid.UUID | None = Field(default=None)
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+
+
+# --- Public schemas ---
+
+
+class DeadLetterItemPublic(SQLModel):
+    """Single dead-letter queue entry returned by the API."""
+
+    id: uuid.UUID
+    contact_id: uuid.UUID
+    action_type: str
+    failure_reason: str | None
+    retry_count: int
+    first_failed_at: datetime
+    retry_eligible: bool
+
+
+class DeadLetterListPublic(SQLModel):
+    data: list[DeadLetterItemPublic]
+    count: int
+    page: int
+
+
+class CampaignHealthPublic(SQLModel):
+    """Live campaign health snapshot (Redis-cached, TTL 30 s)."""
+
+    active_count: int
+    success_count_1h: int
+    success_count_24h: int
+    failure_count_24h: int
+    dead_letter_count: int
+    provider_errors_by_type: dict[str, int]
 
 

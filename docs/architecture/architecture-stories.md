@@ -11,7 +11,7 @@ This document explains the architecture as a set of stories. Each story ties bus
 
 ## Story 1: The API is the operational control plane
 
-The FastAPI application in `apps/api` is the center of gravity for the product. It accepts operator intent, validates tenant and request context, enforces RBAC, persists state to PostgreSQL, and writes audit records to MongoDB.
+The FastAPI application in `apps/api` is the center of gravity for the product. It accepts operator intent, validates tenant and request context, enforces RBAC, and persists state to PostgreSQL — both the mutable business tables and the append-only `audit_events` table.
 
 That pattern is visible across the main feature routes:
 
@@ -51,15 +51,15 @@ The SQLModel layer shows a clear operational data model:
 
 The overall shape is practical: relational storage handles ownership, scoping, versioning, uniqueness, and queryable operational state very well.
 
-## Story 4: MongoDB is the system memory
+## Story 4: PostgreSQL is the system memory
 
-MongoDB is used for append-friendly event and audit records:
+Audit and lifecycle history live in PostgreSQL alongside the operational tables:
 
-- `audit_events` receives activity emitted by API routes such as campaign creation, policy creation, and approval actions.
-- `event_store` is documented as the contact lifecycle event log.
-- `contact_timeline` is documented as a denormalized read model for contact activity history.
+- `audit_events` (JSONB payload) receives activity emitted by API routes such as campaign creation, policy creation, sequence transitions, and approval actions via `append_audit_event(...)` in `apps/api/app/domain/audit/audit_events.py`.
+- `contact_state_history` records contact lifecycle transitions for delivery progression.
+- `provider_event_logs` normalizes inbound webhook activity from external providers.
 
-This is a good fit for high-cardinality payloads, evolving event shapes, and timeline-style reads that should not distort the relational model.
+Keeping the audit trail in Postgres lets it participate in the same transactions and backups as the operational data, while the JSONB payload column keeps the event shape flexible for high-cardinality activity.
 
 ## Story 5: The worker is a deliberate next step, not a vague future wish
 
@@ -125,8 +125,7 @@ flowchart TB
     end
 
     subgraph Data["Data Layer"]
-        Postgres["PostgreSQL"]
-        Mongo["MongoDB"]
+        Postgres["PostgreSQL\n(operational + audit_events)"]
         Redis["Redis"]
     end
 
@@ -150,12 +149,12 @@ flowchart TB
     Templates --> Postgres
     Policies --> Postgres
     Controls --> Postgres
-    Audit --> Mongo
+    Audit --> Postgres
     Postgres --> Outbox
     Outbox --> Worker
     Queue --> Worker
     Worker --> Providers
-    Worker --> Mongo
+    Worker --> Postgres
     Worker --> Redis
 ```
 

@@ -1,6 +1,13 @@
 import { existsSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig, devices } from '@playwright/test';
-import 'dotenv/config'
+import dotenv from 'dotenv'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+dotenv.config({ path: path.join(__dirname, '../../.env') })
 
 /**
  * Read environment variables from file.

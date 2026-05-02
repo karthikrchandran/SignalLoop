@@ -7,25 +7,27 @@ from typing import Any
 import httpx
 
 from app.core.config import settings
+from app.infrastructure.providers.errors import require_provider_key
 
 logger = logging.getLogger(__name__)
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_TIMEOUT = httpx.Timeout(0.8, connect=0.25, read=0.6, write=0.25, pool=0.25)
 
 
 class GroqLLMAdapter:
     """Chat completion via Groq API (Llama 3.1 8B Instant)."""
 
     def __init__(self) -> None:
-        self._api_key = settings.GROQ_API_KEY
+        self._api_key = require_provider_key(settings.GROQ_API_KEY, "GROQ_API_KEY")
 
     async def chat_completion(
         self,
         *,
         system_prompt: str,
         messages: list[dict[str, str]],
-        max_tokens: int = 150,
-        temperature: float = 0.7,
+        max_tokens: int = 80,
+        temperature: float = 0.4,
     ) -> str:
         """Send messages to Groq and return the assistant response text."""
         headers = {
@@ -41,12 +43,19 @@ class GroqLLMAdapter:
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(GROQ_API_URL, headers=headers, json=payload)
-            if resp.status_code == 200:
-                data = resp.json()
-                choices = data.get("choices", [])
-                if choices:
-                    return choices[0].get("message", {}).get("content", "")
-            logger.error("Groq LLM error: %d %s", resp.status_code, resp.text)
-            return ""
+        try:
+            async with httpx.AsyncClient(timeout=GROQ_TIMEOUT) as client:
+                resp = await client.post(GROQ_API_URL, headers=headers, json=payload)
+                if resp.status_code == 200:
+                    try:
+                        data = resp.json()
+                    except ValueError:
+                        logger.error("Groq LLM returned invalid JSON")
+                        return ""
+                    choices = data.get("choices", [])
+                    if choices:
+                        return choices[0].get("message", {}).get("content", "")
+                logger.error("Groq LLM error: status=%d", resp.status_code)
+        except httpx.HTTPError:
+            logger.exception("Groq LLM request failed")
+        return ""

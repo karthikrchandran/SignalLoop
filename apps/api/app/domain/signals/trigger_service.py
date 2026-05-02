@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import Session
 
 from app.core.config import settings
-from app.domain.audit.mongo_audit import append_audit_event
+from app.domain.audit.audit_events import append_audit_event
 from app.domain.signals.models import SignalEvent
 from app.domain.signals.scheduling import SchedulingRequest
 from app.domain.voice.models import CallRequest, CallRequestStatus

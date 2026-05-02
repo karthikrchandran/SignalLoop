@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -8,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Request
 from sqlmodel import Session, select
 
 from app.api.deps import SessionDep
+from app.domain.audit.audit_events import append_audit_event
 from app.domain.sequences.models import (
     ContactSequenceState,
     EmailEvent,
@@ -163,7 +165,7 @@ def _emit_signal(
     session.add(signal)
 
 
-def _add_suppression(session: Session, email: str, reason: str) -> None:
+def _add_suppression(session: Session, email: str, reason: str, workspace_id: str = "system") -> None:
     existing = session.exec(
         select(EmailSuppression).where(
             EmailSuppression.email == email,
@@ -172,3 +174,12 @@ def _add_suppression(session: Session, email: str, reason: str) -> None:
     ).first()
     if not existing:
         session.add(EmailSuppression(email=email, reason=reason))
+        asyncio.create_task(
+            append_audit_event(
+                event_name="suppression_added",
+                workspace_id=workspace_id,
+                resource_type="email",
+                resource_id=email,
+                payload={"email": email, "reason": reason},
+            )
+        )

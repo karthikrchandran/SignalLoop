@@ -5,6 +5,8 @@ from uuid import uuid4
 
 from fastapi import Depends, Header, HTTPException, status
 
+from app.api.deps import AdminUser
+
 
 def semantic_error(code: str, message: str, semantic: str, details: dict | None = None):
     correlation_id = str(uuid4())
@@ -22,7 +24,10 @@ def semantic_error(code: str, message: str, semantic: str, details: dict | None 
     )
 
 
-def require_workspace_id(x_workspace_id: str | None = Header(default=None, alias="X-Workspace-Id")) -> str:
+def require_workspace_id(
+    _admin_user: AdminUser,
+    x_workspace_id: str | None = Header(default=None, alias="X-Workspace-Id"),
+) -> str:
     if not x_workspace_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

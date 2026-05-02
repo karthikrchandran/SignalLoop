@@ -9,16 +9,14 @@ date: 2026-04-02
 
 EngageHub uses a polyglot persistence model:
 
-- PostgreSQL stores mutable business state and transactional relationships.
-- MongoDB stores append-oriented audit and event history.
+- PostgreSQL stores mutable business state, transactional relationships, and append-oriented audit history (the `audit_events` table with a JSONB payload column).
 - Redis is reserved for coordination, rate limiting, and short-lived operational state.
 
 ## Data Ownership
 
 | Store | Responsibility | Examples |
 | --- | --- | --- |
-| PostgreSQL | Source of truth for operational records | campaigns, templates, approvals, policies, contact progression, action queue |
-| MongoDB | Audit log and event history | `audit_events`, `event_store`, `contact_timeline` |
+| PostgreSQL | Source of truth for operational records and audit history | campaigns, templates, approvals, policies, contact progression, action queue, `audit_events` |
 | Redis | Ephemeral coordination | rate limiting, pause state fan-out, future worker coordination |
 
 ## Core PostgreSQL Domains
@@ -233,13 +231,13 @@ erDiagram
     }
 ```
 
-## MongoDB Collections
+## Audit Event Storage
 
-### `audit_events`
+### `audit_events` (PostgreSQL)
 
-This collection is written directly by API routes through `append_audit_event(...)`. It captures actor-driven business actions such as campaign creation, policy creation, and approval state changes.
+This table is written directly by API routes through `append_audit_event(...)` (defined in `apps/api/app/domain/audit/audit_events.py`). It captures actor-driven business actions such as campaign creation, policy creation, sequence transitions, and approval state changes. The payload is stored in a JSONB column to keep the shape flexible while preserving relational query and indexing capabilities.
 
-Suggested mental shape:
+Suggested mental shape of a row:
 
 ```json
 {
@@ -255,13 +253,7 @@ Suggested mental shape:
 }
 ```
 
-### `event_store`
-
-This collection is intended as the lifecycle event log for contacts. It stores append-only contact progression or action events with correlation metadata.
-
-### `contact_timeline`
-
-This collection is a denormalized read model for timeline-style queries. It is optimized for fast reads rather than normalized writes.
+Indexes are maintained on `event_name`, `workspace_id`, and `created_at` for the common audit-trail query patterns. Contact lifecycle event history and timeline read models are tracked in the relational tables under the delivery pipeline domain (`contact_state_history`, `provider_event_logs`) rather than in a separate document store.
 
 ## State Model
 

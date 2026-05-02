@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import SQLModel
+from sqlmodel import Session, SQLModel
 
 from app.core.config import settings
 from app.core.db import engine
+from app.domain_models import Campaign
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -32,137 +32,99 @@ def _workspace(label: str) -> str:
     return f"ws-{label}-{uuid4().hex[:8]}"
 
 
-def test_daily_caps_policy_blocks_excess_actions(
+def test_policy_routes_removed(
     client: TestClient,
     superuser_token_headers: dict[str, str],
 ) -> None:
-    workspace_id = _workspace("story-1-4-caps")
-    create_policy_response = client.post(
+    workspace_id = _workspace("story-1-2-policies")
+
+    list_response = client.get(
         f"{settings.API_V1_STR}/policies/",
-        headers=_headers(superuser_token_headers, workspace_id=workspace_id, idempotency=True),
-        json={
-            "scope": "workspace",
-            "policy_type": "daily_caps",
-            "payload_json": {"campaignDailyCap": 1, "systemDailyCap": 5},
-        },
+        headers=_headers(superuser_token_headers, workspace_id=workspace_id),
     )
-    assert create_policy_response.status_code == 200
+    assert list_response.status_code == 404
 
     evaluate_response = client.post(
         f"{settings.API_V1_STR}/policies/evaluate",
         headers=_headers(superuser_token_headers, workspace_id=workspace_id),
-        json={
-            "contact": {"timezone": "UTC", "suppressed": False},
-            "campaign_daily_count": 1,
-            "system_daily_count": 0,
-        },
+        json={},
     )
-    assert evaluate_response.status_code == 200
-    payload = evaluate_response.json()
-    assert payload["allowed"] is False
-    assert payload["reason_code"] == "CAMPAIGN_CAP_EXCEEDED"
-    assert payload["semantic_error"] == "POLICY_VIOLATION"
+    assert evaluate_response.status_code == 404
 
 
-def test_quiet_hours_policy_defers_next_eligible_time(
+def test_admin_can_read_workspace_scoped_routes(
     client: TestClient,
     superuser_token_headers: dict[str, str],
 ) -> None:
-    workspace_id = _workspace("story-1-4-quiet")
-    create_policy_response = client.post(
-        f"{settings.API_V1_STR}/policies/",
-        headers=_headers(superuser_token_headers, workspace_id=workspace_id, idempotency=True),
-        json={
-            "scope": "workspace",
-            "policy_type": "quiet_hours",
-            "payload_json": {"start": "21:00", "end": "08:00", "timezone": "UTC"},
-        },
-    )
-    assert create_policy_response.status_code == 200
+    workspace_id = _workspace("story-1-2-admin")
 
-    evaluate_response = client.post(
-        f"{settings.API_V1_STR}/policies/evaluate",
+    response = client.get(
+        f"{settings.API_V1_STR}/campaigns/",
         headers=_headers(superuser_token_headers, workspace_id=workspace_id),
-        json={
-            "contact": {"timezone": "UTC", "suppressed": False},
-            "campaign_daily_count": 0,
-            "system_daily_count": 0,
-            "requested_at": datetime(2026, 4, 1, 22, 30, tzinfo=UTC).isoformat(),
-        },
     )
-    assert evaluate_response.status_code == 200
-    payload = evaluate_response.json()
-    assert payload["allowed"] is False
-    assert payload["reason_code"] == "QUIET_HOURS_BLOCK"
-    assert payload["next_eligible_at"] is not None
+    assert response.status_code == 200
 
 
-def test_suppression_policy_skips_suppressed_contact(
+def test_operator_denied_former_public_and_operator_routes(
     client: TestClient,
-    superuser_token_headers: dict[str, str],
+    normal_user_token_headers: dict[str, str],
 ) -> None:
-    workspace_id = _workspace("story-1-4-suppression")
-    create_policy_response = client.post(
-        f"{settings.API_V1_STR}/policies/",
-        headers=_headers(superuser_token_headers, workspace_id=workspace_id, idempotency=True),
-        json={
-            "scope": "workspace",
-            "policy_type": "suppression",
-            "payload_json": {},
-        },
+    workspace_id = _workspace("story-1-2-operator")
+    workspace_headers = _headers(normal_user_token_headers, workspace_id=workspace_id)
+
+    protected_gets = [
+        f"{settings.API_V1_STR}/campaigns/",
+        f"{settings.API_V1_STR}/calls/",
+        f"{settings.API_V1_STR}/scripts/",
+        f"{settings.API_V1_STR}/sequences/",
+        f"{settings.API_V1_STR}/dashboard/daily-cap-status",
+        f"{settings.API_V1_STR}/signals/contacts/{uuid4()}",
+    ]
+    for path in protected_gets:
+        response = client.get(path, headers=workspace_headers)
+        assert response.status_code == 403
+
+    trigger_response = client.get(
+        f"{settings.API_V1_STR}/triggers/",
+        headers=normal_user_token_headers,
     )
-    assert create_policy_response.status_code == 200
+    assert trigger_response.status_code == 403
 
-    evaluate_response = client.post(
-        f"{settings.API_V1_STR}/policies/evaluate",
-        headers=_headers(superuser_token_headers, workspace_id=workspace_id),
-        json={
-            "contact": {"timezone": "UTC", "suppressed": True},
-            "campaign_daily_count": 0,
-            "system_daily_count": 0,
-        },
+    create_campaign_response = client.post(
+        f"{settings.API_V1_STR}/campaigns/",
+        headers=_headers(normal_user_token_headers, workspace_id=workspace_id, idempotency=True),
+        json={"name": "Operator should not create campaigns"},
     )
-    assert evaluate_response.status_code == 200
-    payload = evaluate_response.json()
-    assert payload["allowed"] is False
-    assert payload["reason_code"] == "SUPPRESSED_CONTACT"
+    assert create_campaign_response.status_code == 403
 
 
-def test_workspace_isolation_hides_policies_and_rejects_cross_scope_campaign_mutation(
+def test_unauthenticated_former_public_routes_rejected(client: TestClient) -> None:
+    response = client.get(
+        f"{settings.API_V1_STR}/calls/",
+        headers={"X-Workspace-Id": _workspace("story-1-2-anonymous")},
+    )
+    assert response.status_code in {401, 403}
+
+
+def test_workspace_isolation_rejects_cross_scope_campaign_mutation(
     client: TestClient,
+    db: Session,
     superuser_token_headers: dict[str, str],
 ) -> None:
     source_workspace = _workspace("story-1-4-source")
     other_workspace = _workspace("story-1-4-other")
 
-    create_policy_response = client.post(
-        f"{settings.API_V1_STR}/policies/",
-        headers=_headers(superuser_token_headers, workspace_id=source_workspace, idempotency=True),
-        json={
-            "scope": "workspace",
-            "policy_type": "suppression",
-            "payload_json": {},
-        },
+    campaign = Campaign(
+        name="Campaign for pause check",
+        workspace_id=source_workspace,
+        created_by=uuid4(),
     )
-    assert create_policy_response.status_code == 200
-
-    read_other_workspace_response = client.get(
-        f"{settings.API_V1_STR}/policies/",
-        headers=_headers(superuser_token_headers, workspace_id=other_workspace),
-    )
-    assert read_other_workspace_response.status_code == 200
-    assert read_other_workspace_response.json()["count"] == 0
-
-    create_campaign_response = client.post(
-        f"{settings.API_V1_STR}/campaigns/",
-        headers=_headers(superuser_token_headers, workspace_id=source_workspace, idempotency=True),
-        json={"name": "Campaign for pause check"},
-    )
-    assert create_campaign_response.status_code == 200
-    campaign_id = create_campaign_response.json()["id"]
+    db.add(campaign)
+    db.commit()
+    db.refresh(campaign)
 
     pause_other_workspace_response = client.post(
-        f"{settings.API_V1_STR}/campaigns/{campaign_id}/pause",
+        f"{settings.API_V1_STR}/campaigns/{campaign.id}/pause",
         headers=_headers(superuser_token_headers, workspace_id=other_workspace, idempotency=True),
         json={"paused_reason": "Attempt cross workspace pause"},
     )
@@ -171,7 +133,6 @@ def test_workspace_isolation_hides_policies_and_rejects_cross_scope_campaign_mut
 
 def test_operator_denied_admin_controls(
     client: TestClient,
-    superuser_token_headers: dict[str, str],
     normal_user_token_headers: dict[str, str],
 ) -> None:
     workspace_id = _workspace("story-1-4-approval")

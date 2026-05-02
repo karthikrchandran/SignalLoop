@@ -5,7 +5,15 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import Column, DateTime, Index, JSON, String, Text
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    Index,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlmodel import Field, SQLModel
 
 
@@ -64,13 +72,25 @@ class CallRequest(SQLModel, table=True):
 class CallSession(SQLModel, table=True):
     __tablename__ = "call_sessions"
     __table_args__ = (
+        UniqueConstraint("call_request_id", name="uq_call_sessions_call_request_id"),
         Index("idx_cs_call_request", "call_request_id"),
         Index("idx_cs_outcome", "outcome"),
+        Index("idx_cs_twilio_status", "twilio_status"),
+        Index(
+            "uq_cs_twilio_call_sid_nonempty",
+            "twilio_call_sid",
+            unique=True,
+            postgresql_where=text("twilio_call_sid <> ''"),
+            sqlite_where=text("twilio_call_sid <> ''"),
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     call_request_id: uuid.UUID = Field(foreign_key="call_requests.id", index=True)
     twilio_call_sid: str = Field(max_length=64, default="")
+    twilio_account_sid: str | None = Field(default=None, max_length=64)
+    twilio_status: str | None = Field(default=None, max_length=32)
+    twilio_status_updated_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     duration_seconds: int = Field(default=0)
     outcome: CallOutcome | None = Field(default=None)
     recording_url: str | None = Field(default=None, max_length=1024)
@@ -80,4 +100,5 @@ class CallSession(SQLModel, table=True):
     )
     scheduling_interest: bool = Field(default=False)
     postcall_status: str | None = Field(default=None, max_length=32)
+    post_call_processed: bool = Field(default=False)
     created_at: datetime = Field(default_factory=_utcnow, sa_type=DateTime(timezone=True))

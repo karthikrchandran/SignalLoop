@@ -6,21 +6,24 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import SQLModel, select, func
+from sqlmodel import SQLModel, func, select
 
-from app.api.deps import SessionDep
+from app.api.deps import SessionDep, require_admin
+from app.api.request_context import WorkspaceIdDep
 from app.core.config import settings
+from app.domain.sequences.models import (
+    ContactSequenceState,
+    EmailSequence,
+    SequenceStatus,
+)
 from app.domain.voice.models import (
-    CallOutcome,
     CallRequest,
-    CallRequestStatus,
     CallSession,
 )
-from app.domain.sequences.models import ContactSequenceState, SequenceStatus
-from app.infrastructure.authz.enforcer import require_role
+from app.domain_models import Campaign, Contact
 from app.infrastructure.providers.sendgrid import SendGridAdapter
 
-router = APIRouter(prefix="/calls", tags=["calls"])
+router = APIRouter(prefix="/calls", tags=["calls"], dependencies=[Depends(require_admin)])
 
 
 class CallListItem(SQLModel):
@@ -54,30 +57,62 @@ class CallDetailPublic(SQLModel):
     scheduled_at: datetime | None
 
 
+def _get_call_request_or_404(
+    session: SessionDep,
+    call_request_id: uuid.UUID,
+    workspace_id: str,
+) -> CallRequest:
+    req = session.exec(
+        select(CallRequest)
+        .join(Campaign, CallRequest.campaign_id == Campaign.id)
+        .where(
+            CallRequest.id == call_request_id,
+            Campaign.workspace_id == workspace_id,
+        )
+    ).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Call not found")
+    return req
+
+
 @router.get("/", response_model=CallListPublic)
 def list_calls(
     session: SessionDep,
+    workspace_id: WorkspaceIdDep,
     campaign_id: uuid.UUID | None = None,
     outcome: str | None = None,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
 ) -> CallListPublic:
-    query = select(CallRequest, CallSession).outerjoin(
-        CallSession, CallRequest.id == CallSession.call_request_id
+    query = (
+        select(CallRequest, CallSession)
+        .join(Campaign, CallRequest.campaign_id == Campaign.id)
+        .outerjoin(CallSession, CallRequest.id == CallSession.call_request_id)
+        .where(Campaign.workspace_id == workspace_id)
     )
-    count_query = select(func.count(CallRequest.id))
+    count_query = (
+        select(func.count(CallRequest.id))
+        .join(Campaign, CallRequest.campaign_id == Campaign.id)
+        .where(Campaign.workspace_id == workspace_id)
+    )
 
     if campaign_id:
         query = query.where(CallRequest.campaign_id == campaign_id)
         count_query = count_query.where(CallRequest.campaign_id == campaign_id)
     if outcome:
         # Use inner join instead of the base outerjoin when filtering by outcome
-        query = select(CallRequest, CallSession).join(
-            CallSession, CallRequest.id == CallSession.call_request_id
-        ).where(CallSession.outcome == outcome)
-        count_query = select(func.count(CallRequest.id)).join(
-            CallSession, CallRequest.id == CallSession.call_request_id
-        ).where(CallSession.outcome == outcome)
+        query = (
+            select(CallRequest, CallSession)
+            .join(Campaign, CallRequest.campaign_id == Campaign.id)
+            .join(CallSession, CallRequest.id == CallSession.call_request_id)
+            .where(Campaign.workspace_id == workspace_id, CallSession.outcome == outcome)
+        )
+        count_query = (
+            select(func.count(CallRequest.id))
+            .join(Campaign, CallRequest.campaign_id == Campaign.id)
+            .join(CallSession, CallRequest.id == CallSession.call_request_id)
+            .where(Campaign.workspace_id == workspace_id, CallSession.outcome == outcome)
+        )
         if campaign_id:
             query = query.where(CallRequest.campaign_id == campaign_id)
             count_query = count_query.where(CallRequest.campaign_id == campaign_id)
@@ -106,10 +141,12 @@ def list_calls(
 
 
 @router.get("/{call_request_id}", response_model=CallDetailPublic)
-def get_call_detail(session: SessionDep, call_request_id: uuid.UUID) -> CallDetailPublic:
-    req = session.get(CallRequest, call_request_id)
-    if not req:
-        raise HTTPException(status_code=404, detail="Call not found")
+def get_call_detail(
+    session: SessionDep,
+    workspace_id: WorkspaceIdDep,
+    call_request_id: uuid.UUID,
+) -> CallDetailPublic:
+    req = _get_call_request_or_404(session, call_request_id, workspace_id)
 
     sess = session.exec(
         select(CallSession).where(CallSession.call_request_id == req.id)
@@ -131,16 +168,16 @@ def get_call_detail(session: SessionDep, call_request_id: uuid.UUID) -> CallDeta
     )
 
 
-@router.post("/{call_request_id}/send-demo-email", dependencies=[Depends(require_role("operator"))])
-async def send_demo_email(session: SessionDep, call_request_id: uuid.UUID) -> dict[str, str]:
-    from app.domain_models import Contact
-
-    req = session.get(CallRequest, call_request_id)
-    if not req:
-        raise HTTPException(status_code=404, detail="Call not found")
+@router.post("/{call_request_id}/send-demo-email")
+async def send_demo_email(
+    session: SessionDep,
+    workspace_id: WorkspaceIdDep,
+    call_request_id: uuid.UUID,
+) -> dict[str, str]:
+    req = _get_call_request_or_404(session, call_request_id, workspace_id)
 
     contact = session.get(Contact, req.contact_id)
-    if not contact:
+    if not contact or contact.workspace_id != workspace_id:
         raise HTTPException(status_code=404, detail="Contact not found")
 
     adapter = SendGridAdapter()
@@ -154,16 +191,16 @@ async def send_demo_email(session: SessionDep, call_request_id: uuid.UUID) -> di
     return {"message": "Demo email sent"}
 
 
-@router.post("/{call_request_id}/flag-for-sales", dependencies=[Depends(require_role("operator"))])
-async def flag_for_sales(session: SessionDep, call_request_id: uuid.UUID) -> dict[str, str]:
-    from app.domain_models import Contact
-
-    req = session.get(CallRequest, call_request_id)
-    if not req:
-        raise HTTPException(status_code=404, detail="Call not found")
+@router.post("/{call_request_id}/flag-for-sales")
+async def flag_for_sales(
+    session: SessionDep,
+    workspace_id: WorkspaceIdDep,
+    call_request_id: uuid.UUID,
+) -> dict[str, str]:
+    req = _get_call_request_or_404(session, call_request_id, workspace_id)
 
     contact = session.get(Contact, req.contact_id)
-    if not contact:
+    if not contact or contact.workspace_id != workspace_id:
         raise HTTPException(status_code=404, detail="Contact not found")
 
     adapter = SendGridAdapter()
@@ -181,17 +218,23 @@ async def flag_for_sales(session: SessionDep, call_request_id: uuid.UUID) -> dic
     return {"message": "Contact flagged for sales team"}
 
 
-@router.post("/{call_request_id}/pause-sequence", dependencies=[Depends(require_role("operator"))])
-def pause_contact_sequence(session: SessionDep, call_request_id: uuid.UUID) -> dict[str, str]:
-    req = session.get(CallRequest, call_request_id)
-    if not req:
-        raise HTTPException(status_code=404, detail="Call not found")
+@router.post("/{call_request_id}/pause-sequence")
+def pause_contact_sequence(
+    session: SessionDep,
+    workspace_id: WorkspaceIdDep,
+    call_request_id: uuid.UUID,
+) -> dict[str, str]:
+    req = _get_call_request_or_404(session, call_request_id, workspace_id)
 
     # Pause any active sequences for this contact
     states = session.exec(
-        select(ContactSequenceState).where(
+        select(ContactSequenceState)
+        .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
+        .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+        .where(
             ContactSequenceState.contact_id == req.contact_id,
             ContactSequenceState.status == SequenceStatus.active,
+            Campaign.workspace_id == workspace_id,
         )
     ).all()
 

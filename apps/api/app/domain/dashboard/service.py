@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
-from sqlalchemy import func, case
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.domain.sequences.models import (
@@ -14,8 +14,14 @@ from app.domain.sequences.models import (
     SendRequestStatus,
     SequenceStatus,
 )
-from app.domain.voice.models import CallRequest, CallRequestStatus, CallSession, CallOutcome
 from app.domain.signals.models import SignalEvent
+from app.domain.voice.models import (
+    CallOutcome,
+    CallRequest,
+    CallRequestStatus,
+    CallSession,
+)
+from app.domain_models import Campaign
 from app.workers.call_worker import DAILY_CALL_CAP
 from app.workers.sequence_worker import DEFAULT_DAILY_CAP as EMAIL_DAILY_CAP
 
@@ -41,7 +47,7 @@ def get_email_metrics(session: Session, campaign_id: uuid.UUID) -> dict:
         .group_by(ContactSequenceState.status)
     ).all()
 
-    state_map = {status: count for status, count in states}
+    state_map = dict(states)
 
     # Send request counts
     sends = session.exec(
@@ -54,7 +60,7 @@ def get_email_metrics(session: Session, campaign_id: uuid.UUID) -> dict:
         .group_by(SendRequest.status)
     ).all()
 
-    send_map = {status: count for status, count in sends}
+    send_map = dict(sends)
 
     return {
         "total_enrolled": sum(state_map.values()),
@@ -78,7 +84,7 @@ def get_call_metrics(session: Session, campaign_id: uuid.UUID) -> dict:
         .group_by(CallRequest.status)
     ).all()
 
-    status_map = {status: count for status, count in call_statuses}
+    status_map = dict(call_statuses)
 
     # Call outcome counts
     outcomes = session.exec(
@@ -91,7 +97,7 @@ def get_call_metrics(session: Session, campaign_id: uuid.UUID) -> dict:
         .group_by(CallSession.outcome)
     ).all()
 
-    outcome_map = {outcome: count for outcome, count in outcomes}
+    outcome_map = dict(outcomes)
 
     return {
         "total_queued": status_map.get(CallRequestStatus.queued, 0),
@@ -124,21 +130,29 @@ def get_signal_summary(session: Session, campaign_id: uuid.UUID) -> dict:
     return summary
 
 
-def get_daily_cap_status(session: Session) -> dict:
+def get_daily_cap_status(session: Session, *, workspace_id: str) -> dict:
     """Current daily send/call counts vs caps."""
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
     email_count = session.exec(
-        select(func.count(SendRequest.id)).where(
+        select(func.count(SendRequest.id))
+        .join(ContactSequenceState, SendRequest.contact_sequence_state_id == ContactSequenceState.id)
+        .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
+        .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+        .where(
             SendRequest.status == SendRequestStatus.sent,
             SendRequest.created_at >= today_start,
+            Campaign.workspace_id == workspace_id,
         )
     ).one()
 
     call_count = session.exec(
-        select(func.count(CallRequest.id)).where(
+        select(func.count(CallRequest.id))
+        .join(Campaign, CallRequest.campaign_id == Campaign.id)
+        .where(
             CallRequest.status.in_([CallRequestStatus.in_progress, CallRequestStatus.completed]),
             CallRequest.created_at >= today_start,
+            Campaign.workspace_id == workspace_id,
         )
     ).one()
 

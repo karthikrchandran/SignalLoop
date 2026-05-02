@@ -3,10 +3,12 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlmodel import select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
-from app.domain.audit.mongo_audit import append_audit_event
+from app.domain.audit.audit_events import append_audit_event
+from app.domain.sequences import service as sequence_service
 from app.domain.sequences.models import EmailSequence
 from app.domain.sequences.schemas import (
     EnrollmentResult,
@@ -17,14 +19,45 @@ from app.domain.sequences.schemas import (
     SequenceUpdate,
     StepsBatchUpdate,
 )
-from app.domain.sequences import service as sequence_service
-from app.infrastructure.authz.enforcer import require_role
-from sqlmodel import select
+from app.domain_models import Campaign
 
 router = APIRouter(prefix="/sequences", tags=["sequences"])
 
 
-@router.post("/", response_model=SequencePublic, dependencies=[Depends(require_role("operator"))])
+def _ensure_campaign_in_workspace(
+    session: SessionDep,
+    campaign_id: uuid.UUID,
+    workspace_id: str,
+) -> None:
+    campaign = session.exec(
+        select(Campaign).where(
+            Campaign.id == campaign_id,
+            Campaign.workspace_id == workspace_id,
+        )
+    ).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+
+def _get_sequence_or_404(
+    session: SessionDep,
+    sequence_id: uuid.UUID,
+    workspace_id: str,
+) -> EmailSequence:
+    sequence = session.exec(
+        select(EmailSequence)
+        .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+        .where(
+            EmailSequence.id == sequence_id,
+            Campaign.workspace_id == workspace_id,
+        )
+    ).first()
+    if not sequence:
+        raise HTTPException(status_code=404, detail="Sequence not found")
+    return sequence
+
+
+@router.post("/", response_model=SequencePublic, dependencies=[Depends(require_admin)])
 async def create_sequence(
     *,
     session: SessionDep,
@@ -33,6 +66,7 @@ async def create_sequence(
     _: IdempotencyKeyDep,
     body: SequenceCreate,
 ) -> SequencePublic:
+    _ensure_campaign_in_workspace(session, body.campaign_id, workspace_id)
     seq = sequence_service.create_sequence(
         session, data=body, created_by=current_user.id
     )
@@ -56,7 +90,11 @@ def list_sequences(
     workspace_id: WorkspaceIdDep,
     campaign_id: uuid.UUID | None = None,
 ) -> SequencesPublic:
-    query = select(EmailSequence)
+    query = (
+        select(EmailSequence)
+        .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+        .where(Campaign.workspace_id == workspace_id)
+    )
     if campaign_id:
         query = query.where(EmailSequence.campaign_id == campaign_id)
     sequences = session.exec(query.order_by(EmailSequence.created_at.desc())).all()
@@ -76,11 +114,16 @@ def list_sequences(
 
 
 @router.get("/{sequence_id}", response_model=SequenceDetailPublic)
-def get_sequence(session: SessionDep, sequence_id: uuid.UUID) -> SequenceDetailPublic:
+def get_sequence(
+    session: SessionDep,
+    workspace_id: WorkspaceIdDep,
+    sequence_id: uuid.UUID,
+) -> SequenceDetailPublic:
+    _get_sequence_or_404(session, sequence_id, workspace_id)
     return sequence_service.get_sequence_detail(session, sequence_id)
 
 
-@router.put("/{sequence_id}", response_model=SequencePublic, dependencies=[Depends(require_role("operator"))])
+@router.put("/{sequence_id}", response_model=SequencePublic, dependencies=[Depends(require_admin)])
 async def update_sequence(
     *,
     session: SessionDep,
@@ -88,6 +131,7 @@ async def update_sequence(
     sequence_id: uuid.UUID,
     body: SequenceUpdate,
 ) -> SequencePublic:
+    _get_sequence_or_404(session, sequence_id, workspace_id)
     seq = sequence_service.update_sequence(session, sequence_id=sequence_id, data=body)
     await append_audit_event(
         event_name="sequence.updated",
@@ -106,7 +150,7 @@ async def update_sequence(
 @router.put(
     "/{sequence_id}/steps",
     response_model=SequenceDetailPublic,
-    dependencies=[Depends(require_role("operator"))],
+    dependencies=[Depends(require_admin)],
 )
 async def update_steps(
     *,
@@ -115,6 +159,7 @@ async def update_steps(
     sequence_id: uuid.UUID,
     body: StepsBatchUpdate,
 ) -> SequenceDetailPublic:
+    _get_sequence_or_404(session, sequence_id, workspace_id)
     sequence_service.batch_upsert_steps(
         session, sequence_id=sequence_id, steps=body.steps
     )
@@ -126,13 +171,14 @@ async def update_steps(
     return sequence_service.get_sequence_detail(session, sequence_id)
 
 
-@router.delete("/{sequence_id}", dependencies=[Depends(require_role("operator"))])
+@router.delete("/{sequence_id}", dependencies=[Depends(require_admin)])
 async def delete_sequence(
     *,
     session: SessionDep,
     workspace_id: WorkspaceIdDep,
     sequence_id: uuid.UUID,
 ) -> dict[str, str]:
+    _get_sequence_or_404(session, sequence_id, workspace_id)
     sequence_service.delete_sequence(session, sequence_id)
     await append_audit_event(
         event_name="sequence.deleted",
@@ -145,7 +191,7 @@ async def delete_sequence(
 @router.post(
     "/{sequence_id}/enroll/{campaign_id}",
     response_model=EnrollmentResult,
-    dependencies=[Depends(require_role("operator"))],
+    dependencies=[Depends(require_admin)],
 )
 async def enroll_contacts(
     *,
@@ -154,6 +200,10 @@ async def enroll_contacts(
     sequence_id: uuid.UUID,
     campaign_id: uuid.UUID,
 ) -> EnrollmentResult:
+    sequence = _get_sequence_or_404(session, sequence_id, workspace_id)
+    _ensure_campaign_in_workspace(session, campaign_id, workspace_id)
+    if sequence.campaign_id != campaign_id:
+        raise HTTPException(status_code=404, detail="Sequence not found")
     enrolled = sequence_service.enroll_campaign_contacts(
         session, campaign_id=campaign_id, sequence_id=sequence_id
     )
@@ -172,15 +222,19 @@ async def enroll_contacts(
 @router.get("/{sequence_id}/progress")
 def get_sequence_progress(
     session: SessionDep,
+    workspace_id: WorkspaceIdDep,
     sequence_id: uuid.UUID,
 ) -> dict:
     """Get step-by-step progress breakdown for a sequence."""
     from sqlalchemy import func as sa_func
-    from app.domain.sequences.models import SequenceStep, ContactSequenceState, SequenceStatus
 
-    sequence = session.get(EmailSequence, sequence_id)
-    if not sequence:
-        raise HTTPException(status_code=404, detail="Sequence not found")
+    from app.domain.sequences.models import (
+        ContactSequenceState,
+        SequenceStatus,
+        SequenceStep,
+    )
+
+    sequence = _get_sequence_or_404(session, sequence_id, workspace_id)
 
     # Get steps
     steps = session.exec(
@@ -234,6 +288,7 @@ def get_sequence_progress(
 @router.get("/{sequence_id}/contacts")
 def get_sequence_contacts(
     session: SessionDep,
+    workspace_id: WorkspaceIdDep,
     sequence_id: uuid.UUID,
     status: str | None = None,
     skip: int = Query(default=0, ge=0),
@@ -241,11 +296,10 @@ def get_sequence_contacts(
 ) -> dict:
     """Paginated list of contacts in a sequence with their states."""
     from sqlalchemy import func as sa_func
-    from app.domain.sequences.models import ContactSequenceState, SequenceStatus
 
-    sequence = session.get(EmailSequence, sequence_id)
-    if not sequence:
-        raise HTTPException(status_code=404, detail="Sequence not found")
+    from app.domain.sequences.models import ContactSequenceState
+
+    _get_sequence_or_404(session, sequence_id, workspace_id)
 
     query = select(ContactSequenceState).where(
         ContactSequenceState.sequence_id == sequence_id

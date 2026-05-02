@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import datetime, time, timezone
 
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -29,6 +29,13 @@ DAILY_CALL_CAP = 50
 BATCH_SIZE = 5
 QUIET_HOURS_START = time(18, 0)  # 6 PM UTC
 QUIET_HOURS_END = time(9, 0)  # 9 AM UTC
+
+
+def _mask_phone(phone: str) -> str:
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    if len(digits) <= 4:
+        return "****"
+    return f"****{digits[-4:]}"
 
 
 def _is_quiet_hours() -> bool:
@@ -112,13 +119,29 @@ async def _initiate_call(
         session.add(call_req)
         return
 
-    # Create CallSession
-    call_session = CallSession(call_request_id=call_req.id)
-    session.add(call_session)
-    session.flush()
+    call_session = session.exec(
+        select(CallSession)
+        .where(CallSession.call_request_id == call_req.id)
+        .with_for_update()
+    ).first()
+    if call_session and call_session.twilio_call_sid:
+        call_req.status = CallRequestStatus.in_progress
+        session.add(call_req)
+        return
+
+    account_sid = getattr(adapter, "_account_sid", "") or None
+    if call_session is None:
+        call_session = CallSession(
+            call_request_id=call_req.id,
+            twilio_account_sid=account_sid,
+        )
+        session.add(call_session)
+        session.flush()
+    else:
+        call_session.twilio_account_sid = account_sid or call_session.twilio_account_sid
 
     # Build callback URLs
-    base_url = settings.FRONTEND_HOST.rstrip("/").replace("http://", "https://") or "https://localhost:8000"
+    base_url = f"https://{settings.SERVER_HOST.rstrip('/')}"
     api_base = f"{base_url}{settings.API_V1_STR}"
     twiml_url = f"{api_base}/voice/twiml"
     status_url = f"{api_base}/voice/status"
@@ -132,12 +155,16 @@ async def _initiate_call(
     call_sid = result.get("call_sid", "")
     if call_sid:
         call_session.twilio_call_sid = call_sid
+        call_session.twilio_account_sid = account_sid or call_session.twilio_account_sid
+        call_session.twilio_status = "initiated"
+        call_session.twilio_status_updated_at = datetime.now(timezone.utc)
         call_req.status = CallRequestStatus.in_progress
-        logger.info("Call initiated: %s → %s (sid=%s)", contact.email, phone, call_sid)
+        logger.info("Call initiated: contact=%s phone=%s sid=%s", contact.id, _mask_phone(phone), call_sid)
     else:
         call_req.status = CallRequestStatus.failed
         call_session.outcome = CallOutcome.failed
-        logger.warning("Call failed for %s: %s", contact.email, result.get("error"))
+        error_detail = result.get("error_code") or result.get("error", "twilio_rejected")
+        logger.warning("Call failed for contact=%s: %s", contact.id, error_detail)
 
     session.add(call_req)
     session.add(call_session)

@@ -4,14 +4,15 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter
-from sqlmodel import SQLModel
+from fastapi import APIRouter, Depends, HTTPException
+from sqlmodel import SQLModel, select
 
-from app.api.deps import SessionDep
+from app.api.deps import SessionDep, require_admin
+from app.api.request_context import WorkspaceIdDep
 from app.domain.signals import aggregation_service
-from app.domain.signals.models import SignalEvent
+from app.domain_models import Campaign, Contact
 
-router = APIRouter(prefix="/signals", tags=["signals"])
+router = APIRouter(prefix="/signals", tags=["signals"], dependencies=[Depends(require_admin)])
 
 
 class SignalPublic(SQLModel):
@@ -29,13 +30,45 @@ class SignalListPublic(SQLModel):
     count: int
 
 
+def _ensure_contact_in_workspace(
+    session: SessionDep,
+    contact_id: uuid.UUID,
+    workspace_id: str,
+) -> None:
+    contact = session.exec(
+        select(Contact).where(
+            Contact.id == contact_id,
+            Contact.workspace_id == workspace_id,
+        )
+    ).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+
+def _ensure_campaign_in_workspace(
+    session: SessionDep,
+    campaign_id: uuid.UUID,
+    workspace_id: str,
+) -> None:
+    campaign = session.exec(
+        select(Campaign).where(
+            Campaign.id == campaign_id,
+            Campaign.workspace_id == workspace_id,
+        )
+    ).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+
 @router.get("/contacts/{contact_id}", response_model=SignalListPublic)
 def get_contact_signals(
     session: SessionDep,
+    workspace_id: WorkspaceIdDep,
     contact_id: uuid.UUID,
     channel: str | None = None,
     signal_type: str | None = None,
 ) -> SignalListPublic:
+    _ensure_contact_in_workspace(session, contact_id, workspace_id)
     signals = aggregation_service.get_contact_signals(
         session, contact_id, channel=channel, signal_type=signal_type
     )
@@ -59,6 +92,8 @@ def get_contact_signals(
 @router.get("/campaigns/{campaign_id}/summary")
 def get_campaign_signal_summary(
     session: SessionDep,
+    workspace_id: WorkspaceIdDep,
     campaign_id: uuid.UUID,
 ) -> dict:
+    _ensure_campaign_in_workspace(session, campaign_id, workspace_id)
     return aggregation_service.get_campaign_signal_summary(session, campaign_id)

@@ -5,9 +5,13 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
-from app.domain.outreach.token_service import render_template, validate_token_definitions
+from app.domain.audit.audit_events import append_audit_event
+from app.domain.outreach.token_service import (
+    render_template,
+    validate_token_definitions,
+)
 from app.domain.policies.template_guardrail_service import validate_template
 from app.domain_models import (
     Template,
@@ -23,7 +27,6 @@ from app.domain_models import (
     TemplateVersionPublic,
     get_datetime_utc,
 )
-from app.infrastructure.authz.enforcer import require_role
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 
@@ -67,7 +70,7 @@ def read_templates(session: SessionDep, workspace_id: WorkspaceIdDep, status: Te
     return TemplatesPublic(data=data, count=len(data))
 
 
-@router.post("/", response_model=TemplatePublic, dependencies=[Depends(require_role("lead"))])
+@router.post("/", response_model=TemplatePublic, dependencies=[Depends(require_admin)])
 def create_template(
     *,
     session: SessionDep,
@@ -103,7 +106,7 @@ def create_template(
     return _build_template_public(session, template)
 
 
-@router.patch("/{template_id}", response_model=TemplatePublic, dependencies=[Depends(require_role("lead"))])
+@router.patch("/{template_id}", response_model=TemplatePublic, dependencies=[Depends(require_admin)])
 def update_template(
     *,
     session: SessionDep,
@@ -154,8 +157,8 @@ def update_template(
     return _build_template_public(session, template)
 
 
-@router.post("/{template_id}/clone", response_model=TemplatePublic, dependencies=[Depends(require_role("lead"))])
-def clone_template(
+@router.post("/{template_id}/clone", response_model=TemplatePublic, dependencies=[Depends(require_admin)])
+async def clone_template(
     *,
     session: SessionDep,
     current_user: CurrentUser,
@@ -195,6 +198,14 @@ def clone_template(
             )
         )
     session.commit()
+    await append_audit_event(
+        event_name="template_cloned",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        resource_type="template",
+        resource_id=str(cloned.id),
+        payload={"source_template_id": str(template_id), "cloned_template_id": str(cloned.id)},
+    )
     return _build_template_public(session, cloned)
 
 
@@ -225,8 +236,8 @@ def preview_template(
     return TemplatePreviewPublic(rendered_content=rendered_content, unresolved_tokens=unresolved_tokens)
 
 
-@router.post("/{template_id}/versions/{version_id}/publish", response_model=TemplatePublic, dependencies=[Depends(require_role("lead"))])
-def publish_template(
+@router.post("/{template_id}/versions/{version_id}/publish", response_model=TemplatePublic, dependencies=[Depends(require_admin)])
+async def publish_template(
     *,
     session: SessionDep,
     template_id: uuid.UUID,
@@ -257,4 +268,11 @@ def publish_template(
     version.published_at = get_datetime_utc()
     session.add(version)
     session.commit()
+    await append_audit_event(
+        event_name="template_published",
+        workspace_id=workspace_id,
+        resource_type="template",
+        resource_id=str(template_id),
+        payload={"template_id": str(template_id), "version_id": str(version_id)},
+    )
     return _build_template_public(session, template)

@@ -12,7 +12,7 @@ This section documents the current EngageHub architecture as it exists in the re
 Use these documents together:
 
 - [Architecture Stories](./architecture-stories.md) explains the system in narrative form, organized by business capability and technical boundary.
-- [Data Model](./data-model.md) describes the PostgreSQL, MongoDB, and Redis responsibilities with a GitHub-renderable Mermaid ERD.
+- [Data Model](./data-model.md) describes the PostgreSQL and Redis responsibilities with a GitHub-renderable Mermaid ERD.
 - [Process Flows](./process-flows.md) walks through the main request, approval, policy, and delivery-pipeline flows with sequence and swimlane diagrams.
 - [Validation Report (2026-04-02)](./validation-report-2026-04-02.md) compares architecture docs to planning artifacts and current implementation status.
 - [Draw.io Diagram Source](./diagrams/system-context.drawio) provides editable source for architecture visuals in the draw.io extension.
@@ -32,13 +32,11 @@ Use these documents together:
 flowchart LR
     Operator["Operator / Lead / Admin"] --> Web["Web App\napps/web"]
     Web --> API["FastAPI API\napps/api"]
-    API --> PG["PostgreSQL\ntransactional state"]
-    API --> Mongo["MongoDB\naudit + event history"]
+    API --> PG["PostgreSQL\ntransactional state +\naudit_events table"]
     API --> Redis["Redis\ncoordination + rate limiting"]
     API --> Authz["Casbin RBAC"]
     API --> Worker["Worker Scaffold\napps/workers"]
     Worker --> PG
-    Worker --> Mongo
     Worker --> Redis
     Worker --> Providers["Email / Voice / Scheduling Providers"]
 ```
@@ -71,7 +69,7 @@ Most mutation endpoints require both `X-Workspace-Id` and `Idempotency-Key`. Cor
 
 ### 3. Persistence is intentionally split by responsibility
 
-PostgreSQL carries mutable business state, MongoDB stores append-oriented audit and event documents, and Redis is reserved for ephemeral coordination. The split is visible in code and in the latest Epic 2 migration.
+PostgreSQL carries both mutable business state and append-oriented audit records (in the `audit_events` table with a JSONB payload column), while Redis is reserved for ephemeral coordination. The split is visible in code and in the latest Epic 2 migration.
 
 ### 4. The worker architecture is emerging, not finished
 

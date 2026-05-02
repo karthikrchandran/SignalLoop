@@ -18,11 +18,20 @@ RETRY_BACKOFF_FACTOR = 2  # seconds
 
 
 class SendGridAdapter(NotificationProviderAdapter):
-    """SendGrid email provider adapter using v3 API via httpx."""
+    """SendGrid email provider adapter using v3 API via httpx.
 
-    def __init__(self) -> None:
-        self._api_key = settings.SENDGRID_API_KEY
-        self._from_email = settings.SENDGRID_FROM_EMAIL
+    Credentials can be injected at construction time (multi-tenant path via
+    :func:`~app.domain.providers.credential_resolver.resolve_provider_credentials`)
+    or omitted to fall back to ``settings.*`` (single-tenant / demo mode).
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        from_email: str | None = None,
+    ) -> None:
+        self._api_key = api_key or settings.SENDGRID_API_KEY
+        self._from_email = from_email or settings.SENDGRID_FROM_EMAIL
 
     async def send_email(
         self,

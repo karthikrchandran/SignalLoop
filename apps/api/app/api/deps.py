@@ -48,6 +48,30 @@ def get_current_user(session: SessionDep, token: TokenDep) -> User:
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
+_AUTH_ERROR = {
+    "error": {
+        "code": "AUTH_ERROR",
+        "message": "Admin privileges are required",
+        "semantic": "AUTH_ERROR",
+        "details": {},
+    }
+}
+
+
+def require_admin(current_user: CurrentUser) -> User:
+    if current_user.is_superuser or getattr(current_user, "role", None) in {
+        "admin",
+        "super_admin",
+    }:
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=_AUTH_ERROR,
+    )
+
+
+AdminUser = Annotated[User, Depends(require_admin)]
+
 
 def get_current_active_superuser(current_user: CurrentUser) -> User:
     if not current_user.is_superuser:

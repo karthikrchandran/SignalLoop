@@ -20,7 +20,7 @@ def init_db(session: Session) -> None:
     # SQLModel.metadata.create_all(engine)
 
     # Deferred imports to break circular dependency:
-    # db -> crud -> models -> mongo_audit -> db (engine)
+    # db -> crud -> models -> audit_events -> db (engine)
     from app import crud  # noqa: PLC0415
     from app.models import User, UserCreate  # noqa: PLC0415
 

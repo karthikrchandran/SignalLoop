@@ -59,6 +59,19 @@ so that I can have natural conversations with prospects following the reference 
 - [ ] Task 8: Write unit tests for conversation engine state management (AC: 5,6,7,8)
 - [ ] Task 9: Write integration tests for full pipeline with mocked providers (AC: 4)
 
+### Review Findings
+
+- [x] [Review][Patch] Authenticate and bind Twilio media-stream WebSocket before accepting provider work [apps/api/app/api/routes/voice.py:65]
+- [x] [Review][Patch] Redact provider error logging for Groq and Deepgram instead of writing raw response bodies [apps/api/app/infrastructure/providers/groq_llm.py:51, apps/api/app/infrastructure/providers/deepgram_tts.py:42]
+- [x] [Review][Patch] Add fail-fast handling for missing Groq and Deepgram API keys before constructing provider Authorization headers [apps/api/app/core/config.py:105]
+- [x] [Review][Patch] Await cancellation and bound cleanup for STT/LLM/TTS tasks on call drop, stop, idle timeout, and call timeout [apps/api/app/api/routes/voice.py:118]
+- [x] [Review][Patch] Treat caller transcript as untrusted input and stop using free-form LLM tags as authoritative business-state controls [apps/api/app/domain/voice/conversation_engine.py:98]
+- [x] [Review][Patch] Use streaming/low-latency pipeline instead of final-only STT plus full-response TTS buffering [apps/api/app/infrastructure/providers/deepgram_stt.py:40]
+- [x] [Review][Patch] Enforce and measure per-stage latency budgets for STT, Groq, TTS, and total round trip [apps/api/app/api/routes/voice.py:165]
+- [x] [Review][Patch] Add unit and mocked integration tests for conversation state, prompt-injection resistance, teardown, and latency-budget behavior [apps/api/tests]
+
+Validation: `uv run pytest tests/domain/test_voice_conversation_engine.py tests/domain/test_voice_provider_safety.py tests/domain/test_voice_media_stream.py` — 14 passed, 6 warnings.
+
 ## Dev Notes
 
 - This is the hardest story — real-time streaming audio pipeline

@@ -104,9 +104,11 @@ from app.domain_models import (  # noqa: E402
     Template,
     TemplateToken,
     TemplateVersion,
+    ContactEvent,
+    RoutingDecision,
 )
 
-from app.domain.audit.mongo_audit import AuditEvent  # noqa: E402
+from app.domain.audit.audit_events import AuditEvent  # noqa: E402
 from app.domain.sequences.models import (  # noqa: E402
     ContactSequenceState,
     EmailEvent,

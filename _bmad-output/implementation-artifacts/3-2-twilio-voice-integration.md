@@ -1,6 +1,6 @@
 # Story 3.2: Twilio Voice Integration
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -20,29 +20,40 @@ so that the AI voice assistant can make phone calls and exchange audio in real-t
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create apps/api/app/infrastructure/providers/twilio_voice.py (AC: 1,4,5)
-  - [ ] TwilioVoiceAdapter class
-  - [ ] initiate_call(call_request) → twilio_call_sid
-  - [ ] Uses Twilio REST API: client.calls.create(to=phone, from_=twilio_number, url=twiml_url, status_callback=callback_url, record=True)
-- [ ] Task 2: Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER to settings (AC: 1)
-- [ ] Task 3: Create TwiML endpoint POST /api/v1/voice/twiml (AC: 2)
-  - [ ] Returns TwiML XML: `<Response><Connect><Stream url="wss://host/api/v1/voice/media-stream" /></Connect></Response>`
-  - [ ] Include call metadata parameters
-- [ ] Task 4: Create WebSocket endpoint WS /api/v1/voice/media-stream (AC: 3)
-  - [ ] Accept Twilio Media Stream WebSocket connection
-  - [ ] Parse incoming media events (audio chunks in μ-law format)
-  - [ ] Send audio back to Twilio in expected format
-  - [ ] Handle stream start/stop/error events
-  - [ ] Pass audio to/from the voice AI engine (Story 3.3)
-- [ ] Task 5: Create status callback handler POST /api/v1/voice/status (AC: 4,6,7)
-  - [ ] Verify Twilio request signature
-  - [ ] Update CallRequest.status and CallSession based on callback status
-  - [ ] Map Twilio statuses: initiated, ringing, in-progress, completed, busy, no-answer, failed
-  - [ ] Set CallSession.outcome appropriately
-- [ ] Task 6: Create recording callback handler POST /api/v1/voice/recording (AC: 5)
-  - [ ] Store recording URL in CallSession.recording_url
-- [ ] Task 7: Write unit tests for adapter (mock Twilio API) (AC: 1,4)
-- [ ] Task 8: Write integration tests for TwiML and WebSocket endpoints (AC: 2,3)
+- [x] Task 1: Create apps/api/app/infrastructure/providers/twilio_voice.py (AC: 1,4,5)
+  - [x] TwilioVoiceAdapter class
+  - [x] initiate_call(call_request) → twilio_call_sid
+  - [x] Uses Twilio REST API: client.calls.create(to=phone, from_=twilio_number, url=twiml_url, status_callback=callback_url, record=True)
+- [x] Task 2: Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER to settings (AC: 1)
+- [x] Task 3: Create TwiML endpoint POST /api/v1/voice/twiml (AC: 2)
+  - [x] Returns TwiML XML: `<Response><Connect><Stream url="wss://host/api/v1/voice/media-stream" /></Connect></Response>`
+  - [x] Include call metadata parameters
+- [x] Task 4: Create WebSocket endpoint WS /api/v1/voice/media-stream (AC: 3)
+  - [x] Accept Twilio Media Stream WebSocket connection
+  - [x] Parse incoming media events (audio chunks in μ-law format)
+  - [x] Send audio back to Twilio in expected format
+  - [x] Handle stream start/stop/error events
+  - [x] Pass audio to/from the voice AI engine (Story 3.3)
+- [x] Task 5: Create status callback handler POST /api/v1/voice/status (AC: 4,6,7)
+  - [x] Verify Twilio request signature
+  - [x] Update CallRequest.status and CallSession based on callback status
+  - [x] Map Twilio statuses: initiated, ringing, in-progress, completed, busy, no-answer, failed
+  - [x] Set CallSession.outcome appropriately
+- [x] Task 6: Create recording callback handler POST /api/v1/voice/recording (AC: 5)
+  - [x] Store recording URL in CallSession.recording_url
+- [x] Task 7: Write unit tests for adapter (mock Twilio API) (AC: 1,4)
+- [x] Task 8: Write integration tests for TwiML and WebSocket endpoints (AC: 2,3)
+
+### Review Findings
+
+- [x] [Review][Patch] Media Streams WebSocket accepts unauthenticated callers [apps/api/app/api/routes/voice.py:65]
+- [x] [Review][Patch] Callback signature verification uses only the global Twilio auth token despite workspace-specific call credentials [apps/api/app/infrastructure/providers/twilio_voice.py:72]
+- [x] [Review][Patch] Voicemail detection is not implemented and the AI conversation starts for every stream [apps/api/app/api/routes/voice.py:87]
+- [x] [Review][Patch] Twilio lifecycle callbacks do not persist initiated, ringing, answered, or in-progress states [apps/api/app/api/routes/voice.py:229]
+- [x] [Review][Patch] Call SID/session idempotency is not enforced at the database boundary [apps/api/app/domain/voice/models.py:64]
+- [x] [Review][Patch] Media Streams malformed-frame, stream error, and teardown paths can leak tasks or save partial state after failure [apps/api/app/api/routes/voice.py:103]
+- [x] [Review][Patch] Raw Twilio provider error bodies are logged/returned and can be persisted by workers without sanitization [apps/api/app/infrastructure/providers/twilio_voice.py:67]
+- [x] [Review][Patch] Required Twilio adapter, callback, WebSocket, signature, and duplicate-delivery tests are absent [apps/api/tests:1]
 
 ## Dev Notes
 
@@ -60,6 +71,24 @@ so that the AI voice assistant can make phone calls and exchange audio in real-t
 
 ## Dev Agent Record
 ### Agent Model Used
+GitHub Copilot
+
 ### Debug Log References
+- Focused pytest: `python -m pytest apps/api/tests/api/routes/test_voice_twilio.py -v --rootdir=apps/api`
+- Focused Ruff: `python -m ruff check apps/api/app/api/routes/voice.py apps/api/app/infrastructure/providers/twilio_voice.py apps/api/app/domain/voice/models.py apps/workers/worker_app/call_worker.py apps/api/app/workers/call_worker.py apps/api/tests/api/routes/test_voice_twilio.py`
+
 ### Completion Notes List
+- Added tenant-aware Twilio webhook signature verification that rejects unsigned requests and resolves per-workspace Twilio voice credentials by AccountSid.
+- Bound Media Streams to signed call/account tokens, validated start metadata, handled malformed/error frames, and awaited teardown before saving conversation state.
+- Persisted Twilio account/status lifecycle metadata, voicemail outcomes, recording URLs, and idempotency constraints for one CallSession per CallRequest plus unique non-empty Twilio CallSid.
+- Sanitized Twilio provider errors and worker audit/log output so raw provider bodies and phone numbers are not exposed.
+- Added focused Twilio adapter, callback, TwiML, WebSocket, tenant-signature, voicemail, recording, and duplicate/stale-delivery regression tests.
+
 ### File List
+- apps/api/app/api/routes/voice.py
+- apps/api/app/infrastructure/providers/twilio_voice.py
+- apps/api/app/domain/voice/models.py
+- apps/api/app/alembic/versions/i4d5e6f7a8b9_add_twilio_call_session_idempotency.py
+- apps/workers/worker_app/call_worker.py
+- apps/api/app/workers/call_worker.py
+- apps/api/tests/api/routes/test_voice_twilio.py

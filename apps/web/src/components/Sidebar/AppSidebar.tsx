@@ -27,6 +27,7 @@ const baseItems: Item[] = [
   { icon: Briefcase, title: "Campaigns", path: "/campaigns" },
   { icon: ListOrdered, title: "Sequences", path: "/sequences" },
   { icon: Mic2, title: "Voice Agents", path: "/voice-agents" },
+  { icon: Users, title: "Contacts", path: "/contacts" },
   { icon: BarChart3, title: "Analytics", path: "/analytics" },
   { icon: FileText, title: "Templates", path: "/templates" },
   { icon: Shield, title: "Controls", path: "/controls" },

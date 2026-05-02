@@ -2,9 +2,6 @@ services:
   db:
     restart: no
 
-  mongodb:
-    restart: no
-
   redis:
     restart: no
 

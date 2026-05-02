@@ -13,14 +13,11 @@
         <mxCell id="api" value="FastAPI API&#xa;apps/api" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1E3A8A;fillColor=#BFDBFE;fontColor=#1E3A8A;fontSize=13;" vertex="1" parent="1">
           <mxGeometry x="550" y="170" width="170" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="pg" value="PostgreSQL" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#334155;fillColor=#F3F4F6;fontColor=#1F2937;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="pg" value="PostgreSQL&#xa;(operational + audit_events)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#334155;fillColor=#F3F4F6;fontColor=#1F2937;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="810" y="80" width="150" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="mongo" value="MongoDB" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#334155;fillColor=#F3F4F6;fontColor=#1F2937;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="810" y="155" width="150" height="50" as="geometry" />
-        </mxCell>
         <mxCell id="redis" value="Redis" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#334155;fillColor=#F3F4F6;fontColor=#1F2937;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="810" y="230" width="150" height="50" as="geometry" />
+          <mxGeometry x="810" y="155" width="150" height="50" as="geometry" />
         </mxCell>
         <mxCell id="worker" value="Worker Scaffold&#xa;apps/workers" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1D4ED8;fillColor=#EFF6FF;fontColor=#1E3A8A;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="550" y="300" width="170" height="60" as="geometry" />
@@ -35,9 +32,6 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e3" value="" style="endArrow=block;endFill=1;strokeColor=#334155;" edge="1" parent="1" source="api" target="pg">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e4" value="" style="endArrow=block;endFill=1;strokeColor=#334155;" edge="1" parent="1" source="api" target="mongo">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e5" value="" style="endArrow=block;endFill=1;strokeColor=#334155;" edge="1" parent="1" source="api" target="redis">

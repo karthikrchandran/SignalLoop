@@ -9,10 +9,14 @@ from typing import Any, AsyncGenerator, Callable
 import websockets
 
 from app.core.config import settings
+from app.infrastructure.providers.errors import require_provider_key
 
 logger = logging.getLogger(__name__)
 
 DEEPGRAM_WS_URL = "wss://api.deepgram.com/v1/listen"
+STT_CONNECT_TIMEOUT_SECONDS = 2.0
+STT_CLOSE_TIMEOUT_SECONDS = 1.0
+STT_ENDPOINTING_MS = 80
 
 
 class DeepgramSTTAdapter:
@@ -23,7 +27,7 @@ class DeepgramSTTAdapter:
         *,
         on_transcript: Callable[[str, bool], Any] | None = None,
     ) -> None:
-        self._api_key = settings.DEEPGRAM_API_KEY
+        self._api_key = require_provider_key(settings.DEEPGRAM_API_KEY, "DEEPGRAM_API_KEY")
         self._ws = None
         self._on_transcript = on_transcript
 
@@ -37,12 +41,14 @@ class DeepgramSTTAdapter:
             "&channels=1"
             "&interim_results=true"
             "&punctuate=true"
-            "&endpointing=300"
+            f"&endpointing={STT_ENDPOINTING_MS}"
         )
         headers = {"Authorization": f"Token {self._api_key}"}
         self._ws = await websockets.connect(
             f"{DEEPGRAM_WS_URL}{params}",
             additional_headers=headers,
+            open_timeout=STT_CONNECT_TIMEOUT_SECONDS,
+            close_timeout=STT_CLOSE_TIMEOUT_SECONDS,
         )
         logger.info("Deepgram STT connected")
 
@@ -57,7 +63,11 @@ class DeepgramSTTAdapter:
             return
         try:
             async for message in self._ws:
-                data = json.loads(message)
+                try:
+                    data = json.loads(message)
+                except json.JSONDecodeError:
+                    logger.warning("Deepgram STT returned malformed JSON")
+                    continue
                 channel = data.get("channel", {})
                 alternatives = channel.get("alternatives", [{}])
                 if alternatives:
@@ -69,9 +79,15 @@ class DeepgramSTTAdapter:
                         yield {"transcript": transcript, "is_final": is_final}
         except websockets.exceptions.ConnectionClosed:
             logger.info("Deepgram STT connection closed")
+        except Exception:
+            logger.exception("Deepgram STT receive loop failed")
 
     async def close(self) -> None:
         """Close the STT WebSocket."""
         if self._ws:
-            await self._ws.close()
+            ws = self._ws
             self._ws = None
+            try:
+                await asyncio.wait_for(ws.close(), timeout=STT_CLOSE_TIMEOUT_SECONDS)
+            except (asyncio.TimeoutError, websockets.exceptions.WebSocketException):
+                logger.warning("Deepgram STT close did not complete cleanly")

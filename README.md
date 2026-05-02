@@ -19,6 +19,8 @@ EngageHub is a hybrid monorepo for governed campaign orchestration across email 
 
 ## Local Development Setup
 
+### Option A — Docker Compose (recommended)
+
 1. Copy `.env.example` to `.env`.
 2. Start infrastructure and app services:
 
@@ -30,6 +32,45 @@ EngageHub is a hybrid monorepo for governed campaign orchestration across email 
 
 	- API health: `http://localhost:8000/api/v1/utils/health-check/`
 	- Web app: `http://localhost:5173`
+
+### Option B — Run without Docker (uv + local services)
+
+Postgres and Redis must be reachable on `localhost`. On Windows with scoop:
+
+```powershell
+# Postgres (already installed in this workspace via scoop)
+scoop install postgresql           # if not yet installed
+pg_ctl -D "$env:USERPROFILE\scoop\apps\postgresql\current\data" -l postgres.log start
+createdb -U postgres engagehub
+
+# Redis — scoop ships a Windows port; or use Memurai
+scoop install redis
+redis-server --service-install
+redis-server --service-start
+```
+
+Then from the repo root:
+
+```powershell
+# 1. Backend deps + migrations + API
+cd apps\api
+uv sync
+uv run alembic upgrade head
+uv run python -m app.initial_data         # seed superuser
+uv run fastapi dev app/main.py            # http://localhost:8000
+
+# 2. In separate terminals — workers (each is a long-running process)
+uv run python -m app.workers.sequence_worker
+uv run python -m app.workers.call_worker
+uv run python -m app.workers.postcall_worker
+
+# 3. Frontend
+cd ..\web
+bun install     # or: npm install
+bun run dev     # http://localhost:5173
+```
+
+`.env` already targets `localhost` for both Postgres and Redis, so no further config edits are needed for local-only runs. Provider credentials (`SENDGRID_*`, `TWILIO_*`, `DEEPGRAM_API_KEY`, `GROQ_API_KEY`) are optional — the adapters fail closed when keys are absent, so the API and UI still boot for development.
 
 ## Backend Dependency Install
 
@@ -76,8 +117,7 @@ bun run build
 
 ## Services
 
-- PostgreSQL for transactional campaign and governance records
-- MongoDB for audit/event storage
+- PostgreSQL for transactional campaign and governance records (audit events also live here in the `audit_events` table)
 - Redis for async coordination and short-lived state
 
 ## Current Story Coverage

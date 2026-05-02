@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-import functools
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Column, DateTime, Index, JSON, String, Text
+from sqlalchemy import JSON, Column, DateTime, Index, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Session, SQLModel
 
 from app.core.db import engine
@@ -18,15 +18,21 @@ class AuditEvent(SQLModel, table=True):
         Index("idx_audit_event_type", "event_name"),
         Index("idx_audit_workspace", "workspace_id"),
         Index("idx_audit_created", "created_at"),
+        Index("idx_audit_workspace_created", "workspace_id", "created_at"),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     event_name: str = Field(sa_type=String(255))
     workspace_id: str = Field(sa_type=String(64))
     actor_id: uuid.UUID | None = Field(default=None)
+    actor_role: str | None = Field(default=None, sa_type=String(64))
     resource_type: str | None = Field(default=None, sa_type=String(128))
     resource_id: str | None = Field(default=None, sa_type=String(255))
-    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    correlation_id: str | None = Field(default=None, sa_type=String(255))
+    payload: dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSON().with_variant(JSONB(), "postgresql")),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_type=DateTime(timezone=True),
@@ -39,16 +45,20 @@ async def append_audit_event(
     workspace_id: str,
     payload: dict[str, Any],
     actor_id: uuid.UUID | None = None,
+    actor_role: str | None = None,
     resource_type: str | None = None,
     resource_id: str | None = None,
+    correlation_id: str | None = None,
 ) -> None:
     event = AuditEvent(
         event_name=event_name,
         workspace_id=workspace_id,
         payload=payload,
         actor_id=actor_id,
+        actor_role=actor_role,
         resource_type=resource_type,
         resource_id=resource_id,
+        correlation_id=correlation_id,
     )
 
     def _sync_write() -> None:
@@ -56,5 +66,5 @@ async def append_audit_event(
             session.add(event)
             session.commit()
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, _sync_write)

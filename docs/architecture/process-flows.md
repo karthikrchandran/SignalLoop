@@ -22,7 +22,7 @@ sequenceDiagram
     participant Authz as Casbin Authz
     participant Domain as Domain Service
     participant PG as PostgreSQL
-    participant Mongo as Mongo Audit
+    participant Audit as audit_events (PG)
 
     Client->>Middleware: HTTP request with workspace and idempotency headers
     Middleware->>Middleware: Generate or propagate request ID
@@ -32,7 +32,7 @@ sequenceDiagram
     Route->>Domain: Execute use-case logic
     Domain->>PG: Persist transactional state
     Domain-->>Route: Return result
-    Route->>Mongo: Append audit event when applicable
+    Route->>Audit: Append audit event when applicable
     Route-->>Client: JSON response with X-Request-Id
 ```
 
@@ -45,7 +45,7 @@ This is the most complete business flow in the repo today.
 flowchart TD
     A["Operator creates campaign"] --> B["POST /campaigns"]
     B --> C["Campaign row saved"]
-    C --> D["Audit event written to MongoDB"]
+    C --> D["Audit event written to audit_events (PostgreSQL)"]
     D --> E["Operator uploads CSV"]
     E --> F["POST /campaigns/{id}/contacts/import"]
     F --> G["CSV parsed"]
@@ -129,19 +129,19 @@ sequenceDiagram
     participant API as Approvals Route
     participant Rules as Approval Service
     participant PG as PostgreSQL
-    participant Mongo as Mongo Audit
+    participant Audit as audit_events (PG)
     participant Admin
 
     Operator->>API: POST /approvals/submit
     API->>Rules: requires_approval(requested_action, payload)
     Rules-->>API: pending or auto-approved
     API->>PG: Save approval request
-    API->>Mongo: approval.submitted
+    API->>Audit: approval.submitted
     API-->>Operator: Approval request status
 
     Admin->>API: POST /approvals/{id}/approve or reject
     API->>PG: Update status, approver, resolved_at
-    API->>Mongo: approval.approved or approval.rejected
+    API->>Audit: approval.approved or approval.rejected
     API-->>Admin: Updated approval request
 ```
 
@@ -193,7 +193,7 @@ sequenceDiagram
     participant Worker
     participant Queue as Action Queue
     participant Provider as External Provider
-    participant Mongo as Mongo Event Store
+    participant Audit as audit_events (PG)
 
     API->>PG: Save contact progression or delivery intent
     API->>PG: Insert outbox_events row in same transaction
@@ -204,7 +204,7 @@ sequenceDiagram
     Provider-->>Worker: Delivery result or error
     Worker->>PG: Update action_queue and contact_progression
     Worker->>PG: Append contact_state_history
-    Worker->>Mongo: Append event_store / timeline event
+    Worker->>Audit: Append audit_events / timeline event
 ```
 
 ## 8. Swimlane View Of Current And Emerging Responsibilities
@@ -234,8 +234,7 @@ flowchart LR
     end
 
     subgraph Data["Data Stores"]
-        D1["PostgreSQL"]
-        D2["MongoDB"]
+        D1["PostgreSQL\n(operational + audit_events)"]
         D3["Redis"]
     end
 
@@ -246,13 +245,12 @@ flowchart LR
     A1 --> A2
     A2 --> A3
     A3 --> D1
-    A4 --> D2
+    A4 --> D1
     D1 --> W1
     W1 --> W2
     W2 --> W3
     W3 --> W4
     W4 --> D1
-    W4 --> D2
     W1 --> D3
 ```
 

@@ -28,6 +28,15 @@ so that the application uses only PostgreSQL for all persistent storage, reducin
 - [ ] Task 8: Search entire codebase for remaining MongoDB/motor imports and remove them (AC: 2)
 - [ ] Task 9: Run pytest to verify nothing is broken (AC: 1)
 
+### Review Findings
+
+- [x] [Review][Patch] Add the missing Alembic migration that creates the PostgreSQL `audit_events` table before any code writes to it [apps/api/app/domain/audit/audit_events.py:15]
+- [x] [Review][Patch] Use PostgreSQL JSONB for `AuditEvent.payload` instead of generic SQLAlchemy JSON [apps/api/app/domain/audit/audit_events.py:27]
+- [x] [Review][Patch] Enforce `audit_events` append-only behavior at the database layer, not only by application convention [apps/api/app/domain/audit/audit_events.py:36]
+- [x] [Review][Patch] Reconcile the two Alembic heads and fix the `g2b3c4d5e6f7` audit migration so it cannot alter `audit_events` before the table exists [apps/api/app/alembic/versions/g2b3c4d5e6f7_add_actor_role_correlation_id_to_audit_events.py:18]
+- [x] [Review][Patch] Clean lint failures in the audit event module imports [apps/api/app/domain/audit/audit_events.py:4]
+- [x] [Review][Patch] Update future BMAD story artifacts that still direct implementation toward MongoDB event/audit storage [_bmad-output/implementation-artifacts/5-2-capture-immutable-operational-audit-trail.md:15]
+
 ## Dev Notes
 
 - The audit_events table should have: id (UUID), event_type (str), actor_id (UUID nullable), resource_type (str), resource_id (str), payload (JSONB), created_at (datetime)
@@ -40,4 +49,8 @@ so that the application uses only PostgreSQL for all persistent storage, reducin
 ### Agent Model Used
 ### Debug Log References
 ### Completion Notes List
+- Added a base Alembic migration for `audit_events`, rewired the audit/dead-letter migration chain to a single head, and enforced append-only audit rows with a PostgreSQL trigger.
+- Verified the repaired migration chain on a fresh local database and reconciled the active local `engagehub` database: `audit_events.payload` is JSONB, `actor_role` and `correlation_id` exist, and `trg_audit_events_append_only` is installed.
+- Cleaned the active local Alembic stamp to the merge head `h3c4d5e6f7a8`; `uv run alembic -c alembic.ini upgrade head` now completes against `engagehub`.
+- Focused audit route tests now pass against the active local database: `tests/api/routes/test_audit_log.py` reports 6 passed.
 ### File List

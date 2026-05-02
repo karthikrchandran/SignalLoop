@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlmodel import Session, select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
-from app.domain.audit.mongo_audit import append_audit_event
+from app.domain.audit.audit_events import append_audit_event
 from app.domain.contacts.import_service import parse_csv, preview_rows, validate_rows
 from app.domain.contacts.mapping_service import map_row, resolve_mapping
 from app.domain.contacts.segment_service import estimate_segment
@@ -21,7 +20,6 @@ from app.domain_models import (
     CampaignImportPublic,
     CampaignMappingRequest,
     CampaignPublic,
-    CampaignStatus,
     CampaignSegment,
     CampaignSegmentCreate,
     CampaignSegmentPublic,
@@ -29,12 +27,12 @@ from app.domain_models import (
     CampaignsPublic,
     ImportPreviewPublic,
     ImportRowError,
+    OfferPack,
     OfferPackVersion,
     StrategyPublic,
     StrategyRequest,
     TemplateStatus,
 )
-from app.infrastructure.authz.enforcer import require_role
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
@@ -88,10 +86,9 @@ def read_campaigns(session: SessionDep, workspace_id: WorkspaceIdDep) -> Campaig
     )
 
 
-@router.post("/", response_model=CampaignPublic, dependencies=[Depends(require_role("operator"))])
+@router.post("/", response_model=CampaignPublic, dependencies=[Depends(require_admin)])
 async def create_campaign(
     *,
-    request: Request,
     session: SessionDep,
     current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
@@ -116,7 +113,7 @@ async def create_campaign(
     )
 
 
-@router.post("/{campaign_id}/contacts/import", response_model=CampaignImportPublic, dependencies=[Depends(require_role("operator"))])
+@router.post("/{campaign_id}/contacts/import", response_model=CampaignImportPublic, dependencies=[Depends(require_admin)])
 async def import_contacts(
     *,
     session: SessionDep,
@@ -172,7 +169,7 @@ async def import_contacts(
     )
 
 
-@router.post("/{campaign_id}/contacts/mapping", response_model=ImportPreviewPublic, dependencies=[Depends(require_role("operator"))])
+@router.post("/{campaign_id}/contacts/mapping", response_model=ImportPreviewPublic, dependencies=[Depends(require_admin)])
 def persist_mapping(
     *,
     session: SessionDep,
@@ -244,7 +241,7 @@ def get_import_preview(
     )
 
 
-@router.post("/{campaign_id}/segments", response_model=CampaignSegmentPublic, dependencies=[Depends(require_role("operator"))])
+@router.post("/{campaign_id}/segments", response_model=CampaignSegmentPublic, dependencies=[Depends(require_admin)])
 def create_segment(
     *,
     session: SessionDep,
@@ -259,7 +256,7 @@ def create_segment(
         select(CampaignContactStage).where(
             CampaignContactStage.campaign_id == campaign_id,
             CampaignContactStage.workspace_id == workspace_id,
-            CampaignContactStage.is_valid == True,
+            CampaignContactStage.is_valid,
         )
     ).all()
     rules = [rule.model_dump() for rule in body.rules]
@@ -289,7 +286,7 @@ def create_segment(
     return CampaignSegmentPublic(id=segment.id, name=segment.name, estimated_count=segment.estimated_count)
 
 
-@router.post("/{campaign_id}/strategy", response_model=StrategyPublic, dependencies=[Depends(require_role("operator"))])
+@router.post("/{campaign_id}/strategy", response_model=StrategyPublic, dependencies=[Depends(require_admin)])
 def assign_strategy(
     *,
     session: SessionDep,
@@ -300,10 +297,21 @@ def assign_strategy(
     body: StrategyRequest,
 ) -> StrategyPublic:
     _get_campaign_or_404(session, campaign_id, workspace_id, owner_id=current_user.id)
+    if body.offer_pack_id:
+        offer_pack = session.exec(
+            select(OfferPack).where(
+                OfferPack.id == body.offer_pack_id,
+                OfferPack.workspace_id == workspace_id,
+            )
+        ).first()
+        if not offer_pack:
+            raise HTTPException(status_code=400, detail="Offer pack must belong to the active workspace")
     if body.offer_pack_version_id:
         version = session.get(OfferPackVersion, body.offer_pack_version_id)
         if not version or version.workspace_id != workspace_id or version.status != TemplateStatus.published or not version.guardrail_compliant:
             raise HTTPException(status_code=400, detail="Only published compliant offer pack versions can be assigned")
+        if body.offer_pack_id and version.offer_pack_id != body.offer_pack_id:
+            raise HTTPException(status_code=400, detail="Offer pack version must belong to the selected offer pack")
 
     strategy = session.exec(
         select(CampaignChannelStrategy).where(CampaignChannelStrategy.campaign_id == campaign_id)
@@ -319,8 +327,8 @@ def assign_strategy(
     return StrategyPublic(id=strategy.id, campaign_id=strategy.campaign_id, strategy_json=strategy.strategy_json)
 
 
-@router.put("/{campaign_id}/pause", dependencies=[Depends(require_role("operator"))])
-def pause_campaign(
+@router.put("/{campaign_id}/pause", dependencies=[Depends(require_admin)])
+async def pause_campaign(
     session: SessionDep,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
@@ -334,11 +342,18 @@ def pause_campaign(
     campaign.active = False
     session.add(campaign)
     session.commit()
+    await append_audit_event(
+        event_name="campaign_paused",
+        workspace_id=workspace_id,
+        resource_type="campaign",
+        resource_id=str(campaign_id),
+        payload={"campaign_id": str(campaign_id), "name": campaign.name},
+    )
     return {"message": f"Campaign '{campaign.name}' paused"}
 
 
-@router.put("/{campaign_id}/resume", dependencies=[Depends(require_role("operator"))])
-def resume_campaign(
+@router.put("/{campaign_id}/resume", dependencies=[Depends(require_admin)])
+async def resume_campaign(
     session: SessionDep,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
@@ -352,4 +367,11 @@ def resume_campaign(
     campaign.active = True
     session.add(campaign)
     session.commit()
+    await append_audit_event(
+        event_name="campaign_activated",
+        workspace_id=workspace_id,
+        resource_type="campaign",
+        resource_id=str(campaign_id),
+        payload={"campaign_id": str(campaign_id), "name": campaign.name},
+    )
     return {"message": f"Campaign '{campaign.name}' resumed"}

@@ -19,10 +19,11 @@ import { Route as LayoutVoiceAgentsRouteImport } from './routes/_layout/voice-ag
 import { Route as LayoutTemplatesRouteImport } from './routes/_layout/templates'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
 import { Route as LayoutSequencesRouteImport } from './routes/_layout/sequences'
+import { Route as LayoutReportingRouteImport } from './routes/_layout/reporting'
 import { Route as LayoutOfferPacksRouteImport } from './routes/_layout/offer-packs'
-import { Route as LayoutItemsRouteImport } from './routes/_layout/items'
 import { Route as LayoutGovernanceRouteImport } from './routes/_layout/governance'
 import { Route as LayoutControlsRouteImport } from './routes/_layout/controls'
+import { Route as LayoutContactsRouteImport } from './routes/_layout/contacts'
 import { Route as LayoutCampaignsRouteImport } from './routes/_layout/campaigns'
 import { Route as LayoutAnalyticsRouteImport } from './routes/_layout/analytics'
 import { Route as LayoutAdminRouteImport } from './routes/_layout/admin'
@@ -76,14 +77,14 @@ const LayoutSequencesRoute = LayoutSequencesRouteImport.update({
   path: '/sequences',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutReportingRoute = LayoutReportingRouteImport.update({
+  id: '/reporting',
+  path: '/reporting',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutOfferPacksRoute = LayoutOfferPacksRouteImport.update({
   id: '/offer-packs',
   path: '/offer-packs',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutItemsRoute = LayoutItemsRouteImport.update({
-  id: '/items',
-  path: '/items',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutGovernanceRoute = LayoutGovernanceRouteImport.update({
@@ -94,6 +95,11 @@ const LayoutGovernanceRoute = LayoutGovernanceRouteImport.update({
 const LayoutControlsRoute = LayoutControlsRouteImport.update({
   id: '/controls',
   path: '/controls',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutContactsRoute = LayoutContactsRouteImport.update({
+  id: '/contacts',
+  path: '/contacts',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutCampaignsRoute = LayoutCampaignsRouteImport.update({
@@ -121,10 +127,11 @@ export interface FileRoutesByFullPath {
   '/admin': typeof LayoutAdminRoute
   '/analytics': typeof LayoutAnalyticsRoute
   '/campaigns': typeof LayoutCampaignsRoute
+  '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
   '/governance': typeof LayoutGovernanceRoute
-  '/items': typeof LayoutItemsRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
+  '/reporting': typeof LayoutReportingRoute
   '/sequences': typeof LayoutSequencesRoute
   '/settings': typeof LayoutSettingsRoute
   '/templates': typeof LayoutTemplatesRoute
@@ -138,10 +145,11 @@ export interface FileRoutesByTo {
   '/admin': typeof LayoutAdminRoute
   '/analytics': typeof LayoutAnalyticsRoute
   '/campaigns': typeof LayoutCampaignsRoute
+  '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
   '/governance': typeof LayoutGovernanceRoute
-  '/items': typeof LayoutItemsRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
+  '/reporting': typeof LayoutReportingRoute
   '/sequences': typeof LayoutSequencesRoute
   '/settings': typeof LayoutSettingsRoute
   '/templates': typeof LayoutTemplatesRoute
@@ -158,10 +166,11 @@ export interface FileRoutesById {
   '/_layout/admin': typeof LayoutAdminRoute
   '/_layout/analytics': typeof LayoutAnalyticsRoute
   '/_layout/campaigns': typeof LayoutCampaignsRoute
+  '/_layout/contacts': typeof LayoutContactsRoute
   '/_layout/controls': typeof LayoutControlsRoute
   '/_layout/governance': typeof LayoutGovernanceRoute
-  '/_layout/items': typeof LayoutItemsRoute
   '/_layout/offer-packs': typeof LayoutOfferPacksRoute
+  '/_layout/reporting': typeof LayoutReportingRoute
   '/_layout/sequences': typeof LayoutSequencesRoute
   '/_layout/settings': typeof LayoutSettingsRoute
   '/_layout/templates': typeof LayoutTemplatesRoute
@@ -179,10 +188,11 @@ export interface FileRouteTypes {
     | '/admin'
     | '/analytics'
     | '/campaigns'
+    | '/contacts'
     | '/controls'
     | '/governance'
-    | '/items'
     | '/offer-packs'
+    | '/reporting'
     | '/sequences'
     | '/settings'
     | '/templates'
@@ -196,10 +206,11 @@ export interface FileRouteTypes {
     | '/admin'
     | '/analytics'
     | '/campaigns'
+    | '/contacts'
     | '/controls'
     | '/governance'
-    | '/items'
     | '/offer-packs'
+    | '/reporting'
     | '/sequences'
     | '/settings'
     | '/templates'
@@ -215,10 +226,11 @@ export interface FileRouteTypes {
     | '/_layout/admin'
     | '/_layout/analytics'
     | '/_layout/campaigns'
+    | '/_layout/contacts'
     | '/_layout/controls'
     | '/_layout/governance'
-    | '/_layout/items'
     | '/_layout/offer-packs'
+    | '/_layout/reporting'
     | '/_layout/sequences'
     | '/_layout/settings'
     | '/_layout/templates'
@@ -306,18 +318,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSequencesRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/reporting': {
+      id: '/_layout/reporting'
+      path: '/reporting'
+      fullPath: '/reporting'
+      preLoaderRoute: typeof LayoutReportingRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/offer-packs': {
       id: '/_layout/offer-packs'
       path: '/offer-packs'
       fullPath: '/offer-packs'
       preLoaderRoute: typeof LayoutOfferPacksRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/items': {
-      id: '/_layout/items'
-      path: '/items'
-      fullPath: '/items'
-      preLoaderRoute: typeof LayoutItemsRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/governance': {
@@ -332,6 +344,13 @@ declare module '@tanstack/react-router' {
       path: '/controls'
       fullPath: '/controls'
       preLoaderRoute: typeof LayoutControlsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/contacts': {
+      id: '/_layout/contacts'
+      path: '/contacts'
+      fullPath: '/contacts'
+      preLoaderRoute: typeof LayoutContactsRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/campaigns': {
@@ -362,10 +381,11 @@ interface LayoutRouteChildren {
   LayoutAdminRoute: typeof LayoutAdminRoute
   LayoutAnalyticsRoute: typeof LayoutAnalyticsRoute
   LayoutCampaignsRoute: typeof LayoutCampaignsRoute
+  LayoutContactsRoute: typeof LayoutContactsRoute
   LayoutControlsRoute: typeof LayoutControlsRoute
   LayoutGovernanceRoute: typeof LayoutGovernanceRoute
-  LayoutItemsRoute: typeof LayoutItemsRoute
   LayoutOfferPacksRoute: typeof LayoutOfferPacksRoute
+  LayoutReportingRoute: typeof LayoutReportingRoute
   LayoutSequencesRoute: typeof LayoutSequencesRoute
   LayoutSettingsRoute: typeof LayoutSettingsRoute
   LayoutTemplatesRoute: typeof LayoutTemplatesRoute
@@ -377,10 +397,11 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutAdminRoute: LayoutAdminRoute,
   LayoutAnalyticsRoute: LayoutAnalyticsRoute,
   LayoutCampaignsRoute: LayoutCampaignsRoute,
+  LayoutContactsRoute: LayoutContactsRoute,
   LayoutControlsRoute: LayoutControlsRoute,
   LayoutGovernanceRoute: LayoutGovernanceRoute,
-  LayoutItemsRoute: LayoutItemsRoute,
   LayoutOfferPacksRoute: LayoutOfferPacksRoute,
+  LayoutReportingRoute: LayoutReportingRoute,
   LayoutSequencesRoute: LayoutSequencesRoute,
   LayoutSettingsRoute: LayoutSettingsRoute,
   LayoutTemplatesRoute: LayoutTemplatesRoute,
