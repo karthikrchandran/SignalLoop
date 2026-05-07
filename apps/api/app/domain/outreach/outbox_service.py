@@ -1,3 +1,5 @@
+"""Domain service: ``outbox service``."""
+
 from __future__ import annotations
 
 import uuid
@@ -22,6 +24,7 @@ def enqueue_outbox_event(
     event_data: dict[str, Any],
     idempotency_key: str,
 ) -> OutboxEvent:
+    """Enqueue outbox event."""
     existing = session.exec(
         select(OutboxEvent).where(OutboxEvent.idempotency_key == idempotency_key)
     ).first()
@@ -43,6 +46,7 @@ def enqueue_outbox_event(
 
 
 def list_unpublished_events(session: Session, *, limit: int = 100) -> list[OutboxEvent]:
+    """Return a list of unpublished events."""
     return list(
         session.exec(
             select(OutboxEvent)
@@ -54,6 +58,7 @@ def list_unpublished_events(session: Session, *, limit: int = 100) -> list[Outbo
 
 
 def mark_outbox_published(session: Session, *, event_id: uuid.UUID) -> OutboxEvent | None:
+    """Mark outbox published."""
     event = session.get(OutboxEvent, event_id)
     if event is None:
         return None

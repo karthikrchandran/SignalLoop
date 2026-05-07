@@ -21,6 +21,7 @@ depends_on: str | tuple[str, ...] | None = None
 
 
 def upgrade() -> None:
+    """Apply this Alembic migration."""
     op.add_column(
         "call_sessions",
         sa.Column("twilio_account_sid", sa.String(length=64), nullable=True),
@@ -49,6 +50,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Revert this Alembic migration."""
     op.drop_index("uq_cs_twilio_call_sid_nonempty", table_name="call_sessions")
     op.drop_constraint("uq_call_sessions_call_request_id", "call_sessions", type_="unique")
     op.drop_index("idx_cs_twilio_status", table_name="call_sessions")

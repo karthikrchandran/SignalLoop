@@ -293,6 +293,32 @@ System reacts to positive signals from both email and voice channels with automa
 
 ---
 
+---
+
+## Epic 5: Security Hardening and Tenant Isolation
+
+### Outcome
+
+Close tenant-isolation gaps and security weaknesses identified during code review. Ensure all domain service queries enforce `workspace_id` boundaries, no cross-tenant data leakage is possible even via unguessable UUIDs, and auth/authz edges are covered at the service layer.
+
+### Stories
+
+1. **Story 5.1: Add `workspace_id` to `ContactStateHistory` and enforce tenant filter in timeline service**
+   - `ContactStateHistory` currently has no `workspace_id` column; tenant isolation relies solely on UUID unguessability.
+   - Add `workspace_id` column (FK → `workspaces.id`, non-null, indexed) to `ContactStateHistory` table.
+   - Create Alembic migration; backfill via join through `ContactProgression.workspace_id`.
+   - Update `progression_service.py` to pass `workspace_id` when writing `ContactStateHistory` rows.
+   - Update `timeline_service._fetch_state_history` to add `.where(ContactStateHistory.workspace_id == workspace_id)`.
+   - Update `timeline_service.get_timeline_event_detail` `csh` branch to include `workspace_id` check.
+   - Add unit tests covering cross-tenant isolation for all three `_fetch_*` helpers.
+
+   **Acceptance criteria**
+   - A `ContactStateHistory` row created in workspace A is not returned by a timeline query scoped to workspace B, even if the `contact_id` UUID is known.
+   - Migration runs cleanly on the test database with no null `workspace_id` rows after backfill.
+   - All three timeline fetch helpers (`_fetch_state_history`, `_fetch_contact_events`, `_fetch_routing_decisions`) have consistent `workspace_id` enforcement.
+
+---
+
 ## Story-Writing Guidance
 
 Each implementation story should include:

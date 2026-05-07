@@ -20,6 +20,7 @@ depends_on = None
 
 def upgrade():
     # Ensure uuid-ossp extension is available
+    """Apply this Alembic migration."""
     op.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
 
     # Create a new UUID column with a default UUID value
@@ -56,6 +57,7 @@ def upgrade():
 
 def downgrade():
     # Reverse the upgrade process
+    """Revert this Alembic migration."""
     op.add_column('user', sa.Column('old_id', sa.Integer, autoincrement=True))
     op.add_column('item', sa.Column('old_id', sa.Integer, autoincrement=True))
     op.add_column('item', sa.Column('old_owner_id', sa.Integer, nullable=True))

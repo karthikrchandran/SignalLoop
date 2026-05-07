@@ -22,6 +22,7 @@ depends_on: str | tuple[str, ...] | None = None
 
 
 def upgrade() -> None:
+    """Apply this Alembic migration."""
     op.create_table(
         "audit_events",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -68,6 +69,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Revert this Alembic migration."""
     op.execute("DROP TRIGGER IF EXISTS trg_audit_events_append_only ON audit_events")
     op.execute("DROP FUNCTION IF EXISTS prevent_audit_events_update_delete()")
     op.drop_index("idx_audit_created", table_name="audit_events")

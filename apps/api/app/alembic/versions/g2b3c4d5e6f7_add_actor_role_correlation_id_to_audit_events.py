@@ -21,6 +21,7 @@ depends_on: str | tuple[str, ...] | None = None
 
 
 def upgrade() -> None:
+    """Apply this Alembic migration."""
     op.add_column(
         "audit_events",
         sa.Column("actor_role", sa.String(length=64), nullable=True),
@@ -37,6 +38,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Revert this Alembic migration."""
     op.drop_index("idx_audit_workspace_created", table_name="audit_events")
     op.drop_column("audit_events", "correlation_id")
     op.drop_column("audit_events", "actor_role")

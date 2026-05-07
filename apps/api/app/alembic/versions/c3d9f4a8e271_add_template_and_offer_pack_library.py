@@ -28,6 +28,7 @@ template_status_enum = postgresql.ENUM(
 
 
 def upgrade() -> None:
+    """Apply this Alembic migration."""
     template_status_enum.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
@@ -165,6 +166,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Revert this Alembic migration."""
     op.drop_constraint(
         "fk_campaign_channel_strategy_offer_pack_version_id",
         "campaign_channel_strategy",

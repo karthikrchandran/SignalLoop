@@ -35,6 +35,7 @@ def upgrade() -> None:
     # ------------------------------------------------------------------
     # contacts
     # ------------------------------------------------------------------
+    """Apply this Alembic migration."""
     op.create_table(
         "contacts",
         sa.Column("id", sa.Uuid(), nullable=False),
@@ -209,6 +210,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Revert this Alembic migration."""
     op.drop_index("idx_global_control_campaign_id", "global_control_state")
     op.drop_index("idx_governance_policy_campaign_id", "governance_policies")
     op.drop_index("idx_approval_workspace_status", "policy_approval_requests")

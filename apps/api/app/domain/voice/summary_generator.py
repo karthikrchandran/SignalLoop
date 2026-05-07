@@ -10,6 +10,7 @@ from app.domain.voice.models import CallOutcome, CallSession
 
 @dataclass
 class CallSummary:
+    """Summary row: call."""
     contact_name: str
     contact_company: str
     contact_email: str

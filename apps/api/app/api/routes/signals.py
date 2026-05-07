@@ -16,6 +16,7 @@ router = APIRouter(prefix="/signals", tags=["signals"], dependencies=[Depends(re
 
 
 class SignalPublic(SQLModel):
+    """API response model: signal."""
     id: uuid.UUID
     contact_id: uuid.UUID
     campaign_id: uuid.UUID
@@ -26,6 +27,7 @@ class SignalPublic(SQLModel):
 
 
 class SignalListPublic(SQLModel):
+    """API response model: signal list."""
     data: list[SignalPublic]
     count: int
 
@@ -68,6 +70,7 @@ def get_contact_signals(
     channel: str | None = None,
     signal_type: str | None = None,
 ) -> SignalListPublic:
+    """Return contact signals."""
     _ensure_contact_in_workspace(session, contact_id, workspace_id)
     signals = aggregation_service.get_contact_signals(
         session, contact_id, channel=channel, signal_type=signal_type
@@ -95,5 +98,6 @@ def get_campaign_signal_summary(
     workspace_id: WorkspaceIdDep,
     campaign_id: uuid.UUID,
 ) -> dict:
+    """Return campaign signal summary."""
     _ensure_campaign_in_workspace(session, campaign_id, workspace_id)
     return aggregation_service.get_campaign_signal_summary(session, campaign_id)

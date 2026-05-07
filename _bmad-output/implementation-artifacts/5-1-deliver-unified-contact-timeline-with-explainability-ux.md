@@ -58,6 +58,27 @@ so that I can understand exactly what the system did and why for every contact i
   - [x] API test: cross-workspace access denied
   - [x] UI test: reason code badge renders on automated action cards
 
+### Review Findings
+
+- [x] [Review][Patch] Add transcript storage/source for telephony timeline detail and populate `transcript_excerpt` [apps/api/app/domain_models.py:778]
+- [x] [Review][Patch] Validate `campaign_id` against workspace before state-history timeline list/detail [apps/api/app/api/routes/contacts.py:53]
+- [x] [Review][Patch] Include required signal and booking event sources in the unified timeline or materialize them into `ContactEvent` before aggregation [apps/api/app/domain/timeline/timeline_service.py:241]
+- [x] [Review][Patch] Replace unbounded in-memory offset pagination with cursor-backed bounded queries and consume the returned cursor in the UI [apps/api/app/domain/timeline/timeline_service.py:242]
+- [x] [Review][Patch] Cache first-page timeline data with real total metadata instead of reporting `len(events[:200])` as the total count [apps/api/app/domain/timeline/timeline_service.py:233]
+- [ ] [Review][Patch] Wire timeline cache invalidation from all timeline event write paths and invalidate both all-campaign and campaign-specific keys [apps/api/app/domain/timeline/timeline_service.py:118]
+- [x] [Review][Patch] Fix `Load more` to fetch the intended next page/cursor instead of reading stale React state [apps/web/src/features/contacts/ContactTimelinePage.tsx:263]
+- [x] [Review][Patch] Replace empty Radix Select item value with a non-empty `all` sentinel [apps/web/src/features/contacts/ContactTimelinePage.tsx:42]
+- [x] [Review][Patch] Make date filter reset and `to` date bounds use current filter state and include the full selected end day [apps/web/src/features/contacts/ContactTimelinePage.tsx:97]
+- [x] [Review][Patch] Return and render full reason-code explanation for explainable events, not only the compact badge [apps/api/app/domain_models.py:778]
+- [x] [Review][Patch] Set `has_detail` for contact events that carry rule, template, reason, or confidence metadata [apps/api/app/domain/timeline/timeline_service.py:44]
+- [x] [Review][Patch] Implement required `TranscriptSnippet` and `AuditLogEntry` UX-DR6 components or update the story scope before marking AC complete [apps/web/src/features/contacts/ContactTimelinePage.tsx:377]
+- [ ] [Review][Patch] Add backend and UI tests for distinct timestamp ordering, `ContactStateHistory`, date filters, cursor/page boundaries, cache hit/invalidation, >200 events, transcript detail, and reason-code badge rendering [apps/api/tests/api/routes/test_contact_timeline.py:100]
+
+Review resolution notes:
+- Backend regression tests were expanded for source coverage, distinct ordering, multi-event filters, date bounds, cursor paging, campaign workspace validation, reason explanations, invalid event IDs, and call transcript detail.
+- Remaining open item: cache invalidation helper now clears both all-campaign and campaign-specific first-page keys, but event write paths still need request/app context wiring.
+- Remaining open item: UI-level timeline tests still need to cover the reason-code badge/detail behavior.
+
 ## Dev Notes
 
 ### Architecture Compliance
@@ -117,13 +138,22 @@ GitHub Copilot (Claude Sonnet 4.6)
 - `apps/web/src/routes/_layout/contacts.tsx` — TanStack Router route accepting `contactId` search param (new)
 - `apps/web/src/components/Sidebar/AppSidebar.tsx` — added Contacts nav item
 
-**Tests:**
-- `apps/api/tests/api/routes/test_contact_timeline.py` — 5 API test cases (new)
+**Review Fix Pass:**
+- `apps/api/app/domain/timeline/timeline_service.py` — added campaign/workspace joins for state history, signal/scheduling/call-session sources, cursor responses, bounded source queries, cache count metadata, Redis timeouts, reason explanations, and transcript excerpt detail
+- `apps/api/app/api/routes/contacts.py` — added campaign workspace validation and cursor query support
+- `apps/api/app/domain_models.py` — added `reason_code_explanation` to timeline detail responses
+- `apps/api/tests/api/routes/test_contact_timeline.py` — expanded to 12 API test cases covering source coverage, ordering, multi-filtering, dates, cursor pages, workspace campaign validation, reason explanations, bad IDs, and voice transcript detail
+- `apps/web/src/components/AuditLogEntry.tsx` — added timeline detail audit/source metadata component
+- `apps/web/src/components/TranscriptSnippet.tsx` — added transcript excerpt component
+- `apps/web/src/features/contacts/ContactTimelinePage.tsx` — switched to immediate multi-filtering, cursor load-more, full-day end date bounds, and richer detail rendering
+- `apps/web/src/components/AutomationCard.tsx` — added signal and scheduling visual source treatments
+- `apps/web/package.json`, `package-lock.json` — added `date-fns` dependency used by timeline formatting
 
 ### Notes
 - Story referenced MongoDB as a source but MongoDB was removed in story 1-1; all timeline sources are PostgreSQL only.
-- `call_transcripts` table does not exist; `transcript_excerpt` is left as `None`. Can be populated via a `CallSession` join in a future story.
-- `ContactStateHistory` has no `workspace_id` column; workspace scoping for state history relies on the contact being workspace-scoped (validated by `_get_contact_or_404`).
+- Telephony transcript excerpts now come from existing `CallSession.transcript` via `CallRequest`/`Campaign` joins; no new `call_transcripts` table was added.
+- `ContactStateHistory` has no `workspace_id` column, so state-history list/detail now scope through `Campaign.workspace_id` joins and the route validates `campaign_id` workspace ownership.
+- Remaining review action items: wire cache invalidation at all timeline event write paths and add UI-level timeline tests for reason/detail behavior.
 
 ### Debug Log References
 

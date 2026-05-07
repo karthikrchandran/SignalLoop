@@ -1,3 +1,5 @@
+"""Persistence + API models for the ``voice`` domain."""
+
 from __future__ import annotations
 
 import uuid
@@ -22,6 +24,7 @@ def _utcnow() -> datetime:
 
 
 class CallRequestStatus(str, Enum):
+    """Enumeration of call request states."""
     queued = "queued"
     in_progress = "in_progress"
     completed = "completed"
@@ -29,6 +32,7 @@ class CallRequestStatus(str, Enum):
 
 
 class CallOutcome(str, Enum):
+    """Enumeration of call outcomes."""
     answered = "answered"
     voicemail = "voicemail"
     no_answer = "no_answer"
@@ -37,6 +41,7 @@ class CallOutcome(str, Enum):
 
 
 class VoiceScript(SQLModel, table=True):
+    """Script row: voice."""
     __tablename__ = "voice_scripts"
     __table_args__ = (
         Index("idx_vs_campaign", "campaign_id"),
@@ -53,6 +58,7 @@ class VoiceScript(SQLModel, table=True):
 
 
 class CallRequest(SQLModel, table=True):
+    """Request payload: call."""
     __tablename__ = "call_requests"
     __table_args__ = (
         Index("idx_cr_status_scheduled", "status", "scheduled_at"),
@@ -70,6 +76,7 @@ class CallRequest(SQLModel, table=True):
 
 
 class CallSession(SQLModel, table=True):
+    """Session row: call."""
     __tablename__ = "call_sessions"
     __table_args__ = (
         UniqueConstraint("call_request_id", name="uq_call_sessions_call_request_id"),

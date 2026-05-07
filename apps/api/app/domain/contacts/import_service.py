@@ -1,3 +1,5 @@
+"""Domain service: ``import service``."""
+
 from __future__ import annotations
 
 import csv
@@ -9,6 +11,7 @@ from app.domain_models import ImportRowError, SemanticError
 
 
 def parse_csv(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]:
+    """Parse csv."""
     decoded = file_bytes.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(decoded))
     headers = reader.fieldnames or []
@@ -17,6 +20,7 @@ def parse_csv(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]:
 
 
 def validate_rows(headers: list[str], rows: list[dict[str, Any]], mapping: dict[str, str] | None = None) -> tuple[list[dict[str, Any]], list[ImportRowError]]:
+    """Validate rows."""
     effective_mapping = resolve_mapping(headers, mapping or {})
     valid_rows: list[dict[str, Any]] = []
     errors: list[ImportRowError] = []
@@ -56,4 +60,5 @@ def validate_rows(headers: list[str], rows: list[dict[str, Any]], mapping: dict[
 
 
 def preview_rows(rows: list[dict[str, Any]], limit: int = 20) -> list[dict[str, Any]]:
+    """Build a preview of rows."""
     return rows[:limit]

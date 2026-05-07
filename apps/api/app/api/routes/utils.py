@@ -1,3 +1,5 @@
+"""FastAPI router: ``utils`` endpoints."""
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic.networks import EmailStr
@@ -42,6 +44,7 @@ def test_email(email_to: EmailStr) -> Message:
 
 @router.get("/health-check/", response_model=HealthStatus)
 async def health_check(request: Request) -> HealthStatus:
+    """Health check."""
     postgres = await anyio.to_thread.run_sync(_check_postgres_sync)
 
     redis = False

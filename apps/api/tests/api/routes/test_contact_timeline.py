@@ -1,15 +1,28 @@
 """API tests for the contact timeline endpoints (Story 5.1)."""
 from __future__ import annotations
 
+import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app.core.config import settings
-from app.domain_models import Campaign, Contact, ContactEvent, RoutingDecision
+from app.domain.signals.models import SignalEvent
+from app.domain.signals.scheduling import SchedulingRequest, SchedulingStatus
+from app.domain.voice.models import CallOutcome, CallRequest, CallSession, VoiceScript
+from app.domain_models import (
+    Campaign,
+    Contact,
+    ContactEvent,
+    ContactProgressionState,
+    ContactStateHistory,
+    RoutingDecision,
+)
 
 WORKSPACE_ID = "ws-story-5-1"
 OTHER_WORKSPACE_ID = "ws-story-5-1-other"
@@ -17,6 +30,23 @@ OTHER_WORKSPACE_ID = "ws-story-5-1-other"
 
 def _headers(token_headers: dict[str, str]) -> dict[str, str]:
     return {**token_headers, "X-Workspace-Id": WORKSPACE_ID}
+
+
+def _install_redis_client(client: TestClient, redis_client):
+    had_original = hasattr(client.app.state, "redis_manager")
+    original = getattr(client.app.state, "redis_manager", None)
+    client.app.state.redis_manager = SimpleNamespace(client=redis_client)
+    return had_original, original
+
+
+def _restore_redis_client(client: TestClient, had_original: bool, original) -> None:
+    if had_original:
+        client.app.state.redis_manager = original
+        return
+    try:
+        del client.app.state.redis_manager
+    except AttributeError:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -47,9 +77,20 @@ def campaign_and_contact(db: Session) -> tuple[uuid.UUID, uuid.UUID]:
 
 @pytest.fixture()
 def seeded_timeline(db: Session, campaign_and_contact: tuple[uuid.UUID, uuid.UUID]):
-    """Seed ContactEvent and RoutingDecision rows for timeline tests."""
+    """Seed rows from every Story 5.1 timeline source."""
     campaign_id, contact_id = campaign_and_contact
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+
+    state_history = ContactStateHistory(
+        contact_id=contact_id,
+        campaign_id=campaign_id,
+        workspace_id=WORKSPACE_ID,
+        from_state=ContactProgressionState.inbox,
+        to_state=ContactProgressionState.engaged,
+        reason="campaign_enrolled",
+        triggered_at=now - timedelta(minutes=6),
+    )
+    db.add(state_history)
 
     events = [
         ContactEvent(
@@ -62,7 +103,10 @@ def seeded_timeline(db: Session, campaign_and_contact: tuple[uuid.UUID, uuid.UUI
             outcome="delivered",
             reason_code="high_intent",
             template_ref="onboarding_v2",
-            created_at=now,
+            event_metadata={
+                "reason_code_explanation": "Contact matched the high intent rule."
+            },
+            created_at=now - timedelta(minutes=5),
         ),
         ContactEvent(
             contact_id=contact_id,
@@ -70,7 +114,7 @@ def seeded_timeline(db: Session, campaign_and_contact: tuple[uuid.UUID, uuid.UUI
             workspace_id=WORKSPACE_ID,
             event_type="email_opened",
             channel="email",
-            created_at=now,
+            created_at=now - timedelta(minutes=4),
         ),
         RoutingDecision(
             contact_id=contact_id,
@@ -83,11 +127,64 @@ def seeded_timeline(db: Session, campaign_and_contact: tuple[uuid.UUID, uuid.UUI
             rule_condition="opens < 2 AND days_since_sent > 7",
             signal_summary="Low open rate; high bounce risk",
             confidence_tier="medium",
-            created_at=now,
+            created_at=now - timedelta(minutes=3),
         ),
     ]
     for e in events:
         db.add(e)
+
+    signal = SignalEvent(
+        contact_id=contact_id,
+        campaign_id=campaign_id,
+        channel="email",
+        signal_type="high_intent",
+        confidence=0.91,
+        signal_metadata={"summary": "Clicked pricing twice"},
+        created_at=now - timedelta(minutes=2),
+    )
+    db.add(signal)
+    db.flush()
+
+    db.add(
+        SchedulingRequest(
+            contact_id=contact_id,
+            campaign_id=campaign_id,
+            signal_event_id=signal.id,
+            status=SchedulingStatus.booked,
+            created_at=now - timedelta(minutes=1),
+        )
+    )
+
+    script = VoiceScript(
+        campaign_id=campaign_id,
+        name="Timeline Script",
+        content="Hello from EngageHub",
+        created_by=uuid.uuid4(),
+        created_at=now - timedelta(minutes=1),
+        updated_at=now - timedelta(minutes=1),
+    )
+    db.add(script)
+    db.flush()
+    call_request = CallRequest(
+        contact_id=contact_id,
+        campaign_id=campaign_id,
+        voice_script_id=script.id,
+        trigger_reason="positive_email_signal",
+        scheduled_at=now - timedelta(seconds=30),
+        created_at=now - timedelta(seconds=30),
+    )
+    db.add(call_request)
+    db.flush()
+    db.add(
+        CallSession(
+            call_request_id=call_request.id,
+            twilio_status="completed",
+            twilio_status_updated_at=now,
+            outcome=CallOutcome.answered,
+            transcript="Buyer said they want a demo next Tuesday morning.",
+            created_at=now,
+        )
+    )
     db.commit()
     return campaign_id, contact_id
 
@@ -114,9 +211,63 @@ def test_timeline_returns_events_for_contact(
     assert "count" in body
     assert body["count"] >= 2  # at least the seeded rows
     ids = [e["id"] for e in body["data"]]
-    # Should contain at least one ce_ and one rd_ event
     assert any(i.startswith("ce_") for i in ids)
     assert any(i.startswith("rd_") for i in ids)
+    assert any(i.startswith("csh_") for i in ids)
+    assert any(i.startswith("sig_") for i in ids)
+    assert any(i.startswith("sched_") for i in ids)
+    assert any(i.startswith("call_") for i in ids)
+
+    timestamps = [event["timestamp"] for event in body["data"]]
+    assert timestamps == sorted(timestamps, reverse=True)
+
+
+def test_timeline_orders_equal_timestamps_by_distinct_event_id(
+    client: TestClient,
+    db: Session,
+    superuser_token_headers: dict[str, str],
+    campaign_and_contact: tuple[uuid.UUID, uuid.UUID],
+) -> None:
+    """Events with the same timestamp are ordered by id for stable cursor paging."""
+    campaign_id, contact_id = campaign_and_contact
+    shared_timestamp = datetime.now(timezone.utc).replace(microsecond=0)
+    lower_id = uuid.UUID("11111111-1111-1111-1111-111111111111")
+    higher_id = uuid.UUID("22222222-2222-2222-2222-222222222222")
+
+    db.add(
+        ContactEvent(
+            id=lower_id,
+            contact_id=contact_id,
+            campaign_id=campaign_id,
+            workspace_id=WORKSPACE_ID,
+            event_type="email_sent",
+            channel="email",
+            created_at=shared_timestamp,
+        )
+    )
+    db.add(
+        ContactEvent(
+            id=higher_id,
+            contact_id=contact_id,
+            campaign_id=campaign_id,
+            workspace_id=WORKSPACE_ID,
+            event_type="email_opened",
+            channel="email",
+            created_at=shared_timestamp,
+        )
+    )
+    db.commit()
+
+    response = client.get(
+        f"{settings.API_V1_STR}/contacts/{contact_id}/timeline",
+        headers=_headers(superuser_token_headers),
+    )
+
+    assert response.status_code == 200
+    assert [event["id"] for event in response.json()["data"]] == [
+        f"ce_{higher_id.hex}",
+        f"ce_{lower_id.hex}",
+    ]
 
 
 def test_timeline_filter_by_event_type(
@@ -137,6 +288,166 @@ def test_timeline_filter_by_event_type(
         assert event["event_type"] == "email_sent"
 
 
+def test_timeline_filter_by_multiple_event_types(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    seeded_timeline: tuple[uuid.UUID, uuid.UUID],
+) -> None:
+    """Comma-separated event_type filters support the UI multi-select."""
+    _campaign_id, contact_id = seeded_timeline
+    response = client.get(
+        f"{settings.API_V1_STR}/contacts/{contact_id}/timeline",
+        headers=_headers(superuser_token_headers),
+        params={"event_type": "email_sent,booking_event"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert {event["event_type"] for event in body["data"]} == {
+        "email_sent",
+        "booking_event",
+    }
+
+
+def test_timeline_date_filter_includes_full_to_day(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    seeded_timeline: tuple[uuid.UUID, uuid.UUID],
+) -> None:
+    """Date range filters include events through the selected end day."""
+    _campaign_id, contact_id = seeded_timeline
+    today = datetime.now(timezone.utc).date().isoformat()
+    response = client.get(
+        f"{settings.API_V1_STR}/contacts/{contact_id}/timeline",
+        headers=_headers(superuser_token_headers),
+        params={"from": f"{today}T00:00:00Z", "to": f"{today}T23:59:59.999Z"},
+    )
+    assert response.status_code == 200
+    assert response.json()["count"] >= 6
+
+
+def test_timeline_cursor_pagination_has_no_duplicate_events(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    seeded_timeline: tuple[uuid.UUID, uuid.UUID],
+) -> None:
+    """Cursor pagination returns the next slice without duplicating the first page."""
+    _campaign_id, contact_id = seeded_timeline
+    first = client.get(
+        f"{settings.API_V1_STR}/contacts/{contact_id}/timeline",
+        headers=_headers(superuser_token_headers),
+        params={"limit": 2},
+    )
+    assert first.status_code == 200
+    first_body = first.json()
+    assert first_body["next_cursor"]
+
+    second = client.get(
+        f"{settings.API_V1_STR}/contacts/{contact_id}/timeline",
+        headers=_headers(superuser_token_headers),
+        params={"limit": 2, "cursor": first_body["next_cursor"]},
+    )
+    assert second.status_code == 200
+    first_ids = {event["id"] for event in first_body["data"]}
+    second_ids = {event["id"] for event in second.json()["data"]}
+    assert first_ids.isdisjoint(second_ids)
+
+
+def test_timeline_first_page_cache_hit_uses_cached_count(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    campaign_and_contact: tuple[uuid.UUID, uuid.UUID],
+) -> None:
+    """The first unfiltered page can be served from Redis with stored total metadata."""
+    _campaign_id, contact_id = campaign_and_contact
+    redis = MagicMock()
+    redis.get = AsyncMock(
+        return_value=json.dumps(
+            {
+                "data": [
+                    {
+                        "id": "ce_11111111111111111111111111111111",
+                        "source_system": "contact_events",
+                        "event_type": "email_sent",
+                        "channel": "email",
+                        "timestamp": "2026-05-06T14:30:00Z",
+                        "actor": "system",
+                        "outcome": "sent",
+                        "reason_code": "high_intent",
+                        "has_detail": True,
+                    }
+                ],
+                "count": 250,
+            }
+        )
+    )
+    redis.setex = AsyncMock()
+    had_original, original = _install_redis_client(client, redis)
+
+    try:
+        response = client.get(
+            f"{settings.API_V1_STR}/contacts/{contact_id}/timeline",
+            headers=_headers(superuser_token_headers),
+        )
+    finally:
+        _restore_redis_client(client, had_original, original)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 250
+    assert body["data"][0]["event_type"] == "email_sent"
+    redis.get.assert_awaited_once_with(f"timeline:{contact_id.hex}:all:page1")
+    redis.setex.assert_not_awaited()
+
+
+def test_timeline_first_page_cache_stores_real_total_above_200(
+    client: TestClient,
+    db: Session,
+    superuser_token_headers: dict[str, str],
+    campaign_and_contact: tuple[uuid.UUID, uuid.UUID],
+) -> None:
+    """Large timelines report the true total while caching only the bounded first window."""
+    campaign_id, contact_id = campaign_and_contact
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    for index in range(205):
+        db.add(
+            ContactEvent(
+                contact_id=contact_id,
+                campaign_id=campaign_id,
+                workspace_id=WORKSPACE_ID,
+                event_type="email_sent",
+                channel="email",
+                created_at=now - timedelta(seconds=index),
+            )
+        )
+    db.commit()
+
+    redis = MagicMock()
+    redis.get = AsyncMock(return_value=None)
+    redis.setex = AsyncMock()
+    had_original, original = _install_redis_client(client, redis)
+
+    try:
+        response = client.get(
+            f"{settings.API_V1_STR}/contacts/{contact_id}/timeline",
+            headers=_headers(superuser_token_headers),
+            params={"limit": 50},
+        )
+    finally:
+        _restore_redis_client(client, had_original, original)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 205
+    assert len(body["data"]) == 50
+    assert body["next_cursor"]
+    redis.setex.assert_awaited_once()
+    args = redis.setex.await_args.args
+    assert args[0] == f"timeline:{contact_id.hex}:all:page1"
+    cached_payload = json.loads(args[2])
+    assert cached_payload["count"] == 205
+    assert len(cached_payload["data"]) == 200
+
+
 def test_timeline_cross_workspace_access_denied(
     client: TestClient,
     superuser_token_headers: dict[str, str],
@@ -150,6 +461,31 @@ def test_timeline_cross_workspace_access_denied(
         headers=other_headers,
     )
     # Contact belongs to WORKSPACE_ID, not OTHER_WORKSPACE_ID → 404
+    assert response.status_code == 404
+
+
+def test_timeline_rejects_cross_workspace_campaign_filter(
+    client: TestClient,
+    db: Session,
+    superuser_token_headers: dict[str, str],
+    seeded_timeline: tuple[uuid.UUID, uuid.UUID],
+) -> None:
+    """A valid contact cannot be queried with another workspace's campaign_id."""
+    _campaign_id, contact_id = seeded_timeline
+    other_campaign = Campaign(
+        name="Other Workspace Campaign",
+        workspace_id=OTHER_WORKSPACE_ID,
+        created_by=uuid.uuid4(),
+    )
+    db.add(other_campaign)
+    db.commit()
+    db.refresh(other_campaign)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/contacts/{contact_id}/timeline",
+        headers=_headers(superuser_token_headers),
+        params={"campaign_id": str(other_campaign.id)},
+    )
     assert response.status_code == 404
 
 
@@ -180,6 +516,68 @@ def test_timeline_event_detail_routing_decision(
     assert "opens < 2" in detail["rule_condition"]
     assert detail["signal_summary"] == "Low open rate; high bounce risk"
     assert detail["confidence_tier"] == "medium"
+    assert detail["reason_code_explanation"] == "Low open rate; high bounce risk"
+
+
+def test_timeline_event_detail_contact_event_explanation(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    seeded_timeline: tuple[uuid.UUID, uuid.UUID],
+) -> None:
+    """Contact event detail exposes reason-code explanation metadata."""
+    _campaign_id, contact_id = seeded_timeline
+    list_response = client.get(
+        f"{settings.API_V1_STR}/contacts/{contact_id}/timeline",
+        headers=_headers(superuser_token_headers),
+    )
+    assert list_response.status_code == 200
+    event = next(e for e in list_response.json()["data"] if e["event_type"] == "email_sent")
+    assert event["has_detail"] is True
+
+    detail_response = client.get(
+        f"{settings.API_V1_STR}/contacts/{contact_id}/timeline/{event['id']}",
+        headers=_headers(superuser_token_headers),
+    )
+    assert detail_response.status_code == 200
+    assert detail_response.json()["reason_code_explanation"] == (
+        "Contact matched the high intent rule."
+    )
+
+
+def test_timeline_event_detail_call_transcript(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    seeded_timeline: tuple[uuid.UUID, uuid.UUID],
+) -> None:
+    """Voice call detail includes the stored transcript excerpt."""
+    _campaign_id, contact_id = seeded_timeline
+    list_response = client.get(
+        f"{settings.API_V1_STR}/contacts/{contact_id}/timeline",
+        headers=_headers(superuser_token_headers),
+    )
+    assert list_response.status_code == 200
+    event = next(e for e in list_response.json()["data"] if e["id"].startswith("call_"))
+
+    detail_response = client.get(
+        f"{settings.API_V1_STR}/contacts/{contact_id}/timeline/{event['id']}",
+        headers=_headers(superuser_token_headers),
+    )
+    assert detail_response.status_code == 200
+    assert "demo next Tuesday" in detail_response.json()["transcript_excerpt"]
+
+
+def test_timeline_event_bad_id_returns_400(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    seeded_timeline: tuple[uuid.UUID, uuid.UUID],
+) -> None:
+    """Invalid event id syntax returns 400 instead of leaking an exception."""
+    _campaign_id, contact_id = seeded_timeline
+    response = client.get(
+        f"{settings.API_V1_STR}/contacts/{contact_id}/timeline/not-a-prefixed-uuid",
+        headers=_headers(superuser_token_headers),
+    )
+    assert response.status_code == 400
 
 
 def test_timeline_event_detail_not_found(

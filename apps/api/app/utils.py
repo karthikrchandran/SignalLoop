@@ -1,3 +1,5 @@
+"""Module: ``utils``."""
+
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -18,11 +20,13 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class EmailData:
+    """Data container: email."""
     html_content: str
     subject: str
 
 
 def render_email_template(*, template_name: str, context: dict[str, Any]) -> str:
+    """Render email template."""
     template_str = (
         Path(__file__).parent / "email-templates" / "build" / template_name
     ).read_text()
@@ -36,6 +40,7 @@ def send_email(
     subject: str = "",
     html_content: str = "",
 ) -> None:
+    """Send email."""
     assert settings.emails_enabled, "no provided configuration for email variables"
     message = emails.Message(
         subject=subject,
@@ -56,6 +61,7 @@ def send_email(
 
 
 def generate_test_email(email_to: str) -> EmailData:
+    """Generate test email."""
     project_name = settings.PROJECT_NAME
     subject = f"{project_name} - Test email"
     html_content = render_email_template(
@@ -66,6 +72,7 @@ def generate_test_email(email_to: str) -> EmailData:
 
 
 def generate_reset_password_email(email_to: str, email: str, token: str) -> EmailData:
+    """Generate reset password email."""
     project_name = settings.PROJECT_NAME
     subject = f"{project_name} - Password recovery for user {email}"
     link = f"{settings.FRONTEND_HOST}/reset-password?token={token}"
@@ -85,6 +92,7 @@ def generate_reset_password_email(email_to: str, email: str, token: str) -> Emai
 def generate_new_account_email(
     email_to: str, username: str, password: str
 ) -> EmailData:
+    """Generate new account email."""
     project_name = settings.PROJECT_NAME
     subject = f"{project_name} - New account for user {username}"
     html_content = render_email_template(
@@ -101,6 +109,7 @@ def generate_new_account_email(
 
 
 def generate_password_reset_token(email: str) -> str:
+    """Generate password reset token."""
     delta = timedelta(hours=settings.EMAIL_RESET_TOKEN_EXPIRE_HOURS)
     now = datetime.now(timezone.utc)
     expires = now + delta
@@ -114,6 +123,7 @@ def generate_password_reset_token(email: str) -> str:
 
 
 def verify_password_reset_token(token: str) -> str | None:
+    """Verify password reset token."""
     try:
         decoded_token = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[security.ALGORITHM]

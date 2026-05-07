@@ -1,3 +1,5 @@
+"""Module: ``db``."""
+
 from sqlmodel import Session, create_engine, select
 
 from app.core.config import settings
@@ -21,6 +23,7 @@ def init_db(session: Session) -> None:
 
     # Deferred imports to break circular dependency:
     # db -> crud -> models -> audit_events -> db (engine)
+    """Initialise db."""
     from app import crud  # noqa: PLC0415
     from app.models import User, UserCreate  # noqa: PLC0415
 

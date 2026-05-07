@@ -43,6 +43,7 @@ ALLOWED_TOKENS = {"first_name", "last_name", "email", "company"}
 def _merge_tokens(template: str, contact: Contact) -> str:
     """Replace {{token}} placeholders with contact field values."""
     def replacer(match: re.Match[str]) -> str:
+        """Replacer."""
         field = match.group(1)
         if field not in ALLOWED_TOKENS:
             return ""
@@ -267,6 +268,7 @@ async def run_worker() -> None:
 
 
 def main() -> None:
+    """Entry point."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",

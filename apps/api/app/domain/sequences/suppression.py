@@ -1,3 +1,5 @@
+"""Module: ``suppression``."""
+
 from __future__ import annotations
 
 import uuid
@@ -12,6 +14,7 @@ def _utcnow() -> datetime:
 
 
 class EmailSuppression(SQLModel, table=True):
+    """Suppression row: email."""
     __tablename__ = "email_suppressions"
     __table_args__ = (
         UniqueConstraint("email", "reason", name="uq_suppression_email_reason"),

@@ -1,3 +1,5 @@
+"""Domain service: ``token service``."""
+
 from __future__ import annotations
 
 import re
@@ -15,10 +17,12 @@ ALLOWED_SOURCE_FIELDS = {
 
 
 def parse_tokens(content: str) -> list[str]:
+    """Parse tokens."""
     return TOKEN_PATTERN.findall(content)
 
 
 def validate_token_definitions(tokens: list[dict[str, Any]]) -> list[str]:
+    """Validate token definitions."""
     errors: list[str] = []
     seen: set[str] = set()
     for token in tokens:
@@ -42,11 +46,13 @@ def validate_token_definitions(tokens: list[dict[str, Any]]) -> list[str]:
 
 
 def render_template(content: str, sample_payload: dict[str, Any], tokens: list[dict[str, Any]]) -> tuple[str, list[str]]:
+    """Render template."""
     unresolved: list[str] = []
 
     token_index = {token["source_field"]: token for token in tokens}
 
     def replacer(match: re.Match[str]) -> str:
+        """Replacer."""
         key = match.group(1)
         value: Any = sample_payload
         for part in key.split("."):

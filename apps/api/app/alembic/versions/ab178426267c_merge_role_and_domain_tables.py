@@ -18,8 +18,10 @@ depends_on = None
 
 
 def upgrade():
+    """Apply this Alembic migration."""
     pass
 
 
 def downgrade():
+    """Revert this Alembic migration."""
     pass

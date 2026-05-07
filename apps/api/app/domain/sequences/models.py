@@ -1,3 +1,5 @@
+"""Persistence + API models for the ``sequences`` domain."""
+
 from __future__ import annotations
 
 import uuid
@@ -14,6 +16,7 @@ def _utcnow() -> datetime:
 
 
 class SequenceStatus(str, Enum):
+    """Enumeration of sequence states."""
     active = "active"
     paused = "paused"
     stopped = "stopped"
@@ -21,12 +24,14 @@ class SequenceStatus(str, Enum):
 
 
 class SendRequestStatus(str, Enum):
+    """Enumeration of send request states."""
     pending = "pending"
     sent = "sent"
     failed = "failed"
 
 
 class EmailSequence(SQLModel, table=True):
+    """Email sequence."""
     __tablename__ = "email_sequences"
     __table_args__ = (
         Index("idx_seq_campaign", "campaign_id"),
@@ -42,6 +47,7 @@ class EmailSequence(SQLModel, table=True):
 
 
 class SequenceStep(SQLModel, table=True):
+    """Sequence step."""
     __tablename__ = "sequence_steps"
     __table_args__ = (
         Index("idx_step_sequence_order", "sequence_id", "step_order"),
@@ -57,6 +63,7 @@ class SequenceStep(SQLModel, table=True):
 
 
 class ContactSequenceState(SQLModel, table=True):
+    """Enumeration of contact sequence states."""
     __tablename__ = "contact_sequence_state"
     __table_args__ = (
         UniqueConstraint("contact_id", "sequence_id", name="uq_contact_sequence"),
@@ -78,6 +85,7 @@ class ContactSequenceState(SQLModel, table=True):
 
 
 class SendRequest(SQLModel, table=True):
+    """Request payload: send."""
     __tablename__ = "send_requests"
     __table_args__ = (
         Index("idx_sr_css", "contact_sequence_state_id"),
@@ -97,6 +105,7 @@ class SendRequest(SQLModel, table=True):
 
 
 class EmailEvent(SQLModel, table=True):
+    """Event row: email."""
     __tablename__ = "email_events"
     __table_args__ = (
         Index("idx_ee_send_request", "send_request_id"),

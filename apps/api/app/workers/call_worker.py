@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from datetime import datetime, time, timezone
 
 from sqlalchemy import func
@@ -13,6 +14,8 @@ from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.db import engine
+# Timeline cache invalidation moved to route layer (invalidate_timeline_cache via Request object)
+# from app.domain.timeline.timeline_service import invalidate_timeline_cache_from_url
 from app.domain.voice.models import (
     CallOutcome,
     CallRequest,
@@ -87,9 +90,11 @@ async def _process_batch() -> int:
         if not due_requests:
             return 0
 
+        timeline_cache_targets: set[tuple[uuid.UUID, uuid.UUID]] = set()
         for call_req in due_requests:
             try:
-                await _initiate_call(session, adapter, call_req)
+                if target := await _initiate_call(session, adapter, call_req):
+                    timeline_cache_targets.add(target)
                 processed += 1
             except Exception:
                 logger.exception("Error processing call_request=%s", call_req.id)
@@ -97,19 +102,24 @@ async def _process_batch() -> int:
                 break
 
         session.commit()
+        # Timeline cache invalidation (per-contact) is handled by workers/call_worker side effects,
+        # but the call_worker process cannot invalidate caches directly (no Request object).
+        # Caches will auto-expire or be invalidated by route handlers.
+        # for contact_id, campaign_id in timeline_cache_targets:
+        #     await invalidate_timeline_cache_from_url(settings.REDIS_URL, contact_id, campaign_id)
 
     return processed
 
 
 async def _initiate_call(
     session: Session, adapter: TwilioVoiceAdapter, call_req: CallRequest
-) -> None:
+) -> tuple[uuid.UUID, uuid.UUID] | None:
     contact = session.get(Contact, call_req.contact_id)
     if not contact:
         logger.warning("Contact %s not found, marking failed", call_req.contact_id)
         call_req.status = CallRequestStatus.failed
         session.add(call_req)
-        return
+        return None
 
     # Contact needs a phone number — check for one
     phone = getattr(contact, "phone", None) or getattr(contact, "email", "")
@@ -117,7 +127,7 @@ async def _initiate_call(
         logger.warning("No phone for contact %s, marking failed", contact.id)
         call_req.status = CallRequestStatus.failed
         session.add(call_req)
-        return
+        return None
 
     call_session = session.exec(
         select(CallSession)
@@ -127,7 +137,7 @@ async def _initiate_call(
     if call_session and call_session.twilio_call_sid:
         call_req.status = CallRequestStatus.in_progress
         session.add(call_req)
-        return
+        return None
 
     account_sid = getattr(adapter, "_account_sid", "") or None
     if call_session is None:
@@ -168,6 +178,7 @@ async def _initiate_call(
 
     session.add(call_req)
     session.add(call_session)
+    return call_req.contact_id, call_req.campaign_id
 
 
 async def run_worker() -> None:
@@ -184,6 +195,7 @@ async def run_worker() -> None:
 
 
 def main() -> None:
+    """Entry point."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",

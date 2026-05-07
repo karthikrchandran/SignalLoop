@@ -34,6 +34,7 @@ def upgrade() -> None:
     # ------------------------------------------------------------------
     # contacts — add phone column
     # ------------------------------------------------------------------
+    """Apply this Alembic migration."""
     op.add_column(
         "contacts",
         sa.Column("phone", sa.String(32), nullable=True),
@@ -255,6 +256,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Revert this Alembic migration."""
     op.drop_index("idx_sched_status", "scheduling_requests")
     op.drop_index("idx_sched_contact", "scheduling_requests")
     op.drop_table("scheduling_requests")

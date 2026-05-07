@@ -15,6 +15,7 @@ from app.domain.timeline.timeline_service import (
     get_timeline_event_detail,
 )
 from app.domain_models import (
+    Campaign,
     Contact,
     TimelineEventDetailPublic,
     TimelinePagePublic,
@@ -39,6 +40,22 @@ def _get_contact_or_404(
     return contact
 
 
+def _get_campaign_or_404(
+    session: Session,
+    campaign_id: uuid.UUID,
+    workspace_id: str,
+) -> Campaign:
+    campaign = session.exec(
+        select(Campaign).where(
+            Campaign.id == campaign_id,
+            Campaign.workspace_id == workspace_id,
+        )
+    ).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return campaign
+
+
 @router.get(
     "/{contact_id}/timeline",
     response_model=TimelinePagePublic,
@@ -53,7 +70,8 @@ async def get_contact_timeline_route(
     campaign_id: Annotated[uuid.UUID | None, Query()] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
-    event_type: Annotated[str | None, Query(max_length=128)] = None,
+    event_type: Annotated[str | None, Query(max_length=512)] = None,
+    cursor: Annotated[str | None, Query(max_length=1024)] = None,
     from_dt: Annotated[datetime | None, Query(alias="from")] = None,
     to_dt: Annotated[datetime | None, Query(alias="to")] = None,
 ) -> TimelinePagePublic:
@@ -63,6 +81,8 @@ async def get_contact_timeline_route(
     First unfiltered page is Redis-cached for 30 s (NFR2 / p95 < 3 s).
     """
     _get_contact_or_404(session, contact_id, workspace_id)
+    if campaign_id:
+        _get_campaign_or_404(session, campaign_id, workspace_id)
     return await get_contact_timeline(
         session=session,
         request=request,
@@ -72,6 +92,7 @@ async def get_contact_timeline_route(
         page=page,
         limit=limit,
         event_type=event_type,
+        cursor=cursor,
         from_dt=from_dt,
         to_dt=to_dt,
     )

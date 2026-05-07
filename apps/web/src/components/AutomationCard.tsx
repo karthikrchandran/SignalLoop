@@ -2,6 +2,7 @@ import { format } from "date-fns"
 import {
   ArrowRight,
   Bot,
+  CalendarCheck,
   ChevronRight,
   Mail,
   Phone,
@@ -42,6 +43,10 @@ function EventIcon({ event }: { event: TimelineEvent }) {
     return <Phone className="h-4 w-4 text-violet-500" />
   if (event.source_system === "routing_decisions")
     return <Shuffle className="h-4 w-4 text-orange-500" />
+  if (event.source_system === "scheduling_requests")
+    return <CalendarCheck className="h-4 w-4 text-emerald-500" />
+  if (event.source_system === "signal_events")
+    return <Zap className="h-4 w-4 text-purple-500" />
   if (event.source_system === "contact_state_history")
     return <Zap className="h-4 w-4 text-yellow-500" />
   return <Bot className="h-4 w-4 text-muted-foreground" />
@@ -76,6 +81,10 @@ export function AutomationCard({ event, onClick, className }: AutomationCardProp
         "cursor-pointer transition-colors hover:bg-accent/50 border-l-4",
         event.source_system === "routing_decisions"
           ? "border-l-orange-400"
+          : event.source_system === "scheduling_requests"
+            ? "border-l-emerald-400"
+            : event.source_system === "signal_events"
+              ? "border-l-purple-400"
           : event.source_system === "contact_events"
             ? "border-l-blue-400"
             : "border-l-yellow-400",

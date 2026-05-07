@@ -1,3 +1,5 @@
+"""Module: ``policy engine``."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, time, timedelta
@@ -46,6 +48,7 @@ def _is_suppressed(contact: dict) -> bool:
 
 
 def evaluate_policies(*, policies: list[GovernancePolicy], contact: dict, campaign_daily_count: int, system_daily_count: int, requested_at: datetime | None = None) -> PolicyDecision:
+    """Evaluate policies."""
     requested_at = _normalize_datetime(requested_at or datetime.now(UTC))
 
     for policy in policies:

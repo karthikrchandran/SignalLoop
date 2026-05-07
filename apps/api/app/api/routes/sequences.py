@@ -1,3 +1,5 @@
+"""FastAPI router: ``sequences`` endpoints."""
+
 from __future__ import annotations
 
 import uuid
@@ -7,7 +9,10 @@ from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
-from app.domain.audit.audit_events import append_audit_event
+from app.domain.audit.audit_events import (
+    append_audit_event_to_session,
+    audit_actor_role,
+)
 from app.domain.sequences import service as sequence_service
 from app.domain.sequences.models import EmailSequence
 from app.domain.sequences.schemas import (
@@ -66,15 +71,23 @@ async def create_sequence(
     _: IdempotencyKeyDep,
     body: SequenceCreate,
 ) -> SequencePublic:
+    """Create sequence."""
     _ensure_campaign_in_workspace(session, body.campaign_id, workspace_id)
     seq = sequence_service.create_sequence(
-        session, data=body, created_by=current_user.id
+        session, data=body, created_by=current_user.id, commit=False
     )
-    await append_audit_event(
+    append_audit_event_to_session(
+        session,
         event_name="sequence.created",
         workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="sequence",
+        resource_id=str(seq.id),
         payload={"id": str(seq.id), "name": seq.name},
     )
+    session.commit()
+    session.refresh(seq)
     return SequencePublic(
         id=seq.id,
         campaign_id=seq.campaign_id,
@@ -90,6 +103,7 @@ def list_sequences(
     workspace_id: WorkspaceIdDep,
     campaign_id: uuid.UUID | None = None,
 ) -> SequencesPublic:
+    """Return a list of sequences."""
     query = (
         select(EmailSequence)
         .join(Campaign, EmailSequence.campaign_id == Campaign.id)
@@ -119,6 +133,7 @@ def get_sequence(
     workspace_id: WorkspaceIdDep,
     sequence_id: uuid.UUID,
 ) -> SequenceDetailPublic:
+    """Return sequence."""
     _get_sequence_or_404(session, sequence_id, workspace_id)
     return sequence_service.get_sequence_detail(session, sequence_id)
 
@@ -127,17 +142,26 @@ def get_sequence(
 async def update_sequence(
     *,
     session: SessionDep,
+    current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
     sequence_id: uuid.UUID,
     body: SequenceUpdate,
 ) -> SequencePublic:
+    """Update sequence."""
     _get_sequence_or_404(session, sequence_id, workspace_id)
-    seq = sequence_service.update_sequence(session, sequence_id=sequence_id, data=body)
-    await append_audit_event(
+    seq = sequence_service.update_sequence(session, sequence_id=sequence_id, data=body, commit=False)
+    append_audit_event_to_session(
+        session,
         event_name="sequence.updated",
         workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="sequence",
+        resource_id=str(seq.id),
         payload={"id": str(seq.id)},
     )
+    session.commit()
+    session.refresh(seq)
     return SequencePublic(
         id=seq.id,
         campaign_id=seq.campaign_id,
@@ -155,19 +179,27 @@ async def update_sequence(
 async def update_steps(
     *,
     session: SessionDep,
+    current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
     sequence_id: uuid.UUID,
     body: StepsBatchUpdate,
 ) -> SequenceDetailPublic:
+    """Update steps."""
     _get_sequence_or_404(session, sequence_id, workspace_id)
     sequence_service.batch_upsert_steps(
-        session, sequence_id=sequence_id, steps=body.steps
+        session, sequence_id=sequence_id, steps=body.steps, commit=False
     )
-    await append_audit_event(
+    append_audit_event_to_session(
+        session,
         event_name="sequence.steps_updated",
         workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="sequence",
+        resource_id=str(sequence_id),
         payload={"sequence_id": str(sequence_id), "step_count": len(body.steps)},
     )
+    session.commit()
     return sequence_service.get_sequence_detail(session, sequence_id)
 
 
@@ -175,16 +207,24 @@ async def update_steps(
 async def delete_sequence(
     *,
     session: SessionDep,
+    current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
     sequence_id: uuid.UUID,
 ) -> dict[str, str]:
+    """Delete sequence."""
     _get_sequence_or_404(session, sequence_id, workspace_id)
-    sequence_service.delete_sequence(session, sequence_id)
-    await append_audit_event(
+    sequence_service.delete_sequence(session, sequence_id, commit=False)
+    append_audit_event_to_session(
+        session,
         event_name="sequence.deleted",
         workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="sequence",
+        resource_id=str(sequence_id),
         payload={"id": str(sequence_id)},
     )
+    session.commit()
     return {"message": "Sequence deleted"}
 
 
@@ -196,26 +236,34 @@ async def delete_sequence(
 async def enroll_contacts(
     *,
     session: SessionDep,
+    current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
     sequence_id: uuid.UUID,
     campaign_id: uuid.UUID,
 ) -> EnrollmentResult:
+    """Enroll contacts."""
     sequence = _get_sequence_or_404(session, sequence_id, workspace_id)
     _ensure_campaign_in_workspace(session, campaign_id, workspace_id)
     if sequence.campaign_id != campaign_id:
         raise HTTPException(status_code=404, detail="Sequence not found")
     enrolled = sequence_service.enroll_campaign_contacts(
-        session, campaign_id=campaign_id, sequence_id=sequence_id
+        session, campaign_id=campaign_id, sequence_id=sequence_id, commit=False
     )
-    await append_audit_event(
+    append_audit_event_to_session(
+        session,
         event_name="sequence.contacts_enrolled",
         workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="sequence",
+        resource_id=str(sequence_id),
         payload={
             "sequence_id": str(sequence_id),
             "campaign_id": str(campaign_id),
             "enrolled": enrolled,
         },
     )
+    session.commit()
     return EnrollmentResult(enrolled=enrolled, message=f"Enrolled {enrolled} contacts")
 
 

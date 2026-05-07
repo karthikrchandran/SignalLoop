@@ -1,3 +1,5 @@
+"""FastAPI router: ``campaigns`` endpoints."""
+
 from __future__ import annotations
 
 import uuid
@@ -7,7 +9,10 @@ from sqlmodel import Session, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
-from app.domain.audit.audit_events import append_audit_event
+from app.domain.audit.audit_events import (
+    append_audit_event_to_session,
+    audit_actor_role,
+)
 from app.domain.contacts.import_service import parse_csv, preview_rows, validate_rows
 from app.domain.contacts.mapping_service import map_row, resolve_mapping
 from app.domain.contacts.segment_service import estimate_segment
@@ -25,6 +30,7 @@ from app.domain_models import (
     CampaignSegmentPublic,
     CampaignSegmentRule,
     CampaignsPublic,
+    CampaignStatus,
     ImportPreviewPublic,
     ImportRowError,
     OfferPack,
@@ -68,6 +74,7 @@ def _latest_import(session: Session, campaign_id: uuid.UUID) -> CampaignContactI
 
 @router.get("/", response_model=CampaignsPublic)
 def read_campaigns(session: SessionDep, workspace_id: WorkspaceIdDep) -> CampaignsPublic:
+    """Return campaigns."""
     campaigns = session.exec(
         select(Campaign).where(Campaign.workspace_id == workspace_id).order_by(Campaign.created_at.desc())
     ).all()
@@ -95,15 +102,21 @@ async def create_campaign(
     _: IdempotencyKeyDep,
     body: CampaignCreate,
 ) -> CampaignPublic:
+    """Create campaign."""
     campaign = Campaign(name=body.name, created_by=current_user.id, workspace_id=workspace_id)
     session.add(campaign)
-    session.commit()
-    session.refresh(campaign)
-    await append_audit_event(
+    append_audit_event_to_session(
+        session,
         event_name="campaign.created",
         workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="campaign",
+        resource_id=str(campaign.id),
         payload={"id": str(campaign.id), "name": campaign.name},
     )
+    session.commit()
+    session.refresh(campaign)
     return CampaignPublic(
         id=campaign.id,
         name=campaign.name,
@@ -123,6 +136,7 @@ async def import_contacts(
     _: IdempotencyKeyDep,
     file: UploadFile = File(...),
 ) -> CampaignImportPublic:
+    """Import contacts."""
     _get_campaign_or_404(session, campaign_id, workspace_id, owner_id=current_user.id)
     file_bytes = await file.read()
     if len(file_bytes) > MAX_UPLOAD_SIZE_BYTES:
@@ -141,8 +155,7 @@ async def import_contacts(
         mapping_json=resolve_mapping(headers, {}),
     )
     session.add(campaign_import)
-    session.commit()
-    session.refresh(campaign_import)
+    session.flush()
 
     for index, row in enumerate(rows, start=1):
         row_errors = [error.model_dump() for error in errors if error.row_number == index]
@@ -156,6 +169,24 @@ async def import_contacts(
             error_json=row_errors,
         )
         session.add(stage)
+    append_audit_event_to_session(
+        session,
+        event_name="campaign.contacts_imported",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="campaign",
+        resource_id=str(campaign_id),
+        payload={
+            "campaign_id": str(campaign_id),
+            "import_id": str(campaign_import.id),
+            "source_file_name": campaign_import.source_file_name,
+            "total_rows": campaign_import.total_rows,
+            "valid_rows": campaign_import.valid_rows,
+            "invalid_rows": campaign_import.invalid_rows,
+            "requires_mapping": requires_mapping,
+        },
+    )
     session.commit()
 
     return CampaignImportPublic(
@@ -179,6 +210,7 @@ def persist_mapping(
     _: IdempotencyKeyDep,
     body: CampaignMappingRequest,
 ) -> ImportPreviewPublic:
+    """Persist mapping."""
     _get_campaign_or_404(session, campaign_id, workspace_id, owner_id=current_user.id)
     campaign_import = _latest_import(session, campaign_id)
     staged_rows = session.exec(
@@ -203,6 +235,22 @@ def persist_mapping(
         staged_row.error_json = row_errors
         staged_row.mapped_data_json = mapped_rows[staged_row.row_number - 1]
         session.add(staged_row)
+    append_audit_event_to_session(
+        session,
+        event_name="campaign.contacts_mapping_updated",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="campaign",
+        resource_id=str(campaign_id),
+        payload={
+            "campaign_id": str(campaign_id),
+            "import_id": str(campaign_import.id),
+            "mapped_fields": sorted(body.mapping.keys()),
+            "valid_rows": campaign_import.valid_rows,
+            "invalid_rows": campaign_import.invalid_rows,
+        },
+    )
     session.commit()
 
     return ImportPreviewPublic(
@@ -222,6 +270,7 @@ def get_import_preview(
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
 ) -> ImportPreviewPublic:
+    """Return import preview."""
     _get_campaign_or_404(session, campaign_id, workspace_id, owner_id=current_user.id)
     campaign_import = _latest_import(session, campaign_id)
     staged_rows = session.exec(
@@ -251,6 +300,7 @@ def create_segment(
     _: IdempotencyKeyDep,
     body: CampaignSegmentCreate,
 ) -> CampaignSegmentPublic:
+    """Create segment."""
     _get_campaign_or_404(session, campaign_id, workspace_id, owner_id=current_user.id)
     staged_rows = session.exec(
         select(CampaignContactStage).where(
@@ -269,8 +319,7 @@ def create_segment(
         estimated_count=estimated_count,
     )
     session.add(segment)
-    session.commit()
-    session.refresh(segment)
+    session.flush()
 
     for rule in body.rules:
         session.add(
@@ -282,6 +331,22 @@ def create_segment(
                 expression_json=rule.model_dump(),
             )
         )
+    append_audit_event_to_session(
+        session,
+        event_name="campaign.segment_created",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="campaign_segment",
+        resource_id=str(segment.id),
+        payload={
+            "campaign_id": str(campaign_id),
+            "segment_id": str(segment.id),
+            "name": segment.name,
+            "estimated_count": estimated_count,
+            "rule_count": len(body.rules),
+        },
+    )
     session.commit()
     return CampaignSegmentPublic(id=segment.id, name=segment.name, estimated_count=segment.estimated_count)
 
@@ -296,6 +361,7 @@ def assign_strategy(
     _: IdempotencyKeyDep,
     body: StrategyRequest,
 ) -> StrategyPublic:
+    """Assign strategy."""
     _get_campaign_or_404(session, campaign_id, workspace_id, owner_id=current_user.id)
     if body.offer_pack_id:
         offer_pack = session.exec(
@@ -322,6 +388,21 @@ def assign_strategy(
     strategy.offer_pack_version_id = body.offer_pack_version_id
     strategy.strategy_json = body.channel_strategy
     session.add(strategy)
+    append_audit_event_to_session(
+        session,
+        event_name="campaign.strategy_assigned",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="campaign",
+        resource_id=str(campaign_id),
+        payload={
+            "campaign_id": str(campaign_id),
+            "offer_pack_id": str(body.offer_pack_id) if body.offer_pack_id else None,
+            "offer_pack_version_id": str(body.offer_pack_version_id) if body.offer_pack_version_id else None,
+            "channels": sorted(body.channel_strategy.keys()),
+        },
+    )
     session.commit()
     session.refresh(strategy)
     return StrategyPublic(id=strategy.id, campaign_id=strategy.campaign_id, strategy_json=strategy.strategy_json)
@@ -330,48 +411,58 @@ def assign_strategy(
 @router.put("/{campaign_id}/pause", dependencies=[Depends(require_admin)])
 async def pause_campaign(
     session: SessionDep,
+    current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
 ) -> dict[str, str]:
+    """Pause campaign."""
     from app.domain_models import Campaign
     campaign = session.exec(
         select(Campaign).where(Campaign.id == campaign_id, Campaign.workspace_id == workspace_id)
     ).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
-    campaign.active = False
+    campaign.status = CampaignStatus.paused
     session.add(campaign)
-    session.commit()
-    await append_audit_event(
+    append_audit_event_to_session(
+        session,
         event_name="campaign_paused",
         workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
         resource_type="campaign",
         resource_id=str(campaign_id),
         payload={"campaign_id": str(campaign_id), "name": campaign.name},
     )
+    session.commit()
     return {"message": f"Campaign '{campaign.name}' paused"}
 
 
 @router.put("/{campaign_id}/resume", dependencies=[Depends(require_admin)])
 async def resume_campaign(
     session: SessionDep,
+    current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
 ) -> dict[str, str]:
+    """Resume campaign."""
     from app.domain_models import Campaign
     campaign = session.exec(
         select(Campaign).where(Campaign.id == campaign_id, Campaign.workspace_id == workspace_id)
     ).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
-    campaign.active = True
+    campaign.status = CampaignStatus.active
     session.add(campaign)
-    session.commit()
-    await append_audit_event(
+    append_audit_event_to_session(
+        session,
         event_name="campaign_activated",
         workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
         resource_type="campaign",
         resource_id=str(campaign_id),
         payload={"campaign_id": str(campaign_id), "name": campaign.name},
     )
+    session.commit()
     return {"message": f"Campaign '{campaign.name}' resumed"}

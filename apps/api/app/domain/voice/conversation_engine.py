@@ -95,6 +95,7 @@ RULES:
 
 @dataclass
 class ConversationState:
+    """Enumeration of conversation states."""
     turn_count: int = 0
     messages: list[dict[str, str]] = field(default_factory=list)
     unanswered_questions: list[str] = field(default_factory=list)
@@ -284,17 +285,22 @@ class ConversationEngine:
 
     @property
     def state(self) -> ConversationState:
+        """State."""
         return self._state
 
     async def start_stt(self) -> None:
+        """Start stt."""
         await self._stt.connect()
 
     async def send_audio_to_stt(self, audio: bytes) -> None:
+        """Send audio to stt."""
         await self._stt.send_audio(audio)
 
     async def close_stt(self) -> None:
+        """Close stt."""
         await self._stt.close()
 
     @property
     def stt(self) -> DeepgramSTTAdapter:
+        """Stt."""
         return self._stt

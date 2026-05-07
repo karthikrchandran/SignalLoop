@@ -13,9 +13,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlmodel import select
 
-from app.api.deps import SessionDep, require_admin
+from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep
 from app.core.encryption import encrypt
+from app.domain.audit.audit_events import (
+    append_audit_event_to_session,
+    audit_actor_role,
+)
 from app.domain_models import NotificationProvider, ProviderCredential
 
 router = APIRouter(
@@ -30,6 +34,7 @@ router = APIRouter(
 
 
 class ProviderCredentialCreate(BaseModel):
+    """Request payload for creating provider credential."""
     provider: NotificationProvider
     channel: str = Field(
         max_length=32,
@@ -47,6 +52,7 @@ class ProviderCredentialCreate(BaseModel):
 
 
 class ProviderCredentialPublic(BaseModel):
+    """API response model: provider credential."""
     id: uuid.UUID
     workspace_id: str
     provider: NotificationProvider
@@ -59,6 +65,7 @@ class ProviderCredentialPublic(BaseModel):
 
 
 class ProviderCredentialsPublic(BaseModel):
+    """API response model: provider credentials."""
     data: list[ProviderCredentialPublic]
     count: int
 
@@ -87,6 +94,7 @@ def upsert_provider_credentials(
     *,
     workspace_id: str,
     workspace_header: WorkspaceIdDep,
+    current_user: CurrentUser,
     session: SessionDep,
     body: ProviderCredentialCreate,
 ) -> ProviderCredentialPublic:
@@ -125,6 +133,22 @@ def upsert_provider_credentials(
         is_active=True,
     )
     session.add(cred)
+    append_audit_event_to_session(
+        session,
+        event_name="provider_credential_upserted",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="provider_credential",
+        resource_id=str(cred.id),
+        payload={
+            "credential_id": str(cred.id),
+            "provider": body.provider.value,
+            "channel": body.channel,
+            "has_api_secret": body.api_secret is not None,
+            "deactivated_existing_count": len(existing),
+        },
+    )
     session.commit()
     session.refresh(cred)
 
@@ -186,8 +210,10 @@ def deactivate_provider_credential(
     workspace_id: str,
     credential_id: uuid.UUID,
     workspace_header: WorkspaceIdDep,
+    current_user: CurrentUser,
     session: SessionDep,
 ) -> None:
+    """Deactivate provider credential."""
     _ensure_workspace_path_matches_header(workspace_id, workspace_header)
     cred = session.exec(
         select(ProviderCredential).where(
@@ -199,4 +225,18 @@ def deactivate_provider_credential(
         raise HTTPException(status_code=404, detail="Credential not found")
     cred.is_active = False
     session.add(cred)
+    append_audit_event_to_session(
+        session,
+        event_name="provider_credential_deactivated",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="provider_credential",
+        resource_id=str(cred.id),
+        payload={
+            "credential_id": str(cred.id),
+            "provider": cred.provider.value,
+            "channel": cred.channel,
+        },
+    )
     session.commit()

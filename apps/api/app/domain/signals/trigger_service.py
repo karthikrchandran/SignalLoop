@@ -5,6 +5,7 @@ import html as html_mod
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from sqlmodel import Session
 
@@ -12,7 +13,12 @@ from app.core.config import settings
 from app.domain.audit.audit_events import append_audit_event
 from app.domain.signals.models import SignalEvent
 from app.domain.signals.scheduling import SchedulingRequest
-from app.domain.voice.models import CallRequest, CallRequestStatus
+from app.domain.timeline.timeline_service import (
+    invalidate_timeline_cache_for_client,
+    invalidate_timeline_cache_from_url,
+)
+from app.domain.voice.models import CallRequest
+from app.domain_models import Campaign
 from app.infrastructure.providers.sendgrid import SendGridAdapter
 
 logger = logging.getLogger(__name__)
@@ -26,10 +32,15 @@ DEFAULT_RULES: dict[str, list[str]] = {
 
 # In-memory trigger enabled state (MVP — single-process only; not shared across
 # multiple worker instances. Move to Redis/DB if horizontal scaling is needed.)
-_trigger_enabled: dict[str, bool] = {k: True for k in DEFAULT_RULES}
+_trigger_enabled: dict[str, bool] = dict.fromkeys(DEFAULT_RULES, True)
 
 
-async def process_signal(session: Session, signal: SignalEvent) -> list[str]:
+async def process_signal(
+    session: Session,
+    signal: SignalEvent,
+    *,
+    timeline_cache_redis: Any | None = None,
+) -> list[str]:
     """Process a signal event and execute matching trigger actions.
 
     Returns list of action names that were executed.
@@ -44,15 +55,17 @@ async def process_signal(session: Session, signal: SignalEvent) -> list[str]:
 
     executed: list[str] = []
     adapter = SendGridAdapter()
+    workspace_id = _workspace_for_campaign(session, signal.campaign_id)
+    timeline_cache_dirty = False
 
     for action in rules:
         try:
             if action == "queue_followup_call":
-                _queue_followup_call(session, signal)
+                timeline_cache_dirty = _queue_followup_call(session, signal) or timeline_cache_dirty
             elif action == "send_demo_email":
                 await _send_demo_email(adapter, session, signal)
             elif action == "create_scheduling_request":
-                _create_scheduling_request(session, signal)
+                timeline_cache_dirty = _create_scheduling_request(session, signal) or timeline_cache_dirty
             elif action == "email_sales_team":
                 await _email_sales_team(adapter, session, signal)
             elif action == "send_resource_email":
@@ -61,7 +74,10 @@ async def process_signal(session: Session, signal: SignalEvent) -> list[str]:
             executed.append(action)
             await append_audit_event(
                 event_name=f"trigger.{action}",
-                workspace_id="default",
+                workspace_id=workspace_id,
+                actor_role="system",
+                resource_type="signal",
+                resource_id=str(signal.id),
                 payload={
                     "signal_id": str(signal.id),
                     "signal_type": signal.signal_type,
@@ -72,24 +88,43 @@ async def process_signal(session: Session, signal: SignalEvent) -> list[str]:
             logger.exception("Trigger action %s failed for signal %s", action, signal.id)
 
     session.commit()
+    if timeline_cache_dirty:
+        if timeline_cache_redis is not None:
+            await invalidate_timeline_cache_for_client(
+                timeline_cache_redis,
+                signal.contact_id,
+                signal.campaign_id,
+            )
+        else:
+            await invalidate_timeline_cache_from_url(
+                settings.REDIS_URL,
+                signal.contact_id,
+                signal.campaign_id,
+            )
     return executed
 
 
-def _queue_followup_call(session: Session, signal: SignalEvent) -> None:
+def _workspace_for_campaign(session: Session, campaign_id: uuid.UUID) -> str:
+    campaign = session.get(Campaign, campaign_id)
+    return campaign.workspace_id if campaign else "system"
+
+
+def _queue_followup_call(session: Session, signal: SignalEvent) -> bool:
     """Queue a followup call for a positive email signal."""
-    from app.domain.voice.models import VoiceScript
     from sqlmodel import select
+
+    from app.domain.voice.models import VoiceScript
 
     # Find active script for campaign
     script = session.exec(
         select(VoiceScript).where(
             VoiceScript.campaign_id == signal.campaign_id,
-            VoiceScript.active == True,
+            VoiceScript.active == True,  # noqa: E712
         )
     ).first()
     if not script:
         logger.warning("No active voice script for campaign %s", signal.campaign_id)
-        return
+        return False
 
     # Schedule for next business hour
     now = datetime.now(timezone.utc)
@@ -103,6 +138,7 @@ def _queue_followup_call(session: Session, signal: SignalEvent) -> None:
         scheduled_at=scheduled_at,
     )
     session.add(call_req)
+    return True
 
 
 async def _send_demo_email(
@@ -124,13 +160,14 @@ async def _send_demo_email(
     )
 
 
-def _create_scheduling_request(session: Session, signal: SignalEvent) -> None:
+def _create_scheduling_request(session: Session, signal: SignalEvent) -> bool:
     req = SchedulingRequest(
         contact_id=signal.contact_id,
         campaign_id=signal.campaign_id,
         signal_event_id=signal.id,
     )
     session.add(req)
+    return True
 
 
 async def _email_sales_team(

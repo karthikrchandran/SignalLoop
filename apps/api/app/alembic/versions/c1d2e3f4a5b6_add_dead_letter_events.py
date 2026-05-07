@@ -25,6 +25,7 @@ def upgrade() -> None:
     # ------------------------------------------------------------------
     # action_queue — new columns for dead-letter state
     # ------------------------------------------------------------------
+    """Apply this Alembic migration."""
     op.add_column(
         "action_queue",
         sa.Column("failure_reason", sa.Text(), nullable=True),
@@ -59,6 +60,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Revert this Alembic migration."""
     op.drop_index("idx_dle_action_queue_id", table_name="dead_letter_events")
     op.drop_index("idx_dle_campaign_id", table_name="dead_letter_events")
     op.drop_table("dead_letter_events")

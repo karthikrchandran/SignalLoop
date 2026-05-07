@@ -1,3 +1,5 @@
+"""External provider adapter: ``sendgrid``."""
+
 from __future__ import annotations
 
 import hashlib
@@ -44,6 +46,7 @@ class SendGridAdapter(NotificationProviderAdapter):
         reply_to: str | None = None,
         custom_args: dict[str, str] | None = None,
     ) -> dict[str, Any]:
+        """Send email."""
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
@@ -112,14 +115,17 @@ class SendGridAdapter(NotificationProviderAdapter):
         return {"status_code": 0, "error": "Max retries exceeded", "message_id": ""}
 
     async def send_sms(self, *, to: str, message: str) -> dict[str, Any]:
+        """Send sms."""
         raise NotImplementedError("SendGrid does not support SMS")
 
     async def make_call(self, *, to: str, script: str) -> dict[str, Any]:
+        """Create call."""
         raise NotImplementedError("SendGrid does not support voice calls")
 
     async def normalize_webhook_event(
         self, raw_payload: dict[str, Any]
     ) -> dict[str, Any]:
+        """Normalise webhook event."""
         event_type = raw_payload.get("event", "unknown")
         return {
             "event_type": event_type,
@@ -133,6 +139,7 @@ class SendGridAdapter(NotificationProviderAdapter):
     def verify_webhook_signature(
         payload_bytes: bytes, signature: str, timestamp: str
     ) -> bool:
+        """Verify webhook signature."""
         secret = settings.SENDGRID_WEBHOOK_SECRET
         if not secret:
             # No secret configured — allow through with warning (MVP).

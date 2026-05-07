@@ -7,12 +7,14 @@ from dataclasses import dataclass, field
 
 @dataclass
 class QAPair:
+    """Q a pair."""
     question: str
     answer: str
 
 
 @dataclass
 class ScriptParsed:
+    """Script parsed."""
     opening_pitch: str = ""
     qa_pairs: list[QAPair] = field(default_factory=list)
     fallback_response: str = ""

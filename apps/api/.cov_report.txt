@@ -1,0 +1,6 @@
+Name                             Stmts   Miss  Cover   Missing
+--------------------------------------------------------------
+app\workers\sequence_worker.py     145      1    99%   280
+app\workers\call_worker.py         114      1    99%   196
+--------------------------------------------------------------
+TOTAL                              259      2    99%

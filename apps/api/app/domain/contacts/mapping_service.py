@@ -1,3 +1,5 @@
+"""Domain service: ``mapping service``."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -6,6 +8,7 @@ REQUIRED_FIELDS = ["email", "firstName", "company", "timezone"]
 
 
 def resolve_mapping(headers: list[str], mapping: dict[str, str], *, strict: bool = False) -> dict[str, str]:
+    """Resolve mapping."""
     resolved = {field: mapping.get(field, field) for field in REQUIRED_FIELDS}
     available = set(headers)
 
@@ -26,4 +29,5 @@ def resolve_mapping(headers: list[str], mapping: dict[str, str], *, strict: bool
 
 
 def map_row(row: dict[str, Any], mapping: dict[str, str]) -> dict[str, Any]:
+    """Map row."""
     return {canonical: row.get(source, "") for canonical, source in mapping.items()}

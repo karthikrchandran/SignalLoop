@@ -1,3 +1,5 @@
+"""FastAPI router: ``templates`` endpoints."""
+
 from __future__ import annotations
 
 import uuid
@@ -7,7 +9,10 @@ from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
-from app.domain.audit.audit_events import append_audit_event
+from app.domain.audit.audit_events import (
+    append_audit_event_to_session,
+    audit_actor_role,
+)
 from app.domain.outreach.token_service import (
     render_template,
     validate_token_definitions,
@@ -58,6 +63,7 @@ def _build_template_public(session: SessionDep, template: Template) -> TemplateP
 
 @router.get("/", response_model=TemplatesPublic)
 def read_templates(session: SessionDep, workspace_id: WorkspaceIdDep, status: TemplateStatus | None = None) -> TemplatesPublic:
+    """Return templates."""
     templates = session.exec(select(Template).where(Template.workspace_id == workspace_id)).all()
     data = []
     for template in templates:
@@ -79,6 +85,7 @@ def create_template(
     _: IdempotencyKeyDep,
     body: TemplateCreate,
 ) -> TemplatePublic:
+    """Create template."""
     token_errors = validate_token_definitions([token.model_dump() for token in body.tokens])
     if token_errors:
         raise HTTPException(status_code=400, detail=token_errors)
@@ -89,8 +96,7 @@ def create_template(
         created_by=current_user.id,
     )
     session.add(template)
-    session.commit()
-    session.refresh(template)
+    session.flush()
 
     version = TemplateVersion(
         template_id=template.id,
@@ -102,6 +108,21 @@ def create_template(
     session.add(version)
     for token in body.tokens:
         session.add(TemplateToken(template_id=template.id, **token.model_dump()))
+    append_audit_event_to_session(
+        session,
+        event_name="template_created",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="template",
+        resource_id=str(template.id),
+        payload={
+            "template_id": str(template.id),
+            "version_number": version.version_number,
+            "channel": template.channel,
+            "token_count": len(body.tokens),
+        },
+    )
     session.commit()
     return _build_template_public(session, template)
 
@@ -110,11 +131,13 @@ def create_template(
 def update_template(
     *,
     session: SessionDep,
+    current_user: CurrentUser,
     template_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
     _: IdempotencyKeyDep,
     body: TemplateUpdate,
 ) -> TemplatePublic:
+    """Update template."""
     template = session.exec(select(Template).where(Template.id == template_id, Template.workspace_id == workspace_id)).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -150,9 +173,22 @@ def update_template(
         existing_tokens = session.exec(select(TemplateToken).where(TemplateToken.template_id == template_id)).all()
         for token in existing_tokens:
             session.delete(token)
-        session.commit()
         for token in body.tokens:
             session.add(TemplateToken(template_id=template_id, **token.model_dump()))
+    append_audit_event_to_session(
+        session,
+        event_name="template_updated",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="template",
+        resource_id=str(template_id),
+        payload={
+            "template_id": str(template_id),
+            "version_id": str(latest.id),
+            "changed_fields": sorted(body.model_dump(exclude_unset=True).keys()),
+        },
+    )
     session.commit()
     return _build_template_public(session, template)
 
@@ -166,6 +202,7 @@ async def clone_template(
     workspace_id: WorkspaceIdDep,
     _: IdempotencyKeyDep,
 ) -> TemplatePublic:
+    """Clone template."""
     template = session.exec(select(Template).where(Template.id == template_id, Template.workspace_id == workspace_id)).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -176,8 +213,7 @@ async def clone_template(
     ).first()
     cloned = Template(workspace_id=workspace_id, name=f"{template.name} Copy", channel=template.channel, created_by=current_user.id)
     session.add(cloned)
-    session.commit()
-    session.refresh(cloned)
+    session.flush()
     session.add(
         TemplateVersion(
             template_id=cloned.id,
@@ -197,15 +233,17 @@ async def clone_template(
                 fallback_behavior=token.fallback_behavior,
             )
         )
-    session.commit()
-    await append_audit_event(
+    append_audit_event_to_session(
+        session,
         event_name="template_cloned",
         workspace_id=workspace_id,
         actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
         resource_type="template",
         resource_id=str(cloned.id),
         payload={"source_template_id": str(template_id), "cloned_template_id": str(cloned.id)},
     )
+    session.commit()
     return _build_template_public(session, cloned)
 
 
@@ -217,6 +255,7 @@ def preview_template(
     workspace_id: WorkspaceIdDep,
     body: TemplatePreviewRequest,
 ) -> TemplatePreviewPublic:
+    """Build a preview of template."""
     template = session.exec(select(Template).where(Template.id == template_id, Template.workspace_id == workspace_id)).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -240,11 +279,13 @@ def preview_template(
 async def publish_template(
     *,
     session: SessionDep,
+    current_user: CurrentUser,
     template_id: uuid.UUID,
     version_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
     _: IdempotencyKeyDep,
 ) -> TemplatePublic:
+    """Publish template."""
     template = session.exec(select(Template).where(Template.id == template_id, Template.workspace_id == workspace_id)).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -267,12 +308,15 @@ async def publish_template(
     version.status = TemplateStatus.published
     version.published_at = get_datetime_utc()
     session.add(version)
-    session.commit()
-    await append_audit_event(
+    append_audit_event_to_session(
+        session,
         event_name="template_published",
         workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
         resource_type="template",
         resource_id=str(template_id),
         payload={"template_id": str(template_id), "version_id": str(version_id)},
     )
+    session.commit()
     return _build_template_public(session, template)

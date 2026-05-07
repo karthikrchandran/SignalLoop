@@ -1,3 +1,5 @@
+"""Module: ``tests pre start``."""
+
 import logging
 
 from sqlalchemy import Engine
@@ -20,6 +22,7 @@ wait_seconds = 1
     after=after_log(logger, logging.WARN),
 )
 def init(db_engine: Engine) -> None:
+    """Initialise."""
     try:
         # Try to create session to check if DB is awake
         with Session(db_engine) as session:
@@ -30,6 +33,7 @@ def init(db_engine: Engine) -> None:
 
 
 def main() -> None:
+    """Entry point."""
     logger.info("Initializing service")
     init(engine)
     logger.info("Service finished initializing")

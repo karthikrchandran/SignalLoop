@@ -1,3 +1,5 @@
+"""FastAPI router: ``private`` endpoints."""
+
 from typing import Any
 
 from fastapi import APIRouter
@@ -14,6 +16,7 @@ router = APIRouter(tags=["private"], prefix="/private")
 
 
 class PrivateUserCreate(BaseModel):
+    """Request payload for creating private user."""
     email: str
     password: str
     full_name: str

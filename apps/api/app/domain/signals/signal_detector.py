@@ -27,6 +27,7 @@ POSITIVE_KEYWORDS = [
 
 @dataclass
 class SignalResult:
+    """Result row: signal."""
     signal_type: str
     confidence: float
     matched_keywords: list[str] = field(default_factory=list)

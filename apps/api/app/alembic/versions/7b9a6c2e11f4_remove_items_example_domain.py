@@ -18,10 +18,12 @@ depends_on = None
 
 
 def upgrade():
+    """Apply this Alembic migration."""
     op.drop_table("item")
 
 
 def downgrade():
+    """Revert this Alembic migration."""
     op.create_table(
         "item",
         sa.Column("title", sa.String(length=255), nullable=False),

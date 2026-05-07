@@ -22,6 +22,10 @@ from app.api.deps import SessionDep
 from app.core.config import settings
 from app.core.db import engine
 from app.core.encryption import decrypt
+from app.domain.timeline.timeline_service import (
+    invalidate_timeline_cache,
+    invalidate_timeline_cache_from_url_sync,
+)
 from app.domain.voice.conversation_engine import ConversationEngine
 from app.domain.voice.models import (
     CallOutcome,
@@ -458,6 +462,7 @@ def _save_conversation_results(call_sid: str, conv_engine: ConversationEngine) -
             select(CallSession).where(CallSession.twilio_call_sid == call_sid)
         ).first()
         if call_session:
+            call_request = session.get(CallRequest, call_session.call_request_id)
             state = conv_engine.state
             call_session.transcript = "\n".join(
                 f"{'User' if m['role'] == 'user' else 'AI'}: {m['content']}"
@@ -471,6 +476,12 @@ def _save_conversation_results(call_sid: str, conv_engine: ConversationEngine) -
             call_session.scheduling_interest = state.scheduling_interest
             session.add(call_session)
             session.commit()
+            if call_request:
+                invalidate_timeline_cache_from_url_sync(
+                    settings.REDIS_URL,
+                    call_request.contact_id,
+                    call_request.campaign_id,
+                )
 
 
 @router.post("/status")
@@ -521,6 +532,8 @@ async def status_callback(request: Request, session: SessionDep) -> dict[str, st
     if call_request:
         session.add(call_request)
     session.commit()
+    if call_request:
+        await invalidate_timeline_cache(request, call_request.contact_id, call_request.campaign_id)
 
     return {"status": "ok"}
 
@@ -540,11 +553,18 @@ async def recording_callback(request: Request, session: SessionDep) -> dict[str,
             select(CallSession).where(CallSession.twilio_call_sid == call_sid)
         ).first()
         if call_session:
+            call_request = session.get(CallRequest, call_session.call_request_id)
             call_session.twilio_account_sid = str(form.get("AccountSid", "")) or call_session.twilio_account_sid
             if not call_session.recording_url or call_session.recording_url == recording_url:
                 call_session.recording_url = recording_url
             session.add(call_session)
             session.commit()
+            if call_request:
+                await invalidate_timeline_cache(
+                    request,
+                    call_request.contact_id,
+                    call_request.campaign_id,
+                )
 
     return {"status": "ok"}
 

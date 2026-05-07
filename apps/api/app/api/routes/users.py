@@ -1,3 +1,5 @@
+"""FastAPI router: ``users`` endpoints."""
+
 import uuid
 from typing import Any
 

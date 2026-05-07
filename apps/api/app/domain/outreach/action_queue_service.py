@@ -1,3 +1,5 @@
+"""Domain service: ``action queue service``."""
+
 from __future__ import annotations
 
 import uuid
@@ -22,6 +24,7 @@ def enqueue_action(
     channel: str,
     payload: dict[str, Any],
 ) -> ActionQueue:
+    """Enqueue action."""
     action = ActionQueue(
         contact_id=contact_id,
         campaign_id=campaign_id,
@@ -38,6 +41,7 @@ def enqueue_action(
 
 
 def list_pending_actions(session: Session, *, limit: int = 100) -> list[ActionQueue]:
+    """Return a list of pending actions."""
     return list(
         session.exec(
             select(ActionQueue)
@@ -55,6 +59,7 @@ def update_action_status(
     status: str,
     next_retry_at: datetime | None = None,
 ) -> ActionQueue | None:
+    """Update action status."""
     action = session.get(ActionQueue, action_id)
     if action is None:
         return None

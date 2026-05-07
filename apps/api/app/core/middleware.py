@@ -19,6 +19,7 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
     """Extract or generate a correlation ID and propagate it through the request."""
 
     async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[override]
+        """Dispatch the incoming request."""
         request_id = (
             request.headers.get("X-Request-ID")
             or request.headers.get("X-Correlation-Id")
@@ -36,6 +37,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add OWASP-recommended security headers to every response."""
 
     async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[override]
+        """Dispatch the incoming request."""
         response = await call_next(request)
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")

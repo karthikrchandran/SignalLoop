@@ -1,3 +1,5 @@
+"""Domain service: ``segment service``."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -6,6 +8,7 @@ from app.domain_models import SegmentOperator
 
 
 def matches_rule(value: Any, operator: SegmentOperator, expected: str) -> bool:
+    """Return ``True`` if rule."""
     candidate = str(value or "")
     if operator == SegmentOperator.equals:
         return candidate == expected
@@ -19,6 +22,7 @@ def matches_rule(value: Any, operator: SegmentOperator, expected: str) -> bool:
 
 
 def estimate_segment(rows: list[dict[str, Any]], rules: list[dict[str, Any]]) -> int:
+    """Estimate segment."""
     count = 0
     for row in rows:
         if all(matches_rule(row.get(rule["field_name"]), rule["operator"], rule["value"]) for rule in rules):

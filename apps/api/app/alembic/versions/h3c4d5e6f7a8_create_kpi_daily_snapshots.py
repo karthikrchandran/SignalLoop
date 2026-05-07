@@ -24,6 +24,7 @@ depends_on: str | tuple[str, ...] | None = None
 
 
 def upgrade() -> None:
+    """Apply this Alembic migration."""
     op.create_table(
         "kpi_daily_snapshots",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -58,6 +59,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Revert this Alembic migration."""
     op.drop_index("idx_kpi_snapshots_workspace_campaign_date", table_name="kpi_daily_snapshots")
     op.drop_index("idx_kpi_snapshots_workspace_date", table_name="kpi_daily_snapshots")
     op.drop_table("kpi_daily_snapshots")

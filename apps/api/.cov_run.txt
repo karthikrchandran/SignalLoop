@@ -1,0 +1,19 @@
+....................................................                     [100%]
+============================== warnings summary ===============================
+..\..\.venv\Lib\site-packages\slowapi\extension.py:717
+..\..\.venv\Lib\site-packages\slowapi\extension.py:717
+  C:\Users\K.Ramachandran\eMailVoice\.venv\Lib\site-packages\slowapi\extension.py:717: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    if asyncio.iscoroutinefunction(func):
+
+tests/workers/test_sequence_worker.py::test_process_single_skips_when_retry_window_open
+  C:\Users\K.Ramachandran\eMailVoice\apps\api\tests\workers\test_sequence_worker.py:401: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    naive_dt.now.return_value = datetime.utcnow()
+
+tests/workers/test_sequence_worker.py::test_process_single_retries_after_window_elapses
+  C:\Users\K.Ramachandran\eMailVoice\apps\api\tests\workers\test_sequence_worker.py:465: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    naive_dt.now.return_value = datetime.utcnow()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+52 passed, 4 warnings in 4.07s
+<sys>:0: RuntimeWarning: coroutine 'run_worker' was never awaited
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback

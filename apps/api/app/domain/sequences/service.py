@@ -1,3 +1,5 @@
+"""Module: ``service``."""
+
 from __future__ import annotations
 
 import uuid
@@ -15,29 +17,32 @@ from app.domain.sequences.models import (
 from app.domain.sequences.schemas import (
     SequenceCreate,
     SequenceDetailPublic,
-    SequencePublic,
     SequenceUpdate,
     StepPayload,
     StepPublic,
 )
-from app.domain_models import Contact, ContactProgression
+from app.domain_models import ContactProgression
 
 
 def create_sequence(
-    session: Session, *, data: SequenceCreate, created_by: uuid.UUID
+    session: Session, *, data: SequenceCreate, created_by: uuid.UUID, commit: bool = True
 ) -> EmailSequence:
+    """Create sequence."""
     seq = EmailSequence(
         campaign_id=data.campaign_id,
         name=data.name,
         created_by=created_by,
     )
     session.add(seq)
-    session.commit()
-    session.refresh(seq)
+    session.flush()
+    if commit:
+        session.commit()
+        session.refresh(seq)
     return seq
 
 
 def get_sequence_or_404(session: Session, sequence_id: uuid.UUID) -> EmailSequence:
+    """Return sequence or 404."""
     seq = session.get(EmailSequence, sequence_id)
     if not seq:
         raise HTTPException(status_code=404, detail="Sequence not found")
@@ -45,6 +50,7 @@ def get_sequence_or_404(session: Session, sequence_id: uuid.UUID) -> EmailSequen
 
 
 def get_sequence_detail(session: Session, sequence_id: uuid.UUID) -> SequenceDetailPublic:
+    """Return sequence detail."""
     seq = get_sequence_or_404(session, sequence_id)
     steps = session.exec(
         select(SequenceStep)
@@ -71,22 +77,26 @@ def get_sequence_detail(session: Session, sequence_id: uuid.UUID) -> SequenceDet
 
 
 def update_sequence(
-    session: Session, *, sequence_id: uuid.UUID, data: SequenceUpdate
+    session: Session, *, sequence_id: uuid.UUID, data: SequenceUpdate, commit: bool = True
 ) -> EmailSequence:
+    """Update sequence."""
     seq = get_sequence_or_404(session, sequence_id)
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(seq, key, value)
     seq.updated_at = datetime.now(timezone.utc)
     session.add(seq)
-    session.commit()
-    session.refresh(seq)
+    session.flush()
+    if commit:
+        session.commit()
+        session.refresh(seq)
     return seq
 
 
 def batch_upsert_steps(
-    session: Session, *, sequence_id: uuid.UUID, steps: list[StepPayload]
+    session: Session, *, sequence_id: uuid.UUID, steps: list[StepPayload], commit: bool = True
 ) -> list[SequenceStep]:
+    """Batch upsert steps."""
     get_sequence_or_404(session, sequence_id)
     # Delete existing steps and recreate (simple upsert strategy)
     existing = session.exec(
@@ -107,13 +117,16 @@ def batch_upsert_steps(
         )
         session.add(step)
         new_steps.append(step)
-    session.commit()
-    for step in new_steps:
-        session.refresh(step)
+    session.flush()
+    if commit:
+        session.commit()
+        for step in new_steps:
+            session.refresh(step)
     return new_steps
 
 
-def delete_sequence(session: Session, sequence_id: uuid.UUID) -> None:
+def delete_sequence(session: Session, sequence_id: uuid.UUID, *, commit: bool = True) -> None:
+    """Delete sequence."""
     seq = get_sequence_or_404(session, sequence_id)
     # Delete steps first
     steps = session.exec(
@@ -130,11 +143,13 @@ def delete_sequence(session: Session, sequence_id: uuid.UUID) -> None:
     for state in states:
         session.delete(state)
     session.delete(seq)
-    session.commit()
+    session.flush()
+    if commit:
+        session.commit()
 
 
 def enroll_campaign_contacts(
-    session: Session, *, campaign_id: uuid.UUID, sequence_id: uuid.UUID
+    session: Session, *, campaign_id: uuid.UUID, sequence_id: uuid.UUID, commit: bool = True
 ) -> int:
     """Enroll all campaign contacts into a sequence with next_send_at = now."""
     get_sequence_or_404(session, sequence_id)
@@ -166,5 +181,7 @@ def enroll_campaign_contacts(
         )
         session.add(state)
         enrolled += 1
-    session.commit()
+    session.flush()
+    if commit:
+        session.commit()
     return enrolled

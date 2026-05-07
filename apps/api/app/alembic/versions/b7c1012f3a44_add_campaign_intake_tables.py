@@ -37,6 +37,7 @@ segment_operator_enum = postgresql.ENUM(
 
 
 def upgrade() -> None:
+    """Apply this Alembic migration."""
     campaign_status_enum.create(op.get_bind(), checkfirst=True)
     segment_operator_enum.create(op.get_bind(), checkfirst=True)
 
@@ -168,6 +169,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Revert this Alembic migration."""
     op.drop_index(op.f("ix_campaign_channel_strategy_workspace_id"), table_name="campaign_channel_strategy")
     op.drop_index(op.f("ix_campaign_channel_strategy_campaign_id"), table_name="campaign_channel_strategy")
     op.drop_table("campaign_channel_strategy")

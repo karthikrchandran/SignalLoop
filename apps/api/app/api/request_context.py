@@ -1,3 +1,5 @@
+"""Module: ``request context``."""
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -9,6 +11,7 @@ from app.api.deps import AdminUser
 
 
 def semantic_error(code: str, message: str, semantic: str, details: dict | None = None):
+    """Semantic error."""
     correlation_id = str(uuid4())
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
@@ -28,6 +31,7 @@ def require_workspace_id(
     _admin_user: AdminUser,
     x_workspace_id: str | None = Header(default=None, alias="X-Workspace-Id"),
 ) -> str:
+    """Validate and return workspace id."""
     if not x_workspace_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -48,6 +52,7 @@ WorkspaceIdDep = Annotated[str, Depends(require_workspace_id)]
 
 
 def require_idempotency_key(idempotency_key: str | None = Header(default=None, alias="Idempotency-Key")) -> str:
+    """Validate and return idempotency key."""
     if not idempotency_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -19,6 +19,7 @@ depends_on = None
 
 def upgrade():
     # Adjust the length of the email field in the User table
+    """Apply this Alembic migration."""
     op.alter_column('user', 'email',
                existing_type=sa.String(),
                type_=sa.String(length=255),
@@ -45,6 +46,7 @@ def upgrade():
 
 def downgrade():
     # Revert the length of the email field in the User table
+    """Revert this Alembic migration."""
     op.alter_column('user', 'email',
                existing_type=sa.String(length=255),
                type_=sa.String(),

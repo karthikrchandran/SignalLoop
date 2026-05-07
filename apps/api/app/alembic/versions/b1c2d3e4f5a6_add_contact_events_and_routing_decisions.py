@@ -22,6 +22,7 @@ depends_on: str | tuple[str, ...] | None = None
 
 
 def upgrade() -> None:
+    """Apply this Alembic migration."""
     bind = op.get_bind()
     existing = inspect(bind).get_table_names()
 
@@ -83,6 +84,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Revert this Alembic migration."""
     op.drop_index("idx_rd_created_at", table_name="routing_decisions")
     op.drop_index("idx_rd_workspace", table_name="routing_decisions")
     op.drop_index("idx_rd_contact_campaign", table_name="routing_decisions")

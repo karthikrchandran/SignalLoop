@@ -1,3 +1,5 @@
+"""Package: ``api/routes``."""
+
 from fastapi import APIRouter, Depends, Request
 from pydantic.networks import EmailStr
 from sqlmodel import select
@@ -31,6 +33,7 @@ def test_email(email_to: EmailStr) -> Message:
 
 @router.get("/health-check/", response_model=HealthStatus)
 async def health_check(request: Request) -> HealthStatus:
+    """Health check."""
     postgres = True
     try:
         with engine.connect() as connection:

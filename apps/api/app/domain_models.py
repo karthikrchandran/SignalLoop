@@ -1,3 +1,5 @@
+"""Persistence + API models for the ``app`` domain."""
+
 from __future__ import annotations
 
 import uuid
@@ -10,33 +12,39 @@ from sqlmodel import Field, SQLModel
 
 
 def get_datetime_utc() -> datetime:
+    """Return datetime utc."""
     return datetime.now(timezone.utc)
 
 
 class CampaignStatus(str, Enum):
+    """Enumeration of campaign states."""
     draft = "draft"
     active = "active"
     paused = "paused"
 
 
 class TemplateStatus(str, Enum):
+    """Enumeration of template states."""
     draft = "draft"
     published = "published"
     archived = "archived"
 
 
 class PolicyStatus(str, Enum):
+    """Enumeration of policy states."""
     active = "active"
     inactive = "inactive"
 
 
 class PolicyType(str, Enum):
+    """Enumeration of policy variants."""
     daily_caps = "daily_caps"
     quiet_hours = "quiet_hours"
     suppression = "suppression"
 
 
 class ContactProgressionState(str, Enum):
+    """Enumeration of contact progression states."""
     inbox = "inbox"
     nurturing = "nurturing"
     engaged = "engaged"
@@ -47,6 +55,7 @@ class ContactProgressionState(str, Enum):
 
 
 class NotificationProvider(str, Enum):
+    """Enumeration of notification providers."""
     sendgrid = "sendgrid"
     twilio = "twilio"
     mailchimp = "mailchimp"
@@ -54,6 +63,7 @@ class NotificationProvider(str, Enum):
 
 
 class SegmentOperator(str, Enum):
+    """Enumeration of segment comparison operators."""
     equals = "equals"
     contains = "contains"
     in_list = "in-list"
@@ -61,6 +71,7 @@ class SegmentOperator(str, Enum):
 
 
 class SemanticError(str, Enum):
+    """Enumeration of semantic categories."""
     recipient_invalid = "RECIPIENT_INVALID"
     policy_violation = "POLICY_VIOLATION"
     auth_error = "AUTH_ERROR"
@@ -69,6 +80,7 @@ class SemanticError(str, Enum):
 
 
 class Campaign(SQLModel, table=True):
+    """Campaign."""
     __tablename__ = "campaigns"
     __table_args__ = (
         Index("idx_campaign_workspace_status", "workspace_id", "status"),
@@ -85,6 +97,7 @@ class Campaign(SQLModel, table=True):
 
 
 class CampaignContactImport(SQLModel, table=True):
+    """Campaign contact import."""
     __tablename__ = "campaign_contact_imports"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -99,6 +112,7 @@ class CampaignContactImport(SQLModel, table=True):
 
 
 class CampaignContactStage(SQLModel, table=True):
+    """Staging row: campaign contact."""
     __tablename__ = "campaign_contact_staging"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -113,6 +127,7 @@ class CampaignContactStage(SQLModel, table=True):
 
 
 class CampaignSegment(SQLModel, table=True):
+    """Campaign segment."""
     __tablename__ = "campaign_segments"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -124,6 +139,7 @@ class CampaignSegment(SQLModel, table=True):
 
 
 class CampaignSegmentRule(SQLModel, table=True):
+    """Rule row: campaign segment."""
     __tablename__ = "campaign_segment_rules"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -135,6 +151,7 @@ class CampaignSegmentRule(SQLModel, table=True):
 
 
 class CampaignChannelStrategy(SQLModel, table=True):
+    """Strategy row: campaign channel."""
     __tablename__ = "campaign_channel_strategy"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -148,6 +165,7 @@ class CampaignChannelStrategy(SQLModel, table=True):
 
 
 class Template(SQLModel, table=True):
+    """Template."""
     __tablename__ = "templates"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -159,6 +177,7 @@ class Template(SQLModel, table=True):
 
 
 class TemplateVersion(SQLModel, table=True):
+    """Version row: template."""
     __tablename__ = "template_versions"
     __table_args__ = (
         UniqueConstraint("template_id", "version_number", name="uq_template_version_number"),
@@ -178,6 +197,7 @@ class TemplateVersion(SQLModel, table=True):
 
 
 class TemplateToken(SQLModel, table=True):
+    """Token row: template."""
     __tablename__ = "template_tokens"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -189,6 +209,7 @@ class TemplateToken(SQLModel, table=True):
 
 
 class OfferPack(SQLModel, table=True):
+    """Offer pack."""
     __tablename__ = "offer_packs"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -199,6 +220,7 @@ class OfferPack(SQLModel, table=True):
 
 
 class OfferPackVersion(SQLModel, table=True):
+    """Version row: offer pack."""
     __tablename__ = "offer_pack_versions"
     __table_args__ = (
         UniqueConstraint("offer_pack_id", "version_number", name="uq_offer_pack_version_number"),
@@ -216,6 +238,7 @@ class OfferPackVersion(SQLModel, table=True):
 
 
 class OfferPackTemplateBinding(SQLModel, table=True):
+    """Binding row: offer pack template."""
     __tablename__ = "offer_pack_template_bindings"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -226,6 +249,7 @@ class OfferPackTemplateBinding(SQLModel, table=True):
 
 
 class GovernancePolicy(SQLModel, table=True):
+    """Policy row: governance."""
     __tablename__ = "governance_policies"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -240,6 +264,7 @@ class GovernancePolicy(SQLModel, table=True):
 
 
 class CampaignPolicyBinding(SQLModel, table=True):
+    """Binding row: campaign policy."""
     __tablename__ = "campaign_policy_bindings"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -248,6 +273,7 @@ class CampaignPolicyBinding(SQLModel, table=True):
 
 
 class GlobalControlState(SQLModel, table=True):
+    """Enumeration of global control states."""
     __tablename__ = "global_control_state"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -265,6 +291,7 @@ class GlobalControlState(SQLModel, table=True):
 
 
 class Contact(SQLModel, table=True):
+    """Contact."""
     __tablename__ = "contacts"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -303,6 +330,7 @@ class ContactStateHistory(SQLModel, table=True):
     __tablename__ = "contact_state_history"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(sa_type=String(64), index=True)
     contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     from_state: ContactProgressionState
@@ -461,6 +489,7 @@ class KpiDailySnapshot(SQLModel, table=True):
 
 
 class ImportRowError(SQLModel):
+    """Enumeration of import row categories."""
     row_number: int
     column: str
     semantic_error: SemanticError
@@ -468,21 +497,25 @@ class ImportRowError(SQLModel):
 
 
 class PreviewRow(SQLModel):
+    """Preview row."""
     row_number: int
     data: dict[str, Any]
 
 
 class HealthStatus(SQLModel):
+    """Enumeration of health states."""
     api: bool
     postgres: bool
     redis: bool
 
 
 class CampaignCreate(SQLModel):
+    """Request payload for creating campaign."""
     name: str
 
 
 class CampaignPublic(SQLModel):
+    """API response model: campaign."""
     id: uuid.UUID
     name: str
     status: CampaignStatus
@@ -491,11 +524,13 @@ class CampaignPublic(SQLModel):
 
 
 class CampaignsPublic(SQLModel):
+    """API response model: campaigns."""
     data: list[CampaignPublic]
     count: int
 
 
 class CampaignImportPublic(SQLModel):
+    """API response model: campaign import."""
     import_id: uuid.UUID
     total_rows: int
     valid_rows: int
@@ -506,45 +541,53 @@ class CampaignImportPublic(SQLModel):
 
 
 class CampaignMappingRequest(SQLModel):
+    """Request payload: campaign mapping."""
     mapping: dict[str, str]
 
 
 class ImportPreviewPublic(SQLModel):
+    """API response model: import preview."""
     import_id: uuid.UUID
     preview_rows: list[PreviewRow]
     errors: list[ImportRowError]
 
 
 class SegmentRuleInput(SQLModel):
+    """Input payload: segment rule."""
     field_name: str
     operator: SegmentOperator
     value: str
 
 
 class CampaignSegmentCreate(SQLModel):
+    """Request payload for creating campaign segment."""
     name: str
     rules: list[SegmentRuleInput]
 
 
 class CampaignSegmentPublic(SQLModel):
+    """API response model: campaign segment."""
     id: uuid.UUID
     name: str
     estimated_count: int
 
 
 class StrategyRequest(SQLModel):
+    """Request payload: strategy."""
     offer_pack_id: uuid.UUID | None = None
     offer_pack_version_id: uuid.UUID | None = None
     channel_strategy: dict[str, Any] = Field(default_factory=dict)
 
 
 class StrategyPublic(SQLModel):
+    """API response model: strategy."""
     id: uuid.UUID
     campaign_id: uuid.UUID
     strategy_json: dict[str, Any]
 
 
 class TokenDefinition(SQLModel):
+    """Definition: token."""
     name: str
     source_field: str
     default_value: str | None = None
@@ -552,6 +595,7 @@ class TokenDefinition(SQLModel):
 
 
 class TemplateCreate(SQLModel):
+    """Request payload for creating template."""
     name: str
     channel: str
     subject: str | None = None
@@ -560,6 +604,7 @@ class TemplateCreate(SQLModel):
 
 
 class TemplateUpdate(SQLModel):
+    """Request payload for updating template."""
     name: str | None = None
     subject: str | None = None
     content: str | None = None
@@ -567,12 +612,14 @@ class TemplateUpdate(SQLModel):
 
 
 class GuardrailViolation(SQLModel):
+    """Guardrail violation."""
     semantic_error: SemanticError
     reason_code: str
     message: str
 
 
 class TemplateVersionPublic(SQLModel):
+    """API response model: template version."""
     id: uuid.UUID
     version_number: int
     status: TemplateStatus
@@ -582,6 +629,7 @@ class TemplateVersionPublic(SQLModel):
 
 
 class TemplatePublic(SQLModel):
+    """API response model: template."""
     id: uuid.UUID
     name: str
     channel: str
@@ -590,37 +638,44 @@ class TemplatePublic(SQLModel):
 
 
 class TemplatesPublic(SQLModel):
+    """API response model: templates."""
     data: list[TemplatePublic]
     count: int
 
 
 class TemplatePreviewRequest(SQLModel):
+    """Request payload: template preview."""
     sample_payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class TemplatePreviewPublic(SQLModel):
+    """API response model: template preview."""
     rendered_content: str
     unresolved_tokens: list[str]
 
 
 class OfferPackBindingInput(SQLModel):
+    """Input payload: offer pack binding."""
     template_version_id: uuid.UUID
     channel: str
     script_variant: str | None = None
 
 
 class OfferPackCreate(SQLModel):
+    """Request payload for creating offer pack."""
     name: str
     bindings: list[OfferPackBindingInput] = Field(default_factory=list)
     is_default: bool = False
 
 
 class OfferPackVersionCreate(SQLModel):
+    """Request payload for creating offer pack version."""
     bindings: list[OfferPackBindingInput] = Field(default_factory=list)
     is_default: bool = False
 
 
 class OfferPackVersionPublic(SQLModel):
+    """API response model: offer pack version."""
     id: uuid.UUID
     version_number: int
     status: TemplateStatus
@@ -629,6 +684,7 @@ class OfferPackVersionPublic(SQLModel):
 
 
 class OfferPackPublic(SQLModel):
+    """API response model: offer pack."""
     id: uuid.UUID
     name: str
     workspace_id: str
@@ -636,11 +692,13 @@ class OfferPackPublic(SQLModel):
 
 
 class OfferPacksPublic(SQLModel):
+    """API response model: offer packs."""
     data: list[OfferPackPublic]
     count: int
 
 
 class GovernancePolicyCreate(SQLModel):
+    """Request payload for creating governance policy."""
     scope: str
     policy_type: PolicyType
     campaign_id: uuid.UUID | None = None
@@ -648,6 +706,7 @@ class GovernancePolicyCreate(SQLModel):
 
 
 class GovernancePolicyPublic(SQLModel):
+    """API response model: governance policy."""
     id: uuid.UUID
     scope: str
     policy_type: PolicyType
@@ -656,11 +715,13 @@ class GovernancePolicyPublic(SQLModel):
 
 
 class GovernancePoliciesPublic(SQLModel):
+    """API response model: governance policies."""
     data: list[GovernancePolicyPublic]
     count: int
 
 
 class PolicyDecision(SQLModel):
+    """Decision row: policy."""
     allowed: bool
     semantic_error: SemanticError | None = None
     reason_code: str | None = None
@@ -668,6 +729,7 @@ class PolicyDecision(SQLModel):
 
 
 class PolicyEvaluationRequest(SQLModel):
+    """Request payload: policy evaluation."""
     campaign_id: uuid.UUID | None = None
     contact: dict[str, Any] = Field(default_factory=dict)
     campaign_daily_count: int = 0
@@ -676,10 +738,12 @@ class PolicyEvaluationRequest(SQLModel):
 
 
 class PauseRequest(SQLModel):
+    """Request payload: pause."""
     paused_reason: str
 
 
 class ControlStatePublic(SQLModel):
+    """API response model: control state."""
     id: uuid.UUID
     paused: bool
     paused_reason: str | None = None
@@ -715,6 +779,7 @@ class TimelineEventPublic(SQLModel):
 class TimelineEventDetailPublic(TimelineEventPublic):
     """Extended timeline entry with explainability fields."""
 
+    reason_code_explanation: str | None = None
     rule_name: str | None = None
     rule_condition: str | None = None
     signal_summary: str | None = None
@@ -722,6 +787,7 @@ class TimelineEventDetailPublic(TimelineEventPublic):
 
 
 class TimelinePagePublic(SQLModel):
+    """API response model: timeline page."""
     data: list[TimelineEventPublic]
     count: int
     next_cursor: str | None = None
@@ -733,6 +799,7 @@ class TimelinePagePublic(SQLModel):
 
 
 class AuditEventPublic(SQLModel):
+    """API response model: audit event."""
     id: uuid.UUID
     event_name: str
     workspace_id: str
@@ -746,6 +813,7 @@ class AuditEventPublic(SQLModel):
 
 
 class AuditEventsPage(SQLModel):
+    """Audit events page."""
     total: int
     page: int
     limit: int
@@ -753,6 +821,7 @@ class AuditEventsPage(SQLModel):
 
 
 class AuditExportJobStatus(SQLModel):
+    """Enumeration of audit export job states."""
     job_id: str
     status: str  # "pending" | "complete" | "failed"
 
@@ -799,6 +868,7 @@ class DeadLetterItemPublic(SQLModel):
 
 
 class DeadLetterListPublic(SQLModel):
+    """API response model: dead letter list."""
     data: list[DeadLetterItemPublic]
     count: int
     page: int

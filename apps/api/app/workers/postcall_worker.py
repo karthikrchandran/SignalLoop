@@ -112,6 +112,7 @@ async def run_worker() -> None:
 
 
 def main() -> None:
+    """Entry point."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",

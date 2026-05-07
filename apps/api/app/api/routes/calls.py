@@ -8,9 +8,14 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import SQLModel, func, select
 
-from app.api.deps import SessionDep, require_admin
+from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep
 from app.core.config import settings
+from app.domain.audit.audit_events import (
+    append_audit_event,
+    append_audit_event_to_session,
+    audit_actor_role,
+)
 from app.domain.sequences.models import (
     ContactSequenceState,
     EmailSequence,
@@ -27,6 +32,7 @@ router = APIRouter(prefix="/calls", tags=["calls"], dependencies=[Depends(requir
 
 
 class CallListItem(SQLModel):
+    """List item: call list."""
     call_request_id: uuid.UUID
     contact_id: uuid.UUID
     campaign_id: uuid.UUID
@@ -38,11 +44,13 @@ class CallListItem(SQLModel):
 
 
 class CallListPublic(SQLModel):
+    """API response model: call list."""
     data: list[CallListItem]
     count: int
 
 
 class CallDetailPublic(SQLModel):
+    """API response model: call detail."""
     call_request_id: uuid.UUID
     contact_id: uuid.UUID
     campaign_id: uuid.UUID
@@ -84,6 +92,7 @@ def list_calls(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
 ) -> CallListPublic:
+    """Return a list of calls."""
     query = (
         select(CallRequest, CallSession)
         .join(Campaign, CallRequest.campaign_id == Campaign.id)
@@ -146,6 +155,7 @@ def get_call_detail(
     workspace_id: WorkspaceIdDep,
     call_request_id: uuid.UUID,
 ) -> CallDetailPublic:
+    """Return call detail."""
     req = _get_call_request_or_404(session, call_request_id, workspace_id)
 
     sess = session.exec(
@@ -171,9 +181,11 @@ def get_call_detail(
 @router.post("/{call_request_id}/send-demo-email")
 async def send_demo_email(
     session: SessionDep,
+    current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
     call_request_id: uuid.UUID,
 ) -> dict[str, str]:
+    """Send demo email."""
     req = _get_call_request_or_404(session, call_request_id, workspace_id)
 
     contact = session.get(Contact, req.contact_id)
@@ -188,15 +200,30 @@ async def send_demo_email(
         body_html=f"<p>Hi {html.escape(name)},</p><p>Following up on our call — here's your demo access.</p>",
         body_text=f"Hi {name}, following up on our call — here's your demo access.",
     )
+    await append_audit_event(
+        event_name="call.demo_email_sent",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="call_request",
+        resource_id=str(call_request_id),
+        payload={
+            "call_request_id": str(call_request_id),
+            "contact_id": str(contact.id),
+            "campaign_id": str(req.campaign_id),
+        },
+    )
     return {"message": "Demo email sent"}
 
 
 @router.post("/{call_request_id}/flag-for-sales")
 async def flag_for_sales(
     session: SessionDep,
+    current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
     call_request_id: uuid.UUID,
 ) -> dict[str, str]:
+    """Flag for sales."""
     req = _get_call_request_or_404(session, call_request_id, workspace_id)
 
     contact = session.get(Contact, req.contact_id)
@@ -215,15 +242,30 @@ async def flag_for_sales(
         body_html=f"<p><strong>{html.escape(name)}</strong> ({html.escape(contact.email)}) has been flagged for sales follow-up.</p>",
         body_text=f"{name} ({contact.email}) flagged for sales follow-up.",
     )
+    await append_audit_event(
+        event_name="call.flagged_for_sales",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="call_request",
+        resource_id=str(call_request_id),
+        payload={
+            "call_request_id": str(call_request_id),
+            "contact_id": str(contact.id),
+            "campaign_id": str(req.campaign_id),
+        },
+    )
     return {"message": "Contact flagged for sales team"}
 
 
 @router.post("/{call_request_id}/pause-sequence")
 def pause_contact_sequence(
     session: SessionDep,
+    current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
     call_request_id: uuid.UUID,
 ) -> dict[str, str]:
+    """Pause contact sequence."""
     req = _get_call_request_or_404(session, call_request_id, workspace_id)
 
     # Pause any active sequences for this contact
@@ -244,5 +286,20 @@ def pause_contact_sequence(
         session.add(state)
         paused += 1
 
+    append_audit_event_to_session(
+        session,
+        event_name="call.sequence_paused",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="call_request",
+        resource_id=str(call_request_id),
+        payload={
+            "call_request_id": str(call_request_id),
+            "contact_id": str(req.contact_id),
+            "campaign_id": str(req.campaign_id),
+            "paused_sequence_count": paused,
+        },
+    )
     session.commit()
     return {"message": f"Paused {paused} active sequence(s)"}

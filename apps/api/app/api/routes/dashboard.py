@@ -35,6 +35,7 @@ def get_email_metrics(
     workspace_id: WorkspaceIdDep,
     campaign_id: uuid.UUID,
 ) -> dict:
+    """Return email metrics."""
     _ensure_campaign_in_workspace(session, campaign_id, workspace_id)
     return dashboard_service.get_email_metrics(session, campaign_id)
 
@@ -45,6 +46,7 @@ def get_call_metrics(
     workspace_id: WorkspaceIdDep,
     campaign_id: uuid.UUID,
 ) -> dict:
+    """Return call metrics."""
     _ensure_campaign_in_workspace(session, campaign_id, workspace_id)
     return dashboard_service.get_call_metrics(session, campaign_id)
 
@@ -55,10 +57,12 @@ def get_signal_summary(
     workspace_id: WorkspaceIdDep,
     campaign_id: uuid.UUID,
 ) -> dict:
+    """Return signal summary."""
     _ensure_campaign_in_workspace(session, campaign_id, workspace_id)
     return dashboard_service.get_signal_summary(session, campaign_id)
 
 
 @router.get("/daily-cap-status")
 def get_daily_cap_status(session: SessionDep, workspace_id: WorkspaceIdDep) -> dict:
+    """Return daily cap status."""
     return dashboard_service.get_daily_cap_status(session, workspace_id=workspace_id)

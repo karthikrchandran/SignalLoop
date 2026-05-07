@@ -1,3 +1,5 @@
+"""Persistence + API models for the ``signals`` domain."""
+
 from __future__ import annotations
 
 import uuid
@@ -14,6 +16,7 @@ def _utcnow() -> datetime:
 
 
 class SignalEvent(SQLModel, table=True):
+    """Event row: signal."""
     __tablename__ = "signal_events"
     __table_args__ = (
         Index("idx_signal_contact", "contact_id"),

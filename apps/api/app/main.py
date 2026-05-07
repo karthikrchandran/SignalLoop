@@ -1,3 +1,5 @@
+"""Module: ``main``."""
+
 from contextlib import asynccontextmanager
 
 import sentry_sdk
@@ -19,6 +21,7 @@ from app.infrastructure.db.redis.connection import RedisConnectionManager
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:
+    """Custom generate unique id."""
     return f"{route.tags[0]}-{route.name}"
 
 
@@ -28,6 +31,7 @@ if settings.SENTRY_DSN and settings.ENVIRONMENT != "local":
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """FastAPI lifespan context manager."""
     from sqlmodel import Session  # noqa: PLC0415
     with Session(engine) as session:
         init_db(session)

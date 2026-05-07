@@ -18,6 +18,7 @@ def get_contact_signals(
     signal_type: str | None = None,
     since: datetime | None = None,
 ) -> list[SignalEvent]:
+    """Return contact signals."""
     query = select(SignalEvent).where(SignalEvent.contact_id == contact_id)
     if channel:
         query = query.where(SignalEvent.channel == channel)
@@ -31,6 +32,7 @@ def get_contact_signals(
 def get_latest_signal(
     session: Session, contact_id: uuid.UUID
 ) -> SignalEvent | None:
+    """Return latest signal."""
     return session.exec(
         select(SignalEvent)
         .where(SignalEvent.contact_id == contact_id)

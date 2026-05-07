@@ -1,3 +1,5 @@
+"""Domain service: ``template guardrail service``."""
+
 from __future__ import annotations
 
 from app.domain.outreach.template_service import token_density
@@ -27,6 +29,7 @@ def _violation(reason_code: str, message: str) -> GuardrailViolation:
 
 
 def validate_template(channel: str, subject: str | None, content: str) -> list[GuardrailViolation]:
+    """Validate template."""
     violations: list[GuardrailViolation] = []
     normalized_channel = channel.lower().strip()
     lower_subject = (subject or "").lower()

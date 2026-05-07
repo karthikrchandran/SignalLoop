@@ -1,6 +1,6 @@
 # Story 5.2: Capture Immutable Operational Audit Trail
 
-Status: review
+Status: done
 
 ## Story
 

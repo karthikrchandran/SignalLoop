@@ -1,3 +1,5 @@
+"""Domain service: ``consent sync service``."""
+
 from __future__ import annotations
 
 
@@ -12,6 +14,7 @@ def _as_bool(value: object, default: bool = False) -> bool:
 
 
 def suppression_reason(contact: dict[str, object]) -> str | None:
+    """Suppression reason."""
     if _as_bool(contact.get("suppressed")):
         return "SUPPRESSED_CONTACT"
     if _as_bool(contact.get("doNotContact")):
@@ -22,6 +25,7 @@ def suppression_reason(contact: dict[str, object]) -> str | None:
 
 
 def check_channel_consent(contact: dict[str, object], channel: str) -> bool:
+    """Check channel consent."""
     channel_key = f"consent_{channel}"
     if channel_key in contact:
         return _as_bool(contact[channel_key])
@@ -29,6 +33,7 @@ def check_channel_consent(contact: dict[str, object], channel: str) -> bool:
 
 
 def is_contact_actionable(contact: dict[str, object], channel: str) -> tuple[bool, str | None]:
+    """Return ``True`` when contact actionable."""
     reason = suppression_reason(contact)
     if reason is not None:
         return False, reason

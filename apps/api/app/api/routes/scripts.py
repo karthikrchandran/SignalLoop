@@ -1,3 +1,5 @@
+"""FastAPI router: ``scripts`` endpoints."""
+
 from __future__ import annotations
 
 import uuid
@@ -8,7 +10,10 @@ from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
-from app.domain.audit.audit_events import append_audit_event
+from app.domain.audit.audit_events import (
+    append_audit_event_to_session,
+    audit_actor_role,
+)
 from app.domain.voice.models import VoiceScript
 from app.domain.voice.schemas import (
     QAPairPublic,
@@ -77,6 +82,7 @@ async def create_script(
     _: IdempotencyKeyDep,
     body: ScriptCreate,
 ) -> ScriptPublic:
+    """Create script."""
     _ensure_campaign_in_workspace(session, body.campaign_id, workspace_id)
     script = VoiceScript(
         campaign_id=body.campaign_id,
@@ -85,13 +91,18 @@ async def create_script(
         created_by=current_user.id,
     )
     session.add(script)
-    session.commit()
-    session.refresh(script)
-    await append_audit_event(
+    append_audit_event_to_session(
+        session,
         event_name="script.created",
         workspace_id=workspace_id,
-        payload={"id": str(script.id), "name": script.name},
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="script",
+        resource_id=str(script.id),
+        payload={"id": str(script.id), "name": script.name, "campaign_id": str(script.campaign_id)},
     )
+    session.commit()
+    session.refresh(script)
     return ScriptPublic(
         id=script.id, campaign_id=script.campaign_id,
         name=script.name, active=script.active, created_at=script.created_at,
@@ -104,6 +115,7 @@ def list_scripts(
     workspace_id: WorkspaceIdDep,
     campaign_id: uuid.UUID | None = None,
 ) -> ScriptsPublic:
+    """Return a list of scripts."""
     query = (
         select(VoiceScript)
         .join(Campaign, VoiceScript.campaign_id == Campaign.id)
@@ -130,6 +142,7 @@ def get_script(
     workspace_id: WorkspaceIdDep,
     script_id: uuid.UUID,
 ) -> ScriptDetailPublic:
+    """Return script."""
     script = _get_script_or_404(session, script_id, workspace_id)
     return ScriptDetailPublic(
         id=script.id, campaign_id=script.campaign_id,
@@ -144,6 +157,7 @@ def preview_script(
     workspace_id: WorkspaceIdDep,
     script_id: uuid.UUID,
 ) -> ScriptParsedPublic:
+    """Build a preview of script."""
     script = _get_script_or_404(session, script_id, workspace_id)
     return _to_parsed_public(script)
 
@@ -152,23 +166,30 @@ def preview_script(
 async def update_script(
     *,
     session: SessionDep,
+    current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
     script_id: uuid.UUID,
     body: ScriptUpdate,
 ) -> ScriptDetailPublic:
+    """Update script."""
     script = _get_script_or_404(session, script_id, workspace_id)
     update_data = body.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(script, key, value)
     script.updated_at = datetime.now(timezone.utc)
     session.add(script)
-    session.commit()
-    session.refresh(script)
-    await append_audit_event(
+    append_audit_event_to_session(
+        session,
         event_name="script.updated",
         workspace_id=workspace_id,
-        payload={"id": str(script.id)},
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="script",
+        resource_id=str(script.id),
+        payload={"id": str(script.id), "changed_fields": sorted(update_data.keys())},
     )
+    session.commit()
+    session.refresh(script)
     return ScriptDetailPublic(
         id=script.id, campaign_id=script.campaign_id,
         name=script.name, active=script.active, created_at=script.created_at,
@@ -180,16 +201,23 @@ async def update_script(
 async def delete_script(
     *,
     session: SessionDep,
+    current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
     script_id: uuid.UUID,
 ) -> dict[str, str]:
+    """Delete script."""
     script = _get_script_or_404(session, script_id, workspace_id)
     script.active = False
     session.add(script)
-    session.commit()
-    await append_audit_event(
+    append_audit_event_to_session(
+        session,
         event_name="script.deleted",
         workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="script",
+        resource_id=str(script.id),
         payload={"id": str(script.id)},
     )
+    session.commit()
     return {"message": "Script deactivated"}

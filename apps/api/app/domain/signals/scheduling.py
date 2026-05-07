@@ -1,3 +1,5 @@
+"""Module: ``scheduling``."""
+
 from __future__ import annotations
 
 import uuid
@@ -13,6 +15,7 @@ def _utcnow() -> datetime:
 
 
 class SchedulingStatus(str, Enum):
+    """Enumeration of scheduling states."""
     pending = "pending"
     contacted = "contacted"
     booked = "booked"
@@ -20,6 +23,7 @@ class SchedulingStatus(str, Enum):
 
 
 class SchedulingRequest(SQLModel, table=True):
+    """Request payload: scheduling."""
     __tablename__ = "scheduling_requests"
     __table_args__ = (
         Index("idx_sched_contact", "contact_id"),

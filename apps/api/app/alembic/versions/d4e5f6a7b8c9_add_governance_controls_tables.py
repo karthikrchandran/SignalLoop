@@ -42,6 +42,7 @@ approval_status_enum = postgresql.ENUM(
 
 
 def upgrade() -> None:
+    """Apply this Alembic migration."""
     bind = op.get_bind()
     policy_type_enum.create(bind, checkfirst=True)
     policy_status_enum.create(bind, checkfirst=True)
@@ -127,6 +128,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Revert this Alembic migration."""
     op.drop_index("ix_global_control_state_workspace_campaign_paused", table_name="global_control_state")
     op.drop_index(op.f("ix_global_control_state_workspace_id"), table_name="global_control_state")
     op.drop_table("global_control_state")

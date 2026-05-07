@@ -1,3 +1,5 @@
+"""FastAPI router: ``login`` endpoints."""
+
 from datetime import timedelta
 from typing import Annotated, Any
 

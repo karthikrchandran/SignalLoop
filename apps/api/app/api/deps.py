@@ -1,3 +1,5 @@
+"""Module: ``deps``."""
+
 from collections.abc import Generator
 from typing import Annotated
 
@@ -19,6 +21,7 @@ reusable_oauth2 = OAuth2PasswordBearer(
 
 
 def get_db() -> Generator[Session, None, None]:
+    """Return db."""
     with Session(engine) as session:
         yield session
 
@@ -28,6 +31,7 @@ TokenDep = Annotated[str, Depends(reusable_oauth2)]
 
 
 def get_current_user(session: SessionDep, token: TokenDep) -> User:
+    """Return current user."""
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[security.ALGORITHM]
@@ -59,6 +63,7 @@ _AUTH_ERROR = {
 
 
 def require_admin(current_user: CurrentUser) -> User:
+    """Validate and return admin."""
     if current_user.is_superuser or getattr(current_user, "role", None) in {
         "admin",
         "super_admin",
@@ -74,6 +79,7 @@ AdminUser = Annotated[User, Depends(require_admin)]
 
 
 def get_current_active_superuser(current_user: CurrentUser) -> User:
+    """Return current active superuser."""
     if not current_user.is_superuser:
         raise HTTPException(
             status_code=403, detail="The user doesn't have enough privileges"

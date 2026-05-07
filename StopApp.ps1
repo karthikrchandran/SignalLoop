@@ -15,5 +15,5 @@ Get-Process -Name "python" -ErrorAction SilentlyContinue |
 
 Write-Host ""
 Write-Host "  All app processes stopped."
-Write-Host "  (Infrastructure still running — use .\StopServer.ps1 to stop Postgres/Redis/Mailpit)"
+Write-Host "  (Infrastructure still running - use .\StopServer.ps1 to stop Postgres/Redis/Mailpit)"
 Write-Host ""
