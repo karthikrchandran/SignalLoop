@@ -7,7 +7,8 @@ EngageHub is a hybrid monorepo for governed campaign orchestration across email 
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/)
 - Node.js 20+
-- Docker Desktop with Docker Compose
+- [Bun](https://bun.sh/) for the web frontend
+- Docker Desktop with Docker Compose is optional for containerized runs
 
 ## Workspace Layout
 
@@ -19,21 +20,7 @@ EngageHub is a hybrid monorepo for governed campaign orchestration across email 
 
 ## Local Development Setup
 
-### Option A — Docker Compose (recommended)
-
-1. Copy `.env.example` to `.env`.
-2. Start infrastructure and app services:
-
-	```bash
-	docker compose up --build
-	```
-
-3. Confirm service health:
-
-	- API health: `http://localhost:8000/api/v1/utils/health-check/`
-	- Web app: `http://localhost:5173`
-
-### Option B — Run without Docker (uv + local services)
+### Option A — Native local services with uv (recommended)
 
 Postgres and Redis must be reachable on `localhost`. On Windows with scoop:
 
@@ -52,12 +39,12 @@ redis-server --service-start
 Then from the repo root:
 
 ```powershell
-# 1. Backend deps + migrations + API
+# 1. Backend deps + migrations + API, using uv
 cd apps\api
 uv sync
 uv run alembic upgrade head
 uv run python -m app.initial_data         # seed superuser
-uv run fastapi dev app/main.py            # http://localhost:8000
+uv run fastapi dev app/main.py --port 8001 # http://localhost:8001
 
 # 2. In separate terminals — workers (each is a long-running process)
 uv run python -m app.workers.sequence_worker
@@ -66,11 +53,24 @@ uv run python -m app.workers.postcall_worker
 
 # 3. Frontend
 cd ..\web
-bun install     # or: npm install
+bun install
 bun run dev     # http://localhost:5173
 ```
 
 `.env` already targets `localhost` for both Postgres and Redis, so no further config edits are needed for local-only runs. Provider credentials (`SENDGRID_*`, `TWILIO_*`, `DEEPGRAM_API_KEY`, `GROQ_API_KEY`) are optional — the adapters fail closed when keys are absent, so the API and UI still boot for development.
+
+Confirm service health:
+
+- API health: `http://localhost:8001/api/v1/utils/health-check/`
+- Web app: `http://localhost:5173`
+
+### Option B — Docker Compose (optional)
+
+Use Compose only when you specifically want a containerized run:
+
+```bash
+docker compose up --build
+```
 
 ## Backend Dependency Install
 

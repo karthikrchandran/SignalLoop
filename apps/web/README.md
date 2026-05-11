@@ -1,121 +1,71 @@
-# FastAPI Project - Frontend
+# EngageHub Web
 
-The frontend is built with [Vite](https://vitejs.dev/), [React](https://reactjs.org/), [TypeScript](https://www.typescriptlang.org/), [TanStack Query](https://tanstack.com/query), [TanStack Router](https://tanstack.com/router) and [Tailwind CSS](https://tailwindcss.com/).
+React/Vite operator console for EngageHub.
 
 ## Requirements
 
-- [Bun](https://bun.sh/) (recommended) or [Node.js](https://nodejs.org/)
+- [Bun](https://bun.sh/) for frontend package management
+- EngageHub API running at `http://localhost:8001`
+
+The backend is managed separately with `uv`; see `apps/api/README.md`.
 
 ## Quick Start
 
-```bash
+From `apps/web`:
+
+```powershell
 bun install
 bun run dev
 ```
 
-* Then open your browser at http://localhost:5173/.
+Open `http://localhost:5173`.
 
-Notice that this live server is not running inside Docker, it's for local development, and that is the recommended workflow. Once you are happy with your frontend, you can build the frontend Docker image and start it, to test it in a production-like environment. But building the image at every change will not be as productive as running the local development server with live reload.
+The default API URL is set in `.env` as:
 
-Check the file `package.json` to see other available options.
+```env
+VITE_API_URL=http://localhost:8001
+```
 
-### Removing the frontend
+## Scripts
 
-If you are developing an API-only app and want to remove the frontend, you can do it easily:
-
-* Remove the `./frontend` directory.
-
-* In the `compose.yml` file, remove the whole service / section `frontend`.
-
-* In the `compose.override.yml` file, remove the whole service / section `frontend` and `playwright`.
-
-Done, you have a frontend-less (api-only) app. 🤓
-
----
-
-If you want, you can also remove the `FRONTEND` environment variables from:
-
-* `.env`
-* `./scripts/*.sh`
-
-But it would be only to clean them up, leaving them won't really have any effect either way.
+```powershell
+bun run build
+bun run lint
+bun run generate-client
+bun run test
+bun run test:ui
+```
 
 ## Generate Client
 
-### Automatically
+When the backend OpenAPI schema changes, run the API on `http://localhost:8001`, then regenerate the client:
 
-* Activate the backend virtual environment.
-* From the top level project directory, run the script:
-
-```bash
-bash ./scripts/generate-client.sh
-```
-
-* Commit the changes.
-
-### Manually
-
-* Start the Docker Compose stack.
-
-* Download the OpenAPI JSON file from `http://localhost/api/v1/openapi.json` and copy it to a new file `openapi.json` at the root of the `frontend` directory.
-
-* To generate the frontend client, run:
-
-```bash
+```powershell
 bun run generate-client
 ```
 
-* Commit the changes.
+Commit generated client changes with the backend API change.
 
-Notice that everytime the backend changes (changing the OpenAPI schema), you should follow these steps again to update the frontend client.
+## Playwright
 
-## Using a Remote API
+Start the native local services, API, and web app first:
 
-If you want to use a remote API, you can set the environment variable `VITE_API_URL` to the URL of the remote API. For example, you can set it in the `frontend/.env` file:
-
-```env
-VITE_API_URL=https://api.my-domain.example.com
+```powershell
+# repo root
+.\StartServer.ps1
+.\StartApp.ps1
 ```
 
-Then, when you run the frontend, it will use that URL as the base URL for the API.
+Then run Playwright from `apps/web`:
 
-## Code Structure
-
-The frontend code is structured as follows:
-
-* `frontend/src` - The main frontend code.
-* `frontend/src/assets` - Static assets.
-* `frontend/src/client` - The generated OpenAPI client.
-* `frontend/src/components` -  The different components of the frontend.
-* `frontend/src/hooks` - Custom hooks.
-* `frontend/src/routes` - The different routes of the frontend which include the pages.
-
-## End-to-End Testing with Playwright
-
-The frontend includes initial end-to-end tests using Playwright. To run the tests, you need to have the Docker Compose stack running. Start the stack with the following command:
-
-```bash
-docker compose up -d --wait backend
-```
-
-Then, you can run the tests with the following command:
-
-```bash
+```powershell
 bunx playwright test
 ```
 
-You can also run your tests in UI mode to see the browser and interact with it running:
+For UI mode:
 
-```bash
+```powershell
 bunx playwright test --ui
 ```
 
-To stop and remove the Docker Compose stack and clean the data created in tests, use the following command:
-
-```bash
-docker compose down -v
-```
-
-To update the tests, navigate to the tests directory and modify the existing test files or add new ones as needed.
-
-For more information on writing and running Playwright tests, refer to the official [Playwright documentation](https://playwright.dev/docs/intro).
+Playwright uses the repo `.env`, so keep `VITE_API_URL` pointed at `http://localhost:8001`.

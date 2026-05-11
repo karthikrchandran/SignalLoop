@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ApprovalInbox } from "@/features/policies/components/ApprovalInbox"
 import { engagehubRequest } from "@/lib/engagehub-api"
 
 const TIMEZONES = [
@@ -261,19 +260,6 @@ export default function GovernanceControlPage() {
               Resume outreach
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Pending approvals */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Pending approvals</CardTitle>
-          <CardDescription>
-            Review and approve or decline actions that require your sign-off before they can run.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ApprovalInbox disabled={busy} onFeedback={setFeedback} />
         </CardContent>
       </Card>
 

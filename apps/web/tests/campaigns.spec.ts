@@ -1,5 +1,29 @@
 import { expect, test } from "@playwright/test"
 
+const contactsPayload = {
+  data: [
+    {
+      id: "contact-1",
+      email: "ada@example.com",
+      first_name: "Ada",
+      last_name: "Lovelace",
+      company: "Analytical",
+      phone: "+15551234567",
+      timezone: "America/New_York",
+    },
+    {
+      id: "contact-2",
+      email: "grace@example.com",
+      first_name: "Grace",
+      last_name: "Hopper",
+      company: "Compiler Co",
+      phone: null,
+      timezone: "UTC",
+    },
+  ],
+  count: 2,
+}
+
 test.use({ storageState: { cookies: [], origins: [] } })
 
 test.beforeEach(async ({ page }) => {
@@ -19,9 +43,17 @@ test.beforeEach(async ({ page }) => {
       }),
     })
   })
+
+  await page.route(/.*\/api\/v1\/contacts\/.*/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(contactsPayload),
+    })
+  })
 })
 
-test("Campaign wizard shows mapping preview (20 rows) and invalid-row reasons", async ({ page }) => {
+test("Campaign wizard assigns selected contacts from the lead pool", async ({ page }) => {
   await page.route("**/api/v1/campaigns/", async (route) => {
     await route.fulfill({
       status: 200,
@@ -30,41 +62,23 @@ test("Campaign wizard shows mapping preview (20 rows) and invalid-row reasons", 
     })
   })
 
-  await page.route("**/api/v1/campaigns/camp-1/contacts/import", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        import_id: "imp-1",
-        headers: ["email", "firstName", "company", "timezone"],
-        valid_rows: 20,
-        invalid_rows: 1,
-        errors: [
-          {
-            row_number: 3,
-            column: "email",
-            message: "Email is required",
-          },
-        ],
-      }),
+  await page.route("**/api/v1/campaigns/camp-1/audience", async (route) => {
+    const request = route.request()
+    expect(request.postDataJSON()).toMatchObject({
+      include_all_contacts: false,
+      contact_ids: ["contact-1"],
+      rules: [],
     })
-  })
-
-  await page.route("**/api/v1/campaigns/camp-1/contacts/mapping", async (route) => {
-    const previewRows = Array.from({ length: 20 }, (_, index) => ({
-      row_number: index + 1,
-      data: {
-        email: `user${index + 1}@example.com`,
-        firstName: `Name${index + 1}`,
-      },
-    }))
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        import_id: "imp-1",
-        preview_rows: previewRows,
-        errors: [],
+        campaign_id: "camp-1",
+        selected_count: 1,
+        added_count: 1,
+        existing_count: 0,
+        segment_id: "segment-1",
+        segment_name: "Campaign audience",
       }),
     })
   })
@@ -74,28 +88,15 @@ test("Campaign wizard shows mapping preview (20 rows) and invalid-row reasons", 
   await page.getByLabel("Campaign name").fill("Q2 Outreach")
   await page.getByRole("button", { name: "Continue" }).click()
 
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles({
-      name: "contacts.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from("email,firstName,company,timezone\nuser@example.com,Jane,Acme,UTC\n"),
-    })
+  await expect(page.getByText("Step 2: Audience selection")).toBeVisible()
+  await page.getByLabel("Selected contacts").check()
+  await page.getByRole("checkbox").first().click()
   await page.getByRole("button", { name: "Continue" }).click()
 
-  await expect(page.getByText("Validation issues")).toBeVisible()
-  await expect(page.getByText("Row 3, email: Email is required")).toBeVisible()
-
-  await page.getByRole("button", { name: "Continue" }).click()
-
-  await expect(page.getByText("Preview rows")).toBeVisible()
-  await expect(page.getByText("user20@example.com")).toBeVisible()
-
-  await page.getByRole("button", { name: "Continue" }).click()
-  await expect(page.getByText("Current step:").locator("..")).toContainText("4. Segmentation")
+  await expect(page.getByText("1 contacts assigned to this campaign")).toBeVisible()
 })
 
-test("Campaign wizard can complete draft flow end-to-end", async ({ page }) => {
+test("Campaign wizard can complete with a filtered subset", async ({ page }) => {
   await page.route("**/api/v1/campaigns/", async (route) => {
     await route.fulfill({
       status: 200,
@@ -104,37 +105,25 @@ test("Campaign wizard can complete draft flow end-to-end", async ({ page }) => {
     })
   })
 
-  await page.route("**/api/v1/campaigns/camp-2/contacts/import", async (route) => {
+  await page.route("**/api/v1/campaigns/camp-2/audience", async (route) => {
+    expect(route.request().postDataJSON()).toMatchObject({
+      include_all_contacts: false,
+      contact_ids: [],
+      segment_name: "Enterprise subset",
+      rules: [{ field_name: "company", operator: "contains", value: "Compiler" }],
+    })
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        import_id: "imp-2",
-        headers: ["email", "firstName", "company", "timezone"],
-        valid_rows: 2,
-        invalid_rows: 0,
-        errors: [],
+        campaign_id: "camp-2",
+        selected_count: 1,
+        added_count: 1,
+        existing_count: 0,
+        segment_id: "segment-2",
+        segment_name: "Enterprise subset",
       }),
     })
-  })
-
-  await page.route("**/api/v1/campaigns/camp-2/contacts/mapping", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        import_id: "imp-2",
-        preview_rows: [
-          { row_number: 1, data: { email: "a@example.com", firstName: "A" } },
-          { row_number: 2, data: { email: "b@example.com", firstName: "B" } },
-        ],
-        errors: [],
-      }),
-    })
-  })
-
-  await page.route("**/api/v1/campaigns/camp-2/segments", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" })
   })
 
   await page.route("**/api/v1/offer-packs/assignable", async (route) => {
@@ -169,21 +158,11 @@ test("Campaign wizard can complete draft flow end-to-end", async ({ page }) => {
   await page.getByLabel("Campaign name").fill("Launch Wave")
   await page.getByRole("button", { name: "Continue" }).click()
 
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles({
-      name: "contacts.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from("email,firstName,company,timezone\na@example.com,A,Acme,UTC\n"),
-    })
-  await page.getByRole("button", { name: "Continue" }).click()
-
-  await page.getByRole("button", { name: "Continue" }).click()
-  await page.getByRole("button", { name: "Continue" }).click()
-
-  await page.getByLabel("Value").fill("Technology")
+  await page.getByLabel("Filtered subset").check()
+  await page.getByLabel("Subset name").fill("Enterprise subset")
+  await page.getByLabel("Value").fill("Compiler")
   await page.getByRole("button", { name: "Continue" }).click()
 
   await page.getByRole("button", { name: "Save strategy" }).click()
-  await expect(page.getByRole("alert")).toContainText("Campaign intake flow complete. Draft strategy saved.")
+  await expect(page.getByRole("alert")).toContainText("Campaign intake flow complete. Draft audience and strategy saved.")
 })

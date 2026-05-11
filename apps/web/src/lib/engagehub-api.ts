@@ -18,6 +18,17 @@ const getAuthToken = () => localStorage.getItem("access_token") || ""
 
 export const getWorkspaceId = () => localStorage.getItem("workspace_id") || "default"
 
+const isAuthFailure = (status: number, message: string) => {
+  return status === 401 || (status === 404 && message === "User not found")
+}
+
+const redirectToLogin = () => {
+  localStorage.removeItem("access_token")
+  if (window.location.pathname !== "/login") {
+    window.location.href = "/login"
+  }
+}
+
 const parseError = async (response: Response) => {
   let payload: ApiErrorPayload | null = null
   try {
@@ -64,7 +75,11 @@ export async function engagehubRequest<T>(
   })
 
   if (!response.ok) {
-    throw new Error(await parseError(response))
+    const message = await parseError(response)
+    if (isAuthFailure(response.status, message)) {
+      redirectToLogin()
+    }
+    throw new Error(message)
   }
 
   if (response.status === 204) {

@@ -44,12 +44,12 @@ services:
       POSTGRES_SERVER: db
       REDIS_URL: redis://redis:6379/0
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/utils/health-check/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/v1/utils/health-check/"]
       interval: 10s
       timeout: 5s
       retries: 5
     ports:
-      - "8000:8000"
+      - "8001:8001"
 
   web:
     build:

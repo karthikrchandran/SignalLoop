@@ -13,7 +13,7 @@ function Open-Window($title, $workDir, $cmd) {
 }
 
 Write-Host "Starting API..."
-Open-Window "API  :8000"  $apiDir  "uv run fastapi dev app/main.py"
+Open-Window "API  :8001"  $apiDir  "uv run fastapi dev app/main.py --port 8001"
 
 Write-Host "Starting Web..."
 Open-Window "Web  :5173"  $webDir  "bun run dev"
@@ -26,7 +26,7 @@ if ($Workers) {
 }
 
 Write-Host ""
-Write-Host "  API   -> http://localhost:8000   (Swagger: http://localhost:8000/docs)"
+Write-Host "  API   -> http://localhost:8001   (Swagger: http://localhost:8001/docs)"
 Write-Host "  Web   -> http://localhost:5173"
 if ($Workers) {
     Write-Host "  Workers: sequence / call / postcall"

@@ -4,7 +4,7 @@ import { createUser } from "./utils/privateApi.ts"
 import { randomEmail, randomPassword } from "./utils/random"
 import { logInUser, logOutUser } from "./utils/user"
 
-const tabs = ["My profile", "Password", "Danger zone"]
+const accountTabs = ["My profile", "Password"]
 
 test("My profile tab is active by default", async ({ page }) => {
   await page.goto("/settings")
@@ -14,11 +14,33 @@ test("My profile tab is active by default", async ({ page }) => {
   )
 })
 
-test("All tabs are visible", async ({ page }) => {
+test("Superuser account tabs are visible", async ({ page }) => {
   await page.goto("/settings")
-  for (const tab of tabs) {
+  for (const tab of accountTabs) {
     await expect(page.getByRole("tab", { name: tab })).toBeVisible()
   }
+  await expect(page.getByRole("tab", { name: "Danger zone" })).not.toBeVisible()
+})
+
+test.describe("Regular user account tabs", () => {
+  test.use({ storageState: { cookies: [], origins: [] } })
+
+  test("Regular user can see danger zone", async ({ page }) => {
+    const email = randomEmail()
+    const password = randomPassword()
+
+    await createUser({ email, password })
+    await page.goto("/login")
+    await page.getByTestId("email-input").fill(email)
+    await page.getByTestId("password-input").fill(password)
+    await page.getByRole("button", { name: "Log In" }).click()
+    await page.waitForURL("/")
+    await page.goto("/settings")
+
+    for (const tab of [...accountTabs, "Danger zone"]) {
+      await expect(page.getByRole("tab", { name: tab })).toBeVisible()
+    }
+  })
 })
 
 test.describe("Edit user profile", () => {

@@ -8,16 +8,18 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlmodel import Session, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
-from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
+from app.api.request_context import WorkspaceIdDep
 from app.domain.audit.audit_events import (
     append_audit_event_to_session,
     audit_actor_role,
 )
 from app.domain.contacts.import_service import parse_csv, preview_rows, validate_rows
 from app.domain.contacts.mapping_service import map_row, resolve_mapping
-from app.domain.contacts.segment_service import estimate_segment
+from app.domain.contacts.segment_service import estimate_segment, matches_rule
 from app.domain_models import (
     Campaign,
+    CampaignAudiencePublic,
+    CampaignAudienceRequest,
     CampaignChannelStrategy,
     CampaignContactImport,
     CampaignContactStage,
@@ -31,12 +33,16 @@ from app.domain_models import (
     CampaignSegmentRule,
     CampaignsPublic,
     CampaignStatus,
+    Contact,
+    ContactProgression,
+    ContactProgressionState,
     ImportPreviewPublic,
     ImportRowError,
     OfferPack,
     OfferPackVersion,
     StrategyPublic,
     StrategyRequest,
+    SegmentOperator,
     TemplateStatus,
 )
 
@@ -72,6 +78,27 @@ def _latest_import(session: Session, campaign_id: uuid.UUID) -> CampaignContactI
     return campaign_import
 
 
+def _contact_filter_row(contact: Contact) -> dict[str, str]:
+    return {
+        "email": contact.email,
+        "firstName": contact.first_name or "",
+        "first_name": contact.first_name or "",
+        "lastName": contact.last_name or "",
+        "last_name": contact.last_name or "",
+        "company": contact.company or "",
+        "phone": contact.phone or "",
+        "timezone": contact.timezone or "UTC",
+    }
+
+
+def _matches_campaign_audience_rules(contact: Contact, rules: list[dict[str, str]]) -> bool:
+    row = _contact_filter_row(contact)
+    return all(
+        matches_rule(row.get(rule["field_name"]), SegmentOperator(rule["operator"]), rule["value"])
+        for rule in rules
+    )
+
+
 @router.get("/", response_model=CampaignsPublic)
 def read_campaigns(session: SessionDep, workspace_id: WorkspaceIdDep) -> CampaignsPublic:
     """Return campaigns."""
@@ -99,7 +126,6 @@ async def create_campaign(
     session: SessionDep,
     current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
-    _: IdempotencyKeyDep,
     body: CampaignCreate,
 ) -> CampaignPublic:
     """Create campaign."""
@@ -133,7 +159,6 @@ async def import_contacts(
     current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
-    _: IdempotencyKeyDep,
     file: UploadFile = File(...),
 ) -> CampaignImportPublic:
     """Import contacts."""
@@ -207,7 +232,6 @@ def persist_mapping(
     current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
-    _: IdempotencyKeyDep,
     body: CampaignMappingRequest,
 ) -> ImportPreviewPublic:
     """Persist mapping."""
@@ -263,6 +287,112 @@ def persist_mapping(
     )
 
 
+@router.post("/{campaign_id}/audience", response_model=CampaignAudiencePublic, dependencies=[Depends(require_admin)])
+def assign_existing_contacts_to_campaign(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    campaign_id: uuid.UUID,
+    workspace_id: WorkspaceIdDep,
+    body: CampaignAudienceRequest,
+) -> CampaignAudiencePublic:
+    """Assign existing canonical contacts to a campaign audience."""
+    _get_campaign_or_404(session, campaign_id, workspace_id, owner_id=current_user.id)
+
+    if body.contact_ids:
+        contacts = list(
+            session.exec(
+                select(Contact).where(
+                    Contact.workspace_id == workspace_id,
+                    Contact.id.in_(body.contact_ids),  # type: ignore[attr-defined]
+                )
+            ).all()
+        )
+    else:
+        contacts = list(
+            session.exec(select(Contact).where(Contact.workspace_id == workspace_id)).all()
+        )
+
+    rules = [rule.model_dump() for rule in body.rules]
+    if rules:
+        contacts = [contact for contact in contacts if _matches_campaign_audience_rules(contact, rules)]
+    elif not body.include_all_contacts and not body.contact_ids:
+        raise HTTPException(status_code=400, detail="Choose all contacts, selected contacts, or filter rules")
+
+    selected_count = len(contacts)
+    added_count = 0
+    existing_count = 0
+    for contact in contacts:
+        existing = session.exec(
+            select(ContactProgression).where(
+                ContactProgression.contact_id == contact.id,
+                ContactProgression.campaign_id == campaign_id,
+            )
+        ).first()
+        if existing:
+            existing_count += 1
+            continue
+        session.add(
+            ContactProgression(
+                contact_id=contact.id,
+                campaign_id=campaign_id,
+                current_state=ContactProgressionState.inbox,
+            )
+        )
+        added_count += 1
+
+    segment_id: uuid.UUID | None = None
+    segment_name = body.segment_name.strip() if body.segment_name else None
+    if segment_name:
+        segment = CampaignSegment(
+            campaign_id=campaign_id,
+            workspace_id=workspace_id,
+            name=segment_name,
+            estimated_count=selected_count,
+        )
+        session.add(segment)
+        session.flush()
+        segment_id = segment.id
+        for rule in body.rules:
+            session.add(
+                CampaignSegmentRule(
+                    segment_id=segment.id,
+                    field_name=rule.field_name,
+                    operator=rule.operator,
+                    value=rule.value,
+                    expression_json=rule.model_dump(),
+                )
+            )
+
+    append_audit_event_to_session(
+        session,
+        event_name="campaign.audience_assigned",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="campaign",
+        resource_id=str(campaign_id),
+        payload={
+            "campaign_id": str(campaign_id),
+            "selected_count": selected_count,
+            "added_count": added_count,
+            "existing_count": existing_count,
+            "segment_id": str(segment_id) if segment_id else None,
+            "rule_count": len(body.rules),
+        },
+    )
+    session.commit()
+
+    return CampaignAudiencePublic(
+        campaign_id=campaign_id,
+        selected_count=selected_count,
+        added_count=added_count,
+        existing_count=existing_count,
+        segment_id=segment_id,
+        segment_name=segment_name,
+    )
+
+
 @router.get("/{campaign_id}/contacts/preview", response_model=ImportPreviewPublic)
 def get_import_preview(
     session: SessionDep,
@@ -297,7 +427,6 @@ def create_segment(
     current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
-    _: IdempotencyKeyDep,
     body: CampaignSegmentCreate,
 ) -> CampaignSegmentPublic:
     """Create segment."""
@@ -358,7 +487,6 @@ def assign_strategy(
     current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
-    _: IdempotencyKeyDep,
     body: StrategyRequest,
 ) -> StrategyPublic:
     """Assign strategy."""

@@ -1,15 +1,22 @@
-"""Contact timeline API endpoints (Story 5.1)."""
+"""Contact management and timeline API endpoints."""
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from sqlmodel import Session, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep
+from app.domain.audit.audit_events import (
+    append_audit_event_to_session,
+    audit_actor_role,
+)
+from app.domain.contacts.import_service import parse_csv, preview_rows
+from app.domain.contacts.segment_service import matches_rule
 from app.domain.timeline.timeline_service import (
     get_contact_timeline,
     get_timeline_event_detail,
@@ -17,11 +24,227 @@ from app.domain.timeline.timeline_service import (
 from app.domain_models import (
     Campaign,
     Contact,
+    ContactImportPublic,
+    ContactPublic,
+    ContactsPublic,
+    ImportRowError,
+    PreviewRow,
+    SegmentOperator,
+    SemanticError,
     TimelineEventDetailPublic,
     TimelinePagePublic,
 )
 
 router = APIRouter(prefix="/contacts", tags=["contacts"])
+MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
+
+CONTACT_IMPORT_FIELDS = ["email", "firstName", "lastName", "company", "phone", "timezone"]
+CONTACT_REQUIRED_FIELDS = ["email"]
+CONTACT_FIELD_ALIASES = {
+    "email": ["email", "emailAddress", "email_address", "work_email"],
+    "firstName": ["firstName", "first_name", "firstname", "first", "given_name"],
+    "lastName": ["lastName", "last_name", "lastname", "last", "family_name"],
+    "company": ["company", "companyName", "company_name", "account", "organization"],
+    "phone": ["phone", "phoneNumber", "phone_number", "mobile", "mobile_phone"],
+    "timezone": ["timezone", "timeZone", "time_zone", "tz"],
+}
+
+
+def _contact_public(contact: Contact) -> ContactPublic:
+    return ContactPublic(
+        id=contact.id,
+        workspace_id=contact.workspace_id,
+        email=contact.email,
+        first_name=contact.first_name,
+        last_name=contact.last_name,
+        company=contact.company,
+        phone=contact.phone,
+        timezone=contact.timezone,
+        created_at=contact.created_at,
+    )
+
+
+def _default_mapping(headers: list[str]) -> dict[str, str]:
+    normalized = {header.lower(): header for header in headers}
+    mapping: dict[str, str] = {}
+    for field in CONTACT_IMPORT_FIELDS:
+        source = ""
+        for alias in CONTACT_FIELD_ALIASES[field]:
+            if alias.lower() in normalized:
+                source = normalized[alias.lower()]
+                break
+        mapping[field] = source
+    return mapping
+
+
+def _parse_mapping(headers: list[str], mapping_json: str | None) -> dict[str, str]:
+    if not mapping_json:
+        return _default_mapping(headers)
+    try:
+        raw = json.loads(mapping_json)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Mapping must be valid JSON")
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=400, detail="Mapping must be a JSON object")
+    available = set(headers)
+    mapping: dict[str, str] = {}
+    for field in CONTACT_IMPORT_FIELDS:
+        source = raw.get(field, "")
+        if source and not isinstance(source, str):
+            raise HTTPException(status_code=400, detail=f"Mapping for {field} must be a string")
+        if source and source not in available:
+            raise HTTPException(status_code=400, detail=f"Mapping contains unknown source column: {source}")
+        mapping[field] = source or ""
+    return mapping
+
+
+def _clean(value: object) -> str:
+    return str(value or "").strip()
+
+
+def _map_contact_row(row: dict[str, object], mapping: dict[str, str]) -> dict[str, str]:
+    return {field: _clean(row.get(source, "")) if source else "" for field, source in mapping.items()}
+
+
+def _validate_contact_rows(
+    rows: list[dict[str, object]],
+    mapping: dict[str, str],
+) -> tuple[list[dict[str, str]], list[ImportRowError]]:
+    missing_required = [field for field in CONTACT_REQUIRED_FIELDS if not mapping.get(field)]
+    errors: list[ImportRowError] = []
+    if missing_required:
+        for field in missing_required:
+            errors.append(
+                ImportRowError(
+                    row_number=0,
+                    column=field,
+                    semantic_error=SemanticError.recipient_invalid,
+                    message=f"Map a source column for {field} before importing contacts.",
+                )
+            )
+        return [], errors
+
+    valid_rows: list[dict[str, str]] = []
+    seen_emails: set[str] = set()
+    for index, row in enumerate(rows, start=1):
+        mapped = _map_contact_row(row, mapping)
+        row_errors: list[ImportRowError] = []
+        email = mapped["email"].lower()
+        if not email:
+            row_errors.append(
+                ImportRowError(
+                    row_number=index,
+                    column="email",
+                    semantic_error=SemanticError.recipient_invalid,
+                    message="Email is required for contact import.",
+                )
+            )
+        elif "@" not in email:
+            row_errors.append(
+                ImportRowError(
+                    row_number=index,
+                    column="email",
+                    semantic_error=SemanticError.recipient_invalid,
+                    message="Email must contain @.",
+                )
+            )
+        elif email in seen_emails:
+            row_errors.append(
+                ImportRowError(
+                    row_number=index,
+                    column="email",
+                    semantic_error=SemanticError.recipient_invalid,
+                    message="Duplicate email in this import.",
+                )
+            )
+
+        if row_errors:
+            errors.extend(row_errors)
+            continue
+        mapped["email"] = email
+        mapped["timezone"] = mapped.get("timezone") or "UTC"
+        seen_emails.add(email)
+        valid_rows.append(mapped)
+    return valid_rows, errors
+
+
+def _contact_filter_row(contact: Contact) -> dict[str, str]:
+    return {
+        "email": contact.email,
+        "firstName": contact.first_name or "",
+        "first_name": contact.first_name or "",
+        "lastName": contact.last_name or "",
+        "last_name": contact.last_name or "",
+        "company": contact.company or "",
+        "phone": contact.phone or "",
+        "timezone": contact.timezone or "UTC",
+    }
+
+
+def contact_matches_rules(contact: Contact, rules: list[dict[str, str]]) -> bool:
+    row = _contact_filter_row(contact)
+    return all(
+        matches_rule(row.get(rule["field_name"]), SegmentOperator(rule["operator"]), rule["value"])
+        for rule in rules
+    )
+
+
+def _apply_contact_filters(
+    contacts: list[Contact],
+    *,
+    search: str | None = None,
+    has_phone: bool | None = None,
+    field_name: str | None = None,
+    operator: SegmentOperator | None = None,
+    value: str | None = None,
+) -> list[Contact]:
+    filtered = contacts
+    if search:
+        needle = search.lower()
+        filtered = [
+            contact for contact in filtered
+            if needle in " ".join([
+                contact.email,
+                contact.first_name or "",
+                contact.last_name or "",
+                contact.company or "",
+                contact.phone or "",
+            ]).lower()
+        ]
+    if has_phone is not None:
+        filtered = [contact for contact in filtered if bool(contact.phone) is has_phone]
+    if field_name and operator and value is not None:
+        rules = [{"field_name": field_name, "operator": operator.value, "value": value}]
+        filtered = [contact for contact in filtered if contact_matches_rules(contact, rules)]
+    return filtered
+
+
+def _upsert_contacts(
+    session: Session,
+    *,
+    workspace_id: str,
+    rows: list[dict[str, str]],
+) -> tuple[int, int]:
+    created = 0
+    updated = 0
+    for row in rows:
+        email = row["email"].lower()
+        contact = session.exec(
+            select(Contact).where(Contact.workspace_id == workspace_id, Contact.email == email)
+        ).first()
+        if contact is None:
+            contact = Contact(workspace_id=workspace_id, email=email, timezone=row.get("timezone") or "UTC")
+            created += 1
+        else:
+            updated += 1
+
+        contact.first_name = row.get("firstName") or contact.first_name
+        contact.last_name = row.get("lastName") or contact.last_name
+        contact.company = row.get("company") or contact.company
+        contact.phone = row.get("phone") or contact.phone
+        contact.timezone = row.get("timezone") or contact.timezone or "UTC"
+        session.add(contact)
+    return created, updated
 
 
 def _get_contact_or_404(
@@ -54,6 +277,100 @@ def _get_campaign_or_404(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     return campaign
+
+
+@router.get("/", response_model=ContactsPublic, dependencies=[Depends(require_admin)])
+def read_contacts(
+    session: SessionDep,
+    workspace_id: WorkspaceIdDep,
+    search: Annotated[str | None, Query(max_length=255)] = None,
+    has_phone: Annotated[bool | None, Query()] = None,
+    field_name: Annotated[str | None, Query(max_length=64)] = None,
+    operator: Annotated[SegmentOperator | None, Query()] = None,
+    value: Annotated[str | None, Query(max_length=255)] = None,
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> ContactsPublic:
+    """Return canonical contacts for the active workspace."""
+    contacts = list(
+        session.exec(
+            select(Contact)
+            .where(Contact.workspace_id == workspace_id)
+            .order_by(Contact.created_at.desc())
+        ).all()
+    )
+    filtered = _apply_contact_filters(
+        contacts,
+        search=search,
+        has_phone=has_phone,
+        field_name=field_name,
+        operator=operator,
+        value=value,
+    )
+    return ContactsPublic(
+        data=[_contact_public(contact) for contact in filtered[skip: skip + limit]],
+        count=len(filtered),
+    )
+
+
+@router.post("/import", response_model=ContactImportPublic, dependencies=[Depends(require_admin)])
+async def import_contacts_to_pool(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    workspace_id: WorkspaceIdDep,
+    file: UploadFile = File(...),
+    mapping_json: str | None = Form(default=None),
+    commit: bool = Form(default=False),
+) -> ContactImportPublic:
+    """Preview or commit a CSV import into the canonical contact pool."""
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(status_code=413, detail="CSV file too large. Maximum size is 10MB")
+
+    headers, rows = parse_csv(file_bytes)
+    mapping = _parse_mapping(headers, mapping_json)
+    valid_rows, errors = _validate_contact_rows(rows, mapping)
+    created_count = 0
+    updated_count = 0
+
+    if commit and not errors:
+        created_count, updated_count = _upsert_contacts(session, workspace_id=workspace_id, rows=valid_rows)
+        append_audit_event_to_session(
+            session,
+            event_name="contacts.imported",
+            workspace_id=workspace_id,
+            actor_id=current_user.id,
+            actor_role=audit_actor_role(current_user),
+            resource_type="contact_import",
+            resource_id=file.filename or "contacts.csv",
+            payload={
+                "source_file_name": file.filename or "contacts.csv",
+                "total_rows": len(rows),
+                "valid_rows": len(valid_rows),
+                "created_count": created_count,
+                "updated_count": updated_count,
+                "mapped_fields": sorted(field for field, source in mapping.items() if source),
+            },
+        )
+        session.commit()
+
+    return ContactImportPublic(
+        total_rows=len(rows),
+        valid_rows=len(valid_rows),
+        invalid_rows=len([error for error in errors if error.row_number > 0]),
+        created_count=created_count,
+        updated_count=updated_count,
+        committed=commit and not errors,
+        requires_mapping=any(error.row_number == 0 for error in errors),
+        headers=headers,
+        mapping=mapping,
+        preview_rows=[
+            PreviewRow(row_number=index + 1, data=row)
+            for index, row in enumerate(preview_rows(valid_rows))
+        ],
+        errors=errors,
+    )
 
 
 @router.get(

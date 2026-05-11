@@ -1,8 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router"
+import { Loader2 } from "lucide-react"
 
 import ChangePassword from "@/components/UserSettings/ChangePassword"
 import DeleteAccount from "@/components/UserSettings/DeleteAccount"
 import UserInformation from "@/components/UserSettings/UserInformation"
+import { Alert } from "@/components/ui/alert"
+import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import useAuth from "@/hooks/useAuth"
 
@@ -24,14 +27,10 @@ export const Route = createFileRoute("/_layout/settings")({
 })
 
 function UserSettings() {
-  const { user: currentUser } = useAuth()
+  const { user: currentUser, isLoading, isError, error } = useAuth()
   const finalTabs = currentUser?.is_superuser
-    ? tabsConfig.slice(0, 3)
+    ? tabsConfig.filter((tab) => tab.value !== "danger-zone")
     : tabsConfig
-
-  if (!currentUser) {
-    return null
-  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,20 +41,37 @@ function UserSettings() {
         </p>
       </div>
 
-      <Tabs defaultValue="my-profile">
-        <TabsList>
+      {isLoading && (
+        <Card>
+          <CardContent className="flex items-center gap-3 py-8 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            Loading settings...
+          </CardContent>
+        </Card>
+      )}
+
+      {!isLoading && (isError || !currentUser) && (
+        <Alert variant="destructive">
+          {error instanceof Error ? error.message : "Could not load your settings."}
+        </Alert>
+      )}
+
+      {currentUser && (
+        <Tabs defaultValue="my-profile">
+          <TabsList>
+            {finalTabs.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value}>
+                {tab.title}
+              </TabsTrigger>
+            ))}
+          </TabsList>
           {finalTabs.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value}>
-              {tab.title}
-            </TabsTrigger>
+            <TabsContent key={tab.value} value={tab.value}>
+              <tab.component />
+            </TabsContent>
           ))}
-        </TabsList>
-        {finalTabs.map((tab) => (
-          <TabsContent key={tab.value} value={tab.value}>
-            <tab.component />
-          </TabsContent>
-        ))}
-      </Tabs>
+        </Tabs>
+      )}
     </div>
   )
 }

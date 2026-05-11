@@ -916,7 +916,7 @@ For dev/test environments, use docker-compose with:
 services:
   api:
     image: myregistry/engagehub-api:latest
-    ports: ["8000:8000"]
+    ports: ["8001:8001"]
     environment:
       DATABASE_URL: postgresql://user:pass@postgres:5432/engagehub
   
@@ -940,7 +940,7 @@ services:
   
   web:
     image: myregistry/engagehub-web:latest
-    ports: ["3000:3000"]
+    ports: ["5173:80"]
 ```
 
 ## 12. Implementation Notes

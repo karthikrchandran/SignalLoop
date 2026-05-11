@@ -11,6 +11,8 @@ services:
       - fastapi
       - run
       - --reload
+      - --port
+      - "8001"
       - app/main.py
     develop:
       watch:
@@ -42,7 +44,7 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        VITE_API_URL: http://localhost:8000
+        VITE_API_URL: http://localhost:8001
         NODE_ENV: development
 
   playwright:
@@ -50,7 +52,7 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile.playwright
       args:
-        VITE_API_URL: http://api:8000
+        VITE_API_URL: http://api:8001
         NODE_ENV: production
     ipc: host
     depends_on:
@@ -59,7 +61,7 @@ services:
     env_file:
       - .env
     environment:
-      - VITE_API_URL=http://api:8000
+      - VITE_API_URL=http://api:8001
       - MAILCATCHER_HOST=http://mailcatcher:1080
       - PLAYWRIGHT_HTML_HOST=0.0.0.0
       - CI=${CI}

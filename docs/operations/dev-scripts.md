@@ -59,7 +59,7 @@ These launch (or kill) the application processes — API server, web frontend, a
 Opens two named PowerShell windows:
 | Window title  | Port  | Command                                        |
 |---------------|-------|------------------------------------------------|
-| `API  :8000`  | 8000  | `uv run fastapi dev app/main.py`               |
+| `API  :8001`  | 8001  | `uv run fastapi dev app/main.py --port 8001`   |
 | `Web  :5173`  | 5173  | `bun run dev`                                  |
 
 **With delivery workers:**
@@ -127,8 +127,8 @@ Infrastructure (Postgres, Redis, Mailpit) is **not** affected — use `StopServe
 
 | Service         | URL                        |
 |-----------------|----------------------------|
-| API (Swagger)   | http://localhost:8000/docs  |
-| API (ReDoc)     | http://localhost:8000/redoc |
+| API (Swagger)   | http://localhost:8001/docs  |
+| API (ReDoc)     | http://localhost:8001/redoc |
 | Web frontend    | http://localhost:5173       |
 | Mailpit inbox   | http://localhost:8025       |
 | Postgres        | localhost:5432 / DB: `engagehub` / User: `postgres` |

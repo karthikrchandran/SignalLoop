@@ -14,7 +14,7 @@ so that implementation starts from a production-ready, architecture-aligned base
    **When** the project is initialized and baseline configuration applied  
    **Then** the repository contains a runnable API with React web frontend wired to FastAPI backend  
    **And** initial dependency installation succeeds with no audit-level errors  
-   **And** `docker compose up` (or equivalent local dev start) runs cleanly with API, web, PostgreSQL, and Redis reachable
+  **And** the native local dev start runs cleanly with API, web, PostgreSQL, and Redis reachable
 
 2. **Given** the starter template is bootstrapped  
    **When** project-specific naming and structure customization is applied  
@@ -39,7 +39,7 @@ so that implementation starts from a production-ready, architecture-aligned base
   - [x] Clone `github.com/fastapi/full-stack-fastapi-template` into project root
   - [x] Rename project identifiers from template defaults to `EngageHub` / `engagehub` throughout `pyproject.toml`, `package.json`, and config files
   - [x] Remove built-in example domain code (items, etc.) while keeping auth, user, and infra scaffolding
-  - [x] Verify `docker compose up` starts cleanly (API at :8000, web at :3000, Postgres reachable)
+  - [x] Verify `StartServer.ps1` and `StartApp.ps1` start cleanly (API at :8001, web at :5173, Postgres reachable)
 
 - [x] **Task 2 – Scaffold hybrid monorepo structure** (AC: 2)
   - [x] Create `apps/workers/` with `pyproject.toml`, `worker_app/main.py` stub, and `tests/` skeleton
@@ -57,7 +57,7 @@ so that implementation starts from a production-ready, architecture-aligned base
 - [x] **Task 4 – Baseline Alembic migration and README** (AC: 3)
   - [x] Run `alembic revision --autogenerate -m "baseline"` to capture empty schema baseline
   - [x] Verify migration upgrades cleanly against local Postgres
-  - [x] Update `README.md` with: prerequisites, clone & env setup, `docker compose up`, migration steps, and test-run commands
+  - [x] Update `README.md` with: prerequisites, native local setup, migration steps, and test-run commands
 
 - [x] **Task 5 – Initialize CI workflow** (AC: 4)
   - [x] Create `.github/workflows/ci.yml` with jobs: `lint` (ruff + mypy for API, ESLint for web) and `test` (pytest for API, vitest for web)

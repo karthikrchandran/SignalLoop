@@ -24,7 +24,7 @@ def test_campaign_end_to_end_intake_flow_contract(
     _ = db
     create_response = client.post(
         f"{settings.API_V1_STR}/campaigns/",
-        headers=_headers(superuser_token_headers, idempotency=True),
+        headers=_headers(superuser_token_headers),
         json={"name": "Spring Outreach"},
     )
     assert create_response.status_code == 200
@@ -39,7 +39,7 @@ def test_campaign_end_to_end_intake_flow_contract(
     )
     import_response = client.post(
         f"{settings.API_V1_STR}/campaigns/{campaign_id}/contacts/import",
-        headers=_headers(superuser_token_headers, idempotency=True),
+        headers=_headers(superuser_token_headers),
         files={"file": ("contacts.csv", csv_content, "text/csv")},
     )
     assert import_response.status_code == 200
@@ -52,7 +52,7 @@ def test_campaign_end_to_end_intake_flow_contract(
 
     mapping_response = client.post(
         f"{settings.API_V1_STR}/campaigns/{campaign_id}/contacts/mapping",
-        headers=_headers(superuser_token_headers, idempotency=True),
+        headers=_headers(superuser_token_headers),
         json={
             "mapping": {
                 "email": "emailAddress",
@@ -71,7 +71,7 @@ def test_campaign_end_to_end_intake_flow_contract(
 
     segment_response = client.post(
         f"{settings.API_V1_STR}/campaigns/{campaign_id}/segments",
-        headers=_headers(superuser_token_headers, idempotency=True),
+        headers=_headers(superuser_token_headers),
         json={
             "name": "SaaS Segment",
             "rules": [
@@ -89,7 +89,7 @@ def test_campaign_end_to_end_intake_flow_contract(
 
     strategy_response = client.post(
         f"{settings.API_V1_STR}/campaigns/{campaign_id}/strategy",
-        headers=_headers(superuser_token_headers, idempotency=True),
+        headers=_headers(superuser_token_headers),
         json={"channel_strategy": {"channel": "email", "cadence": "weekly"}},
     )
     assert strategy_response.status_code == 200
@@ -107,16 +107,14 @@ def test_campaign_end_to_end_intake_flow_contract(
     assert any(item["id"] == campaign_id and item["status"] == "draft" for item in listing["data"])
 
 
-def test_idempotency_key_required_for_mutations(
+def test_campaign_create_does_not_require_idempotency_without_deduping(
     client: TestClient,
     superuser_token_headers: dict[str, str],
 ) -> None:
     response = client.post(
         f"{settings.API_V1_STR}/campaigns/",
         headers=_headers(superuser_token_headers, idempotency=False),
-        json={"name": "Missing Idempotency"},
+        json={"name": "No Idempotency Contract Yet"},
     )
-    assert response.status_code == 400
-    detail = response.json()["detail"]
-    assert detail["error"]["code"] == "IDEMPOTENCY_KEY_REQUIRED"
-    assert detail["error"]["semantic"] == "POLICY_VIOLATION"
+    assert response.status_code == 200
+    assert response.json()["name"] == "No Idempotency Contract Yet"

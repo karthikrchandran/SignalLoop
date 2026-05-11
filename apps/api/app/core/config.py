@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # 60 minutes * 24 hours * 8 days = 8 days
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
     FRONTEND_HOST: str = "http://localhost:5173"
-    SERVER_HOST: str = "localhost:8000"
+    SERVER_HOST: str = "localhost:8001"
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
 
     BACKEND_CORS_ORIGINS: Annotated[
@@ -50,9 +50,32 @@ class Settings(BaseSettings):
     @property
     def all_cors_origins(self) -> list[str]:
         """All cors origins."""
-        return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [
-            self.FRONTEND_HOST
-        ]
+        origins = [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS]
+        origins.append(self.FRONTEND_HOST.rstrip("/"))
+
+        if self.ENVIRONMENT == "local":
+            local_aliases = [
+                alias
+                for origin in origins
+                for alias in [self._local_cors_origin_alias(origin)]
+                if alias
+            ]
+            origins.extend(local_aliases)
+
+        return list(dict.fromkeys(origins))
+
+    @staticmethod
+    def _local_cors_origin_alias(origin: str) -> str | None:
+        replacements = (
+            ("http://localhost:", "http://127.0.0.1:"),
+            ("https://localhost:", "https://127.0.0.1:"),
+            ("http://127.0.0.1:", "http://localhost:"),
+            ("https://127.0.0.1:", "https://localhost:"),
+        )
+        for source, target in replacements:
+            if origin.startswith(source):
+                return target + origin.removeprefix(source)
+        return None
 
     PROJECT_NAME: str
     SENTRY_DSN: HttpUrl | None = None

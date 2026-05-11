@@ -529,6 +529,50 @@ class CampaignsPublic(SQLModel):
     count: int
 
 
+class ContactPublic(SQLModel):
+    """API response model: contact."""
+    id: uuid.UUID
+    workspace_id: str
+    email: str
+    first_name: str | None = None
+    last_name: str | None = None
+    company: str | None = None
+    phone: str | None = None
+    timezone: str
+    created_at: datetime
+
+
+class ContactsPublic(SQLModel):
+    """API response model: contacts."""
+    data: list[ContactPublic]
+    count: int
+
+
+class ContactImportPublic(SQLModel):
+    """API response model: canonical contact import."""
+    total_rows: int
+    valid_rows: int
+    invalid_rows: int
+    created_count: int = 0
+    updated_count: int = 0
+    committed: bool = False
+    requires_mapping: bool
+    headers: list[str]
+    mapping: dict[str, str]
+    preview_rows: list[PreviewRow]
+    errors: list[ImportRowError]
+
+
+class CampaignAudiencePublic(SQLModel):
+    """API response model: campaign audience assignment."""
+    campaign_id: uuid.UUID
+    selected_count: int
+    added_count: int
+    existing_count: int
+    segment_id: uuid.UUID | None = None
+    segment_name: str | None = None
+
+
 class CampaignImportPublic(SQLModel):
     """API response model: campaign import."""
     import_id: uuid.UUID
@@ -557,6 +601,14 @@ class SegmentRuleInput(SQLModel):
     field_name: str
     operator: SegmentOperator
     value: str
+
+
+class CampaignAudienceRequest(SQLModel):
+    """Request payload for assigning existing contacts to a campaign."""
+    include_all_contacts: bool = False
+    contact_ids: list[uuid.UUID] = Field(default_factory=list)
+    segment_name: str | None = None
+    rules: list[SegmentRuleInput] = Field(default_factory=list)
 
 
 class CampaignSegmentCreate(SQLModel):

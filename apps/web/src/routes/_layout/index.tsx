@@ -53,7 +53,7 @@ const featureCards = [
     icon: Briefcase,
     title: "Campaigns",
     description:
-      "Create multi-channel campaigns, import audiences, and schedule outreach.",
+      "Create campaign drafts, choose existing contacts, and assign outreach strategy.",
     path: "/campaigns",
   },
   {

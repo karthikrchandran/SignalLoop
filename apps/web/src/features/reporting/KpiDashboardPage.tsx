@@ -308,9 +308,11 @@ export default function KpiDashboardPage() {
                 <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
                 <Tooltip
                   contentStyle={{ fontSize: 12 }}
-                  formatter={(value: number, name: string) => {
-                    if (name === "contacts") return [value.toLocaleString(), "Contacts"]
-                    return [`${value}%`, name]
+                  formatter={(value, name) => {
+                    const metricValue = typeof value === "number" ? value : Number(value ?? 0)
+                    const metricName = String(name)
+                    if (metricName === "contacts") return [metricValue.toLocaleString(), "Contacts"]
+                    return [`${metricValue}%`, metricName]
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />

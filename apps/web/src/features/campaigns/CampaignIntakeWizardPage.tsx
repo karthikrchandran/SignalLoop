@@ -1,14 +1,45 @@
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, Upload } from "lucide-react"
+import { CheckCircle2, Loader2, Search, Users } from "lucide-react"
 
 import { Alert } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { engagehubRequest } from "@/lib/engagehub-api"
 
 type CampaignPublic = { id: string; name: string; status: string }
+
+type Contact = {
+  id: string
+  email: string
+  first_name: string | null
+  last_name: string | null
+  company: string | null
+  phone: string | null
+  timezone: string
+}
+
+type ContactsResponse = { data: Contact[]; count: number }
+
+type CampaignAudiencePublic = {
+  campaign_id: string
+  selected_count: number
+  added_count: number
+  existing_count: number
+  segment_id: string | null
+  segment_name: string | null
+}
 
 type OfferPackVersionPublic = {
   id: string
@@ -29,67 +60,78 @@ type OfferPacksPublic = {
   count: number
 }
 
-type ImportRowError = {
-  row_number: number
-  column: string
-  message: string
-}
+const audienceModes = [
+  { value: "all", label: "All contacts" },
+  { value: "selected", label: "Selected contacts" },
+  { value: "filtered", label: "Filtered subset" },
+] as const
 
-type CampaignImportPublic = {
-  import_id: string
-  headers: string[]
-  valid_rows: number
-  invalid_rows: number
-  errors: ImportRowError[]
-}
+type AudienceMode = (typeof audienceModes)[number]["value"]
 
-type PreviewRow = { row_number: number; data: Record<string, unknown> }
-
-type ImportPreviewPublic = {
-  import_id: string
-  preview_rows: PreviewRow[]
-  errors: ImportRowError[]
-}
-
-const canonicalFields = ["email", "firstName", "company", "timezone"]
+const filterFields = ["email", "firstName", "lastName", "company", "phone", "timezone"]
 const segmentOperators = ["equals", "contains", "startsWith", "in-list"]
 
-const steps = [
-  "Campaign basics",
-  "CSV upload",
-  "Field mapping",
-  "Segmentation",
-  "Offer/channel strategy",
-]
+const steps = ["Campaign basics", "Audience selection", "Offer/channel strategy"]
+
+function contactName(contact: Contact) {
+  return [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "-"
+}
 
 export default function CampaignIntakeWizardPage() {
   const [step, setStep] = useState(0)
   const [campaignName, setCampaignName] = useState("")
   const [campaignId, setCampaignId] = useState("")
-  const [file, setFile] = useState<File | null>(null)
-  const [importResult, setImportResult] = useState<CampaignImportPublic | null>(null)
-  const [preview, setPreview] = useState<ImportPreviewPublic | null>(null)
-  const [mapping, setMapping] = useState<Record<string, string>>({})
-  const [segmentName, setSegmentName] = useState("Default Segment")
-  const [segmentField, setSegmentField] = useState("industry")
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [contactCount, setContactCount] = useState(0)
+  const [contactSearch, setContactSearch] = useState("")
+  const [audienceMode, setAudienceMode] = useState<AudienceMode>("all")
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([])
+  const [segmentName, setSegmentName] = useState("Campaign audience")
+  const [segmentField, setSegmentField] = useState("company")
   const [segmentOperator, setSegmentOperator] = useState("contains")
   const [segmentValue, setSegmentValue] = useState("")
+  const [audienceResult, setAudienceResult] = useState<CampaignAudiencePublic | null>(null)
   const [offerPackVersionId, setOfferPackVersionId] = useState("")
   const [assignableOfferPacks, setAssignableOfferPacks] = useState<OfferPackPublic[]>([])
   const [channelStrategy, setChannelStrategy] = useState('{"channel":"email"}')
   const [feedback, setFeedback] = useState("")
   const [busy, setBusy] = useState(false)
+  const [loadingContacts, setLoadingContacts] = useState(false)
 
   const canMoveForward = useMemo(() => {
     if (step === 0) return campaignName.trim().length > 2
-    if (step === 1) return Boolean(file)
-    if (step === 2) return importResult !== null
-    if (step === 3) return segmentValue.trim().length > 0
+    if (step === 1) {
+      if (audienceMode === "all") return contactCount > 0
+      if (audienceMode === "selected") return selectedContactIds.length > 0
+      return segmentValue.trim().length > 0
+    }
     return channelStrategy.trim().length > 1
-  }, [step, campaignName, file, importResult, segmentValue, channelStrategy])
+  }, [step, campaignName, audienceMode, contactCount, selectedContactIds.length, segmentValue, channelStrategy])
+
+  async function loadContacts(nextSearch = contactSearch) {
+    setLoadingContacts(true)
+    try {
+      const params = new URLSearchParams()
+      if (nextSearch.trim()) params.set("search", nextSearch.trim())
+      const response = await engagehubRequest<ContactsResponse>(`/api/v1/contacts/?${params.toString()}`)
+      setContacts(response.data)
+      setContactCount(response.count)
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Failed to load contacts")
+    } finally {
+      setLoadingContacts(false)
+    }
+  }
 
   useEffect(() => {
-    if (step !== 4 || !campaignId) {
+    if (step === 1) {
+      void loadContacts("")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step])
+
+  useEffect(() => {
+    if (step !== 2 || !campaignId) {
       return
     }
 
@@ -135,7 +177,6 @@ export default function CampaignIntakeWizardPage() {
     await runWithFeedback(async () => {
       const campaign = await engagehubRequest<CampaignPublic>("/api/v1/campaigns/", {
         method: "POST",
-        idempotent: true,
         body: { name: campaignName.trim() },
       })
       setCampaignId(campaign.id)
@@ -144,66 +185,28 @@ export default function CampaignIntakeWizardPage() {
     })
   }
 
-  const uploadCsv = async () => {
-    if (!file || !campaignId) return
-
-    await runWithFeedback(async () => {
-      const formData = new FormData()
-      formData.append("file", file)
-      const result = await engagehubRequest<CampaignImportPublic>(
-        `/api/v1/campaigns/${campaignId}/contacts/import`,
-        { method: "POST", idempotent: true, formData },
-      )
-
-      const draftMapping: Record<string, string> = {}
-      for (const field of canonicalFields) {
-        draftMapping[field] = result.headers.includes(field) ? field : ""
-      }
-
-      setImportResult(result)
-      setMapping(draftMapping)
-      setFeedback(`Import analyzed: ${result.valid_rows} valid, ${result.invalid_rows} invalid rows.`)
-      setStep(2)
-    })
-  }
-
-  const saveMapping = async () => {
+  const saveAudience = async () => {
     if (!campaignId) return
 
     await runWithFeedback(async () => {
-      const result = await engagehubRequest<ImportPreviewPublic>(
-        `/api/v1/campaigns/${campaignId}/contacts/mapping`,
+      const rules = audienceMode === "filtered"
+        ? [{ field_name: segmentField, operator: segmentOperator, value: segmentValue }]
+        : []
+      const result = await engagehubRequest<CampaignAudiencePublic>(
+        `/api/v1/campaigns/${campaignId}/audience`,
         {
           method: "POST",
-          idempotent: true,
-          body: { mapping },
+          body: {
+            include_all_contacts: audienceMode === "all",
+            contact_ids: audienceMode === "selected" ? selectedContactIds : [],
+            segment_name: audienceMode === "all" ? null : segmentName.trim() || null,
+            rules,
+          },
         },
       )
-      setPreview(result)
-      setFeedback(`Mapping saved. Preview ready for ${result.preview_rows.length} rows.`)
-    })
-  }
-
-  const saveSegment = async () => {
-    if (!campaignId) return
-
-    await runWithFeedback(async () => {
-      await engagehubRequest(`/api/v1/campaigns/${campaignId}/segments`, {
-        method: "POST",
-        idempotent: true,
-        body: {
-          name: segmentName,
-          rules: [
-            {
-              field_name: segmentField,
-              operator: segmentOperator,
-              value: segmentValue,
-            },
-          ],
-        },
-      })
-      setFeedback("Segment saved and estimated count calculated.")
-      setStep(4)
+      setAudienceResult(result)
+      setFeedback(`Audience ready: ${result.selected_count} selected, ${result.added_count} newly assigned.`)
+      setStep(2)
     })
   }
 
@@ -213,28 +216,27 @@ export default function CampaignIntakeWizardPage() {
     await runWithFeedback(async () => {
       await engagehubRequest(`/api/v1/campaigns/${campaignId}/strategy`, {
         method: "POST",
-        idempotent: true,
         body: {
           offer_pack_version_id: offerPackVersionId || null,
           channel_strategy: JSON.parse(channelStrategy),
         },
       })
-      setFeedback("Campaign intake flow complete. Draft strategy saved.")
+      setFeedback("Campaign intake flow complete. Draft audience and strategy saved.")
     })
   }
 
   const onContinue = async () => {
     if (step === 0) return createCampaign()
-    if (step === 1) return uploadCsv()
-    if (step === 2) {
-      if (!preview) {
-        return saveMapping()
-      }
-      setStep(3)
-      return
-    }
-    if (step === 3) return saveSegment()
+    if (step === 1) return saveAudience()
     return saveStrategy()
+  }
+
+  function toggleContact(contactId: string, checked: boolean) {
+    setSelectedContactIds((current) =>
+      checked
+        ? Array.from(new Set([...current, contactId]))
+        : current.filter((id) => id !== contactId),
+    )
   }
 
   return (
@@ -242,8 +244,7 @@ export default function CampaignIntakeWizardPage() {
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Campaign intake</h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Create campaign drafts, validate CSV uploads, map required fields, define segments,
-          and assign channel strategy from a single guided workflow.
+          Create a campaign draft, choose leads from the contact pool, and assign channel strategy.
         </p>
       </div>
 
@@ -272,114 +273,140 @@ export default function CampaignIntakeWizardPage() {
       {step === 1 && (
         <Card>
           <CardHeader>
-            <CardTitle>Step 2: Upload audience CSV</CardTitle>
+            <CardTitle>Step 2: Audience selection</CardTitle>
+            <CardDescription>{contactCount} available contact{contactCount === 1 ? "" : "s"}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <Input type="file" accept=".csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] || null)} />
-            <p className="text-xs text-muted-foreground">
-              Required canonical fields: {canonicalFields.join(", ")}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {step === 2 && importResult && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Step 3: Field mapping + preview</CardTitle>
-            <CardDescription>
-              Map source headers to canonical fields, then validate first 20 resolved rows.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {canonicalFields.map((field) => (
-              <div key={field} className="grid grid-cols-2 gap-2">
-                <Label>{field}</Label>
-                <select
-                  className="rounded-md border bg-background px-3 py-2 text-sm"
-                  value={mapping[field] || ""}
-                  onChange={(event) => setMapping((previous) => ({ ...previous, [field]: event.target.value }))}
+          <CardContent className="space-y-5">
+            <div className="grid gap-3 md:grid-cols-3">
+              {audienceModes.map((mode) => (
+                <label
+                  key={mode.value}
+                  className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${audienceMode === mode.value ? "border-primary bg-primary/5" : ""}`}
                 >
-                  <option value="">Select source column</option>
-                  {importResult.headers.map((header) => (
-                    <option key={header} value={header}>{header}</option>
-                  ))}
-                </select>
-              </div>
-            ))}
+                  <input
+                    type="radio"
+                    name="audienceMode"
+                    value={mode.value}
+                    checked={audienceMode === mode.value}
+                    onChange={() => setAudienceMode(mode.value)}
+                  />
+                  {mode.label}
+                </label>
+              ))}
+            </div>
 
-            {preview && (
-              <div className="rounded-md border p-3">
-                <p className="mb-2 text-sm font-medium">Preview rows</p>
-                <div className="space-y-2 text-xs">
-                  {preview.preview_rows.slice(0, 20).map((row) => (
-                    <pre key={row.row_number} className="rounded bg-muted p-2">{JSON.stringify(row.data, null, 2)}</pre>
-                  ))}
+            {audienceMode !== "all" && (
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="segmentName">Subset name</Label>
+                  <Input id="segmentName" value={segmentName} onChange={(event) => setSegmentName(event.target.value)} />
                 </div>
+                {audienceMode === "filtered" && (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label htmlFor="segmentField">Field</Label>
+                      <select
+                        id="segmentField"
+                        className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                        value={segmentField}
+                        onChange={(event) => setSegmentField(event.target.value)}
+                      >
+                        {filterFields.map((field) => <option key={field} value={field}>{field}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="segmentOperator">Operator</Label>
+                      <select
+                        id="segmentOperator"
+                        className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                        value={segmentOperator}
+                        onChange={(event) => setSegmentOperator(event.target.value)}
+                      >
+                        {segmentOperators.map((operator) => <option key={operator} value={operator}>{operator}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="segmentValue">Value</Label>
+                      <Input id="segmentValue" value={segmentValue} onChange={(event) => setSegmentValue(event.target.value)} />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {importResult.errors.length > 0 && (
-              <div className="rounded-md border border-destructive/40 p-3 text-sm">
-                <p className="font-medium text-destructive">Validation issues</p>
-                <ul className="list-disc pl-5">
-                  {importResult.errors.slice(0, 5).map((error, index) => (
-                    <li key={`${error.row_number}-${error.column}-${index}`}>
-                      Row {error.row_number}, {error.column}: {error.message}
-                    </li>
-                  ))}
-                </ul>
+            <div className="flex flex-wrap gap-2">
+              <div className="relative min-w-72 flex-1">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={contactSearch}
+                  onChange={(event) => setContactSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void loadContacts(contactSearch)
+                  }}
+                  className="pl-9"
+                  placeholder="Search lead pool"
+                />
               </div>
-            )}
+              <Button variant="outline" onClick={() => void loadContacts(contactSearch)} disabled={loadingContacts}>
+                {loadingContacts ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Search className="mr-2 size-4" />}
+                Search
+              </Button>
+            </div>
+
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {audienceMode === "selected" && <TableHead className="w-12">Pick</TableHead>}
+                  <TableHead>Email</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Company</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Timezone</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {contacts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={audienceMode === "selected" ? 6 : 5} className="py-10 text-center text-muted-foreground">
+                      No contacts found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  contacts.map((contact) => (
+                    <TableRow key={contact.id}>
+                      {audienceMode === "selected" && (
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedContactIds.includes(contact.id)}
+                            onCheckedChange={(checked) => toggleContact(contact.id, checked === true)}
+                          />
+                        </TableCell>
+                      )}
+                      <TableCell className="font-medium">{contact.email}</TableCell>
+                      <TableCell>{contactName(contact)}</TableCell>
+                      <TableCell>{contact.company || "-"}</TableCell>
+                      <TableCell>{contact.phone || <Badge variant="outline">No phone</Badge>}</TableCell>
+                      <TableCell>{contact.timezone || "UTC"}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
 
-      {step === 3 && (
+      {step === 2 && (
         <Card>
           <CardHeader>
-            <CardTitle>Step 4: Segmentation rule</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-2">
-            <div>
-              <Label htmlFor="segmentName">Segment name</Label>
-              <Input id="segmentName" value={segmentName} onChange={(event) => setSegmentName(event.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="segmentField">Field</Label>
-              <Input id="segmentField" value={segmentField} onChange={(event) => setSegmentField(event.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="segmentOperator">Operator</Label>
-              <select
-                id="segmentOperator"
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                value={segmentOperator}
-                onChange={(event) => setSegmentOperator(event.target.value)}
-              >
-                {segmentOperators.map((operator) => (
-                  <option key={operator} value={operator}>
-                    {operator}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="segmentValue">Value</Label>
-              <Input id="segmentValue" value={segmentValue} onChange={(event) => setSegmentValue(event.target.value)} />
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {step === 4 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Step 5: Offer/channel strategy</CardTitle>
+            <CardTitle>Step 3: Offer/channel strategy</CardTitle>
+            {audienceResult && (
+              <CardDescription>{audienceResult.selected_count} contacts assigned to this campaign</CardDescription>
+            )}
           </CardHeader>
           <CardContent className="space-y-3">
             <div>
-              <Label htmlFor="offerPackVersionId">Offer pack version (published)</Label>
+              <Label htmlFor="offerPackVersionId">Offer pack version</Label>
               <select
                 id="offerPackVersionId"
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm"
@@ -425,7 +452,7 @@ export default function CampaignIntakeWizardPage() {
           Back
         </Button>
         <Button onClick={onContinue} disabled={!canMoveForward || busy}>
-          {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Upload className="mr-2 size-4" />}
+          {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : step === 1 ? <Users className="mr-2 size-4" /> : <CheckCircle2 className="mr-2 size-4" />}
           {step === steps.length - 1 ? "Save strategy" : "Continue"}
         </Button>
       </div>

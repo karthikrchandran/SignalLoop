@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { RefreshCw } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
