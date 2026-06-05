@@ -16,7 +16,7 @@ Write-Host "Starting API..."
 Open-Window "API  :8001"  $apiDir  "uv run fastapi dev app/main.py --port 8001"
 
 Write-Host "Starting Web..."
-Open-Window "Web  :5173"  $webDir  "bun run dev"
+Open-Window "Web  :5173"  $webDir  "`$env:VITE_API_URL='http://localhost:8001'; npm run dev"
 
 if ($Workers) {
     Write-Host "Starting workers..."

@@ -23,6 +23,7 @@ from app.domain.sequences.models import (
 from app.domain.sequences.suppression import EmailSuppression
 from app.domain.signals.models import SignalEvent
 from app.domain.signals.signal_detector import detect_email_signal
+from app.domain.signals.trigger_service import process_signal
 from app.domain.timeline.timeline_service import invalidate_timeline_cache
 from app.domain_models import Campaign
 from app.infrastructure.providers.sendgrid import SendGridAdapter
@@ -82,7 +83,7 @@ async def handle_sendgrid_webhook(request: Request, session: SessionDep) -> dict
 
             # Process event effects
             timeline_cache_targets.update(
-                _process_event(session, send_request, event_type, normalized, raw_event)
+                await _process_event(session, send_request, event_type, normalized, raw_event)
             )
         except Exception:
             logger.exception("Error processing webhook event: %s", raw_event.get("sg_event_id", "unknown"))
@@ -93,7 +94,7 @@ async def handle_sendgrid_webhook(request: Request, session: SessionDep) -> dict
     return {"status": "ok"}
 
 
-def _process_event(
+async def _process_event(
     session: Session,
     send_request: SendRequest,
     event_type: str,
@@ -109,13 +110,13 @@ def _process_event(
     elif event_type in ("bounce", "dropped"):
         send_request.status = SendRequestStatus.failed
         _stop_contact_sequence(session, send_request, signal_type="hard_bounce")
-        if target := _emit_signal(session, send_request, "hard_bounce", confidence=1.0):
+        if target := await _emit_signal(session, send_request, "hard_bounce", confidence=1.0):
             timeline_cache_targets.add(target)
 
     elif event_type in ("spamreport", "unsubscribe"):
         _stop_contact_sequence(session, send_request, signal_type=event_type)
         _add_suppression(session, normalized["contact_identifier"], event_type, workspace_id)
-        if target := _emit_signal(session, send_request, event_type, confidence=1.0):
+        if target := await _emit_signal(session, send_request, event_type, confidence=1.0):
             timeline_cache_targets.add(target)
 
     elif event_type == "replied":
@@ -123,7 +124,7 @@ def _process_event(
         result = detect_email_signal(reply_text)
         if result.signal_type == "email_positive_reply":
             _pause_contact_sequence(session, send_request, result)
-            if target := _emit_signal(
+            if target := await _emit_signal(
                 session, send_request, result.signal_type, confidence=result.confidence
             ):
                 timeline_cache_targets.add(target)
@@ -167,7 +168,7 @@ def _pause_contact_sequence(
         session.add(state)
 
 
-def _emit_signal(
+async def _emit_signal(
     session: Session,
     send_request: SendRequest,
     signal_type: str,
@@ -190,6 +191,7 @@ def _emit_signal(
         source_event_id=send_request.id,
     )
     session.add(signal)
+    await process_signal(session, signal)
     return state.contact_id, seq.campaign_id
 
 

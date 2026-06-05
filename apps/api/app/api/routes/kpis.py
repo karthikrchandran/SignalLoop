@@ -80,7 +80,7 @@ async def get_kpi_summary_endpoint(
 
     # --- Validation ---
     if start > end:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="start must be <= end")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="start must be <= end")
 
     cache_key = _cache_key(ws_id, start, end, granularity, campaign_id)
     cached = await _get_cached(request, cache_key)
@@ -109,7 +109,7 @@ async def get_kpi_trend_endpoint(
 
     # --- Validation ---
     if start > end:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="start must be <= end")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="start must be <= end")
 
     trend_cache_key = _cache_key(ws_id, start, end, f"trend_{granularity}", campaign_id)
     cached = await _get_cached(request, trend_cache_key)

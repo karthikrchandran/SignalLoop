@@ -26,7 +26,12 @@ from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.encryption import decrypt
-from app.domain_models import NotificationProvider, ProviderCredential
+from app.domain_models import (
+    NotificationProvider,
+    ProviderCapability,
+    ProviderCredential,
+    WorkspaceProviderSelection,
+)
 
 
 def resolve_provider_credentials(
@@ -96,5 +101,103 @@ def _settings_fallback(provider: NotificationProvider, channel: str) -> dict[str
             "phone_number": settings.TWILIO_PHONE_NUMBER,
         }
 
+    if provider == NotificationProvider.deepgram:
+        return {"api_key": getattr(settings, "DEEPGRAM_API_KEY", "") or ""}
+
+    if provider == NotificationProvider.groq:
+        return {"api_key": getattr(settings, "GROQ_API_KEY", "") or ""}
+
+    if provider == NotificationProvider.openai:
+        return {
+            "api_key": getattr(settings, "OPENAI_API_KEY", "") or "",
+            "base_url": getattr(settings, "OPENAI_BASE_URL", "") or "",
+            "model": getattr(settings, "OPENAI_MODEL", "") or "",
+        }
+
+    if provider == NotificationProvider.ollama_local:
+        return {
+            "base_url": settings.OLLAMA_BASE_URL,
+            "model": settings.OLLAMA_MODEL,
+        }
+
+    if provider == NotificationProvider.faster_whisper_local:
+        return {
+            "base_url": settings.FASTER_WHISPER_BASE_URL,
+            "model": settings.FASTER_WHISPER_MODEL,
+        }
+
+    if provider == NotificationProvider.smtp:
+        return {
+            "host": settings.SMTP_HOST or "",
+            "port": settings.SMTP_PORT or 587,
+            "username": settings.SMTP_USERNAME or settings.SMTP_USER or "",
+            "password": settings.SMTP_PASSWORD or "",
+            "from_email": settings.SMTP_FROM_EMAIL
+            or str(settings.EMAILS_FROM_EMAIL or ""),
+            "from_name": settings.SMTP_FROM_NAME or settings.EMAILS_FROM_NAME or "",
+            "use_tls": settings.SMTP_USE_TLS,
+            "use_starttls": settings.SMTP_USE_STARTTLS,
+        }
+
     # Generic fallback — return empty dict so callers can decide what to do
     return {}
+
+
+# ---------------------------------------------------------------------------
+# Active-provider selection (capability → provider) per workspace
+# ---------------------------------------------------------------------------
+
+# Default provider per capability when no WorkspaceProviderSelection row exists.
+_DEFAULT_PROVIDER_BY_CAPABILITY: dict[ProviderCapability, NotificationProvider] = {
+    ProviderCapability.email: NotificationProvider.sendgrid,
+    ProviderCapability.sms: NotificationProvider.twilio,
+    ProviderCapability.voice: NotificationProvider.twilio,
+    ProviderCapability.stt: NotificationProvider.deepgram,
+    ProviderCapability.tts: NotificationProvider.deepgram,
+    ProviderCapability.llm: NotificationProvider.groq,
+}
+
+
+def resolve_active_provider(
+    session: Session,
+    workspace_id: str,
+    capability: ProviderCapability,
+) -> NotificationProvider:
+    """Return the provider currently selected for *capability* in *workspace_id*.
+
+    Falls back to a built-in default (SendGrid/Twilio/Deepgram/Groq) when no
+    row exists, preserving the original single-tenant behaviour.
+    """
+    row = session.exec(
+        select(WorkspaceProviderSelection).where(
+            WorkspaceProviderSelection.workspace_id == workspace_id,
+            WorkspaceProviderSelection.capability == capability,
+            WorkspaceProviderSelection.is_active == True,  # noqa: E712
+        )
+    ).first()
+    if row:
+        return row.provider
+    return _DEFAULT_PROVIDER_BY_CAPABILITY[capability]
+
+
+def get_workspace_provider_selection(
+    session: Session,
+    workspace_id: str,
+    capability: ProviderCapability,
+) -> NotificationProvider | None:
+    """Return the explicitly-selected provider for *capability*, else None.
+
+    Unlike :func:`resolve_active_provider` this does **not** apply a default —
+    callers use it to detect whether the workspace has opted into the new
+    multi-provider behaviour.  When ``None`` is returned, legacy callers
+    should keep instantiating their hard-coded default adapter so existing
+    tests that patch e.g. ``SendGridAdapter`` continue to work.
+    """
+    row = session.exec(
+        select(WorkspaceProviderSelection).where(
+            WorkspaceProviderSelection.workspace_id == workspace_id,
+            WorkspaceProviderSelection.capability == capability,
+            WorkspaceProviderSelection.is_active == True,  # noqa: E712
+        )
+    ).first()
+    return row.provider if row else None

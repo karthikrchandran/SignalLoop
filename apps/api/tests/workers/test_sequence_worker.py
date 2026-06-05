@@ -1,4 +1,4 @@
-"""Tests for app.workers.sequence_worker — full branch coverage.
+"""Tests for app.workers.sequence_worker â€” full branch coverage.
 
 Mocks SendGrid adapter, controls quiet hours, and exercises every branch in
 ``_process_batch``, ``_process_single``, ``_advance_step``, and helpers.
@@ -271,7 +271,7 @@ def test_process_batch_handles_exception_and_breaks(memory_session: Session) -> 
 
 
 # ---------------------------------------------------------------------------
-# _process_single — branch coverage
+# _process_single â€” branch coverage
 # ---------------------------------------------------------------------------
 
 def test_process_single_stops_when_contact_missing(memory_session: Session) -> None:
@@ -288,7 +288,8 @@ def test_process_single_stops_when_contact_missing(memory_session: Session) -> N
 
     adapter = MagicMock()
     adapter.send_email = AsyncMock()
-    asyncio.run(sequence_worker._process_single(memory_session, adapter, state))
+    with patch.object(sequence_worker, "resolve_email_adapter", return_value=adapter):
+            asyncio.run(sequence_worker._process_single(memory_session, state))
     memory_session.commit()
 
     assert state.status == SequenceStatus.stopped
@@ -305,7 +306,8 @@ def test_process_single_stops_when_contact_suppressed(memory_session: Session) -
 
     adapter = MagicMock()
     adapter.send_email = AsyncMock()
-    asyncio.run(sequence_worker._process_single(memory_session, adapter, state))
+    with patch.object(sequence_worker, "resolve_email_adapter", return_value=adapter):
+            asyncio.run(sequence_worker._process_single(memory_session, state))
     memory_session.commit()
 
     assert state.status == SequenceStatus.stopped
@@ -321,7 +323,8 @@ def test_process_single_completes_when_no_step_found(memory_session: Session) ->
 
     adapter = MagicMock()
     adapter.send_email = AsyncMock()
-    asyncio.run(sequence_worker._process_single(memory_session, adapter, state))
+    with patch.object(sequence_worker, "resolve_email_adapter", return_value=adapter):
+            asyncio.run(sequence_worker._process_single(memory_session, state))
     memory_session.commit()
 
     assert state.status == SequenceStatus.completed
@@ -344,7 +347,8 @@ def test_process_single_advances_when_existing_send_already_sent(memory_session:
 
     adapter = MagicMock()
     adapter.send_email = AsyncMock()
-    asyncio.run(sequence_worker._process_single(memory_session, adapter, state))
+    with patch.object(sequence_worker, "resolve_email_adapter", return_value=adapter):
+            asyncio.run(sequence_worker._process_single(memory_session, state))
     memory_session.commit()
 
     assert state.current_step == 2
@@ -368,7 +372,8 @@ def test_process_single_stops_when_max_retries_exceeded(memory_session: Session)
 
     adapter = MagicMock()
     adapter.send_email = AsyncMock()
-    asyncio.run(sequence_worker._process_single(memory_session, adapter, state))
+    with patch.object(sequence_worker, "resolve_email_adapter", return_value=adapter):
+            asyncio.run(sequence_worker._process_single(memory_session, state))
     memory_session.commit()
 
     assert state.status == SequenceStatus.stopped
@@ -398,9 +403,10 @@ def test_process_single_skips_when_retry_window_open(memory_session: Session) ->
     # SQLite drops tzinfo; force the worker's datetime.now() to return a naive
     # value so the retry-window comparison doesn't blow up on tz-mixing.
     naive_dt = MagicMock(wraps=datetime)
-    naive_dt.now.return_value = datetime.utcnow()
+    naive_dt.now.return_value = datetime.now(timezone.utc).replace(tzinfo=None)
     with patch.object(sequence_worker, "datetime", naive_dt):
-        asyncio.run(sequence_worker._process_single(memory_session, adapter, state))
+        with patch.object(sequence_worker, "resolve_email_adapter", return_value=adapter):
+            asyncio.run(sequence_worker._process_single(memory_session, state))
     memory_session.commit()
 
     assert state.status == SequenceStatus.active
@@ -415,7 +421,8 @@ def test_process_single_sends_and_advances_on_success(memory_session: Session) -
 
     adapter = MagicMock()
     adapter.send_email = AsyncMock(return_value={"message_id": "MID", "status_code": 202})
-    asyncio.run(sequence_worker._process_single(memory_session, adapter, state))
+    with patch.object(sequence_worker, "resolve_email_adapter", return_value=adapter):
+            asyncio.run(sequence_worker._process_single(memory_session, state))
     memory_session.commit()
 
     sr = memory_session.exec(select(SendRequest)).first()
@@ -432,7 +439,8 @@ def test_process_single_marks_failed_on_send_error(memory_session: Session) -> N
 
     adapter = MagicMock()
     adapter.send_email = AsyncMock(return_value={"status_code": 500, "error": "boom"})
-    asyncio.run(sequence_worker._process_single(memory_session, adapter, state))
+    with patch.object(sequence_worker, "resolve_email_adapter", return_value=adapter):
+            asyncio.run(sequence_worker._process_single(memory_session, state))
     memory_session.commit()
 
     sr = memory_session.exec(select(SendRequest)).first()
@@ -462,9 +470,10 @@ def test_process_single_retries_after_window_elapses(memory_session: Session) ->
     # SQLite drops tzinfo; force naive `datetime.now()` so the worker's
     # tz-aware comparison against the round-tripped created_at works.
     naive_dt = MagicMock(wraps=datetime)
-    naive_dt.now.return_value = datetime.utcnow()
+    naive_dt.now.return_value = datetime.now(timezone.utc).replace(tzinfo=None)
     with patch.object(sequence_worker, "datetime", naive_dt):
-        asyncio.run(sequence_worker._process_single(memory_session, adapter, state))
+        with patch.object(sequence_worker, "resolve_email_adapter", return_value=adapter):
+            asyncio.run(sequence_worker._process_single(memory_session, state))
     memory_session.commit()
 
     memory_session.refresh(old_sr)
@@ -525,6 +534,7 @@ def test_run_worker_processes_handles_exception_then_cancels() -> None:
             raise asyncio.CancelledError()
 
     with patch.object(sequence_worker, "_process_batch", side_effect=fake_batch), \
+            patch.object(sequence_worker, "record_worker_heartbeat"), \
          patch.object(sequence_worker.asyncio, "sleep", side_effect=fake_sleep):
         with pytest.raises(asyncio.CancelledError):
             asyncio.run(sequence_worker.run_worker())
@@ -534,8 +544,12 @@ def test_run_worker_processes_handles_exception_then_cancels() -> None:
 
 def test_main_invokes_asyncio_run() -> None:
     """`main` configures logging and dispatches `run_worker` via asyncio.run."""
+    sentinel = object()
+    run_worker_mock = MagicMock(return_value=sentinel)
     with patch.object(sequence_worker.asyncio, "run") as run_mock, \
-         patch.object(sequence_worker.logging, "basicConfig") as basic_config:
+         patch.object(sequence_worker.logging, "basicConfig") as basic_config, \
+         patch.object(sequence_worker, "run_worker", run_worker_mock):
         sequence_worker.main()
     basic_config.assert_called_once()
-    run_mock.assert_called_once()
+    run_worker_mock.assert_called_once_with()
+    run_mock.assert_called_once_with(sentinel)

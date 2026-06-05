@@ -23,6 +23,7 @@ from app.api.routes import (
     utils,
     voice,
     webhooks,
+    workspace_runtime_config,
 )
 from app.core.config import settings
 
@@ -44,6 +45,7 @@ api_router.include_router(dashboard.router)
 api_router.include_router(calls.router)
 api_router.include_router(contacts.router)
 api_router.include_router(provider_credentials.router)
+api_router.include_router(workspace_runtime_config.router)
 api_router.include_router(audit_log.router)
 api_router.include_router(kpis.router)
 

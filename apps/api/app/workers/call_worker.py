@@ -23,7 +23,10 @@ from app.domain.voice.models import (
     CallSession,
 )
 from app.domain_models import Contact
+from app.infrastructure.providers.base import VoiceAdapter
+from app.infrastructure.providers.registry import resolve_voice_adapter
 from app.infrastructure.providers.twilio_voice import TwilioVoiceAdapter
+from app.workers.heartbeat import record_worker_heartbeat
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +68,6 @@ async def _process_batch() -> int:
         logger.debug("Quiet hours — skipping calls")
         return 0
 
-    adapter = TwilioVoiceAdapter()
     processed = 0
 
     with Session(engine) as session:
@@ -93,7 +95,7 @@ async def _process_batch() -> int:
         timeline_cache_targets: set[tuple[uuid.UUID, uuid.UUID]] = set()
         for call_req in due_requests:
             try:
-                if target := await _initiate_call(session, adapter, call_req):
+                if target := await _initiate_call(session, call_req):
                     timeline_cache_targets.add(target)
                 processed += 1
             except Exception:
@@ -112,7 +114,7 @@ async def _process_batch() -> int:
 
 
 async def _initiate_call(
-    session: Session, adapter: TwilioVoiceAdapter, call_req: CallRequest
+    session: Session, call_req: CallRequest
 ) -> tuple[uuid.UUID, uuid.UUID] | None:
     contact = session.get(Contact, call_req.contact_id)
     if not contact:
@@ -120,6 +122,15 @@ async def _initiate_call(
         call_req.status = CallRequestStatus.failed
         session.add(call_req)
         return None
+
+    # Resolve the voice adapter for this contact's workspace.  Falls back to
+    # TwilioVoiceAdapter() when no explicit selection exists so that legacy
+    # tests `patch.object(call_worker, "TwilioVoiceAdapter")` keep working.
+    adapter: VoiceAdapter = resolve_voice_adapter(
+        session,
+        contact.workspace_id,
+        default_factory=TwilioVoiceAdapter,
+    )
 
     # Contact needs a phone number — check for one
     phone = getattr(contact, "phone", None) or getattr(contact, "email", "")
@@ -184,12 +195,29 @@ async def _initiate_call(
 async def run_worker() -> None:
     """Main worker loop."""
     logger.info("Call worker starting (poll=%ds, cap=%d/day)", POLL_INTERVAL, DAILY_CALL_CAP)
+    record_worker_heartbeat(
+        "call_worker",
+        status="starting",
+        poll_interval_seconds=POLL_INTERVAL,
+    )
     while True:
         try:
             count = await _process_batch()
+            record_worker_heartbeat(
+                "call_worker",
+                status="healthy",
+                poll_interval_seconds=POLL_INTERVAL,
+                processed_count=count,
+            )
             if count:
                 logger.info("Initiated %d calls", count)
-        except Exception:
+        except Exception as exc:
+            record_worker_heartbeat(
+                "call_worker",
+                status="error",
+                poll_interval_seconds=POLL_INTERVAL,
+                error_message=str(exc),
+            )
             logger.exception("Call worker loop error")
         await asyncio.sleep(POLL_INTERVAL)
 

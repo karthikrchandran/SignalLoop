@@ -11,6 +11,7 @@ from sqlmodel import SQLModel, func, select
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep
 from app.core.config import settings
+from app.domain.runtime_settings import resolve_team_notification_email
 from app.domain.audit.audit_events import (
     append_audit_event,
     append_audit_event_to_session,
@@ -231,7 +232,7 @@ async def flag_for_sales(
         raise HTTPException(status_code=404, detail="Contact not found")
 
     adapter = SendGridAdapter()
-    team_email = settings.TEAM_NOTIFICATION_EMAIL
+    team_email = resolve_team_notification_email(session, workspace_id)
     if not team_email:
         raise HTTPException(status_code=500, detail="Team notification email not configured")
 

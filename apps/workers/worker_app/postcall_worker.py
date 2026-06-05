@@ -29,6 +29,7 @@ from app.domain.providers.credential_resolver import resolve_provider_credential
 from app.domain.voice.models import CallOutcome, CallRequest, CallRequestStatus, CallSession
 from app.domain_models import Campaign, Contact, NotificationProvider
 from app.infrastructure.providers.sendgrid import SendGridAdapter
+from app.infrastructure.providers.registry import resolve_email_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -167,12 +168,9 @@ async def _process_session(
     email_sent = False
     to_email = settings.TEAM_NOTIFICATION_EMAIL
     if to_email:
-        creds = resolve_provider_credentials(
-            db, workspace_id, NotificationProvider.sendgrid, "email"
-        )
-        adapter = SendGridAdapter(
-            api_key=creds.get("api_key"),
-            from_email=creds.get("from_email"),
+        # Resolve per-workspace email adapter; falls back to SendGridAdapter().
+        adapter = resolve_email_adapter(
+            db, workspace_id, default_factory=SendGridAdapter
         )
         idempotency_key = f"postcall:{sess.id}"
         try:

@@ -1,12 +1,45 @@
 type RequestOptions = {
-  method?: "GET" | "POST" | "PATCH"
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
   body?: unknown
   formData?: FormData
   idempotent?: boolean
+  workspaceId?: string
 }
 
 type ApiErrorPayload = {
   detail?: string | { error?: { message?: string } }
+}
+
+export type ProviderCapability = "email" | "sms" | "voice" | "stt" | "tts" | "llm"
+
+export type ProviderOption = {
+  provider: string
+  label: string
+  requires_creds: boolean
+  free_tier?: string | null
+  local: boolean
+}
+
+export type CapabilityOptions = {
+  capability: ProviderCapability
+  providers: ProviderOption[]
+}
+
+export type ProviderCatalogPublic = {
+  data: CapabilityOptions[]
+}
+
+export type ProviderSelection = {
+  id: string
+  workspace_id: string
+  capability: ProviderCapability
+  provider: string
+  is_active: boolean
+}
+
+export type ProviderSelectionsPublic = {
+  data: ProviderSelection[]
+  count: number
 }
 
 const getApiBase = () => {
@@ -54,7 +87,7 @@ export async function engagehubRequest<T>(
 ): Promise<T> {
   const headers = new Headers()
   headers.set("Authorization", `Bearer ${getAuthToken()}`)
-  headers.set("X-Workspace-Id", getWorkspaceId())
+  headers.set("X-Workspace-Id", options?.workspaceId || getWorkspaceId())
 
   if (options?.idempotent) {
     headers.set("Idempotency-Key", crypto.randomUUID())
@@ -87,4 +120,35 @@ export async function engagehubRequest<T>(
   }
 
   return (await response.json()) as T
+}
+
+export function getProviderOptions(workspaceId = getWorkspaceId()) {
+  return engagehubRequest<ProviderCatalogPublic>(
+    `/api/v1/workspaces/${workspaceId}/provider-options`,
+    { workspaceId },
+  )
+}
+
+export function getProviderSelections(workspaceId = getWorkspaceId()) {
+  return engagehubRequest<ProviderSelectionsPublic>(
+    `/api/v1/workspaces/${workspaceId}/provider-selection`,
+    { workspaceId },
+  )
+}
+
+export function updateProviderSelection(
+  input: {
+    capability: ProviderCapability
+    provider: string
+  },
+  workspaceId = getWorkspaceId(),
+) {
+  return engagehubRequest<ProviderSelection>(
+    `/api/v1/workspaces/${workspaceId}/provider-selection`,
+    {
+      method: "PUT",
+      body: input,
+      workspaceId,
+    },
+  )
 }

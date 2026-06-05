@@ -4,7 +4,12 @@
 
 EngageHub's BMAD implementation phase is marked closed. The authoritative sprint tracker reports all v2 pivot MVP epics and stories as done, and the final sprint summary reports 5 epics and 23 stories delivered.
 
-Current working status from this review: backend domain and worker coverage is passing, and the frontend production build passes. The app is not yet cleanly "no caveats" because the full backend test suite timed out in the API route section, and the governance controls UI still references the intentionally removed `/api/v1/policies/` endpoint for saving daily caps and quiet hours.
+Current working status from this review: backend domain and worker coverage is passing, and the frontend production build passes. This file is now partially superseded by the corrective increment closure artifacts from 2026-05-28:
+
+- `_bmad-output/implementation-artifacts/corrective-change-log-status-2026-05-28.md`
+- `_bmad-output/implementation-artifacts/corrective-release-readiness-2026-05-28.md`
+
+The previously stale governance controls mismatch called out in this report has been repaired in the corrective increment. Remaining caveats are now primarily about environment readiness and focused-vs-full-suite validation depth, not the removed `/api/v1/policies/` path.
 
 ## Source Of Truth Reviewed
 
@@ -79,12 +84,7 @@ The deferred-work log currently contains only two original Story 1.1 review item
    - Focused backend tests pass, but the complete suite did not finish in this workspace.
    - Start with `tests/api/routes/test_audit_log.py`, database fixture setup, and local Postgres state.
 
-2. Resolve governance daily cap and quiet-hours persistence.
-   - The UI still posts to `/api/v1/policies/` for saving caps and quiet hours.
-   - Backend tests currently assert `/api/v1/policies/` is intentionally removed.
-   - Choose one direction: restore a minimal supported governance-policy API, or remove/replace those UI save controls with endpoints that actually exist.
-
-3. Reconcile stale story artifact headers.
+2. Reconcile stale story artifact headers.
    - `sprint-status.yaml` says all stories are done.
    - Several individual story markdown files still show older `ready-for-dev`, `in-progress`, or `backlog` headers.
    - Treat `sprint-status.yaml` and `final-sprint-summary.md` as authoritative until the story files are normalized.
@@ -125,4 +125,4 @@ For Phase 2 planning, start a new BMAD cycle. Optional discovery can include `bm
 
 ## Bottom Line
 
-BMAD delivery status is closed and the core MVP is substantially implemented. The current workspace is buildable and the main backend domain/worker tests pass. The remaining blockers are verification hygiene and one real governance UI/API mismatch, so the honest status is: delivered, build-passing, not yet fully release-verified.
+BMAD delivery status is closed and the core MVP is substantially implemented. The current workspace is buildable and the main backend domain/worker tests pass. After the 2026-05-28 corrective increment, the honest status is: delivered, corrective slice repaired, build-passing, still dependent on environment readiness and broader validation depth for live release promotion.

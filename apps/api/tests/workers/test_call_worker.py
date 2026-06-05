@@ -259,7 +259,8 @@ def test_initiate_call_marks_failed_when_contact_missing(memory_session: Session
     memory_session.commit()
 
     adapter = _make_adapter()
-    asyncio.run(call_worker._initiate_call(memory_session, adapter, cr))
+    with patch.object(call_worker, "resolve_voice_adapter", return_value=adapter):
+        asyncio.run(call_worker._initiate_call(memory_session, cr))
     memory_session.commit()
 
     assert cr.status == CallRequestStatus.failed
@@ -272,7 +273,8 @@ def test_initiate_call_marks_failed_when_no_phone(memory_session: Session) -> No
     cr = _seed_call_request(memory_session, contact_id=contact.id)
 
     adapter = _make_adapter()
-    asyncio.run(call_worker._initiate_call(memory_session, adapter, cr))
+    with patch.object(call_worker, "resolve_voice_adapter", return_value=adapter):
+        asyncio.run(call_worker._initiate_call(memory_session, cr))
     memory_session.commit()
 
     assert cr.status == CallRequestStatus.failed
@@ -290,7 +292,8 @@ def test_initiate_call_skips_when_existing_session_already_dispatched(
     memory_session.commit()
 
     adapter = _make_adapter()
-    asyncio.run(call_worker._initiate_call(memory_session, adapter, cr))
+    with patch.object(call_worker, "resolve_voice_adapter", return_value=adapter):
+        asyncio.run(call_worker._initiate_call(memory_session, cr))
     memory_session.commit()
 
     assert cr.status == CallRequestStatus.in_progress
@@ -303,7 +306,8 @@ def test_initiate_call_creates_session_and_marks_in_progress(memory_session: Ses
     cr = _seed_call_request(memory_session, contact_id=contact.id)
 
     adapter = _make_adapter(call_sid="CAfreshSid")
-    asyncio.run(call_worker._initiate_call(memory_session, adapter, cr))
+    with patch.object(call_worker, "resolve_voice_adapter", return_value=adapter):
+        asyncio.run(call_worker._initiate_call(memory_session, cr))
     memory_session.commit()
 
     cs = memory_session.exec(
@@ -320,7 +324,8 @@ def test_initiate_call_marks_failed_when_twilio_returns_no_sid(memory_session: S
     cr = _seed_call_request(memory_session, contact_id=contact.id)
 
     adapter = _make_adapter(call_sid=None, error="twilio_rejected")
-    asyncio.run(call_worker._initiate_call(memory_session, adapter, cr))
+    with patch.object(call_worker, "resolve_voice_adapter", return_value=adapter):
+        asyncio.run(call_worker._initiate_call(memory_session, cr))
     memory_session.commit()
 
     cs = memory_session.exec(
@@ -338,7 +343,8 @@ def test_initiate_call_marks_failed_with_error_code_payload(memory_session: Sess
     adapter = MagicMock()
     adapter._account_sid = "ACtest"
     adapter.initiate_call = AsyncMock(return_value={"call_sid": "", "error_code": "E123"})
-    asyncio.run(call_worker._initiate_call(memory_session, adapter, cr))
+    with patch.object(call_worker, "resolve_voice_adapter", return_value=adapter):
+        asyncio.run(call_worker._initiate_call(memory_session, cr))
     memory_session.commit()
 
     assert cr.status == CallRequestStatus.failed
@@ -354,7 +360,8 @@ def test_initiate_call_reuses_existing_session_without_sid(memory_session: Sessi
     existing_id = existing.id
 
     adapter = _make_adapter(call_sid="CAreused")
-    asyncio.run(call_worker._initiate_call(memory_session, adapter, cr))
+    with patch.object(call_worker, "resolve_voice_adapter", return_value=adapter):
+        asyncio.run(call_worker._initiate_call(memory_session, cr))
     memory_session.commit()
 
     sessions = memory_session.exec(
@@ -386,6 +393,7 @@ def test_run_worker_processes_then_handles_exception_and_exits() -> None:
             raise asyncio.CancelledError()
 
     with patch.object(call_worker, "_process_batch", side_effect=fake_batch), \
+            patch.object(call_worker, "record_worker_heartbeat"), \
          patch.object(call_worker.asyncio, "sleep", side_effect=fake_sleep):
         with pytest.raises(asyncio.CancelledError):
             asyncio.run(call_worker.run_worker())
@@ -395,8 +403,12 @@ def test_run_worker_processes_then_handles_exception_and_exits() -> None:
 
 def test_main_invokes_asyncio_run() -> None:
     """`main` configures logging and dispatches `run_worker` via asyncio.run."""
+    sentinel = object()
+    run_worker_mock = MagicMock(return_value=sentinel)
     with patch.object(call_worker.asyncio, "run") as run_mock, \
-         patch.object(call_worker.logging, "basicConfig") as basic_config:
+         patch.object(call_worker.logging, "basicConfig") as basic_config, \
+         patch.object(call_worker, "run_worker", run_worker_mock):
         call_worker.main()
     basic_config.assert_called_once()
-    run_mock.assert_called_once()
+    run_worker_mock.assert_called_once_with()
+    run_mock.assert_called_once_with(sentinel)

@@ -5,6 +5,7 @@ import {
   Home,
   ListOrdered,
   Mic2,
+  PlugZap,
   Settings,
   Shield,
   Users,
@@ -38,7 +39,11 @@ export function AppSidebar() {
   const { user: currentUser } = useAuth()
 
   const items = currentUser?.is_superuser
-    ? [...baseItems, { icon: Users, title: "Admin", path: "/admin" }]
+    ? [
+        ...baseItems,
+        { icon: PlugZap, title: "Providers", path: "/settings/providers" },
+        { icon: Users, title: "Admin", path: "/admin" },
+      ]
     : baseItems
 
   return (

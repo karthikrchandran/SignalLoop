@@ -108,11 +108,30 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str | None = None
     EMAILS_FROM_EMAIL: EmailStr | None = None
     EMAILS_FROM_NAME: str | None = None
+    SMTP_USERNAME: str | None = None
+    SMTP_FROM_EMAIL: str | None = None
+    SMTP_FROM_NAME: str | None = None
+    SMTP_USE_TLS: bool = False
+    SMTP_USE_STARTTLS: bool = True
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.2:1b"
+    FASTER_WHISPER_BASE_URL: str = "http://localhost:9000"
+    FASTER_WHISPER_MODEL: str = "base"
 
     @model_validator(mode="after")
     def _set_default_emails_from(self) -> Self:
         if not self.EMAILS_FROM_NAME:
             self.EMAILS_FROM_NAME = self.PROJECT_NAME
+        return self
+
+    @model_validator(mode="after")
+    def _sync_smtp_aliases(self) -> Self:
+        if self.SMTP_USERNAME is None and self.SMTP_USER is not None:
+            self.SMTP_USERNAME = self.SMTP_USER
+        if self.SMTP_FROM_EMAIL is None and self.EMAILS_FROM_EMAIL is not None:
+            self.SMTP_FROM_EMAIL = str(self.EMAILS_FROM_EMAIL)
+        if self.SMTP_FROM_NAME is None and self.EMAILS_FROM_NAME is not None:
+            self.SMTP_FROM_NAME = self.EMAILS_FROM_NAME
         return self
 
     EMAIL_RESET_TOKEN_EXPIRE_HOURS: int = 48

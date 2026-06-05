@@ -10,6 +10,7 @@ from typing import Any
 from sqlmodel import Session
 
 from app.core.config import settings
+from app.domain.runtime_settings import resolve_team_notification_email
 from app.domain.audit.audit_events import append_audit_event
 from app.domain.signals.models import SignalEvent
 from app.domain.signals.scheduling import SchedulingRequest
@@ -179,7 +180,7 @@ async def _email_sales_team(
     if not contact:
         return
 
-    team_email = settings.TEAM_NOTIFICATION_EMAIL
+    team_email = resolve_team_notification_email(session, contact.workspace_id)
     if not team_email:
         return
 

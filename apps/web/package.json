@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "generate-client": "openapi-ts",
     "test": "playwright test",
-    "test:ui": "playwright test --ui"
+    "test:ui": "playwright test --ui",
+    "test:smoke:live": "powershell -ExecutionPolicy Bypass -File ../../tooling/run-corrective-live-smoke.ps1"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

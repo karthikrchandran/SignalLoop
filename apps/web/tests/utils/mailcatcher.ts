@@ -1,9 +1,34 @@
 import type { APIRequestContext } from "@playwright/test"
 
 type Email = {
-  id: number
+  id: string
   recipients: string[]
   subject: string
+}
+
+type MailpitAddress = {
+  Address: string
+  Name?: string
+}
+
+type MailpitMessage = {
+  ID: string
+  Subject: string
+  To?: MailpitAddress[]
+}
+
+function getMailHost() {
+  return (
+    process.env.MAILPIT_HOST ||
+    process.env.MAILCATCHER_HOST ||
+    "http://localhost:8025"
+  )
+}
+
+function normalizeMailpitAddress(address: MailpitAddress) {
+  return address.Name
+    ? `${address.Name} <${address.Address}>`
+    : `<${address.Address}>`
 }
 
 async function findEmail({
@@ -13,7 +38,27 @@ async function findEmail({
   request: APIRequestContext
   filter?: (email: Email) => boolean
 }) {
-  const response = await request.get(`${process.env.MAILCATCHER_HOST}/messages`)
+  const host = getMailHost()
+  const mailpitResponse = await request.get(`${host}/api/v1/messages`)
+
+  if (mailpitResponse.ok()) {
+    const payload = await mailpitResponse.json()
+    let emails = ((payload.messages ?? []) as MailpitMessage[]).map(
+      (message) => ({
+        id: message.ID,
+        recipients: (message.To ?? []).map(normalizeMailpitAddress),
+        subject: message.Subject,
+      }),
+    )
+
+    if (filter) {
+      emails = emails.filter(filter)
+    }
+
+    return emails[0] ?? null
+  }
+
+  const response = await request.get(`${host}/messages`)
 
   let emails = await response.json()
 
@@ -28,6 +73,25 @@ async function findEmail({
   }
 
   return null
+}
+
+export async function getEmailHtml({
+  request,
+  id,
+}: {
+  request: APIRequestContext
+  id: string
+}) {
+  const host = getMailHost()
+  const mailpitResponse = await request.get(`${host}/api/v1/message/${id}`)
+
+  if (mailpitResponse.ok()) {
+    const message = await mailpitResponse.json()
+    return (message.HTML || message.Text || "") as string
+  }
+
+  const response = await request.get(`${host}/messages/${id}.html`)
+  return response.text()
 }
 
 export function findLastEmail({

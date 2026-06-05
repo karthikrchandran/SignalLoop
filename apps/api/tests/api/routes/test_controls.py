@@ -5,10 +5,10 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.core.config import settings
-from app.domain_models import Campaign, CampaignStatus
+from app.domain_models import Campaign, CampaignStatus, GlobalControlState
 
 WORKSPACE_ID = "ws-controls-test"
 OTHER_WORKSPACE_ID = "ws-controls-other"
@@ -60,6 +60,7 @@ def test_pause_global_admin_creates_state(
 def test_pause_global_idempotent_updates_existing_state(
     client: TestClient,
     superuser_token_headers: dict[str, str],
+    db: Session,
 ) -> None:
     """Calling pause again updates the existing state (no duplicate row error)."""
     client.post(
@@ -74,6 +75,13 @@ def test_pause_global_idempotent_updates_existing_state(
     )
     assert resp.status_code == 200
     assert resp.json()["paused_reason"] == "second"
+    rows = db.exec(
+        select(GlobalControlState).where(
+            GlobalControlState.workspace_id == WORKSPACE_ID,
+            GlobalControlState.campaign_id == None,
+        )
+    ).all()
+    assert len(rows) == 1
 
 
 def test_pause_global_missing_idempotency_returns_400(
@@ -288,3 +296,130 @@ def test_resume_campaign_unknown_404(
         headers=_headers(superuser_token_headers),
     )
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# CC-5 uniqueness — partial-index constraint coverage
+# ---------------------------------------------------------------------------
+
+
+def test_pause_campaign_idempotent_no_duplicate_row(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    """Calling campaign pause twice must not create a second GlobalControlState row
+    for the same workspace+campaign pair (partial unique index enforced)."""
+    ws = f"ws-cc5-camp-{uuid.uuid4().hex[:6]}"
+    camp = Campaign(
+        name=f"CC5 {uuid.uuid4().hex[:6]}",
+        workspace_id=ws,
+        created_by=uuid.uuid4(),
+        status=CampaignStatus.draft,
+    )
+    db.add(camp)
+    db.commit()
+    db.refresh(camp)
+
+    headers1 = {**superuser_token_headers, "X-Workspace-Id": ws, "Idempotency-Key": f"cc5-1-{uuid.uuid4()}"}
+    resp1 = client.post(
+        f"{settings.API_V1_STR}/campaigns/{camp.id}/pause",
+        headers=headers1,
+        json={"paused_reason": "first-pause"},
+    )
+    assert resp1.status_code == 200
+
+    headers2 = {**superuser_token_headers, "X-Workspace-Id": ws, "Idempotency-Key": f"cc5-2-{uuid.uuid4()}"}
+    resp2 = client.post(
+        f"{settings.API_V1_STR}/campaigns/{camp.id}/pause",
+        headers=headers2,
+        json={"paused_reason": "second-pause"},
+    )
+    assert resp2.status_code == 200
+    assert resp2.json()["paused_reason"] == "second-pause"
+
+    rows = db.exec(
+        select(GlobalControlState).where(
+            GlobalControlState.workspace_id == ws,
+            GlobalControlState.campaign_id == camp.id,
+        )
+    ).all()
+    assert len(rows) == 1, "Duplicate GlobalControlState row detected — uniqueness constraint violated"
+
+
+def test_global_and_campaign_states_are_independent(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    """Global (workspace-level) pause and campaign-level pause produce separate
+    GlobalControlState rows — they must not collide on the partial unique index."""
+    ws = f"ws-cc5-indep-{uuid.uuid4().hex[:6]}"
+    camp = Campaign(
+        name=f"CC5Indep {uuid.uuid4().hex[:6]}",
+        workspace_id=ws,
+        created_by=uuid.uuid4(),
+        status=CampaignStatus.draft,
+    )
+    db.add(camp)
+    db.commit()
+    db.refresh(camp)
+
+    gh = {**superuser_token_headers, "X-Workspace-Id": ws, "Idempotency-Key": f"cc5-g-{uuid.uuid4()}"}
+    resp_global = client.post(
+        f"{settings.API_V1_STR}/controls/pause",
+        headers=gh,
+        json={"paused_reason": "global-pause"},
+    )
+    assert resp_global.status_code == 200
+
+    ch = {**superuser_token_headers, "X-Workspace-Id": ws, "Idempotency-Key": f"cc5-c-{uuid.uuid4()}"}
+    resp_campaign = client.post(
+        f"{settings.API_V1_STR}/campaigns/{camp.id}/pause",
+        headers=ch,
+        json={"paused_reason": "campaign-pause"},
+    )
+    assert resp_campaign.status_code == 200
+
+    all_rows = db.exec(
+        select(GlobalControlState).where(GlobalControlState.workspace_id == ws)
+    ).all()
+    assert len(all_rows) == 2, "Expected exactly 2 rows: one global and one campaign-scoped"
+    campaign_ids = {r.campaign_id for r in all_rows}
+    assert None in campaign_ids, "Global row (campaign_id=NULL) missing"
+    assert camp.id in campaign_ids, "Campaign-scoped row missing"
+
+
+def test_pause_same_workspace_different_campaigns_independent(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    """Pausing two different campaigns under the same workspace creates two separate
+    rows — one per campaign, no cross-contamination."""
+    ws = f"ws-cc5-two-{uuid.uuid4().hex[:6]}"
+    camp_a = Campaign(name=f"A-{uuid.uuid4().hex[:6]}", workspace_id=ws, created_by=uuid.uuid4())
+    camp_b = Campaign(name=f"B-{uuid.uuid4().hex[:6]}", workspace_id=ws, created_by=uuid.uuid4())
+    db.add(camp_a)
+    db.add(camp_b)
+    db.commit()
+    db.refresh(camp_a)
+    db.refresh(camp_b)
+
+    for camp in (camp_a, camp_b):
+        h = {**superuser_token_headers, "X-Workspace-Id": ws, "Idempotency-Key": f"cc5-ab-{uuid.uuid4()}"}
+        resp = client.post(
+            f"{settings.API_V1_STR}/campaigns/{camp.id}/pause",
+            headers=h,
+            json={"paused_reason": "multi-pause"},
+        )
+        assert resp.status_code == 200
+
+    rows = db.exec(
+        select(GlobalControlState).where(
+            GlobalControlState.workspace_id == ws,
+            GlobalControlState.campaign_id.in_([camp_a.id, camp_b.id]),  # type: ignore[attr-defined]
+        )
+    ).all()
+    assert len(rows) == 2
+    assert {r.campaign_id for r in rows} == {camp_a.id, camp_b.id}

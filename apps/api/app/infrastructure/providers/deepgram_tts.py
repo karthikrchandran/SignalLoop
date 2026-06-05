@@ -7,6 +7,7 @@ from typing import AsyncGenerator
 import httpx
 
 from app.core.config import settings
+from app.infrastructure.providers.base import TtsAdapter
 from app.infrastructure.providers.errors import require_provider_key
 
 logger = logging.getLogger(__name__)
@@ -15,11 +16,11 @@ DEEPGRAM_TTS_URL = "https://api.deepgram.com/v1/speak"
 DEEPGRAM_TTS_TIMEOUT = httpx.Timeout(2.0, connect=0.5, read=1.5, write=0.5, pool=0.5)
 
 
-class DeepgramTTSAdapter:
+class DeepgramTTSAdapter(TtsAdapter):
     """Text-to-speech via Deepgram Aura API, returns μ-law audio."""
 
-    def __init__(self) -> None:
-        self._api_key = require_provider_key(settings.DEEPGRAM_API_KEY, "DEEPGRAM_API_KEY")
+    def __init__(self, api_key: str | None = None) -> None:
+        self._api_key = require_provider_key(api_key or settings.DEEPGRAM_API_KEY, "DEEPGRAM_API_KEY")
 
     async def synthesize(self, text: str) -> bytes:
         """Synthesize text to μ-law 8kHz audio bytes."""

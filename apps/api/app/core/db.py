@@ -25,6 +25,7 @@ def init_db(session: Session) -> None:
     # db -> crud -> models -> audit_events -> db (engine)
     """Initialise db."""
     from app import crud  # noqa: PLC0415
+    from app.core.security import get_password_hash, verify_password  # noqa: PLC0415
     from app.models import User, UserCreate  # noqa: PLC0415
 
     user = session.exec(
@@ -37,3 +38,14 @@ def init_db(session: Session) -> None:
             is_superuser=True,
         )
         user = crud.create_user(session=session, user_create=user_in)
+    else:
+        verified, updated_password_hash = verify_password(
+            settings.FIRST_SUPERUSER_PASSWORD,
+            user.hashed_password,
+        )
+        if not verified:
+            user.hashed_password = get_password_hash(settings.FIRST_SUPERUSER_PASSWORD)
+            session.add(user)
+        elif updated_password_hash:
+            user.hashed_password = updated_password_hash
+            session.add(user)

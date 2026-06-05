@@ -231,8 +231,10 @@ def test_timeline_orders_equal_timestamps_by_distinct_event_id(
     """Events with the same timestamp are ordered by id for stable cursor paging."""
     campaign_id, contact_id = campaign_and_contact
     shared_timestamp = datetime.now(timezone.utc).replace(microsecond=0)
-    lower_id = uuid.UUID("11111111-1111-1111-1111-111111111111")
-    higher_id = uuid.UUID("22222222-2222-2222-2222-222222222222")
+    lower_id = uuid.uuid4()
+    higher_id = uuid.uuid4()
+    if lower_id.hex > higher_id.hex:
+        lower_id, higher_id = higher_id, lower_id
 
     db.add(
         ContactEvent(

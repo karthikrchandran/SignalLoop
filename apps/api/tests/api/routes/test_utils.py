@@ -1,11 +1,44 @@
 """Tests for ``app.api.routes.utils`` HTTP endpoints (Group E coverage)."""
 from __future__ import annotations
 
+import uuid
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from sqlmodel import Session
 
 from app.core.config import settings
+from app.domain_models import NotificationProvider, ProviderCredential, WorkerHeartbeat
+
+
+WORKSPACE_ID = "ws-setup-overview"
+
+
+def _headers(token_headers: dict[str, str], *, workspace_id: str = WORKSPACE_ID) -> dict[str, str]:
+    return {**token_headers, "X-Workspace-Id": workspace_id}
+
+
+def _upsert_worker_heartbeat(db: Session, worker_key: str) -> None:
+    row = db.get(WorkerHeartbeat, worker_key)
+    now = datetime.now(timezone.utc)
+    if row is None:
+        db.add(
+            WorkerHeartbeat(
+                worker_key=worker_key,
+                status="healthy",
+                poll_interval_seconds=30,
+                last_seen_at=now,
+                updated_at=now,
+            )
+        )
+        return
+
+    row.status = "healthy"
+    row.poll_interval_seconds = 30
+    row.last_seen_at = now
+    row.updated_at = now
+    db.add(row)
 
 
 def test_test_email_superuser_sends(
@@ -208,3 +241,116 @@ def test_readiness_postgres_failure(client: TestClient) -> None:
         resp = client.get(f"{settings.API_V1_STR}/utils/ready")
     assert resp.status_code == 503
     assert resp.json()["checks"]["postgres"] is False
+
+
+def test_setup_overview_requires_authentication(client: TestClient) -> None:
+    """Setup overview is admin-only."""
+    resp = client.get(f"{settings.API_V1_STR}/utils/setup-overview/")
+    assert resp.status_code == 401
+
+
+def test_setup_overview_returns_workspace_setup_summary(
+    client: TestClient,
+    db: Session,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    """Setup overview surfaces provider status, callbacks, and worker readiness."""
+
+    db.add(
+        ProviderCredential(
+            workspace_id=WORKSPACE_ID,
+            provider=NotificationProvider.sendgrid,
+            channel="email",
+            encrypted_api_key="enc-key",
+            encrypted_api_secret="enc-secret",
+            config_json={"from_email": "ops@example.com"},
+            is_active=True,
+        )
+    )
+    _upsert_worker_heartbeat(db, "sequence_worker")
+    _upsert_worker_heartbeat(db, "call_worker")
+    _upsert_worker_heartbeat(db, "postcall_worker")
+    db.commit()
+
+    class _OkRedis:
+        async def ping(self) -> bool:
+            return True
+
+    original = getattr(client.app.state, "redis_manager", None)
+    client.app.state.redis_manager = _OkRedis()
+    try:
+        with patch.object(settings, "SERVER_HOST", "public.example.com"), patch.object(
+            settings, "TWILIO_ACCOUNT_SID", "acct"
+        ), patch.object(settings, "TWILIO_AUTH_TOKEN", "token"), patch.object(
+            settings, "TWILIO_PHONE_NUMBER", "+15551234567"
+        ), patch.object(settings, "DEEPGRAM_API_KEY", "deepgram-key"), patch.object(
+            settings, "GROQ_API_KEY", "groq-key"
+        ), patch.object(settings, "TEAM_NOTIFICATION_EMAIL", "ops@example.com"):
+            resp = client.get(
+                f"{settings.API_V1_STR}/utils/setup-overview/",
+                headers=_headers(superuser_token_headers),
+            )
+    finally:
+        if original is None:
+            try:
+                del client.app.state.redis_manager
+            except AttributeError:
+                pass
+        else:
+            client.app.state.redis_manager = original
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["workspace_id"] == WORKSPACE_ID
+    assert body["health"] == {"api": True, "postgres": True, "redis": True}
+    assert body["callbacks"]["public_host"] is True
+    assert body["callbacks"]["sendgrid_webhook_url"].endswith("/api/v1/webhooks/sendgrid")
+    integrations = {item["key"]: item for item in body["integrations"]}
+    assert integrations["sendgrid"]["source"] == "database"
+    assert integrations["sendgrid"]["configured"] is True
+    assert integrations["twilio"]["source"] == "environment"
+    assert integrations["deepgram"]["configured"] is True
+    assert integrations["groq"]["configured"] is True
+    assert integrations["team_notifications"]["configured"] is True
+    worker_readiness = {item["key"]: item for item in body["worker_readiness"]}
+    assert worker_readiness["sequence_worker"]["ready"] is True
+    assert worker_readiness["call_worker"]["ready"] is True
+    assert worker_readiness["postcall_worker"]["ready"] is True
+
+
+def test_setup_overview_reports_missing_runtime_dependencies(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    """Local callback hosts and missing runtime keys surface as readiness blockers."""
+
+    original = getattr(client.app.state, "redis_manager", None)
+    if original is not None:
+        try:
+            del client.app.state.redis_manager
+        except AttributeError:
+            pass
+    try:
+        with patch.object(settings, "SERVER_HOST", "localhost:8001"), patch.object(
+            settings, "SENDGRID_API_KEY", ""
+        ), patch.object(settings, "TWILIO_ACCOUNT_SID", ""), patch.object(
+            settings, "TWILIO_AUTH_TOKEN", ""
+        ), patch.object(settings, "DEEPGRAM_API_KEY", ""), patch.object(
+            settings, "GROQ_API_KEY", ""
+        ), patch.object(settings, "TEAM_NOTIFICATION_EMAIL", ""):
+            resp = client.get(
+                f"{settings.API_V1_STR}/utils/setup-overview/",
+                headers=_headers(superuser_token_headers, workspace_id=f"ws-missing-{uuid.uuid4().hex[:8]}"),
+            )
+    finally:
+        if original is not None:
+            client.app.state.redis_manager = original
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["callbacks"]["public_host"] is False
+    worker_readiness = {item["key"]: item for item in body["worker_readiness"]}
+    assert worker_readiness["sequence_worker"]["ready"] is False
+    assert "redis" in worker_readiness["sequence_worker"]["missing"]
+    assert "sendgrid" in worker_readiness["sequence_worker"]["missing"]
+    assert "public_callbacks" in worker_readiness["call_worker"]["missing"]

@@ -27,6 +27,7 @@ import { Route as LayoutContactsRouteImport } from './routes/_layout/contacts'
 import { Route as LayoutCampaignsRouteImport } from './routes/_layout/campaigns'
 import { Route as LayoutAnalyticsRouteImport } from './routes/_layout/analytics'
 import { Route as LayoutAdminRouteImport } from './routes/_layout/admin'
+import { Route as LayoutSettingsProvidersRouteImport } from './routes/_layout/settings.providers'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -117,6 +118,11 @@ const LayoutAdminRoute = LayoutAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutSettingsProvidersRoute = LayoutSettingsProvidersRouteImport.update({
+  id: '/providers',
+  path: '/providers',
+  getParentRoute: () => LayoutSettingsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof LayoutIndexRoute
@@ -133,9 +139,10 @@ export interface FileRoutesByFullPath {
   '/offer-packs': typeof LayoutOfferPacksRoute
   '/reporting': typeof LayoutReportingRoute
   '/sequences': typeof LayoutSequencesRoute
-  '/settings': typeof LayoutSettingsRoute
+  '/settings': typeof LayoutSettingsRouteWithChildren
   '/templates': typeof LayoutTemplatesRoute
   '/voice-agents': typeof LayoutVoiceAgentsRoute
+  '/settings/providers': typeof LayoutSettingsProvidersRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -151,10 +158,11 @@ export interface FileRoutesByTo {
   '/offer-packs': typeof LayoutOfferPacksRoute
   '/reporting': typeof LayoutReportingRoute
   '/sequences': typeof LayoutSequencesRoute
-  '/settings': typeof LayoutSettingsRoute
+  '/settings': typeof LayoutSettingsRouteWithChildren
   '/templates': typeof LayoutTemplatesRoute
   '/voice-agents': typeof LayoutVoiceAgentsRoute
   '/': typeof LayoutIndexRoute
+  '/settings/providers': typeof LayoutSettingsProvidersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -172,10 +180,11 @@ export interface FileRoutesById {
   '/_layout/offer-packs': typeof LayoutOfferPacksRoute
   '/_layout/reporting': typeof LayoutReportingRoute
   '/_layout/sequences': typeof LayoutSequencesRoute
-  '/_layout/settings': typeof LayoutSettingsRoute
+  '/_layout/settings': typeof LayoutSettingsRouteWithChildren
   '/_layout/templates': typeof LayoutTemplatesRoute
   '/_layout/voice-agents': typeof LayoutVoiceAgentsRoute
   '/_layout/': typeof LayoutIndexRoute
+  '/_layout/settings/providers': typeof LayoutSettingsProvidersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/templates'
     | '/voice-agents'
+    | '/settings/providers'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -216,6 +226,7 @@ export interface FileRouteTypes {
     | '/templates'
     | '/voice-agents'
     | '/'
+    | '/settings/providers'
   id:
     | '__root__'
     | '/_layout'
@@ -236,6 +247,7 @@ export interface FileRouteTypes {
     | '/_layout/templates'
     | '/_layout/voice-agents'
     | '/_layout/'
+    | '/_layout/settings/providers'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -374,8 +386,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutAdminRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/settings/providers': {
+      id: '/_layout/settings/providers'
+      path: '/providers'
+      fullPath: '/settings/providers'
+      preLoaderRoute: typeof LayoutSettingsProvidersRouteImport
+      parentRoute: typeof LayoutSettingsRoute
+    }
   }
 }
+
+interface LayoutSettingsRouteChildren {
+  LayoutSettingsProvidersRoute: typeof LayoutSettingsProvidersRoute
+}
+
+const LayoutSettingsRouteChildren: LayoutSettingsRouteChildren = {
+  LayoutSettingsProvidersRoute: LayoutSettingsProvidersRoute,
+}
+
+const LayoutSettingsRouteWithChildren = LayoutSettingsRoute._addFileChildren(
+  LayoutSettingsRouteChildren,
+)
 
 interface LayoutRouteChildren {
   LayoutAdminRoute: typeof LayoutAdminRoute
@@ -387,7 +418,7 @@ interface LayoutRouteChildren {
   LayoutOfferPacksRoute: typeof LayoutOfferPacksRoute
   LayoutReportingRoute: typeof LayoutReportingRoute
   LayoutSequencesRoute: typeof LayoutSequencesRoute
-  LayoutSettingsRoute: typeof LayoutSettingsRoute
+  LayoutSettingsRoute: typeof LayoutSettingsRouteWithChildren
   LayoutTemplatesRoute: typeof LayoutTemplatesRoute
   LayoutVoiceAgentsRoute: typeof LayoutVoiceAgentsRoute
   LayoutIndexRoute: typeof LayoutIndexRoute
@@ -403,7 +434,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutOfferPacksRoute: LayoutOfferPacksRoute,
   LayoutReportingRoute: LayoutReportingRoute,
   LayoutSequencesRoute: LayoutSequencesRoute,
-  LayoutSettingsRoute: LayoutSettingsRoute,
+  LayoutSettingsRoute: LayoutSettingsRouteWithChildren,
   LayoutTemplatesRoute: LayoutTemplatesRoute,
   LayoutVoiceAgentsRoute: LayoutVoiceAgentsRoute,
   LayoutIndexRoute: LayoutIndexRoute,

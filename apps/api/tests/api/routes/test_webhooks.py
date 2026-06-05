@@ -1,6 +1,7 @@
 """Tests for ``app.api.routes.webhooks`` SendGrid endpoint (Group E coverage)."""
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
 import uuid
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -20,6 +21,7 @@ from app.domain.sequences.models import (
 )
 from app.domain.sequences.suppression import EmailSuppression
 from app.domain.signals.models import SignalEvent
+from app.domain.voice.models import CallRequest, VoiceScript
 from app.domain_models import Campaign, Contact
 
 WORKSPACE_ID = "ws-webhooks-test"
@@ -75,6 +77,19 @@ def _make_send_request(
 
 def _ts() -> int:
     return int(datetime.now(timezone.utc).timestamp())
+
+
+def _make_voice_script(db: Session, campaign_id: uuid.UUID) -> VoiceScript:
+    script = VoiceScript(
+        campaign_id=campaign_id,
+        name="Webhook Script",
+        content="## Opening\nHello",
+        created_by=uuid.uuid4(),
+    )
+    db.add(script)
+    db.commit()
+    db.refresh(script)
+    return script
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +321,81 @@ def test_replied_positive_signal_pauses_sequence(
     db.refresh(state)
     assert state.status == SequenceStatus.paused
     assert state.signal_type == "email_positive_reply"
+
+
+def test_replied_positive_signal_invokes_trigger_processing(
+    client: TestClient,
+    db: Session,
+) -> None:
+    """A positive reply invokes trigger processing in the webhook flow."""
+    sr, _state, _seq, _contact, _camp = _make_send_request(
+        db, provider_message_id=f"replytrigger-{uuid.uuid4().hex[:8]}"
+    )
+
+    class _PosResult:
+        signal_type = "email_positive_reply"
+        confidence = 0.9
+
+    payload = [
+        {
+            "event": "replied",
+            "sg_message_id": f"{sr.provider_message_id}.x",
+            "email": "reply@example.com",
+            "timestamp": _ts(),
+            "sg_event_id": str(uuid.uuid4()),
+            "text": "Yes please book a call",
+        }
+    ]
+    with patch(
+        "app.api.routes.webhooks.detect_email_signal", return_value=_PosResult()
+    ), patch(
+        "app.api.routes.webhooks.process_signal", new=AsyncMock(return_value=["queue_followup_call"])
+    ) as process_signal_mock:
+        resp = client.post(f"{settings.API_V1_STR}/webhooks/sendgrid", json=payload)
+
+    assert resp.status_code == 200
+    process_signal_mock.assert_awaited_once()
+
+
+def test_replied_positive_signal_queues_followup_call_with_real_trigger_service(
+    client: TestClient,
+    db: Session,
+) -> None:
+    """A positive reply queues a followup call when a voice script is available."""
+    sr, state, _seq, _contact, camp = _make_send_request(
+        db, provider_message_id=f"replycall-{uuid.uuid4().hex[:8]}"
+    )
+    _make_voice_script(db, camp.id)
+
+    class _PosResult:
+        signal_type = "email_positive_reply"
+        confidence = 0.9
+
+    payload = [
+        {
+            "event": "replied",
+            "sg_message_id": f"{sr.provider_message_id}.x",
+            "email": "reply@example.com",
+            "timestamp": _ts(),
+            "sg_event_id": str(uuid.uuid4()),
+            "text": "Yes please book a call",
+        }
+    ]
+    with patch(
+        "app.api.routes.webhooks.detect_email_signal", return_value=_PosResult()
+    ), patch(
+        "app.domain.signals.trigger_service.SendGridAdapter.send_email",
+        new=AsyncMock(return_value={"status_code": 202, "message_id": "x"}),
+    ):
+        resp = client.post(f"{settings.API_V1_STR}/webhooks/sendgrid", json=payload)
+
+    assert resp.status_code == 200
+    db.refresh(state)
+    assert state.status == SequenceStatus.paused
+    queued_calls = db.exec(select(CallRequest).where(CallRequest.contact_id == state.contact_id)).all()
+    assert len(queued_calls) == 1
+    assert queued_calls[0].campaign_id == camp.id
+    assert queued_calls[0].trigger_reason == "positive_email_signal"
 
 
 def test_replied_non_positive_signal_no_state_change(

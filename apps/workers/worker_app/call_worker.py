@@ -46,6 +46,8 @@ from app.domain_models import (
     PolicyType,
 )
 from app.infrastructure.providers.twilio_voice import TwilioVoiceAdapter
+from app.infrastructure.providers.base import VoiceAdapter
+from app.infrastructure.providers.registry import resolve_voice_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +168,7 @@ async def _initiate_one(
     session: Session,
     call_req: CallRequest,
     workspace_id: str,
-    adapter: TwilioVoiceAdapter,
+    adapter: VoiceAdapter,
 ) -> bool:
     """Attempt to initiate a single call.
 
@@ -354,18 +356,13 @@ async def poll_and_dispatch() -> None:
             return
 
         # ------------------------------------------------------------------
-        # 3. Resolve Twilio credentials for the workspace (once per cycle)
+        # 3. Resolve voice adapter for the workspace (once per cycle).
+        # Falls back to TwilioVoiceAdapter() when no opt-in selection exists.
         # ------------------------------------------------------------------
-        creds = resolve_provider_credentials(
+        adapter = resolve_voice_adapter(
             session,
-            workspace_id=workspace_id,
-            provider=NotificationProvider.twilio,
-            channel="voice",
-        )
-        adapter = TwilioVoiceAdapter(
-            account_sid=creds.get("account_sid") or creds.get("api_key"),
-            auth_token=creds.get("auth_token") or creds.get("api_secret"),
-            from_number=creds.get("phone_number"),
+            workspace_id,
+            default_factory=TwilioVoiceAdapter,
         )
 
         # ------------------------------------------------------------------

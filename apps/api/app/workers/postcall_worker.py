@@ -11,10 +11,14 @@ from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.db import engine
+from app.domain.runtime_settings import resolve_team_notification_email
 from app.domain.voice.models import CallOutcome, CallRequest, CallSession
 from app.domain.voice.summary_generator import generate_summary
 from app.domain_models import Contact
+from app.infrastructure.providers.base import EmailAdapter
+from app.infrastructure.providers.registry import resolve_email_adapter
 from app.infrastructure.providers.sendgrid import SendGridAdapter
+from app.workers.heartbeat import record_worker_heartbeat
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +43,10 @@ async def _process_completed_calls() -> int:
         if not pending_sessions:
             return 0
 
-        adapter = SendGridAdapter()
-
         for call_session in pending_sessions:
             try:
                 if call_session.outcome == CallOutcome.answered:
-                    await _send_summary(session, adapter, call_session)
+                    await _send_summary(session, call_session)
                     call_session.postcall_status = "summary_sent"
                 else:
                     call_session.postcall_status = "skipped"
@@ -65,7 +67,7 @@ async def _process_completed_calls() -> int:
 
 
 async def _send_summary(
-    session: Session, adapter: SendGridAdapter, call_session: CallSession
+    session: Session, call_session: CallSession
 ) -> None:
     """Generate and send summary email for an answered call."""
     call_request = session.get(CallRequest, call_session.call_request_id)
@@ -84,10 +86,19 @@ async def _send_summary(
         contact_email=contact_email,
     )
 
-    team_email = settings.TEAM_NOTIFICATION_EMAIL
+    workspace_id = contact.workspace_id if contact else settings.DEFAULT_WORKSPACE_ID
+    team_email = resolve_team_notification_email(session, workspace_id)
     if not team_email:
         logger.warning("TEAM_NOTIFICATION_EMAIL not configured, skipping send")
         return
+
+    # Resolve adapter for this workspace; falls back to SendGridAdapter() so
+    # tests can still `patch('app.workers.postcall_worker.SendGridAdapter')`.
+    adapter: EmailAdapter = resolve_email_adapter(
+        session,
+        workspace_id,
+        default_factory=SendGridAdapter,
+    )
 
     await adapter.send_email(
         to=team_email,
@@ -101,12 +112,29 @@ async def _send_summary(
 async def run_worker() -> None:
     """Main worker loop."""
     logger.info("Postcall worker starting (poll=%ds)", POLL_INTERVAL)
+    record_worker_heartbeat(
+        "postcall_worker",
+        status="starting",
+        poll_interval_seconds=POLL_INTERVAL,
+    )
     while True:
         try:
             count = await _process_completed_calls()
+            record_worker_heartbeat(
+                "postcall_worker",
+                status="healthy",
+                poll_interval_seconds=POLL_INTERVAL,
+                processed_count=count,
+            )
             if count:
                 logger.info("Processed %d post-call sessions", count)
-        except Exception:
+        except Exception as exc:
+            record_worker_heartbeat(
+                "postcall_worker",
+                status="error",
+                poll_interval_seconds=POLL_INTERVAL,
+                error_message=str(exc),
+            )
             logger.exception("Postcall worker loop error")
         await asyncio.sleep(POLL_INTERVAL)
 

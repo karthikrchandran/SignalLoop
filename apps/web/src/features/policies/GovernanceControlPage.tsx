@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { AlertCircle, BellOff, CheckCircle2, PauseCircle, PlayCircle, Send, ShieldCheck } from "lucide-react"
+import { AlertCircle, BellOff, PauseCircle, PlayCircle, Send, ShieldCheck } from "lucide-react"
 
 import { Alert } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -8,34 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { engagehubRequest } from "@/lib/engagehub-api"
 
-const TIMEZONES = [
-  "UTC",
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "America/Phoenix",
-  "Europe/London",
-  "Europe/Paris",
-  "Europe/Berlin",
-  "Asia/Kolkata",
-  "Asia/Singapore",
-  "Asia/Tokyo",
-  "Australia/Sydney",
-]
-
 export default function GovernanceControlPage() {
-  // Sending limits
-  const [campaignCap, setCampaignCap] = useState("1000")
-  const [systemCap, setSystemCap] = useState("5000")
-  const [limitsSaved, setLimitsSaved] = useState(false)
-
-  // Quiet hours
-  const [quietStart, setQuietStart] = useState("21:00")
-  const [quietEnd, setQuietEnd] = useState("08:00")
-  const [quietTimezone, setQuietTimezone] = useState("UTC")
-  const [quietSaved, setQuietSaved] = useState(false)
-
   // Emergency controls
   const [pauseReason, setPauseReason] = useState("")
   const [systemPaused, setSystemPaused] = useState(false)
@@ -54,39 +27,6 @@ export default function GovernanceControlPage() {
       setBusy(false)
     }
   }
-
-  const saveLimits = () =>
-    run(async () => {
-      await engagehubRequest("/api/v1/policies/", {
-        method: "POST",
-        idempotent: true,
-        body: {
-          scope: "workspace",
-          policy_type: "daily_caps",
-          payload_json: {
-            campaignDailyCap: Number(campaignCap),
-            systemDailyCap: Number(systemCap),
-          },
-        },
-      })
-      setLimitsSaved(true)
-      setTimeout(() => setLimitsSaved(false), 3000)
-    })
-
-  const saveQuietHours = () =>
-    run(async () => {
-      await engagehubRequest("/api/v1/policies/", {
-        method: "POST",
-        idempotent: true,
-        body: {
-          scope: "workspace",
-          policy_type: "quiet_hours",
-          payload_json: { start: quietStart, end: quietEnd, timezone: quietTimezone },
-        },
-      })
-      setQuietSaved(true)
-      setTimeout(() => setQuietSaved(false), 3000)
-    })
 
   const pauseAll = () =>
     run(async () => {
@@ -128,43 +68,18 @@ export default function GovernanceControlPage() {
             <div>
               <CardTitle>Daily sending limits</CardTitle>
               <CardDescription>
-                Cap the number of messages sent each day to protect your sender reputation and avoid spam flags.
+                Daily caps remain enforced by the backend, but this build does not expose a supported save endpoint for editing them from the UI.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="grid gap-5 md:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="campaignCap">Max emails per campaign per day</Label>
-            <p className="text-xs text-muted-foreground">Each individual campaign will stop sending after this many emails.</p>
-            <Input
-              id="campaignCap"
-              type="number"
-              min={1}
-              value={campaignCap}
-              onChange={(e) => setCampaignCap(e.target.value)}
-            />
+        <CardContent className="space-y-4">
+          <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
+            The previous workspace policy editor was removed with the simplified governance pivot. To avoid implying unsupported behavior, limit changes are not editable here until a supported controls API is added.
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="systemCap">Max total emails across all campaigns</Label>
-            <p className="text-xs text-muted-foreground">A system-wide ceiling — once reached, no more emails go out that day.</p>
-            <Input
-              id="systemCap"
-              type="number"
-              min={1}
-              value={systemCap}
-              onChange={(e) => setSystemCap(e.target.value)}
-            />
-          </div>
-          <div className="md:col-span-2">
-            <Button onClick={saveLimits} disabled={busy}>
-              {limitsSaved ? (
-                <><CheckCircle2 className="mr-2 size-4" /> Saved</>
-              ) : (
-                "Save limits"
-              )}
-            </Button>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Use pause and resume controls below for live operational holds. Daily-cap editing needs a follow-up implementation slice before it can return to this page.
+          </p>
         </CardContent>
       </Card>
 
@@ -178,42 +93,18 @@ export default function GovernanceControlPage() {
             <div>
               <CardTitle>Do not disturb hours</CardTitle>
               <CardDescription>
-                No emails or calls will go out during this window, even if a campaign is scheduled to run.
+                Quiet hours are still respected by backend execution paths, but this build does not support changing that schedule from the UI.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="grid gap-5 md:grid-cols-3">
-          <div className="space-y-1">
-            <Label htmlFor="quietStart">Stop sending at</Label>
-            <Input id="quietStart" type="time" value={quietStart} onChange={(e) => setQuietStart(e.target.value)} />
+        <CardContent className="space-y-4">
+          <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
+            Quiet-hour scheduling is currently driven by backend worker configuration. This page no longer attempts to save to the removed policies endpoint.
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="quietEnd">Resume sending at</Label>
-            <Input id="quietEnd" type="time" value={quietEnd} onChange={(e) => setQuietEnd(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="quietTz">Timezone</Label>
-            <select
-              id="quietTz"
-              value={quietTimezone}
-              onChange={(e) => setQuietTimezone(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              {TIMEZONES.map((tz) => (
-                <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
-              ))}
-            </select>
-          </div>
-          <div className="md:col-span-3">
-            <Button onClick={saveQuietHours} disabled={busy}>
-              {quietSaved ? (
-                <><CheckCircle2 className="mr-2 size-4" /> Saved</>
-              ) : (
-                "Save quiet hours"
-              )}
-            </Button>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            If quiet-hour editing needs to be operator-managed, it should come back behind a supported API instead of the legacy policy route.
+          </p>
         </CardContent>
       </Card>
 

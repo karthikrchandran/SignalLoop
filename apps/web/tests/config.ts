@@ -17,3 +17,5 @@ function getEnvVar(name: string): string {
 
 export const firstSuperuser = getEnvVar("FIRST_SUPERUSER")
 export const firstSuperuserPassword = getEnvVar("FIRST_SUPERUSER_PASSWORD")
+export const apiBaseUrl = process.env.VITE_API_URL || "http://localhost:8001"
+export const defaultWorkspaceId = process.env.PLAYWRIGHT_WORKSPACE_ID || "default"

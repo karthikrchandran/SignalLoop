@@ -10,13 +10,14 @@ from typing import Any
 import httpx
 
 from app.core.config import settings
+from app.infrastructure.providers.base import VoiceAdapter
 
 logger = logging.getLogger(__name__)
 
 TWILIO_API_BASE = "https://api.twilio.com/2010-04-01"
 
 
-class TwilioVoiceAdapter:
+class TwilioVoiceAdapter(VoiceAdapter):
     """Twilio Voice REST API adapter using httpx.
 
     Credentials can be injected at construction time (multi-tenant path via

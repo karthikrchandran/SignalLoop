@@ -22,6 +22,7 @@ from app.api.deps import SessionDep
 from app.core.config import settings
 from app.core.db import engine
 from app.core.encryption import decrypt
+from app.domain.runtime_settings import resolve_workspace_runtime_config
 from app.domain.timeline.timeline_service import (
     invalidate_timeline_cache,
     invalidate_timeline_cache_from_url_sync,
@@ -35,8 +36,16 @@ from app.domain.voice.models import (
     VoiceScript,
 )
 from app.domain.voice.script_parser import parse_script
-from app.domain_models import Contact, NotificationProvider, ProviderCredential
+from app.domain_models import Campaign, Contact, NotificationProvider, ProviderCredential
+from app.infrastructure.providers.deepgram_stt import DeepgramSTTAdapter
+from app.infrastructure.providers.deepgram_tts import DeepgramTTSAdapter
+from app.infrastructure.providers.registry import (
+    resolve_llm_adapter,
+    resolve_stt_adapter,
+    resolve_tts_adapter,
+)
 from app.infrastructure.providers.errors import ProviderConfigurationError
+from app.infrastructure.providers.groq_llm import GroqLLMAdapter
 from app.infrastructure.providers.twilio_voice import TwilioVoiceAdapter
 
 logger = logging.getLogger(__name__)
@@ -368,12 +377,45 @@ async def _load_engine_for_call(call_sid: str) -> ConversationEngine | None:
         contact = session.get(Contact, call_request.contact_id)
         contact_name = contact.first_name or "there" if contact else "there"
         contact_company = contact.company or "" if contact else ""
+        workspace_id = contact.workspace_id if contact else None
+        if workspace_id is None:
+            campaign = session.get(Campaign, call_request.campaign_id)
+            workspace_id = campaign.workspace_id if campaign else settings.DEFAULT_WORKSPACE_ID
+        runtime_config = resolve_workspace_runtime_config(session, workspace_id)
+
+        # Resolve STT/TTS/LLM adapters per-workspace (multi-provider support).
+        # Default factories use Deepgram/Groq with the workspace runtime config
+        # so legacy single-provider deployments keep working unchanged.
+        stt = resolve_stt_adapter(
+            session,
+            workspace_id,
+            default_factory=lambda: DeepgramSTTAdapter(
+                api_key=runtime_config.deepgram_api_key.value or None
+            ),
+        )
+        tts = resolve_tts_adapter(
+            session,
+            workspace_id,
+            default_factory=lambda: DeepgramTTSAdapter(
+                api_key=runtime_config.deepgram_api_key.value or None
+            ),
+        )
+        llm = resolve_llm_adapter(
+            session,
+            workspace_id,
+            default_factory=lambda: GroqLLMAdapter(
+                api_key=runtime_config.groq_api_key.value or None
+            ),
+        )
 
     parsed = parse_script(voice_script.content)
     return ConversationEngine(
         script=parsed,
         contact_name=contact_name,
         contact_company=contact_company,
+        stt=stt,
+        tts=tts,
+        llm=llm,
     )
 
 

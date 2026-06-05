@@ -7,6 +7,17 @@ services:
 
   api:
     restart: no
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      mailpit:
+        condition: service_started
+      ollama:
+        condition: service_started
+      stt:
+        condition: service_started
     command:
       - fastapi
       - run
@@ -27,16 +38,44 @@ services:
     volumes:
       - ./apps/api/htmlcov:/app/apps/api/htmlcov
     environment:
-      SMTP_HOST: mailcatcher
+      SMTP_HOST: mailpit
       SMTP_PORT: "1025"
       SMTP_TLS: "false"
+      SMTP_USE_TLS: "false"
+      SMTP_USE_STARTTLS: "false"
       EMAILS_FROM_EMAIL: noreply@example.com
+      SMTP_FROM_EMAIL: noreply@example.com
+      SMTP_FROM_NAME: EngageHub Demo
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: llama3.2:1b
+      FASTER_WHISPER_BASE_URL: http://stt:9000
+      FASTER_WHISPER_MODEL: base
 
-  mailcatcher:
-    image: schickling/mailcatcher
+  mailpit:
+    image: axllent/mailpit:latest
     ports:
-      - "1080:1080"
+      - "8025:8025"
       - "1025:1025"
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: "no"
+
+  stt:
+    build:
+      context: ./tooling/stt_service
+      dockerfile: Dockerfile
+    ports:
+      - "9000:9000"
+    environment:
+      WHISPER_MODEL: base
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
+    restart: "no"
 
   web:
     restart: no
@@ -57,12 +96,13 @@ services:
     ipc: host
     depends_on:
       - api
-      - mailcatcher
+      - mailpit
     env_file:
       - .env
     environment:
       - VITE_API_URL=http://api:8001
-      - MAILCATCHER_HOST=http://mailcatcher:1080
+      - MAILCATCHER_HOST=http://mailpit:8025
+      - MAILPIT_HOST=http://mailpit:8025
       - PLAYWRIGHT_HTML_HOST=0.0.0.0
       - CI=${CI}
     volumes:
@@ -70,3 +110,63 @@ services:
       - ./apps/web/test-results:/app/test-results
     ports:
       - 9323:9323
+
+  sequence-worker:
+    restart: no
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ollama:
+        condition: service_started
+      stt:
+        condition: service_started
+    environment:
+      POSTGRES_SERVER: db
+      REDIS_URL: redis://redis:6379/0
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: llama3.2:1b
+      FASTER_WHISPER_BASE_URL: http://stt:9000
+      FASTER_WHISPER_MODEL: base
+
+  call-worker:
+    restart: no
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ollama:
+        condition: service_started
+      stt:
+        condition: service_started
+    environment:
+      POSTGRES_SERVER: db
+      REDIS_URL: redis://redis:6379/0
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: llama3.2:1b
+      FASTER_WHISPER_BASE_URL: http://stt:9000
+      FASTER_WHISPER_MODEL: base
+
+  postcall-worker:
+    restart: no
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ollama:
+        condition: service_started
+      stt:
+        condition: service_started
+    environment:
+      POSTGRES_SERVER: db
+      REDIS_URL: redis://redis:6379/0
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: llama3.2:1b
+      FASTER_WHISPER_BASE_URL: http://stt:9000
+      FASTER_WHISPER_MODEL: base
+
+volumes:
+  ollama_data:

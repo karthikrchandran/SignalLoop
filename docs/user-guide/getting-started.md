@@ -1,6 +1,6 @@
 # EngageHub User Guide and Getting Started
 
-Version: May 11, 2026  
+Version: May 28, 2026
 Audience: EngageHub operators, campaign managers, administrators, and new users
 
 EngageHub is an intelligent outreach platform for planning, launching, and monitoring multi-channel campaigns across email and voice. This guide walks you through the main screens, explains what each feature is for, and gives step-by-step instructions a new user can follow without knowing the product beforehand.
@@ -17,11 +17,12 @@ Use this checklist the first time you open EngageHub.
 4. Visit the Dashboard to understand the main areas of the product.
 5. Create or review templates before launching outreach.
 6. Configure voice agents if you plan to use phone calls.
-7. Prepare the lead pool from Contacts.
-8. Create a campaign draft from Campaigns.
-9. Select all contacts, chosen contacts, or a filtered subset from the existing lead pool.
-10. Define the offer and channel strategy.
-11. Review Analytics and Controls before sending at scale.
+7. If you are an administrator, review Provider Setup before testing provider-backed workflows.
+8. Prepare the lead pool from Contacts.
+9. Create a campaign draft from Campaigns.
+10. Select all contacts, chosen contacts, or a filtered subset from the existing lead pool.
+11. Define the offer and channel strategy.
+12. Review Analytics and Controls before sending at scale.
 
 ## 1. Accessing EngageHub
 
@@ -108,8 +109,9 @@ Primary navigation items:
 | Templates | Create reusable email templates, preview tokens, publish compliant versions. |
 | Controls | Manage daily sending caps, quiet hours, and emergency pause/resume controls. |
 | Settings | Update profile, password, and account preferences. |
+| Providers | Administrator-only setup for active email, LLM, and speech-to-text providers. |
 
-Administrators may also see Admin for user management.
+Administrators may also see Providers for workspace provider setup and Admin for user management.
 
 ## 3. Dashboard
 
@@ -480,37 +482,34 @@ Controls protects your sender reputation and gives administrators emergency stop
 
 ![Controls screen](screenshots/10-controls.png)
 
-### Set Daily Sending Limits
+### Review Daily Sending Limits
 
 Steps:
 
 1. Select Controls in the sidebar.
-2. In Daily sending limits, enter Max emails per campaign per day.
-3. Enter Max total emails across all campaigns.
-4. Select Save limits.
-5. Confirm the saved state appears.
+2. Review the displayed daily sending limit state.
+3. Use emergency pause if the current limits are not safe for the moment.
 
 Guidance:
 
 - Use conservative limits when warming a sender domain.
 - Increase limits gradually as engagement and deliverability remain healthy.
 - Use lower campaign-level caps for experimental campaigns.
+- In the current app, daily-limit editing is not available on this page.
 
-### Set Do Not Disturb Hours
+### Review Do Not Disturb Hours
 
 Steps:
 
-1. In Do not disturb hours, choose Stop sending at.
-2. Choose Resume sending at.
-3. Select the timezone.
-4. Select Save quiet hours.
-5. Confirm the saved state appears.
+1. Review the displayed quiet-hours state.
+2. If outreach needs to stop immediately, use Emergency controls.
 
 How quiet hours work:
 
 - No emails or calls go out during the configured window.
 - Scheduled campaigns wait until sending resumes.
 - This protects recipients from late-night or inappropriate outreach.
+- In the current app, quiet-hour editing is not available on this page.
 
 ### Pause or Resume All Outreach
 
@@ -610,6 +609,142 @@ When a contact is selected, the timeline can show:
 
 Steps:
 
+1. From the Lead pool table, select a contact row (or select the contact name link).
+2. The right-hand panel switches to the contact's timeline view.
+3. Review the contact's identity card at the top: name, email, company, phone, and timezone.
+4. Scroll the timeline to see chronological events, newest first by default.
+5. Use the event-type filter (when available) to narrow to a specific stream, such as Emails sent or Call sessions.
+6. Select an event entry to expand details such as subject line, template version, call duration, or routing decision.
+7. Use the Back or Close action in the panel header to return to the lead pool view.
+
+Reading the timeline:
+
+| Event Type | What It Means |
+| --- | --- |
+| State transition | The contact moved between progression states (for example, Enrolled → Contacted → Engaged). |
+| Email sent | An outbound email was dispatched. The entry records template, subject, and send time. |
+| Email open | A tracked open was recorded for a previously sent email. |
+| Call session | A voice call was attempted or completed. The entry records the agent, duration, and outcome. |
+| Signal | A behavioural signal such as a click, reply, or unsubscribe was captured. |
+| Booking event | A meeting or appointment was scheduled or updated. |
+| Routing event | The contact was rerouted between sequences, owners, or workspaces. |
+
+When to use the timeline:
+
+- Before a manual follow-up call, to see what the contact has already received.
+- During QA, to confirm a campaign step was actually delivered.
+- During investigation, when a contact reports unexpected outreach or wants to opt out.
+- During analytics review, to verify a funnel drop-off is reflected at the individual level.
+
+## 11. Settings and Profile
+
+Settings is where you manage your personal account information.
+
+What you can do here:
+
+- Update your display name.
+- Update the email address associated with your account.
+- Change your password.
+- Adjust appearance preferences (light, dark, or system).
+
+### Update Your Profile
+
+Steps:
+
+1. Select Settings in the sidebar (or open the account menu at the bottom of the sidebar).
+2. Edit your full name.
+3. Edit your email address if it has changed.
+4. Select Save.
+5. Confirm the success message appears.
+
+### Change Your Password
+
+Steps:
+
+1. Open Settings.
+2. Open the Change password section.
+3. Enter your current password.
+4. Enter a new password of at least 8 characters.
+5. Confirm the new password.
+6. Select Update password.
+7. Sign in again on the next session.
+
+Good practice:
+
+- Use a unique password not reused on other systems.
+- Rotate the password if you suspect it has been shared.
+- Notify an administrator if you can no longer sign in and password recovery does not arrive.
+
+## 12. Provider Setup (Administrators)
+
+Provider Setup is available to superusers. It controls which providers the current workspace uses for email, LLM, and speech-to-text.
+
+What you can do here:
+
+- Review the active provider for Email, LLM, and STT.
+- Choose local providers for local demo work.
+- Choose managed providers after credentials have been added through the API.
+- Refresh or test that the provider-options API is responding.
+
+Local demo selections:
+
+| Capability | Provider |
+| --- | --- |
+| Email | SMTP / Mailpit |
+| LLM | Ollama |
+| STT | Faster Whisper Local |
+
+Steps:
+
+1. Sign in as a superuser.
+2. Select Providers in the sidebar.
+3. Review the Workspace badge to confirm you are editing the right workspace.
+4. Choose a provider from each dropdown.
+5. Confirm the status badge shows Local for local demo providers or Managed for hosted providers.
+6. Select Test to confirm the provider-options API is responding.
+
+Notes:
+
+- Provider Setup does not collect API keys or secrets.
+- If a provider requires credentials, add them through the provider credentials API before selecting it for real delivery.
+- If you do not see Providers, your account does not have superuser permissions.
+
+## 13. Sign Out
+
+Sign out when you are done for the day, when switching accounts, or when working on a shared computer.
+
+Steps:
+
+1. Open the account menu at the bottom of the sidebar.
+2. Select Sign out.
+3. The app returns to the Log In page.
+
+## 14. Where to Get Help
+
+If something does not behave as described in this guide:
+
+1. Confirm the app version and the URL you are using.
+2. Re-check the relevant step in this guide.
+3. Note any error message exactly as displayed.
+4. Contact your EngageHub administrator or platform owner with the campaign name, contact involved (if any), and the time of the issue.
+5. For development-environment issues, point your engineer at the runbooks under `docs/runbooks/` and the developer onboarding material under `docs/developer-guide/`.
+
+## Glossary
+
+| Term | Meaning |
+| --- | --- |
+| Campaign | A named outreach effort with an audience, offer, and channel strategy. |
+| Sequence | A reusable multi-step flow combining emails, waits, and voice steps. |
+| Template | A reusable email message with personalization tokens. |
+| Token | A placeholder such as `{{contact.firstName}}` that is replaced at send time. |
+| Offer pack | A published, versioned bundle of offer content used by a campaign. |
+| Lead pool | The shared list of contacts available for selection by any campaign. |
+| Voice agent | An AI voice persona (Alex or Morgan) that places outbound calls. |
+| Knowledgebase | Files supplied to voice agents for context beyond the script. |
+| Quiet hours | A configured window where no outreach is sent. |
+| Emergency pause | An administrator action that immediately halts all outreach. |
+| Workspace | The tenant boundary that scopes campaigns, contacts, and audit events. |
+
 1. Open a contact from a drilldown link when one is available.
 2. Confirm the Contact Timeline page opens.
 3. Review the total number of recorded events.
@@ -697,10 +832,11 @@ Warning:
 
 ## 12. Admin User Management
 
-Some users may see an Admin menu item. Admin is available only to superusers.
+Some users may see Providers and Admin menu items. Both are available only to superusers.
 
 Admins can typically:
 
+- Select workspace providers for email, LLM, and STT from Providers.
 - View users.
 - Add users.
 - Manage permissions.
@@ -715,7 +851,7 @@ Basic steps:
 5. Save the user.
 6. Confirm the user appears in the table.
 
-If you do not see Admin, your account does not have superuser permissions.
+If you do not see Providers or Admin, your account does not have superuser permissions.
 
 ## 13. Recommended First Campaign Workflow
 
@@ -732,31 +868,34 @@ Follow this end-to-end workflow when launching your first campaign.
    - Review the call script.
    - Upload relevant knowledgebase files.
    - Run a preview test call if available.
-3. Configure safety controls.
+3. Confirm provider setup if you are an administrator.
+   - Go to Providers.
+   - Confirm local or managed providers are selected for Email, LLM, and STT.
+4. Configure safety controls.
    - Go to Controls.
-   - Set daily sending limits.
-   - Set quiet hours.
-4. Prepare contacts.
+   - Review daily sending limits and quiet hours.
+   - Use emergency pause/resume if an operational hold is needed.
+5. Prepare contacts.
    - Go to Contacts.
    - Download the CSV template if needed.
    - Analyze the lead CSV.
    - Map email, name, company, phone, and timezone fields.
    - Review preview rows and validation issues.
    - Import the contacts into the shared lead pool.
-5. Create the campaign.
+6. Create the campaign.
    - Go to Campaigns.
    - Enter a clear campaign name.
    - Choose all contacts, selected contacts, or a filtered subset from the existing lead pool.
    - Save the channel strategy.
-6. Monitor performance.
+7. Monitor performance.
    - Go to Analytics.
    - Review campaign run metrics.
    - Watch open rate, click-through rate, completed calls, and funnel conversion.
-7. Investigate contacts when needed.
+8. Investigate contacts when needed.
    - Open contact timelines from available drilldown links.
    - Filter events by type or date.
    - Review reason codes and transcripts where available.
-8. Pause if something looks wrong.
+9. Pause if something looks wrong.
    - Go to Controls.
    - Enter a pause reason.
    - Select Pause all outreach.

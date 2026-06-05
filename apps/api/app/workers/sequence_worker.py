@@ -25,7 +25,10 @@ from app.domain.sequences.models import (
 )
 from app.domain.sequences.suppression import EmailSuppression
 from app.domain_models import Contact
+from app.infrastructure.providers.base import EmailAdapter
+from app.infrastructure.providers.registry import resolve_email_adapter
 from app.infrastructure.providers.sendgrid import SendGridAdapter
+from app.workers.heartbeat import record_worker_heartbeat
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +86,6 @@ async def _process_batch() -> int:
         logger.debug("Quiet hours — skipping")
         return 0
 
-    adapter = SendGridAdapter()
     processed = 0
 
     with Session(engine) as session:
@@ -111,7 +113,7 @@ async def _process_batch() -> int:
 
         for state in due_states:
             try:
-                await _process_single(session, adapter, state)
+                await _process_single(session, state)
                 processed += 1
             except Exception:
                 logger.exception(
@@ -127,7 +129,6 @@ async def _process_batch() -> int:
 
 async def _process_single(
     session: Session,
-    adapter: SendGridAdapter,
     state: ContactSequenceState,
 ) -> None:
     contact = session.get(Contact, state.contact_id)
@@ -136,6 +137,16 @@ async def _process_single(
         state.status = SequenceStatus.stopped
         session.add(state)
         return
+
+    # Resolve the email adapter for this contact's workspace.  Falls back to
+    # SendGridAdapter() when the workspace hasn't opted into a custom
+    # provider, which preserves the legacy single-tenant behaviour and lets
+    # tests `patch.object(sequence_worker, "SendGridAdapter")` keep working.
+    adapter: EmailAdapter = resolve_email_adapter(
+        session,
+        contact.workspace_id,
+        default_factory=SendGridAdapter,
+    )
 
     if _is_suppressed(session, contact.email):
         logger.info("Contact %s is suppressed, stopping sequence", contact.email)
@@ -257,12 +268,29 @@ def _advance_step(
 async def run_worker() -> None:
     """Main worker loop."""
     logger.info("Sequence worker starting (poll=%ds)", POLL_INTERVAL)
+    record_worker_heartbeat(
+        "sequence_worker",
+        status="starting",
+        poll_interval_seconds=POLL_INTERVAL,
+    )
     while True:
         try:
             count = await _process_batch()
+            record_worker_heartbeat(
+                "sequence_worker",
+                status="healthy",
+                poll_interval_seconds=POLL_INTERVAL,
+                processed_count=count,
+            )
             if count:
                 logger.info("Processed %d contacts", count)
-        except Exception:
+        except Exception as exc:
+            record_worker_heartbeat(
+                "sequence_worker",
+                status="error",
+                poll_interval_seconds=POLL_INTERVAL,
+                error_message=str(exc),
+            )
             logger.exception("Worker loop error")
         await asyncio.sleep(POLL_INTERVAL)
 

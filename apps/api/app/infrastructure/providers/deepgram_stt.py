@@ -9,6 +9,7 @@ from typing import Any, AsyncGenerator, Callable
 import websockets
 
 from app.core.config import settings
+from app.infrastructure.providers.base import SttAdapter
 from app.infrastructure.providers.errors import require_provider_key
 
 logger = logging.getLogger(__name__)
@@ -19,15 +20,16 @@ STT_CLOSE_TIMEOUT_SECONDS = 1.0
 STT_ENDPOINTING_MS = 80
 
 
-class DeepgramSTTAdapter:
+class DeepgramSTTAdapter(SttAdapter):
     """Streaming speech-to-text via Deepgram Nova-2 WebSocket API."""
 
     def __init__(
         self,
         *,
+        api_key: str | None = None,
         on_transcript: Callable[[str, bool], Any] | None = None,
     ) -> None:
-        self._api_key = require_provider_key(settings.DEEPGRAM_API_KEY, "DEEPGRAM_API_KEY")
+        self._api_key = require_provider_key(api_key or settings.DEEPGRAM_API_KEY, "DEEPGRAM_API_KEY")
         self._ws = None
         self._on_transcript = on_transcript
 

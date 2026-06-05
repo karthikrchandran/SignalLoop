@@ -1,5 +1,5 @@
-import { Mic2, Play, Square, Upload, User, Volume2, X } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { CheckCircle2, Loader2, Mic2, Pencil, Plus, RefreshCw, TriangleAlert, Trash2 } from "lucide-react"
 
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +11,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -19,412 +28,604 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import { engagehubRequest } from "@/lib/engagehub-api"
 
-type AgentId = "alex" | "morgan"
-
-interface VoiceAgent {
-  id: AgentId
+type CampaignSummary = {
+  id: string
   name: string
-  gender: "Male" | "Female"
-  accent: string
-  tone: string
-  description: string
-  sampleScript: string
-  /** Greeting spoken in the demo button */
-  demoGreeting: string
-  /** Preferred voice name hints (matched against SpeechSynthesis voices) */
-  voiceHints: string[]
-  /** Pitch tweak: >1 higher, <1 lower */
-  pitch: number
-  /** Rate tweak */
-  rate: number
 }
 
-const AGENTS: VoiceAgent[] = [
-  {
-    id: "alex",
-    name: "Alex",
-    gender: "Male",
-    accent: "Neutral (North American)",
-    tone: "Professional & Authoritative",
-    description:
-      "Alex has a calm, confident delivery that works well for B2B outreach, appointment confirmations, and executive-level communications.",
-    sampleScript:
-      `Hi, this is Alex calling on behalf of {{company.name}}. I'm reaching out to schedule a brief 15-minute conversation with {{contact.firstName}} about {{campaign.topic}}. Is now a good time to talk?`,
-    demoGreeting:
-      "Good morning! My name is Alex, and I'm your dedicated outreach assistant. " +
-      "I'm here to make every conversation count. " +
-      "Could I start by getting your name? And how can I be of help to you today?",
-    voiceHints: ["david", "alex", "daniel", "mark", "male", "en-us"],
-    pitch: 0.9,
-    rate: 0.95,
-  },
-  {
-    id: "morgan",
-    name: "Morgan",
-    gender: "Female",
-    accent: "Neutral (North American)",
-    tone: "Empathetic & Conversational",
-    description:
-      "Morgan's warm, empathetic voice is ideal for customer re-engagement, follow-ups, support check-ins, and relationship-driven outreach.",
-    sampleScript:
-      `Hi {{contact.firstName}}, this is Morgan from {{company.name}}. I'm calling because we noticed it's been a while, and we'd love to reconnect. We have something special we think you'll find valuable — do you have just a moment?`,
-    demoGreeting:
-      "Good morning! I'm Morgan, and I'm so glad we have a chance to connect. " +
-      "I'm here to listen and to help in any way I can. " +
-      "It would be lovely to know your name — and please, tell me, how can I be of help to you today?",
-    voiceHints: ["samantha", "zira", "susan", "karen", "female", "en-us"],
-    pitch: 1.1,
-    rate: 0.92,
-  },
-]
-
-const OBJECT_TYPES = [
-  { value: "appointment-reminder", label: "Appointment Reminder" },
-  { value: "follow-up", label: "Follow-up Call" },
-  { value: "re-engagement", label: "Re-engagement" },
-  { value: "product-intro", label: "Product Introduction" },
-  { value: "feedback-survey", label: "Feedback / Survey" },
-  { value: "custom", label: "Custom" },
-]
-
-// ── Speech helper ─────────────────────────────────────────────────────────────
-function pickVoice(hints: string[], gender: "Male" | "Female"): SpeechSynthesisVoice | null {
-  const voices = window.speechSynthesis.getVoices()
-  if (!voices.length) return null
-  const langVoices = voices.filter((v) => v.lang.startsWith("en"))
-  for (const hint of hints) {
-    const match = langVoices.find((v) => v.name.toLowerCase().includes(hint.toLowerCase()))
-    if (match) return match
-  }
-  // Fallback: pick any English voice that vaguely matches gender via name heuristics
-  const genderHints = gender === "Male"
-    ? ["david", "mark", "james", "tom", "daniel"]
-    : ["samantha", "susan", "zira", "karen", "victoria", "fiona"]
-  for (const h of genderHints) {
-    const match = langVoices.find((v) => v.name.toLowerCase().includes(h))
-    if (match) return match
-  }
-  return langVoices[0] ?? null
+type CampaignsResponse = {
+  data: CampaignSummary[]
 }
-// ─────────────────────────────────────────────────────────────────────────────
+
+type ScriptSummary = {
+  id: string
+  campaign_id: string
+  name: string
+  active: boolean
+  created_at: string
+}
+
+type ScriptsResponse = {
+  data: ScriptSummary[]
+}
+
+type ScriptParsed = {
+  opening_pitch: string
+  fallback_response: string
+  scheduling_question: string
+  qa_pairs: Array<{ question: string; answer: string }>
+}
+
+type ScriptDetail = ScriptSummary & {
+  content: string
+  parsed: ScriptParsed | null
+}
+
+type SetupIntegration = {
+  key: string
+  label: string
+  configured: boolean
+  source: string
+  note?: string | null
+}
+
+type SetupOverview = {
+  callbacks: {
+    public_host: boolean
+    public_base_url: string
+    twilio_twiml_url: string
+    twilio_media_stream_url: string
+  }
+  integrations: SetupIntegration[]
+}
+
+const SAMPLE_SCRIPT = [
+  "## Opening Pitch",
+  "Hi {{first_name}}, this is EngageHub calling about your campaign.",
+  "",
+  "## Q&A",
+  "Q: What does this cover?",
+  "A: A brief overview and next steps.",
+  "",
+  "## Fallback",
+  "I can follow up with more detail by email.",
+  "",
+  "## Scheduling",
+  "What time works best for a quick follow-up call?",
+].join("\n")
+
+const formatDate = (value: string) => new Date(value).toLocaleString()
 
 export default function VoiceAgentsPage() {
-  const [selectedAgent, setSelectedAgent] = useState<AgentId>("alex")
-  const [objective, setObjective] = useState("appointment-reminder")
-  const [scripts, setScripts] = useState<Record<AgentId, string>>({
-    alex: AGENTS[0].sampleScript,
-    morgan: AGENTS[1].sampleScript,
-  })
-  // ── Shared knowledgebase ──────────────────────────────────────────────────
-  const [kbFiles, setKbFiles] = useState<File[]>([])
-  const [kbSaved, setKbSaved] = useState(false)
-  // ── Demo speech state ─────────────────────────────────────────────────────
-  const [speakingAgent, setSpeakingAgent] = useState<AgentId | null>(null)
-  const [voicesReady, setVoicesReady] = useState(false)
-  // ─────────────────────────────────────────────────────────────────────────
-  const [testStatus, setTestStatus] = useState<string | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const [campaigns, setCampaigns] = useState<CampaignSummary[]>([])
+  const [scripts, setScripts] = useState<ScriptSummary[]>([])
+  const [setupOverview, setSetupOverview] = useState<SetupOverview | null>(null)
+  const [selectedCampaignId, setSelectedCampaignId] = useState("")
+  const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null)
+  const [selectedScript, setSelectedScript] = useState<ScriptDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<string | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editorMode, setEditorMode] = useState<"create" | "edit">("create")
+  const [scriptName, setScriptName] = useState("")
+  const [editorCampaignId, setEditorCampaignId] = useState("")
+  const [scriptContent, setScriptContent] = useState(SAMPLE_SCRIPT)
+  const [active, setActive] = useState(true)
 
-  // SpeechSynthesis voices load asynchronously in some browsers
+  const filteredScripts = useMemo(
+    () => scripts.filter((script) => !selectedCampaignId || script.campaign_id === selectedCampaignId),
+    [scripts, selectedCampaignId],
+  )
+
+  const integrationMap = useMemo(
+    () => new Map((setupOverview?.integrations ?? []).map((integration) => [integration.key, integration])),
+    [setupOverview],
+  )
+
+  const loadIndex = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [campaignResponse, scriptsResponse, overviewResponse] = await Promise.all([
+        engagehubRequest<CampaignsResponse>("/api/v1/campaigns/"),
+        engagehubRequest<ScriptsResponse>("/api/v1/scripts/"),
+        engagehubRequest<SetupOverview>("/api/v1/utils/setup-overview/"),
+      ])
+      setCampaigns(campaignResponse.data)
+      setScripts(scriptsResponse.data)
+      setSetupOverview(overviewResponse)
+      setSelectedCampaignId((current) => current || campaignResponse.data[0]?.id || "")
+      setSelectedScriptId((current) => {
+        if (current && scriptsResponse.data.some((script) => script.id === current)) {
+          return current
+        }
+        const nextScript = scriptsResponse.data.find(
+          (script) => !selectedCampaignId || script.campaign_id === selectedCampaignId,
+        )
+        return nextScript?.id ?? scriptsResponse.data[0]?.id ?? null
+      })
+      if (!editorCampaignId && campaignResponse.data[0]) {
+        setEditorCampaignId(campaignResponse.data[0].id)
+      }
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to load voice setup")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadScriptDetail = async (scriptId: string) => {
+    try {
+      const detail = await engagehubRequest<ScriptDetail>(`/api/v1/scripts/${scriptId}`)
+      setSelectedScript(detail)
+    } catch (requestError) {
+      setSelectedScript(null)
+      setError(requestError instanceof Error ? requestError.message : "Failed to load script details")
+    }
+  }
+
   useEffect(() => {
-    const load = () => setVoicesReady(window.speechSynthesis.getVoices().length > 0)
-    load()
-    window.speechSynthesis.addEventListener("voiceschanged", load)
-    return () => window.speechSynthesis.removeEventListener("voiceschanged", load)
+    void loadIndex()
   }, [])
 
-  const agent = AGENTS.find((a) => a.id === selectedAgent)!
-  const script = scripts[selectedAgent]
-
-  const handleScriptChange = (value: string) => {
-    setScripts((prev) => ({ ...prev, [selectedAgent]: value }))
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newFiles = Array.from(e.target.files ?? [])
-    setKbFiles((prev) => {
-      const existing = new Set(prev.map((f) => f.name))
-      return [...prev, ...newFiles.filter((f) => !existing.has(f.name))]
-    })
-    setKbSaved(false)
-    // reset input so the same file can be re-added after remove
-    e.target.value = ""
-  }
-
-  const removeKbFile = (name: string) => {
-    setKbFiles((prev) => prev.filter((f) => f.name !== name))
-    setKbSaved(false)
-  }
-
-  const saveKnowledgebase = () => {
-    // In production this would POST to API; here we just confirm
-    setKbSaved(true)
-  }
-
-  const handleTestCall = () => {
-    setTestStatus(
-      `Test call initiated using ${agent.name}. In integration mode, this will trigger a real preview call to your verified number.`,
-    )
-    setTimeout(() => setTestStatus(null), 6000)
-  }
-
-  const handleDemo = (a: VoiceAgent) => {
-    // Stop any current speech
-    window.speechSynthesis.cancel()
-    if (speakingAgent === a.id) {
-      setSpeakingAgent(null)
+  useEffect(() => {
+    if (!selectedScriptId) {
+      setSelectedScript(null)
       return
     }
-    const utterance = new SpeechSynthesisUtterance(a.demoGreeting)
-    const voice = pickVoice(a.voiceHints, a.gender)
-    if (voice) utterance.voice = voice
-    utterance.pitch = a.pitch
-    utterance.rate = a.rate
-    utterance.onstart = () => setSpeakingAgent(a.id)
-    utterance.onend = () => setSpeakingAgent(null)
-    utterance.onerror = () => setSpeakingAgent(null)
-    window.speechSynthesis.speak(utterance)
+    void loadScriptDetail(selectedScriptId)
+  }, [selectedScriptId])
+
+  useEffect(() => {
+    if (!selectedCampaignId) {
+      return
+    }
+    if (filteredScripts.length === 0) {
+      setSelectedScriptId(null)
+      return
+    }
+    if (!selectedScriptId || !filteredScripts.some((script) => script.id === selectedScriptId)) {
+      setSelectedScriptId(filteredScripts[0].id)
+    }
+  }, [filteredScripts, selectedCampaignId, selectedScriptId])
+
+  const openCreateDialog = () => {
+    setEditorMode("create")
+    setScriptName("")
+    setEditorCampaignId(selectedCampaignId || campaigns[0]?.id || "")
+    setScriptContent(SAMPLE_SCRIPT)
+    setActive(true)
+    setDialogOpen(true)
+  }
+
+  const openEditDialog = () => {
+    if (!selectedScript) {
+      return
+    }
+    setEditorMode("edit")
+    setScriptName(selectedScript.name)
+    setEditorCampaignId(selectedScript.campaign_id)
+    setScriptContent(selectedScript.content)
+    setActive(selectedScript.active)
+    setDialogOpen(true)
+  }
+
+  const saveScript = async () => {
+    if (!scriptName.trim() || !editorCampaignId || !scriptContent.trim()) {
+      setError("Script name, campaign, and content are required.")
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setFeedback(null)
+    try {
+      let scriptId = selectedScript?.id
+      if (editorMode === "create") {
+        const created = await engagehubRequest<ScriptSummary>("/api/v1/scripts/", {
+          method: "POST",
+          idempotent: true,
+          body: {
+            name: scriptName.trim(),
+            campaign_id: editorCampaignId,
+            content: scriptContent.trim(),
+          },
+        })
+        scriptId = created.id
+      } else if (scriptId) {
+        await engagehubRequest<ScriptDetail>(`/api/v1/scripts/${scriptId}`, {
+          method: "PUT",
+          body: {
+            name: scriptName.trim(),
+            content: scriptContent.trim(),
+            active,
+          },
+        })
+      }
+
+      if (!scriptId) {
+        throw new Error("Script id was not returned by the API.")
+      }
+
+      await loadIndex()
+      setSelectedCampaignId(editorCampaignId)
+      setSelectedScriptId(scriptId)
+      setFeedback(editorMode === "create" ? "Script created." : "Script updated.")
+      setDialogOpen(false)
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not save script")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const deleteSelectedScript = async () => {
+    if (!selectedScript) {
+      return
+    }
+    setSaving(true)
+    setError(null)
+    setFeedback(null)
+    try {
+      await engagehubRequest(`/api/v1/scripts/${selectedScript.id}`, {
+        method: "DELETE",
+      })
+      const deletedId = selectedScript.id
+      await loadIndex()
+      setSelectedScriptId((current) => (current === deletedId ? null : current))
+      setSelectedScript(null)
+      setFeedback("Script deactivated.")
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not deactivate script")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
-          <Mic2 className="h-7 w-7 text-primary" />
-          Voice Agents
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Choose an AI voice agent, write a script, and manage a shared
-          knowledgebase for context-aware calls.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
+            <Mic2 className="h-7 w-7 text-primary" />
+            Voice Setup
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage real voice scripts, campaign linkage, and provider readiness for AI calling.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => void loadIndex()} disabled={loading}>
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Refresh
+          </Button>
+          <Button onClick={openCreateDialog} disabled={campaigns.length === 0}>
+            <Plus className="mr-2 h-4 w-4" />
+            New script
+          </Button>
+        </div>
       </div>
 
-      {/* Agent selector */}
-      <div className="grid md:grid-cols-2 gap-4">
-        {AGENTS.map((a) => (
-          <div
-            key={a.id}
-            onClick={() => setSelectedAgent(a.id)}
-            className={`relative text-left rounded-xl border p-5 transition-all cursor-pointer ${
-              selectedAgent === a.id
-                ? "border-primary bg-primary/5 shadow-sm"
-                : "border-border/70 hover:border-primary/50"
-            }`}
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-full text-primary ${speakingAgent === a.id ? "bg-primary/30 animate-pulse" : "bg-primary/10"}`}>
-                <User className="h-5 w-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-base">{a.name}</p>
-                <div className="flex gap-2 mt-0.5 flex-wrap">
-                  <Badge variant="secondary" className="text-xs">{a.gender}</Badge>
-                  <Badge variant="outline" className="text-xs">{a.tone}</Badge>
-                </div>
-              </div>
-              {/* Demo button */}
-              <Button
-                size="sm"
-                variant={speakingAgent === a.id ? "default" : "outline"}
-                className="gap-1.5 shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDemo(a)
-                }}
-                title={speakingAgent === a.id ? "Stop demo" : `Hear ${a.name}`}
-              >
-                {speakingAgent === a.id ? (
-                  <><Square className="h-3.5 w-3.5" /> Stop</>
-                ) : (
-                  <><Play className="h-3.5 w-3.5" /> Demo</>
-                )}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">{a.description}</p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Accent:</span> {a.accent}
-            </p>
-            {!voicesReady && (
-              <p className="mt-1 text-xs text-amber-500">Loading speech voices…</p>
-            )}
-          </div>
-        ))}
+      {error && <Alert variant="destructive">{error}</Alert>}
+      {feedback && <Alert>{feedback}</Alert>}
+
+      <div className="grid gap-4 lg:grid-cols-4">
+        <ReadinessCard
+          title="Twilio Voice"
+          configured={integrationMap.get("twilio")?.configured ?? false}
+          source={integrationMap.get("twilio")?.source ?? "missing"}
+          detail={integrationMap.get("twilio")?.note ?? "Voice calling, callbacks, and media streams."}
+        />
+        <ReadinessCard
+          title="Deepgram"
+          configured={integrationMap.get("deepgram")?.configured ?? false}
+          source={integrationMap.get("deepgram")?.source ?? "missing"}
+          detail={integrationMap.get("deepgram")?.note ?? "Speech-to-text and text-to-speech for live calls."}
+        />
+        <ReadinessCard
+          title="Groq"
+          configured={integrationMap.get("groq")?.configured ?? false}
+          source={integrationMap.get("groq")?.source ?? "missing"}
+          detail={integrationMap.get("groq")?.note ?? "Live call responses and voice conversation logic."}
+        />
+        <ReadinessCard
+          title="Public callbacks"
+          configured={setupOverview?.callbacks.public_host ?? false}
+          source={(setupOverview?.callbacks.public_host ?? false) ? "public" : "local"}
+          detail={setupOverview?.callbacks.public_host
+            ? setupOverview?.callbacks.twilio_twiml_url
+            : "Twilio webhooks and media streams still point at a local-only host."}
+        />
       </div>
 
-      {/* Configuration tabs */}
-      <Tabs defaultValue="script" className="mt-2">
-        <TabsList>
-          <TabsTrigger value="script">Script</TabsTrigger>
-          <TabsTrigger value="knowledgebase">
-            Knowledgebase
-            {kbFiles.length > 0 && (
-              <Badge variant="secondary" className="ml-2 text-xs">{kbFiles.length}</Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="settings">Call Settings</TabsTrigger>
-        </TabsList>
-
-        {/* ── Script tab ──────────────────────────────────────────────── */}
-        <TabsContent value="script" className="mt-4 space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">
-                {agent.name}&apos;s Call Script
-              </CardTitle>
-              <CardDescription>
-                Use{" "}
-                <code className="text-xs bg-muted px-1 rounded">
-                  {"{{contact.firstName}}"}
-                </code>{" "}
-                and other tokens for personalisation. The agent reads this
-                verbatim and falls back to the shared knowledgebase for
-                follow-up questions.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-1">
-                <Label>Call Objective</Label>
-                <Select value={objective} onValueChange={setObjective}>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
+        <Card className="border-border/70">
+          <CardHeader>
+            <div className="space-y-3">
+              <div>
+                <CardTitle>Campaign voice scripts</CardTitle>
+                <CardDescription>
+                  Select a campaign to inspect the real scripts already associated with it.
+                </CardDescription>
+              </div>
+              <div className="space-y-2">
+                <Label>Campaign</Label>
+                <Select value={selectedCampaignId} onValueChange={setSelectedCampaignId}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select campaign" />
                   </SelectTrigger>
                   <SelectContent>
-                    {OBJECT_TYPES.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
+                    {campaigns.map((campaign) => (
+                      <SelectItem key={campaign.id} value={campaign.id}>{campaign.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
-                <Label>Script</Label>
-                <textarea
-                  rows={8}
-                  value={script}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                    handleScriptChange(e.target.value)
-                  }
-                  placeholder="Enter the call script…"
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y"
-                />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {loading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading voice scripts...
               </div>
-              <Button
-                onClick={handleTestCall}
-                variant="outline"
-                className="gap-2"
-              >
-                <Volume2 className="h-4 w-4" />
-                Preview Test Call
-              </Button>
-              {testStatus && (
-                <Alert className="text-sm">{testStatus}</Alert>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            )}
 
-        {/* ── Shared Knowledgebase tab ─────────────────────────────────── */}
-        <TabsContent value="knowledgebase" className="mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Shared Knowledgebase</CardTitle>
-              <CardDescription>
-                These files are available to{" "}
-                <strong>both Alex and Morgan</strong>. The agents reference
-                them when a contact asks questions outside the script. Upload
-                PDFs, DOCX, or TXT files.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Uploaded file list */}
-              {kbFiles.length > 0 && (
-                <ul className="space-y-2">
-                  {kbFiles.map((f) => (
-                    <li
-                      key={f.name}
-                      className="flex items-center justify-between rounded-md border border-border/70 px-3 py-2 text-sm"
-                    >
-                      <span className="truncate text-muted-foreground">
-                        {f.name}{" "}
-                        <span className="text-xs">
-                          ({(f.size / 1024).toFixed(0)} KB)
-                        </span>
-                      </span>
-                      <button
-                        onClick={() => removeKbFile(f.name)}
-                        className="ml-3 shrink-0 text-muted-foreground hover:text-destructive transition-colors"
-                        title="Remove"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Drop zone / add more */}
-              <div
-                className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border/70 p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => fileRef.current?.click()}
-              >
-                <Upload className="h-7 w-7 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  {kbFiles.length === 0
-                    ? "Click to upload or drag & drop PDF, DOCX or TXT files"
-                    : "Click to add more files"}
-                </p>
-                <p className="text-xs text-muted-foreground">Max 20 MB per file</p>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  multiple
-                  accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
+            {!loading && filteredScripts.length === 0 && (
+              <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                No scripts found for this campaign. Create one to make the voice path operational.
               </div>
+            )}
 
-              {kbSaved && (
-                <p className="text-sm text-green-600 dark:text-green-400">
-                  ✓ Knowledgebase saved — available to Alex and Morgan.
-                </p>
-              )}
-
-              <Button
-                disabled={kbFiles.length === 0}
-                className="w-full"
-                onClick={saveKnowledgebase}
+            {filteredScripts.map((script) => (
+              <button
+                key={script.id}
+                type="button"
+                onClick={() => setSelectedScriptId(script.id)}
+                className={`w-full rounded-lg border p-4 text-left transition-colors ${
+                  selectedScriptId === script.id ? "border-primary bg-primary/5" : "border-border/70 hover:border-primary/40"
+                }`}
               >
-                Save Knowledgebase ({kbFiles.length} file
-                {kbFiles.length !== 1 ? "s" : ""})
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{script.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Created {formatDate(script.created_at)}</p>
+                  </div>
+                  <Badge variant={script.active ? "default" : "outline"}>{script.active ? "Active" : "Inactive"}</Badge>
+                </div>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
 
-        {/* ── Call Settings tab ────────────────────────────────────────── */}
-        <TabsContent value="settings" className="mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Call Settings</CardTitle>
-              <CardDescription>
-                Configure retry attempts, call windows, and voicemail behaviour.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Advanced call configuration (retry count, time windows,
-                voicemail recording, consent recording, DNC list integration)
-                will be available once your telephony provider is connected in
-                Settings.
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        <Card className="border-border/70">
+          <CardHeader>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle>{selectedScript?.name ?? "Script details"}</CardTitle>
+                <CardDescription>
+                  {selectedScript
+                    ? `Campaign: ${campaigns.find((campaign) => campaign.id === selectedScript.campaign_id)?.name ?? "Unknown campaign"}`
+                    : "Select a script to see the real parsed preview and campaign association."}
+                </CardDescription>
+              </div>
+              {selectedScript && (
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={openEditDialog}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit
+                  </Button>
+                  <Button size="sm" variant="ghost" className="text-rose-500 hover:text-rose-600" onClick={deleteSelectedScript} disabled={saving}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Deactivate
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {!selectedScript && !loading && (
+              <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+                Choose a script to view the backend-parsed preview and voice readiness context.
+              </div>
+            )}
+
+            {selectedScript && (
+              <>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <MetricCard label="Status" value={selectedScript.active ? "Active" : "Inactive"} />
+                  <MetricCard label="Campaign" value={campaigns.find((campaign) => campaign.id === selectedScript.campaign_id)?.name ?? "Unknown"} />
+                  <MetricCard label="Created" value={formatDate(selectedScript.created_at)} />
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="font-medium">Script source</h3>
+                    <p className="text-sm text-muted-foreground">
+                      This is the exact backend-backed script content associated with the selected campaign.
+                    </p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/20 p-4">
+                    <pre className="whitespace-pre-wrap text-sm text-foreground">{selectedScript.content}</pre>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="font-medium">Parsed preview</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Derived from the same backend parser used by the script preview endpoint.
+                    </p>
+                  </div>
+
+                  <PreviewSection title="Opening pitch" content={selectedScript.parsed?.opening_pitch || "Not provided"} />
+                  <PreviewSection title="Fallback" content={selectedScript.parsed?.fallback_response || "Not provided"} />
+                  <PreviewSection title="Scheduling question" content={selectedScript.parsed?.scheduling_question || "Not provided"} />
+
+                  <div className="rounded-lg border p-4">
+                    <p className="font-medium">Q&A pairs</p>
+                    <div className="mt-3 space-y-3">
+                      {selectedScript.parsed?.qa_pairs?.length ? (
+                        selectedScript.parsed.qa_pairs.map((pair, index) => (
+                          <div key={`${pair.question}-${index}`} className="rounded-md bg-muted/30 p-3">
+                            <p className="text-sm font-medium">Q: {pair.question}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">A: {pair.answer}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No structured Q&A pairs were parsed from this script.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {setupOverview && !setupOverview.callbacks.public_host && (
+                  <Alert variant="destructive">
+                    Voice scripts are saved, but Twilio callbacks still point at a local host. Update the public callback host in workspace setup before treating voice execution as release-ready.
+                  </Alert>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{editorMode === "create" ? "Create script" : "Edit script"}</DialogTitle>
+            <DialogDescription>
+              Save real campaign voice scripts through the backend script CRUD endpoints.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-2">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="script-name">Script name</Label>
+                <Input id="script-name" value={scriptName} onChange={(event) => setScriptName(event.target.value)} placeholder="e.g. Discovery call opener" />
+              </div>
+              <div className="space-y-2">
+                <Label>Campaign</Label>
+                <Select value={editorCampaignId} onValueChange={setEditorCampaignId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select campaign" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {campaigns.map((campaign) => (
+                      <SelectItem key={campaign.id} value={campaign.id}>{campaign.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {editorMode === "edit" && (
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={active ? "active" : "inactive"} onValueChange={(value) => setActive(value === "active")}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="script-content">Script content</Label>
+              <Textarea
+                id="script-content"
+                rows={18}
+                value={scriptContent}
+                onChange={(event) => setScriptContent(event.target.value)}
+                placeholder="Paste the script in the backend markdown format"
+                className="font-mono"
+              />
+            </div>
+
+            <div className="rounded-md border bg-muted/20 p-4 text-sm text-muted-foreground">
+              Use the backend script format with sections like <strong>Opening Pitch</strong>, <strong>Q&A</strong>, <strong>Fallback</strong>, and <strong>Scheduling</strong>. If the backend rejects the payload, the page keeps the unsaved draft open and surfaces the error instead of pretending it saved.
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
+            <Button onClick={() => void saveScript()} disabled={saving || !scriptName.trim() || !editorCampaignId || !scriptContent.trim()}>
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {editorMode === "create" ? "Create script" : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+function ReadinessCard(props: {
+  title: string
+  configured: boolean
+  source: string
+  detail: string
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base">{props.title}</CardTitle>
+            <CardDescription>Source: {props.source}</CardDescription>
+          </div>
+          <StatusBadge ready={props.configured} />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">{props.detail}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function StatusBadge({ ready }: { ready: boolean }) {
+  if (ready) {
+    return (
+      <Badge className="gap-1">
+        <CheckCircle2 className="size-3.5" />
+        Ready
+      </Badge>
+    )
+  }
+
+  return (
+    <Badge variant="secondary" className="gap-1">
+      <TriangleAlert className="size-3.5" />
+      Needs setup
+    </Badge>
+  )
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border p-4">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-lg font-semibold break-words">{value}</p>
+    </div>
+  )
+}
+
+function PreviewSection({ title, content }: { title: string; content: string }) {
+  return (
+    <div className="rounded-lg border p-4">
+      <p className="font-medium">{title}</p>
+      <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{content}</p>
     </div>
   )
 }

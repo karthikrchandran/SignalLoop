@@ -24,6 +24,7 @@ dependencies = [
     "websockets>=13.0,<14.0",
     "cryptography>=44.0,<45.0",
     "chardet>=5.2,<6.0",
+    "aiosmtplib>=3.0,<4.0",
 ]
 
 [dependency-groups]
@@ -80,3 +81,8 @@ sort = "-Cover"
 
 [tool.coverage.html]
 show_contexts = true
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore:'asyncio\\.iscoroutinefunction' is deprecated and slated for removal in Python 3\\.16; use inspect\\.iscoroutinefunction\\(\\) instead:DeprecationWarning:slowapi\\.extension",
+]

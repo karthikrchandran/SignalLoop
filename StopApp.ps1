@@ -8,6 +8,18 @@ foreach ($name in $targets) {
     }
 }
 
+# Stop local Vite/npm frontend processes launched from this workspace.
+Get-CimInstance Win32_Process |
+    Where-Object {
+        $_.Name -eq "node.exe" -and
+        $_.CommandLine -like "*eMailVoice*" -and
+        ($_.CommandLine -like "*vite*" -or $_.CommandLine -like "*apps*web*")
+    } |
+    ForEach-Object {
+        Stop-Process -Id $_.ProcessId -Force
+        Write-Host "  Stopped: node frontend"
+    }
+
 # Also stop any uv-spawned Python worker processes
 Get-Process -Name "python" -ErrorAction SilentlyContinue |
     Where-Object { $_.MainWindowTitle -match "Worker" } |

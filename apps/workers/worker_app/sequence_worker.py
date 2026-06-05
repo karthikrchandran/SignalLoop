@@ -58,6 +58,8 @@ from app.domain_models import (  # noqa: E402
     PolicyStatus,
     PolicyType,
 )
+from app.infrastructure.providers.base import EmailAdapter  # noqa: E402
+from app.infrastructure.providers.registry import resolve_email_adapter  # noqa: E402
 from app.infrastructure.providers.sendgrid import SendGridAdapter  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -220,7 +222,7 @@ async def _process_single(
     state: ContactSequenceState,
     workspace_id: str,
     campaign_id: uuid.UUID,
-    adapter: SendGridAdapter,
+    adapter: EmailAdapter,
 ) -> None:
     """Process one due ``ContactSequenceState`` row.
 
@@ -437,7 +439,7 @@ async def process_batch() -> int:
         # Cache workspace info to avoid repeated JOINs and per-workspace cap checks.
         _cap_cache: dict[str, int] = {}       # workspace_id → effective daily cap
         _count_cache: dict[str, int] = {}     # workspace_id → sends so far today
-        _adapter_cache: dict[str, SendGridAdapter] = {}  # workspace_id → adapter
+        _adapter_cache: dict[str, EmailAdapter] = {}  # workspace_id → adapter
 
         for state in due_states:
             # -- Resolve workspace / campaign ---------------------------------
@@ -471,17 +473,16 @@ async def process_batch() -> int:
                 )
                 continue  # skip remaining contacts for this workspace
 
-            # -- Build (or reuse) SendGrid adapter ----------------------------
+            # -- Build (or reuse) email adapter (per-workspace registry) ----
             if workspace_id not in _adapter_cache:
-                creds = resolve_provider_credentials(
+                # Falls back to SendGridAdapter() when the workspace hasn't
+                # opted into a custom provider — preserves legacy behaviour
+                # and keeps `patch.object(sequence_worker, "SendGridAdapter")`
+                # working in tests.
+                _adapter_cache[workspace_id] = resolve_email_adapter(
                     session,
-                    workspace_id=workspace_id,
-                    provider=NotificationProvider.sendgrid,
-                    channel="email",
-                )
-                _adapter_cache[workspace_id] = SendGridAdapter(
-                    api_key=creds.get("api_key"),
-                    from_email=creds.get("from_email"),
+                    workspace_id,
+                    default_factory=SendGridAdapter,
                 )
 
             adapter = _adapter_cache[workspace_id]

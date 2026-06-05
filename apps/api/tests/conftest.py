@@ -37,6 +37,19 @@ def db() -> Generator[Session, None, None]:
         _clear_users(session)
 
 
+@pytest.fixture(autouse=True)
+def reset_db_session_state(db: Session) -> Generator[None, None, None]:
+    """Keep the shared session usable between tests even after rollback-triggering failures."""
+    if db is None:
+        yield
+        return
+    db.rollback()
+    db.expire_all()
+    yield
+    db.rollback()
+    db.expire_all()
+
+
 @pytest.fixture(scope="module")
 def client() -> Generator[TestClient, None, None]:
     with TestClient(app) as c:

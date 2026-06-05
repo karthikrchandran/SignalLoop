@@ -2,12 +2,12 @@
 
 Covers all branches of the polling worker:
 - no pending sessions
-- answered call → summary sent
+- answered call Ã¢â€ â€™ summary sent
 - answered call missing CallRequest (early return)
 - answered call missing Contact (uses defaults)
-- non-answered call → skipped
-- exception during processing → status set to "error"
-- TEAM_NOTIFICATION_EMAIL unset → skip send
+- non-answered call Ã¢â€ â€™ skipped
+- exception during processing Ã¢â€ â€™ status set to "error"
+- TEAM_NOTIFICATION_EMAIL unset Ã¢â€ â€™ skip send
 - ``run_worker`` loop iterates and handles per-iteration errors
 - ``main`` boots logging and runs the worker
 """
@@ -53,7 +53,7 @@ def _build_call_session(outcome=CallOutcome.answered, sid=1, request_id=10):
 
 
 def test_process_completed_calls_returns_zero_when_no_pending() -> None:
-    """No pending sessions ⇒ returns 0 and never instantiates the adapter."""
+    """No pending sessions Ã¢â€¡â€™ returns 0 and never instantiates the adapter."""
     session = _build_session_mock(pending=[])
 
     with (
@@ -89,7 +89,7 @@ def test_process_completed_calls_sends_summary_for_answered_call() -> None:
 
     assert count == 1
     assert cs.postcall_status == "summary_sent"
-    send_summary.assert_awaited_once_with(session, adapter_instance, cs)
+    send_summary.assert_awaited_once_with(session, cs)
     session.add.assert_called_with(cs)
     session.commit.assert_called_once()
 
@@ -152,8 +152,9 @@ def test_send_summary_returns_early_when_call_request_missing() -> None:
     adapter.send_email = AsyncMock()
     cs = _build_call_session()
 
-    with patch("app.workers.postcall_worker.generate_summary") as gen:
-        _run(postcall_worker._send_summary(session, adapter, cs))
+    with patch("app.workers.postcall_worker.generate_summary") as gen, \
+         patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter):
+        _run(postcall_worker._send_summary(session, cs))
 
     gen.assert_not_called()
     adapter.send_email.assert_not_awaited()
@@ -177,8 +178,9 @@ def test_send_summary_uses_contact_defaults_when_contact_missing() -> None:
             "app.workers.postcall_worker.generate_summary", return_value=summary
         ) as gen,
         patch.object(postcall_worker.settings, "TEAM_NOTIFICATION_EMAIL", "ops@x.io"),
+        patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
     ):
-        _run(postcall_worker._send_summary(session, adapter, cs))
+        _run(postcall_worker._send_summary(session, cs))
 
     _, kwargs = gen.call_args
     assert kwargs["contact_name"] == "Unknown"
@@ -208,8 +210,9 @@ def test_send_summary_uses_contact_fields_when_present() -> None:
             "app.workers.postcall_worker.generate_summary", return_value=summary
         ) as gen,
         patch.object(postcall_worker.settings, "TEAM_NOTIFICATION_EMAIL", "ops@x.io"),
+        patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
     ):
-        _run(postcall_worker._send_summary(session, adapter, cs))
+        _run(postcall_worker._send_summary(session, cs))
 
     _, kwargs = gen.call_args
     assert kwargs["contact_name"] == "Ada Lovelace"
@@ -218,7 +221,7 @@ def test_send_summary_uses_contact_fields_when_present() -> None:
 
 
 def test_send_summary_skips_send_when_team_email_unset() -> None:
-    """No ``TEAM_NOTIFICATION_EMAIL`` configured ⇒ generator runs but no email is sent."""
+    """No ``TEAM_NOTIFICATION_EMAIL`` configured Ã¢â€¡â€™ generator runs but no email is sent."""
     session = MagicMock()
     call_request = MagicMock(contact_id=1)
     contact = MagicMock(first_name="X", last_name="Y", company="C", email="e@e.io")
@@ -231,8 +234,9 @@ def test_send_summary_skips_send_when_team_email_unset() -> None:
     with (
         patch("app.workers.postcall_worker.generate_summary", return_value=MagicMock()),
         patch.object(postcall_worker.settings, "TEAM_NOTIFICATION_EMAIL", ""),
+        patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
     ):
-        _run(postcall_worker._send_summary(session, adapter, cs))
+        _run(postcall_worker._send_summary(session, cs))
 
     adapter.send_email.assert_not_awaited()
 
@@ -260,6 +264,7 @@ def test_run_worker_iterates_and_handles_processed_count() -> None:
             "app.workers.postcall_worker._process_completed_calls",
             side_effect=fake_process,
         ),
+        patch("app.workers.postcall_worker.record_worker_heartbeat"),
         patch("app.workers.postcall_worker.asyncio.sleep", side_effect=fake_sleep),
     ):
         with pytest.raises(asyncio.CancelledError):
@@ -284,6 +289,7 @@ def test_run_worker_swallows_loop_iteration_errors() -> None:
             "app.workers.postcall_worker._process_completed_calls",
             side_effect=fake_process,
         ),
+        patch("app.workers.postcall_worker.record_worker_heartbeat"),
         patch("app.workers.postcall_worker.asyncio.sleep", side_effect=fake_sleep),
     ):
         with pytest.raises(asyncio.CancelledError):

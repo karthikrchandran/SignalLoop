@@ -7,7 +7,9 @@ EngageHub is a hybrid monorepo for governed campaign orchestration across email 
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/)
 - Node.js 20+
-- [Bun](https://bun.sh/) for the web frontend
+- npm for the web frontend
+- Mailpit for local email capture (`scoop install mailpit`)
+- Ollama for local LLM demos (`llama3.2:1b` is the default model)
 - Docker Desktop with Docker Compose is optional for containerized runs
 
 ## Workspace Layout
@@ -53,8 +55,8 @@ uv run python -m app.workers.postcall_worker
 
 # 3. Frontend
 cd ..\web
-bun install
-bun run dev     # http://localhost:5173
+npm install
+npm run dev     # http://localhost:5173
 ```
 
 `.env` already targets `localhost` for both Postgres and Redis, so no further config edits are needed for local-only runs. Provider credentials (`SENDGRID_*`, `TWILIO_*`, `DEEPGRAM_API_KEY`, `GROQ_API_KEY`) are optional — the adapters fail closed when keys are absent, so the API and UI still boot for development.
@@ -63,6 +65,22 @@ Confirm service health:
 
 - API health: `http://localhost:8001/api/v1/utils/health-check/`
 - Web app: `http://localhost:5173`
+- Mailpit inbox: `http://localhost:8025`
+
+### Near-zero local demo stack
+
+The local demo path uses only local tools: Mailpit for email capture, Ollama for LLM calls, and a `uv`-started faster-whisper service for batch STT.
+
+```powershell
+# install once if needed
+scoop install mailpit
+ollama pull llama3.2:1b
+
+# start local services, API, web, STT, and seed provider selections
+.\tooling\demo-up.ps1
+```
+
+Provider selections can be reviewed by a superuser in the web app at `Settings -> Providers`. Paid provider keys should stay blank until you register for those services.
 
 ### Option B — Docker Compose (optional)
 
@@ -97,6 +115,16 @@ cd apps/api
 uv run alembic revision --autogenerate -m "describe change"
 ```
 
+## Documentation
+
+Full handover documentation lives under [`docs/`](docs/):
+
+- [Developer guide](docs/developer-guide/README.md) — onboarding, codebase tour, env vars, testing, troubleshooting.
+- [User guide](docs/user-guide/getting-started.md) — operator-facing product walkthrough.
+- [Architecture overview](docs/architecture/README.md) — system context, data model, process flows.
+- [Operations / dev scripts](docs/operations/dev-scripts.md) — start/stop scripts and ports.
+- [Provider setup](docs/operations/provider-setup.md) — local Mailpit/Ollama/faster-whisper first, paid providers only when registered.
+
 ## Running Tests
 
 Backend tests:
@@ -110,15 +138,16 @@ Frontend checks:
 
 ```bash
 cd apps/web
-bun install
-bun run lint
-bun run build
+npm install
+npm run lint
+npm run build
 ```
 
 ## Services
 
 - PostgreSQL for transactional campaign and governance records (audit events also live here in the `audit_events` table)
 - Redis for async coordination and short-lived state
+- Mailpit, Ollama, and faster-whisper for the local no-spend demo path
 
 ## Current Story Coverage
 

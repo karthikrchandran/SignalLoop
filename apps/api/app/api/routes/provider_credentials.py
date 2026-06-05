@@ -20,7 +20,17 @@ from app.domain.audit.audit_events import (
     append_audit_event_to_session,
     audit_actor_role,
 )
-from app.domain_models import NotificationProvider, ProviderCredential
+from app.domain_models import (
+    NotificationProvider,
+    ProviderCapability,
+    ProviderCredential,
+    WorkspaceProviderSelection,
+)
+from app.infrastructure.providers.registry import (
+    PROVIDER_CATALOG,
+    ProviderResolutionError,
+    build_adapter_from_credential,
+)
 
 router = APIRouter(
     prefix="/workspaces",
@@ -106,7 +116,7 @@ def upsert_provider_credentials(
     _ensure_workspace_path_matches_header(workspace_id, workspace_header)
     if not body.api_key.strip():
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="api_key must not be empty",
         )
 
@@ -240,3 +250,237 @@ def deactivate_provider_credential(
         },
     )
     session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Provider catalog + per-workspace selection
+# ---------------------------------------------------------------------------
+
+
+class ProviderOption(BaseModel):
+    provider: NotificationProvider
+    label: str
+    requires_creds: bool
+    free_tier: str | None = None
+    local: bool = False
+
+
+class CapabilityOptions(BaseModel):
+    capability: ProviderCapability
+    providers: list[ProviderOption]
+
+
+class ProviderCatalogPublic(BaseModel):
+    data: list[CapabilityOptions]
+
+
+@router.get(
+    "/{workspace_id}/provider-options",
+    response_model=ProviderCatalogPublic,
+    dependencies=[Depends(require_admin)],
+    summary="List the supported providers for each capability",
+)
+def list_provider_options(
+    workspace_id: str,
+    workspace_header: WorkspaceIdDep,
+) -> ProviderCatalogPublic:
+    """Return the full catalog of {capability → providers} the platform supports.
+
+    Workspaces use this to render a "choose your provider" UI.
+    """
+    _ensure_workspace_path_matches_header(workspace_id, workspace_header)
+    return ProviderCatalogPublic(
+        data=[
+            CapabilityOptions(
+                capability=ProviderCapability(cap),
+                providers=[ProviderOption(**p) for p in providers],
+            )
+            for cap, providers in PROVIDER_CATALOG.items()
+        ]
+    )
+
+
+class ProviderSelectionUpsert(BaseModel):
+    capability: ProviderCapability
+    provider: NotificationProvider
+
+
+class ProviderSelectionPublic(BaseModel):
+    id: uuid.UUID
+    workspace_id: str
+    capability: ProviderCapability
+    provider: NotificationProvider
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class ProviderSelectionsPublic(BaseModel):
+    data: list[ProviderSelectionPublic]
+    count: int
+
+
+@router.get(
+    "/{workspace_id}/provider-selection",
+    response_model=ProviderSelectionsPublic,
+    dependencies=[Depends(require_admin)],
+    summary="List the workspace's active provider selections",
+)
+def list_provider_selections(
+    workspace_id: str,
+    workspace_header: WorkspaceIdDep,
+    session: SessionDep,
+) -> ProviderSelectionsPublic:
+    _ensure_workspace_path_matches_header(workspace_id, workspace_header)
+    rows = session.exec(
+        select(WorkspaceProviderSelection).where(
+            WorkspaceProviderSelection.workspace_id == workspace_id,
+            WorkspaceProviderSelection.is_active == True,  # noqa: E712
+        )
+    ).all()
+    return ProviderSelectionsPublic(
+        data=[ProviderSelectionPublic.model_validate(r) for r in rows],
+        count=len(rows),
+    )
+
+
+@router.put(
+    "/{workspace_id}/provider-selection",
+    response_model=ProviderSelectionPublic,
+    dependencies=[Depends(require_admin)],
+    summary="Choose which provider to use for a capability in this workspace",
+)
+def upsert_provider_selection(
+    *,
+    workspace_id: str,
+    workspace_header: WorkspaceIdDep,
+    current_user: CurrentUser,
+    session: SessionDep,
+    body: ProviderSelectionUpsert,
+) -> ProviderSelectionPublic:
+    """Upsert the active provider for ``capability`` in this workspace.
+
+    Subsequent worker runs will dispatch to the chosen provider via the
+    registry.  Workspace admins must separately store credentials via
+    ``POST /provider-credentials`` (unless the provider is purely local).
+    """
+    _ensure_workspace_path_matches_header(workspace_id, workspace_header)
+    existing = session.exec(
+        select(WorkspaceProviderSelection).where(
+            WorkspaceProviderSelection.workspace_id == workspace_id,
+            WorkspaceProviderSelection.capability == body.capability,
+        )
+    ).first()
+    if existing:
+        existing.provider = body.provider
+        existing.is_active = True
+        session.add(existing)
+        row = existing
+    else:
+        row = WorkspaceProviderSelection(
+            workspace_id=workspace_id,
+            capability=body.capability,
+            provider=body.provider,
+            is_active=True,
+        )
+        session.add(row)
+    append_audit_event_to_session(
+        session,
+        event_name="provider_selection_upserted",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="provider_selection",
+        resource_id=str(row.id) if row.id else None,
+        payload={
+            "capability": body.capability.value,
+            "provider": body.provider.value,
+        },
+    )
+    session.commit()
+    session.refresh(row)
+    return ProviderSelectionPublic.model_validate(row)
+
+
+class ProviderCredentialTestResult(BaseModel):
+    ok: bool
+    provider: NotificationProvider
+    channel: str
+    detail: str | None = None
+
+
+@router.post(
+    "/{workspace_id}/provider-credentials/{credential_id}/test",
+    response_model=ProviderCredentialTestResult,
+    dependencies=[Depends(require_admin)],
+    summary="Smoke-test a stored credential by instantiating its adapter",
+)
+def test_provider_credential(
+    workspace_id: str,
+    credential_id: uuid.UUID,
+    workspace_header: WorkspaceIdDep,
+    session: SessionDep,
+) -> ProviderCredentialTestResult:
+    """Lightweight probe: resolve the adapter for the stored credential.
+
+    This only verifies that the credential can be decrypted and an adapter can
+    be constructed — it does not perform a real send/call.  Real send tests
+    should be added per-provider in a follow-up to avoid surprise charges.
+    """
+    _ensure_workspace_path_matches_header(workspace_id, workspace_header)
+    cred = session.exec(
+        select(ProviderCredential).where(
+            ProviderCredential.id == credential_id,
+            ProviderCredential.workspace_id == workspace_id,
+            ProviderCredential.is_active == True,  # noqa: E712
+        )
+    ).first()
+    if not cred:
+        raise HTTPException(status_code=404, detail="Credential not found")
+
+    # Map channel -> capability for adapter construction.
+    channel_to_capability = {
+        "email": ProviderCapability.email,
+        "sms": ProviderCapability.sms,
+        "voice": ProviderCapability.voice,
+        "stt": ProviderCapability.stt,
+        "tts": ProviderCapability.tts,
+        "llm": ProviderCapability.llm,
+    }
+    capability = channel_to_capability.get(cred.channel)
+    if capability is None:
+        return ProviderCredentialTestResult(
+            ok=False,
+            provider=cred.provider,
+            channel=cred.channel,
+            detail=f"Channel '{cred.channel}' has no adapter capability mapping",
+        )
+
+    try:
+        adapter = build_adapter_from_credential(
+            session,
+            workspace_id=workspace_id,
+            provider=cred.provider,
+            capability=capability,
+        )
+        return ProviderCredentialTestResult(
+            ok=True,
+            provider=cred.provider,
+            channel=cred.channel,
+            detail=f"Resolved {type(adapter).__name__}",
+        )
+    except ProviderResolutionError as exc:
+        return ProviderCredentialTestResult(
+            ok=False,
+            provider=cred.provider,
+            channel=cred.channel,
+            detail=str(exc),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return ProviderCredentialTestResult(
+            ok=False,
+            provider=cred.provider,
+            channel=cred.channel,
+            detail=str(exc),
+        )
+

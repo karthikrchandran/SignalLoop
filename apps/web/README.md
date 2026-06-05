@@ -4,7 +4,7 @@ React/Vite operator console for EngageHub.
 
 ## Requirements
 
-- [Bun](https://bun.sh/) for frontend package management
+- Node.js 20+ and npm for frontend package management
 - EngageHub API running at `http://localhost:8001`
 
 The backend is managed separately with `uv`; see `apps/api/README.md`.
@@ -14,11 +14,18 @@ The backend is managed separately with `uv`; see `apps/api/README.md`.
 From `apps/web`:
 
 ```powershell
-bun install
-bun run dev
+npm install
+npm run dev
 ```
 
 Open `http://localhost:5173`.
+
+Superusers can review local provider choices at `Settings -> Providers` after the API is running. The local demo stack seeds Mailpit, Ollama, and faster-whisper selections with:
+
+```powershell
+# repo root
+.\tooling\demo-up.ps1
+```
 
 The default API URL is set in `.env` as:
 
@@ -29,11 +36,11 @@ VITE_API_URL=http://localhost:8001
 ## Scripts
 
 ```powershell
-bun run build
-bun run lint
-bun run generate-client
-bun run test
-bun run test:ui
+npm run build
+npm run lint
+npm run generate-client
+npm run test
+npm run test:ui
 ```
 
 ## Generate Client
@@ -41,7 +48,7 @@ bun run test:ui
 When the backend OpenAPI schema changes, run the API on `http://localhost:8001`, then regenerate the client:
 
 ```powershell
-bun run generate-client
+npm run generate-client
 ```
 
 Commit generated client changes with the backend API change.
@@ -59,13 +66,13 @@ Start the native local services, API, and web app first:
 Then run Playwright from `apps/web`:
 
 ```powershell
-bunx playwright test
+npx playwright test
 ```
 
 For UI mode:
 
 ```powershell
-bunx playwright test --ui
+npx playwright test --ui
 ```
 
 Playwright uses the repo `.env`, so keep `VITE_API_URL` pointed at `http://localhost:8001`.

@@ -168,19 +168,11 @@ def test_close_calls_socket_close() -> None:
     assert a._ws is None
 
 
-def test_close_swallows_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_close_swallows_timeout() -> None:
     """A timeout during close is suppressed."""
     a = DeepgramSTTAdapter()
     ws = MagicMock()
-
-    async def _slow():
-        raise asyncio.TimeoutError()
-
-    ws.close = MagicMock(side_effect=lambda: _slow())
+    ws.close = AsyncMock(side_effect=asyncio.TimeoutError())
     a._ws = ws
-    # Patch wait_for to raise TimeoutError directly
-    async def _raise(*_a, **_k):
-        raise asyncio.TimeoutError()
-    monkeypatch.setattr(stt_mod.asyncio, "wait_for", _raise)
     _run(a.close())  # no exception
     assert a._ws is None

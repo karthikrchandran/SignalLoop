@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import JSON, Column, DateTime, Index, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Column, DateTime, Index, String, Text, UniqueConstraint, text
 from sqlmodel import Field, SQLModel
 
 
@@ -55,11 +55,53 @@ class ContactProgressionState(str, Enum):
 
 
 class NotificationProvider(str, Enum):
-    """Enumeration of notification providers."""
+    """Enumeration of notification providers.
+
+    New values must also be appended to the Postgres enum type
+    via an Alembic migration using ``ALTER TYPE notificationprovider ADD VALUE``.
+    """
+    # --- email ---
     sendgrid = "sendgrid"
+    smtp = "smtp"
+    ses = "ses"
+    postmark = "postmark"
+    mailgun = "mailgun"
+    brevo = "brevo"
+    resend = "resend"
+    # --- sms / voice ---
     twilio = "twilio"
+    # --- speech-to-text ---
+    deepgram = "deepgram"
+    whisper_api = "whisper_api"
+    faster_whisper_local = "faster_whisper_local"
+    # --- text-to-speech ---
+    aura = "aura"
+    elevenlabs = "elevenlabs"
+    playht = "playht"
+    polly = "polly"
+    piper_local = "piper_local"
+    coqui_local = "coqui_local"
+    # --- llm ---
+    groq = "groq"
+    openai = "openai"
+    anthropic = "anthropic"
+    ollama_local = "ollama_local"
+    together = "together"
+    openrouter = "openrouter"
+    gemini = "gemini"
+    # --- scheduling / other ---
     mailchimp = "mailchimp"
     calendly = "calendly"
+
+
+class ProviderCapability(str, Enum):
+    """Enumeration of provider capabilities a workspace can configure independently."""
+    email = "email"
+    sms = "sms"
+    voice = "voice"
+    stt = "stt"
+    tts = "tts"
+    llm = "llm"
 
 
 class SegmentOperator(str, Enum):
@@ -275,6 +317,21 @@ class CampaignPolicyBinding(SQLModel, table=True):
 class GlobalControlState(SQLModel, table=True):
     """Enumeration of global control states."""
     __tablename__ = "global_control_state"
+    __table_args__ = (
+        Index(
+            "uq_global_control_state_workspace_global",
+            "workspace_id",
+            unique=True,
+            postgresql_where=text("campaign_id IS NULL"),
+        ),
+        Index(
+            "uq_global_control_state_workspace_campaign",
+            "workspace_id",
+            "campaign_id",
+            unique=True,
+            postgresql_where=text("campaign_id IS NOT NULL"),
+        ),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
@@ -388,6 +445,62 @@ class ProviderCredential(SQLModel, table=True):
     config_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+
+
+class WorkspaceRuntimeConfig(SQLModel, table=True):
+    """Per-workspace runtime settings that do not fit provider-credential storage."""
+
+    __tablename__ = "workspace_runtime_configs"
+
+    workspace_id: str = Field(primary_key=True, sa_type=String(64))
+    encrypted_deepgram_api_key: str | None = Field(default=None, sa_type=Text)
+    encrypted_groq_api_key: str | None = Field(default=None, sa_type=Text)
+    team_notification_email: str | None = Field(default=None, max_length=255)
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+
+
+class WorkspaceProviderSelection(SQLModel, table=True):
+    """Per-workspace active provider choice for a given capability.
+
+    Workspaces use this to opt out of the default provider (Twilio/SendGrid/etc.)
+    and route a capability (email/sms/voice/stt/tts/llm) to an alternate.
+    Credentials still live in ``provider_credentials``.
+    """
+
+    __tablename__ = "workspace_provider_selections"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id",
+            "capability",
+            name="uq_workspace_provider_selection_capability",
+        ),
+        Index("idx_wps_workspace", "workspace_id"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(sa_type=String(64), index=True)
+    capability: ProviderCapability
+    provider: NotificationProvider
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+
+
+class WorkerHeartbeat(SQLModel, table=True):
+    """Last-known liveness and error status for each long-running worker."""
+
+    __tablename__ = "worker_heartbeats"
+
+    worker_key: str = Field(primary_key=True, max_length=64)
+    status: str = Field(default="starting", max_length=32)
+    poll_interval_seconds: int = Field(default=30)
+    last_seen_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True), index=True)
+    last_success_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    last_error_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    last_error_message: str | None = Field(default=None, sa_type=Text)
+    last_processed_count: int = Field(default=0)
+    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
 
 
 class ProviderEventLog(SQLModel, table=True):
