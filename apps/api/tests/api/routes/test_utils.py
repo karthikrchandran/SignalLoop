@@ -9,8 +9,14 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app.core.config import settings
-from app.domain_models import NotificationProvider, ProviderCredential, WorkerHeartbeat
-
+from app.core.encryption import encrypt
+from app.domain_models import (
+    NotificationProvider,
+    ProviderCapability,
+    ProviderCredential,
+    WorkerHeartbeat,
+    WorkspaceProviderSelection,
+)
 
 WORKSPACE_ID = "ws-setup-overview"
 
@@ -256,13 +262,14 @@ def test_setup_overview_returns_workspace_setup_summary(
 ) -> None:
     """Setup overview surfaces provider status, callbacks, and worker readiness."""
 
+    workspace_id = f"ws-setup-overview-{uuid.uuid4().hex[:8]}"
     db.add(
         ProviderCredential(
-            workspace_id=WORKSPACE_ID,
+            workspace_id=workspace_id,
             provider=NotificationProvider.sendgrid,
             channel="email",
-            encrypted_api_key="enc-key",
-            encrypted_api_secret="enc-secret",
+            encrypted_api_key=encrypt("SG.test"),
+            encrypted_api_secret=None,
             config_json={"from_email": "ops@example.com"},
             is_active=True,
         )
@@ -288,7 +295,7 @@ def test_setup_overview_returns_workspace_setup_summary(
         ), patch.object(settings, "TEAM_NOTIFICATION_EMAIL", "ops@example.com"):
             resp = client.get(
                 f"{settings.API_V1_STR}/utils/setup-overview/",
-                headers=_headers(superuser_token_headers),
+                headers=_headers(superuser_token_headers, workspace_id=workspace_id),
             )
     finally:
         if original is None:
@@ -301,16 +308,24 @@ def test_setup_overview_returns_workspace_setup_summary(
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["workspace_id"] == WORKSPACE_ID
+    assert body["workspace_id"] == workspace_id
     assert body["health"] == {"api": True, "postgres": True, "redis": True}
     assert body["callbacks"]["public_host"] is True
     assert body["callbacks"]["sendgrid_webhook_url"].endswith("/api/v1/webhooks/sendgrid")
     integrations = {item["key"]: item for item in body["integrations"]}
-    assert integrations["sendgrid"]["source"] == "database"
-    assert integrations["sendgrid"]["configured"] is True
-    assert integrations["twilio"]["source"] == "environment"
-    assert integrations["deepgram"]["configured"] is True
-    assert integrations["groq"]["configured"] is True
+    assert integrations["email"]["provider"] == "sendgrid"
+    assert integrations["email"]["source"] == "database"
+    assert integrations["email"]["configured"] is True
+    assert integrations["sms"]["provider"] == "twilio"
+    assert integrations["sms"]["source"] == "environment"
+    assert integrations["voice"]["provider"] == "twilio"
+    assert integrations["voice"]["source"] == "environment"
+    assert integrations["stt"]["provider"] == "deepgram"
+    assert integrations["stt"]["configured"] is True
+    assert integrations["tts"]["provider"] == "deepgram"
+    assert integrations["tts"]["configured"] is True
+    assert integrations["llm"]["provider"] == "groq"
+    assert integrations["llm"]["configured"] is True
     assert integrations["team_notifications"]["configured"] is True
     worker_readiness = {item["key"]: item for item in body["worker_readiness"]}
     assert worker_readiness["sequence_worker"]["ready"] is True
@@ -352,5 +367,109 @@ def test_setup_overview_reports_missing_runtime_dependencies(
     worker_readiness = {item["key"]: item for item in body["worker_readiness"]}
     assert worker_readiness["sequence_worker"]["ready"] is False
     assert "redis" in worker_readiness["sequence_worker"]["missing"]
-    assert "sendgrid" in worker_readiness["sequence_worker"]["missing"]
+    assert "email_provider" in worker_readiness["sequence_worker"]["missing"]
+    assert "voice_provider" in worker_readiness["call_worker"]["missing"]
+    assert "stt_provider" in worker_readiness["call_worker"]["missing"]
+    assert "tts_provider" in worker_readiness["call_worker"]["missing"]
+    assert "llm_provider" in worker_readiness["call_worker"]["missing"]
     assert "public_callbacks" in worker_readiness["call_worker"]["missing"]
+
+
+def test_setup_overview_uses_active_local_provider_selections(
+    client: TestClient,
+    db: Session,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    """Setup overview reports local/open-source selections as active providers."""
+
+    workspace_id = f"ws-local-providers-{uuid.uuid4().hex[:8]}"
+    db.add(
+        ProviderCredential(
+            workspace_id=workspace_id,
+            provider=NotificationProvider.smtp,
+            channel="email",
+            encrypted_api_key=encrypt("smtp-local"),
+            encrypted_api_secret=None,
+            config_json={
+                "host": "localhost",
+                "port": 1025,
+                "from_email": "demo@example.com",
+            },
+            is_active=True,
+        )
+    )
+    db.add(
+        WorkspaceProviderSelection(
+            workspace_id=workspace_id,
+            capability=ProviderCapability.email,
+            provider=NotificationProvider.smtp,
+            is_active=True,
+        )
+    )
+    db.add(
+        WorkspaceProviderSelection(
+            workspace_id=workspace_id,
+            capability=ProviderCapability.stt,
+            provider=NotificationProvider.faster_whisper_local,
+            is_active=True,
+        )
+    )
+    db.add(
+        WorkspaceProviderSelection(
+            workspace_id=workspace_id,
+            capability=ProviderCapability.llm,
+            provider=NotificationProvider.ollama_local,
+            is_active=True,
+        )
+    )
+    _upsert_worker_heartbeat(db, "sequence_worker")
+    _upsert_worker_heartbeat(db, "call_worker")
+    db.commit()
+
+    class _OkRedis:
+        async def ping(self) -> bool:
+            return True
+
+    original = getattr(client.app.state, "redis_manager", None)
+    client.app.state.redis_manager = _OkRedis()
+    try:
+        with patch.object(settings, "SERVER_HOST", "public.example.com"), patch.object(
+            settings, "TWILIO_ACCOUNT_SID", ""
+        ), patch.object(settings, "TWILIO_AUTH_TOKEN", ""), patch.object(
+            settings, "TWILIO_PHONE_NUMBER", ""
+        ), patch.object(settings, "DEEPGRAM_API_KEY", ""), patch.object(
+            settings, "GROQ_API_KEY", ""
+        ), patch.object(settings, "TEAM_NOTIFICATION_EMAIL", ""):
+            resp = client.get(
+                f"{settings.API_V1_STR}/utils/setup-overview/",
+                headers=_headers(superuser_token_headers, workspace_id=workspace_id),
+            )
+    finally:
+        if original is None:
+            try:
+                del client.app.state.redis_manager
+            except AttributeError:
+                pass
+        else:
+            client.app.state.redis_manager = original
+
+    assert resp.status_code == 200
+    body = resp.json()
+    integrations = {item["key"]: item for item in body["integrations"]}
+    assert integrations["email"]["provider"] == "smtp"
+    assert integrations["email"]["configured"] is True
+    assert integrations["email"]["local"] is True
+    assert integrations["email"]["config"]["host"] == "localhost"
+    assert integrations["stt"]["provider"] == "faster_whisper_local"
+    assert integrations["stt"]["configured"] is True
+    assert integrations["stt"]["local"] is True
+    assert integrations["llm"]["provider"] == "ollama_local"
+    assert integrations["llm"]["configured"] is True
+    assert integrations["llm"]["local"] is True
+
+    worker_readiness = {item["key"]: item for item in body["worker_readiness"]}
+    assert "email_provider" not in worker_readiness["sequence_worker"]["missing"]
+    assert "stt_provider" not in worker_readiness["call_worker"]["missing"]
+    assert "llm_provider" not in worker_readiness["call_worker"]["missing"]
+    assert "voice_provider" in worker_readiness["call_worker"]["missing"]
+    assert "tts_provider" in worker_readiness["call_worker"]["missing"]

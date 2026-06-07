@@ -101,6 +101,15 @@ def _settings_fallback(provider: NotificationProvider, channel: str) -> dict[str
             "phone_number": settings.TWILIO_PHONE_NUMBER,
         }
 
+    if provider == NotificationProvider.vapi:
+        return {
+            "api_key": settings.VAPI_API_KEY,
+            "phone_number_id": settings.VAPI_PHONE_NUMBER_ID,
+            "assistant_id": settings.VAPI_ASSISTANT_ID,
+            "base_url": settings.VAPI_API_BASE_URL,
+            "call_endpoint": settings.VAPI_CALL_ENDPOINT,
+        }
+
     if provider == NotificationProvider.deepgram:
         return {"api_key": getattr(settings, "DEEPGRAM_API_KEY", "") or ""}
 

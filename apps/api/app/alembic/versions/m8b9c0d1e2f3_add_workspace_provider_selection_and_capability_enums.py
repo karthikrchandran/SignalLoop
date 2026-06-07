@@ -47,6 +47,7 @@ NEW_PROVIDER_VALUES: tuple[str, ...] = (
     "together",
     "openrouter",
     "gemini",
+    "vapi",
 )
 
 CAPABILITY_VALUES: tuple[str, ...] = (

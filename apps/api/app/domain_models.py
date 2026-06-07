@@ -70,6 +70,7 @@ class NotificationProvider(str, Enum):
     resend = "resend"
     # --- sms / voice ---
     twilio = "twilio"
+    vapi = "vapi"
     # --- speech-to-text ---
     deepgram = "deepgram"
     whisper_api = "whisper_api"

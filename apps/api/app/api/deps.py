@@ -4,7 +4,7 @@ from collections.abc import Generator
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
@@ -13,6 +13,10 @@ from sqlmodel import Session
 from app.core import security
 from app.core.config import settings
 from app.core.db import engine
+from app.domain.workspaces.service import (
+    WORKSPACE_ADMIN_ROLES,
+    user_has_workspace_access,
+)
 from app.models import TokenPayload, User
 
 reusable_oauth2 = OAuth2PasswordBearer(
@@ -62,12 +66,23 @@ _AUTH_ERROR = {
 }
 
 
-def require_admin(current_user: CurrentUser) -> User:
+def require_admin(
+    session: SessionDep,
+    current_user: CurrentUser,
+    x_workspace_id: str | None = Header(default=None, alias="X-Workspace-Id"),
+) -> User:
     """Validate and return admin."""
     if current_user.is_superuser or getattr(current_user, "role", None) in {
         "admin",
         "super_admin",
     }:
+        return current_user
+    if x_workspace_id and user_has_workspace_access(
+        session,
+        user=current_user,
+        workspace_id=x_workspace_id,
+        allowed_roles=WORKSPACE_ADMIN_ROLES,
+    ):
         return current_user
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,

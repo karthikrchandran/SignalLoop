@@ -11,6 +11,8 @@ from app.infrastructure.providers.base import EmailAdapter
 from app.infrastructure.providers.errors import ProviderConfigurationError
 from app.infrastructure.providers.sendgrid import SendGridAdapter
 from app.infrastructure.providers.smtp_email import SmtpEmailAdapter
+from app.infrastructure.providers.twilio_sms import TwilioSmsAdapter
+from app.infrastructure.providers.vapi_voice import VapiVoiceAdapter
 from app.infrastructure.providers.whisper_stt import FasterWhisperLocalAdapter
 
 
@@ -99,7 +101,7 @@ def test_build_adapter_from_credential_bypasses_selection(
     """``build_adapter_from_credential`` ignores selection rows."""
     captured: dict = {}
 
-    def fake_creds(session, **kwargs):
+    def fake_creds(_session, **kwargs):
         captured.update(kwargs)
         return {
             "api_key": "SG.x",
@@ -158,6 +160,64 @@ def test_get_adapter_resolves_faster_whisper_stt(
     assert isinstance(out, FasterWhisperLocalAdapter)
 
 
+def test_get_adapter_resolves_twilio_sms(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        reg,
+        "get_workspace_provider_selection",
+        lambda *a, **k: NotificationProvider.twilio,
+    )
+    monkeypatch.setattr(
+        reg,
+        "resolve_provider_credentials",
+        lambda *a, **k: {
+            "account_sid": "AC123",
+            "auth_token": "token",
+            "phone_number": "+15551234567",
+        },
+    )
+
+    out = reg.get_adapter(
+        MagicMock(),
+        workspace_id="ws1",
+        capability=ProviderCapability.sms,
+        default_factory=None,
+    )
+
+    assert isinstance(out, TwilioSmsAdapter)
+
+
+def test_get_adapter_resolves_vapi_voice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        reg,
+        "get_workspace_provider_selection",
+        lambda *a, **k: NotificationProvider.vapi,
+    )
+    monkeypatch.setattr(
+        reg,
+        "resolve_provider_credentials",
+        lambda *a, **k: {
+            "api_key": "vapi-key",
+            "phone_number_id": "phone-123",
+            "assistant_id": "assistant-123",
+        },
+    )
+
+    out = reg.get_adapter(
+        MagicMock(),
+        workspace_id="ws1",
+        capability=ProviderCapability.voice,
+        default_factory=None,
+    )
+
+    assert isinstance(out, VapiVoiceAdapter)
+    assert out._phone_number_id == "phone-123"
+    assert out._assistant_id == "assistant-123"
+
+
 def test_provider_catalog_covers_every_capability() -> None:
     """PROVIDER_CATALOG should expose at least one option per capability."""
     for cap in ProviderCapability:
@@ -187,3 +247,14 @@ def test_provider_catalog_includes_local_ollama_option() -> None:
     local = llm_providers[NotificationProvider.ollama_local.value]
     assert local["requires_creds"] is False
     assert local["local"] is True
+
+
+def test_provider_catalog_includes_vapi_voice_option() -> None:
+    voice_providers = {
+        entry["provider"]: entry
+        for entry in reg.PROVIDER_CATALOG[ProviderCapability.voice.value]
+    }
+
+    vapi = voice_providers[NotificationProvider.vapi.value]
+    assert vapi["requires_creds"] is True
+    assert vapi["local"] is False

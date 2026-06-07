@@ -13,7 +13,7 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session
+from sqlmodel import Session, select
 from starlette.websockets import WebSocketDisconnect
 
 from app.core.config import settings
@@ -30,6 +30,7 @@ from app.domain_models import (
     Contact,
     NotificationProvider,
     ProviderCredential,
+    ProviderEventLog,
 )
 from app.infrastructure.providers.twilio_voice import TwilioVoiceAdapter
 
@@ -184,6 +185,15 @@ def test_status_callback_verifies_tenant_credentials_and_is_idempotent(
     assert call_request.status == CallRequestStatus.in_progress
     assert call_session.twilio_status == "ringing"
 
+    duplicate_response = client.post(
+        path,
+        data=ringing_params,
+        headers=_signed_headers(path, ringing_params, TENANT_AUTH_TOKEN),
+    )
+
+    assert duplicate_response.status_code == 200
+    assert duplicate_response.json() == {"status": "ignored"}
+
     stale_params = {
         "CallSid": call_session.twilio_call_sid,
         "AccountSid": TENANT_ACCOUNT_SID,
@@ -198,6 +208,12 @@ def test_status_callback_verifies_tenant_credentials_and_is_idempotent(
     assert stale_response.status_code == 200
     db.refresh(call_session)
     assert call_session.twilio_status == "ringing"
+    events = db.exec(
+        select(ProviderEventLog).where(
+            ProviderEventLog.provider == NotificationProvider.twilio,
+        )
+    ).all()
+    assert len(events) >= 2
 
 
 def test_status_callback_detects_voicemail(client: TestClient, db: Session) -> None:
@@ -233,6 +249,15 @@ def test_recording_callback_persists_recording_url(client: TestClient, db: Sessi
     assert response.status_code == 200
     db.refresh(call_session)
     assert call_session.recording_url == params["RecordingUrl"]
+
+    duplicate_response = client.post(
+        path,
+        data=params,
+        headers=_signed_headers(path, params, GLOBAL_AUTH_TOKEN),
+    )
+
+    assert duplicate_response.status_code == 200
+    assert duplicate_response.json() == {"status": "ignored"}
 
 
 def test_adapter_enables_machine_detection(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -3,20 +3,35 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
+import anyio
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from pydantic.networks import EmailStr
 from sqlmodel import select
-import anyio
 
 from app.api.deps import SessionDep, get_current_active_superuser, require_admin
 from app.api.request_context import WorkspaceIdDep
 from app.core.config import settings
 from app.core.db import engine
-from app.domain.runtime_settings import ResolvedRuntimeValue, resolve_workspace_runtime_config
-from app.domain_models import HealthStatus, NotificationProvider, ProviderCredential, WorkerHeartbeat
+from app.domain.providers.credential_resolver import (
+    resolve_active_provider,
+    resolve_provider_credentials,
+)
+from app.domain.runtime_settings import (
+    ResolvedRuntimeValue,
+    resolve_workspace_runtime_config,
+)
+from app.domain_models import (
+    HealthStatus,
+    NotificationProvider,
+    ProviderCapability,
+    ProviderCredential,
+    WorkerHeartbeat,
+)
+from app.infrastructure.providers.registry import PROVIDER_CATALOG
 from app.models import Message
 from app.utils import generate_test_email, send_email
 
@@ -34,6 +49,11 @@ class SetupIntegrationPublic(BaseModel):
     has_secret: bool = False
     config: dict[str, str] = Field(default_factory=dict)
     note: str | None = None
+    capability: ProviderCapability | None = None
+    provider: NotificationProvider | None = None
+    provider_label: str | None = None
+    requires_creds: bool | None = None
+    local: bool | None = None
 
 
 class SetupWorkerReadinessPublic(BaseModel):
@@ -160,6 +180,199 @@ def _runtime_only_integration(
     )
 
 
+_CAPABILITY_CHANNEL: dict[ProviderCapability, str] = {
+    ProviderCapability.email: "email",
+    ProviderCapability.sms: "sms",
+    ProviderCapability.voice: "voice",
+    ProviderCapability.stt: "voice",
+    ProviderCapability.tts: "voice",
+    ProviderCapability.llm: "voice",
+}
+
+_REQUIRED_PROVIDER_CONFIG: dict[
+    tuple[NotificationProvider, ProviderCapability],
+    tuple[tuple[str, ...], ...],
+] = {
+    (NotificationProvider.sendgrid, ProviderCapability.email): (
+        ("api_key",),
+        ("from_email",),
+    ),
+    (NotificationProvider.smtp, ProviderCapability.email): (
+        ("host",),
+        ("from_email",),
+    ),
+    (NotificationProvider.twilio, ProviderCapability.sms): (
+        ("account_sid", "api_key"),
+        ("auth_token", "api_secret"),
+        ("phone_number",),
+    ),
+    (NotificationProvider.twilio, ProviderCapability.voice): (
+        ("account_sid", "api_key"),
+        ("auth_token", "api_secret"),
+        ("phone_number",),
+    ),
+    (NotificationProvider.vapi, ProviderCapability.voice): (
+        ("api_key",),
+        ("phone_number_id",),
+        ("assistant_id",),
+    ),
+    (NotificationProvider.deepgram, ProviderCapability.stt): (("api_key",),),
+    (NotificationProvider.deepgram, ProviderCapability.tts): (("api_key",),),
+    (NotificationProvider.groq, ProviderCapability.llm): (("api_key",),),
+    (NotificationProvider.openai, ProviderCapability.llm): (("api_key",),),
+    (NotificationProvider.openrouter, ProviderCapability.llm): (("api_key",),),
+    (NotificationProvider.together, ProviderCapability.llm): (("api_key",),),
+    (NotificationProvider.ollama_local, ProviderCapability.llm): (
+        ("base_url",),
+        ("model",),
+    ),
+    (NotificationProvider.faster_whisper_local, ProviderCapability.stt): (
+        ("base_url",),
+        ("model",),
+    ),
+}
+
+_DISPLAY_CONFIG_KEYS = {
+    "account_sid",
+    "base_url",
+    "from_email",
+    "from_name",
+    "host",
+    "model",
+    "assistant_id",
+    "call_endpoint",
+    "phone_number",
+    "phone_number_id",
+    "port",
+    "username",
+}
+
+_SENSITIVE_CONFIG_KEYS = {
+    "api_key",
+    "api_secret",
+    "auth_token",
+    "password",
+    "webhook_secret",
+}
+
+_PROVIDER_CAPABILITY_NOTES: dict[tuple[NotificationProvider, ProviderCapability], str] = {
+    (NotificationProvider.smtp, ProviderCapability.email): (
+        "Email delivery uses the selected SMTP relay or local mail catcher."
+    ),
+    (NotificationProvider.faster_whisper_local, ProviderCapability.stt): (
+        "Local batch transcription is configured; live voice streaming still needs a streaming STT provider."
+    ),
+    (NotificationProvider.ollama_local, ProviderCapability.llm): (
+        "LLM responses use the configured local Ollama endpoint."
+    ),
+    (NotificationProvider.vapi, ProviderCapability.voice): (
+        "Voice calls use the selected Vapi assistant and Vapi phone number."
+    ),
+}
+
+
+def _catalog_entry(
+    capability: ProviderCapability,
+    provider: NotificationProvider,
+) -> dict[str, Any]:
+    for entry in PROVIDER_CATALOG.get(capability.value, []):
+        if entry.get("provider") == provider.value:
+            return entry
+    return {
+        "provider": provider.value,
+        "label": provider.value.replace("_", " ").title(),
+        "requires_creds": True,
+        "local": False,
+    }
+
+
+def _has_required_provider_config(
+    provider: NotificationProvider,
+    capability: ProviderCapability,
+    creds: dict[str, Any],
+) -> bool:
+    requirements = _REQUIRED_PROVIDER_CONFIG.get((provider, capability))
+    if not requirements:
+        return False
+    return all(
+        any(str(creds.get(key) or "").strip() for key in alternatives)
+        for alternatives in requirements
+    )
+
+
+def _display_provider_config(creds: dict[str, Any]) -> dict[str, str]:
+    return {
+        key: str(value)
+        for key, value in creds.items()
+        if key in _DISPLAY_CONFIG_KEYS
+        and key not in _SENSITIVE_CONFIG_KEYS
+        and value not in (None, "")
+    }
+
+
+def _provider_capability_integration(
+    session: SessionDep,
+    workspace_id: str,
+    capability: ProviderCapability,
+    *,
+    credentials: dict[tuple[NotificationProvider, str], ProviderCredential],
+    runtime_config,
+) -> SetupIntegrationPublic:
+    provider = resolve_active_provider(session, workspace_id, capability)
+    channel = _CAPABILITY_CHANNEL[capability]
+    credential = credentials.get((provider, channel))
+    creds = resolve_provider_credentials(
+        session,
+        workspace_id=workspace_id,
+        provider=provider,
+        channel=channel,
+    )
+
+    source = "database" if credential else "environment"
+    has_secret = bool(credential and credential.encrypted_api_secret)
+
+    if provider == NotificationProvider.deepgram and capability in {
+        ProviderCapability.stt,
+        ProviderCapability.tts,
+    }:
+        if runtime_config.deepgram_api_key.configured:
+            creds["api_key"] = runtime_config.deepgram_api_key.value
+            source = runtime_config.deepgram_api_key.source
+            has_secret = runtime_config.deepgram_api_key.source == "database"
+    elif provider == NotificationProvider.groq and capability == ProviderCapability.llm:
+        if runtime_config.groq_api_key.configured:
+            creds["api_key"] = runtime_config.groq_api_key.value
+            source = runtime_config.groq_api_key.source
+            has_secret = runtime_config.groq_api_key.source == "database"
+
+    configured = _has_required_provider_config(provider, capability, creds)
+    if not configured:
+        source = "missing"
+
+    catalog = _catalog_entry(capability, provider)
+    provider_label = str(catalog["label"])
+    note = _PROVIDER_CAPABILITY_NOTES.get(
+        (provider, capability),
+        f"Active {capability.value} provider for this workspace.",
+    )
+
+    return SetupIntegrationPublic(
+        key=capability.value,
+        label=f"{capability.value.upper()}: {provider_label}",
+        configured=configured,
+        source=source,
+        editable=True,
+        has_secret=has_secret,
+        config=_display_provider_config(creds) if configured else {},
+        note=note,
+        capability=capability,
+        provider=provider,
+        provider_label=provider_label,
+        requires_creds=bool(catalog.get("requires_creds", True)),
+        local=bool(catalog.get("local", False)),
+    )
+
+
 async def _redis_health(request: Request) -> bool:
     redis_manager = getattr(request.app.state, "redis_manager", None)
     if redis_manager is None:
@@ -268,38 +481,47 @@ async def setup_overview(
         for heartbeat in session.exec(select(WorkerHeartbeat)).all()
     }
 
-    sendgrid = _integration_from_credential(
-        "sendgrid",
-        "SendGrid",
-        by_provider_channel.get((NotificationProvider.sendgrid, "email")),
-        env_configured=bool(settings.SENDGRID_API_KEY.strip()),
-        fallback_config={
-            "from_email": settings.SENDGRID_FROM_EMAIL,
-            "webhook_secret": "configured" if settings.SENDGRID_WEBHOOK_SECRET else "",
-        },
-        note="Email delivery and inbound SendGrid event processing.",
+    email = _provider_capability_integration(
+        session,
+        workspace_id,
+        ProviderCapability.email,
+        credentials=by_provider_channel,
+        runtime_config=runtime_config,
     )
-    twilio = _integration_from_credential(
-        "twilio",
-        "Twilio Voice",
-        by_provider_channel.get((NotificationProvider.twilio, "voice")),
-        env_configured=bool(settings.TWILIO_ACCOUNT_SID.strip() and settings.TWILIO_AUTH_TOKEN.strip()),
-        fallback_config={"phone_number": settings.TWILIO_PHONE_NUMBER},
-        note="Voice calling, status callbacks, and media streaming.",
+    sms = _provider_capability_integration(
+        session,
+        workspace_id,
+        ProviderCapability.sms,
+        credentials=by_provider_channel,
+        runtime_config=runtime_config,
     )
-    deepgram = _runtime_only_integration(
-        "deepgram",
-        "Deepgram",
-        runtime_value=runtime_config.deepgram_api_key,
-        has_secret=True,
-        note="Workspace override or environment key used for voice STT/TTS.",
+    voice = _provider_capability_integration(
+        session,
+        workspace_id,
+        ProviderCapability.voice,
+        credentials=by_provider_channel,
+        runtime_config=runtime_config,
     )
-    groq = _runtime_only_integration(
-        "groq",
-        "Groq",
-        runtime_value=runtime_config.groq_api_key,
-        has_secret=True,
-        note="Workspace override or environment key used for live voice responses.",
+    stt = _provider_capability_integration(
+        session,
+        workspace_id,
+        ProviderCapability.stt,
+        credentials=by_provider_channel,
+        runtime_config=runtime_config,
+    )
+    tts = _provider_capability_integration(
+        session,
+        workspace_id,
+        ProviderCapability.tts,
+        credentials=by_provider_channel,
+        runtime_config=runtime_config,
+    )
+    llm = _provider_capability_integration(
+        session,
+        workspace_id,
+        ProviderCapability.llm,
+        credentials=by_provider_channel,
+        runtime_config=runtime_config,
     )
     team_notifications = _runtime_only_integration(
         "team_notifications",
@@ -329,7 +551,7 @@ async def setup_overview(
             requirements={
                 "postgres": postgres,
                 "redis": redis,
-                "sendgrid": sendgrid.configured,
+                "email_provider": email.configured,
             },
             heartbeat=heartbeats.get("sequence_worker"),
         ),
@@ -339,9 +561,10 @@ async def setup_overview(
             requirements={
                 "postgres": postgres,
                 "redis": redis,
-                "twilio": twilio.configured,
-                "deepgram": deepgram.configured,
-                "groq": groq.configured,
+                "voice_provider": voice.configured,
+                "stt_provider": stt.configured,
+                "tts_provider": tts.configured,
+                "llm_provider": llm.configured,
                 "public_callbacks": callbacks.public_host,
             },
             heartbeat=heartbeats.get("call_worker"),
@@ -352,7 +575,7 @@ async def setup_overview(
             requirements={
                 "postgres": postgres,
                 "redis": redis,
-                "sendgrid": sendgrid.configured,
+                "email_provider": email.configured,
                 "team_notifications": team_notifications.configured,
             },
             heartbeat=heartbeats.get("postcall_worker"),
@@ -362,7 +585,7 @@ async def setup_overview(
     return SetupOverviewPublic(
         workspace_id=workspace_id,
         health=health,
-        integrations=[sendgrid, twilio, deepgram, groq, team_notifications],
+        integrations=[email, sms, voice, stt, tts, llm, team_notifications],
         worker_readiness=worker_readiness,
         callbacks=callbacks,
     )

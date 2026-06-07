@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi.testclient import TestClient
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.encryption import encrypt
@@ -12,7 +12,6 @@ from app.domain_models import (
     NotificationProvider,
     ProviderCapability,
     ProviderCredential,
-    WorkspaceProviderSelection,
 )
 
 WORKSPACE_ID = "ws-providers"
@@ -40,9 +39,13 @@ def test_list_provider_options_returns_catalog(
     # Every ProviderCapability enum value should be present.
     assert caps == {c.value for c in ProviderCapability}
     email_entry = next(e for e in body["data"] if e["capability"] == "email")
-    providers = {p["provider"] for p in email_entry["providers"]}
-    assert "sendgrid" in providers
-    assert "smtp" in providers
+    email_providers = {p["provider"] for p in email_entry["providers"]}
+    assert "sendgrid" in email_providers
+    assert "smtp" in email_providers
+    voice_entry = next(e for e in body["data"] if e["capability"] == "voice")
+    voice_providers = {p["provider"] for p in voice_entry["providers"]}
+    assert "twilio" in voice_providers
+    assert "vapi" in voice_providers
 
 
 def test_provider_options_requires_admin(client: TestClient) -> None:
@@ -60,7 +63,6 @@ def test_provider_options_requires_admin(client: TestClient) -> None:
 def test_upsert_and_list_provider_selection(
     client: TestClient,
     superuser_token_headers: dict[str, str],
-    db: Session,
 ) -> None:
     # Initially nothing.
     list_resp = client.get(
@@ -68,7 +70,6 @@ def test_upsert_and_list_provider_selection(
         headers=_headers(superuser_token_headers),
     )
     assert list_resp.status_code == 200
-    initial_count = list_resp.json()["count"]
 
     put_resp = client.put(
         f"{settings.API_V1_STR}/workspaces/{WORKSPACE_ID}/provider-selection",
@@ -99,6 +100,41 @@ def test_upsert_and_list_provider_selection(
     email_rows = [r for r in rows if r["capability"] == "email"]
     assert len(email_rows) == 1
     assert email_rows[0]["provider"] == "sendgrid"
+
+
+def test_provider_selection_rejects_unsupported_provider_for_capability(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    workspace_id = f"ws-providers-{uuid.uuid4().hex[:8]}"
+    resp = client.put(
+        f"{settings.API_V1_STR}/workspaces/{workspace_id}/provider-selection",
+        headers={**superuser_token_headers, "X-Workspace-Id": workspace_id},
+        json={"capability": "email", "provider": "elevenlabs"},
+    )
+
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]["error"]
+    assert detail["code"] == "UNSUPPORTED_PROVIDER_CAPABILITY"
+    assert detail["details"]["capability"] == "email"
+    assert detail["details"]["provider"] == "elevenlabs"
+
+
+def test_provider_selection_accepts_vapi_for_voice(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    workspace_id = f"ws-vapi-{uuid.uuid4().hex[:8]}"
+    resp = client.put(
+        f"{settings.API_V1_STR}/workspaces/{workspace_id}/provider-selection",
+        headers={**superuser_token_headers, "X-Workspace-Id": workspace_id},
+        json={"capability": "voice", "provider": "vapi"},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["capability"] == "voice"
+    assert body["provider"] == "vapi"
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +185,32 @@ def test_test_credential_succeeds_for_sendgrid(
     assert body["provider"] == "sendgrid"
     assert body["channel"] == "email"
     assert "SendGridAdapter" in (body.get("detail") or "")
+
+
+def test_test_credential_succeeds_for_vapi_voice(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    cred = _seed_credential(
+        db,
+        provider=NotificationProvider.vapi,
+        channel="voice",
+        api_key="vapi-key",
+        config_json={
+            "phone_number_id": "phone-123",
+            "assistant_id": "assistant-123",
+        },
+    )
+
+    resp = client.post(
+        f"{settings.API_V1_STR}/workspaces/{WORKSPACE_ID}/provider-credentials/{cred.id}/test",
+        headers=_headers(superuser_token_headers),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["provider"] == "vapi"
+    assert body["channel"] == "voice"
+    assert "VapiVoiceAdapter" in (body.get("detail") or "")
 
 
 def test_test_credential_404_when_missing(

@@ -5,11 +5,12 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
+from app.core.idempotency import run_idempotent_mutation
 from app.domain.audit.audit_events import (
     append_audit_event_to_session,
     audit_actor_role,
@@ -34,14 +35,37 @@ def _find_control_state(session: SessionDep, workspace_id: str, campaign_id: uui
 
 @router.post("/controls/pause", response_model=ControlStatePublic, dependencies=[Depends(require_admin)])
 async def pause_global(
+    request: Request,
     *,
     session: SessionDep,
     current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
-    _: IdempotencyKeyDep,
+    idempotency_key: IdempotencyKeyDep,
     body: PauseRequest,
 ) -> ControlStatePublic:
     """Pause global."""
+    return await run_idempotent_mutation(
+        request,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="controls:global:pause",
+        request_payload=body.model_dump(),
+        mutation=lambda: _pause_global_once(
+            session=session,
+            current_user=current_user,
+            workspace_id=workspace_id,
+            body=body,
+        ),
+    )
+
+
+def _pause_global_once(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    workspace_id: str,
+    body: PauseRequest,
+) -> ControlStatePublic:
     action_at = datetime.now(UTC)
     state = _find_control_state(session, workspace_id) or GlobalControlState(workspace_id=workspace_id)
     for key, value in apply_pause_state(body.paused_reason).items():
@@ -75,9 +99,33 @@ async def pause_global(
 
 @router.post("/controls/resume", response_model=ControlStatePublic, dependencies=[Depends(require_admin)])
 async def resume_global(
-    *, session: SessionDep, current_user: CurrentUser, workspace_id: WorkspaceIdDep, _: IdempotencyKeyDep
+    request: Request,
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    workspace_id: WorkspaceIdDep,
+    idempotency_key: IdempotencyKeyDep,
 ) -> ControlStatePublic:
     """Resume global."""
+    return await run_idempotent_mutation(
+        request,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="controls:global:resume",
+        mutation=lambda: _resume_global_once(
+            session=session,
+            current_user=current_user,
+            workspace_id=workspace_id,
+        ),
+    )
+
+
+def _resume_global_once(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    workspace_id: str,
+) -> ControlStatePublic:
     action_at = datetime.now(UTC)
     state = _find_control_state(session, workspace_id)
     if not state:
@@ -113,15 +161,40 @@ async def resume_global(
 
 @router.post("/campaigns/{campaign_id}/pause", response_model=ControlStatePublic, dependencies=[Depends(require_admin)])
 async def pause_campaign(
+    request: Request,
     *,
     session: SessionDep,
     current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
-    _: IdempotencyKeyDep,
+    idempotency_key: IdempotencyKeyDep,
     body: PauseRequest,
 ) -> ControlStatePublic:
     """Pause campaign."""
+    return await run_idempotent_mutation(
+        request,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation=f"controls:campaign:{campaign_id}:pause",
+        request_payload={"campaign_id": str(campaign_id), **body.model_dump()},
+        mutation=lambda: _pause_campaign_once(
+            session=session,
+            current_user=current_user,
+            campaign_id=campaign_id,
+            workspace_id=workspace_id,
+            body=body,
+        ),
+    )
+
+
+def _pause_campaign_once(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    campaign_id: uuid.UUID,
+    workspace_id: str,
+    body: PauseRequest,
+) -> ControlStatePublic:
     action_at = datetime.now(UTC)
     campaign = session.exec(select(Campaign).where(Campaign.id == campaign_id, Campaign.workspace_id == workspace_id)).first()
     if not campaign:
@@ -160,9 +233,37 @@ async def pause_campaign(
 
 @router.post("/campaigns/{campaign_id}/resume", response_model=ControlStatePublic, dependencies=[Depends(require_admin)])
 async def resume_campaign(
-    *, session: SessionDep, current_user: CurrentUser, campaign_id: uuid.UUID, workspace_id: WorkspaceIdDep, _: IdempotencyKeyDep
+    request: Request,
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    campaign_id: uuid.UUID,
+    workspace_id: WorkspaceIdDep,
+    idempotency_key: IdempotencyKeyDep,
 ) -> ControlStatePublic:
     """Resume campaign."""
+    return await run_idempotent_mutation(
+        request,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation=f"controls:campaign:{campaign_id}:resume",
+        request_payload={"campaign_id": str(campaign_id)},
+        mutation=lambda: _resume_campaign_once(
+            session=session,
+            current_user=current_user,
+            campaign_id=campaign_id,
+            workspace_id=workspace_id,
+        ),
+    )
+
+
+def _resume_campaign_once(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    campaign_id: uuid.UUID,
+    workspace_id: str,
+) -> ControlStatePublic:
     action_at = datetime.now(UTC)
     campaign = session.exec(select(Campaign).where(Campaign.id == campaign_id, Campaign.workspace_id == workspace_id)).first()
     if not campaign:

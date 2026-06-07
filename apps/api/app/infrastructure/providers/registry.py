@@ -56,7 +56,9 @@ from app.infrastructure.providers.ollama_llm import OllamaLLMAdapter
 from app.infrastructure.providers.openai_llm import OpenAILLMAdapter
 from app.infrastructure.providers.sendgrid import SendGridAdapter
 from app.infrastructure.providers.smtp_email import SmtpEmailAdapter
+from app.infrastructure.providers.twilio_sms import TwilioSmsAdapter
 from app.infrastructure.providers.twilio_voice import TwilioVoiceAdapter
+from app.infrastructure.providers.vapi_voice import VapiVoiceAdapter
 from app.infrastructure.providers.whisper_stt import FasterWhisperLocalAdapter
 
 logger = logging.getLogger(__name__)
@@ -88,6 +90,24 @@ def _smtp_factory(creds: dict[str, Any]) -> EmailAdapter:
 
 def _twilio_voice_factory(creds: dict[str, Any]) -> VoiceAdapter:
     return TwilioVoiceAdapter(
+        account_sid=creds.get("account_sid") or creds.get("api_key"),
+        auth_token=creds.get("auth_token") or creds.get("api_secret"),
+        from_number=creds.get("phone_number"),
+    )
+
+
+def _vapi_voice_factory(creds: dict[str, Any]) -> VoiceAdapter:
+    return VapiVoiceAdapter(
+        api_key=creds.get("api_key"),
+        phone_number_id=creds.get("phone_number_id"),
+        assistant_id=creds.get("assistant_id"),
+        base_url=creds.get("base_url"),
+        call_endpoint=creds.get("call_endpoint"),
+    )
+
+
+def _twilio_sms_factory(creds: dict[str, Any]) -> SmsAdapter:
+    return TwilioSmsAdapter(
         account_sid=creds.get("account_sid") or creds.get("api_key"),
         auth_token=creds.get("auth_token") or creds.get("api_secret"),
         from_number=creds.get("phone_number"),
@@ -136,7 +156,9 @@ _PROVIDER_MAP: dict[
     (NotificationProvider.sendgrid, ProviderCapability.email): _sendgrid_factory,
     (NotificationProvider.smtp, ProviderCapability.email): _smtp_factory,
     # Voice / SMS
+    (NotificationProvider.twilio, ProviderCapability.sms): _twilio_sms_factory,
     (NotificationProvider.twilio, ProviderCapability.voice): _twilio_voice_factory,
+    (NotificationProvider.vapi, ProviderCapability.voice): _vapi_voice_factory,
     # STT / TTS
     (NotificationProvider.deepgram, ProviderCapability.stt): _deepgram_stt_factory,
     (
@@ -369,6 +391,13 @@ PROVIDER_CATALOG: dict[str, list[dict[str, Any]]] = {
             "label": "Twilio Voice",
             "requires_creds": True,
             "free_tier": "Trial credit",
+            "local": False,
+        },
+        {
+            "provider": NotificationProvider.vapi.value,
+            "label": "Vapi AI Voice",
+            "requires_creds": True,
+            "free_tier": "Starter credits / free testing numbers",
             "local": False,
         },
     ],

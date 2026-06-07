@@ -78,16 +78,22 @@ test("Sign up with existing email", async ({ page }) => {
   await page.goto("/signup")
 
   await fillForm(page, fullName, email, password, password)
+  const firstSignupResponse = page.waitForResponse((response) => {
+    return response.url().includes("/api/v1/users/signup")
+      && response.request().method() === "POST"
+  })
   await page.getByRole("button", { name: "Sign Up" }).click()
+  await firstSignupResponse
+  await page.waitForURL("/login")
 
   await page.goto("/signup")
 
   await fillForm(page, fullName, email, password, password)
   await page.getByRole("button", { name: "Sign Up" }).click()
 
-  await page
-    .getByText("The user with this email already exists in the system")
-    .click()
+  await expect(
+    page.getByText("The user with this email already exists in the system"),
+  ).toBeVisible()
 })
 
 test("Sign up with weak password", async ({ page }) => {

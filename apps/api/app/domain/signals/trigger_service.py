@@ -10,8 +10,8 @@ from typing import Any
 from sqlmodel import Session
 
 from app.core.config import settings
-from app.domain.runtime_settings import resolve_team_notification_email
 from app.domain.audit.audit_events import append_audit_event
+from app.domain.runtime_settings import resolve_team_notification_email
 from app.domain.signals.models import SignalEvent
 from app.domain.signals.scheduling import SchedulingRequest
 from app.domain.timeline.timeline_service import (
@@ -20,6 +20,8 @@ from app.domain.timeline.timeline_service import (
 )
 from app.domain.voice.models import CallRequest
 from app.domain_models import Campaign
+from app.infrastructure.providers.base import EmailAdapter
+from app.infrastructure.providers.registry import resolve_email_adapter
 from app.infrastructure.providers.sendgrid import SendGridAdapter
 
 logger = logging.getLogger(__name__)
@@ -54,9 +56,9 @@ async def process_signal(
         logger.info("Triggers disabled for %s", signal.signal_type)
         return []
 
-    executed: list[str] = []
-    adapter = SendGridAdapter()
     workspace_id = _workspace_for_campaign(session, signal.campaign_id)
+    executed: list[str] = []
+    email_adapter: EmailAdapter | None = None
     timeline_cache_dirty = False
 
     for action in rules:
@@ -64,13 +66,28 @@ async def process_signal(
             if action == "queue_followup_call":
                 timeline_cache_dirty = _queue_followup_call(session, signal) or timeline_cache_dirty
             elif action == "send_demo_email":
-                await _send_demo_email(adapter, session, signal)
+                email_adapter = email_adapter or resolve_email_adapter(
+                    session,
+                    workspace_id,
+                    default_factory=SendGridAdapter,
+                )
+                await _send_demo_email(email_adapter, session, signal)
             elif action == "create_scheduling_request":
                 timeline_cache_dirty = _create_scheduling_request(session, signal) or timeline_cache_dirty
             elif action == "email_sales_team":
-                await _email_sales_team(adapter, session, signal)
+                email_adapter = email_adapter or resolve_email_adapter(
+                    session,
+                    workspace_id,
+                    default_factory=SendGridAdapter,
+                )
+                await _email_sales_team(email_adapter, session, signal)
             elif action == "send_resource_email":
-                await _send_resource_email(adapter, session, signal)
+                email_adapter = email_adapter or resolve_email_adapter(
+                    session,
+                    workspace_id,
+                    default_factory=SendGridAdapter,
+                )
+                await _send_resource_email(email_adapter, session, signal)
 
             executed.append(action)
             await append_audit_event(
@@ -142,9 +159,7 @@ def _queue_followup_call(session: Session, signal: SignalEvent) -> bool:
     return True
 
 
-async def _send_demo_email(
-    adapter: SendGridAdapter, session: Session, signal: SignalEvent
-) -> None:
+async def _send_demo_email(adapter: EmailAdapter, session: Session, signal: SignalEvent) -> None:
     from app.domain_models import Contact
 
     contact = session.get(Contact, signal.contact_id)
@@ -171,9 +186,7 @@ def _create_scheduling_request(session: Session, signal: SignalEvent) -> bool:
     return True
 
 
-async def _email_sales_team(
-    adapter: SendGridAdapter, session: Session, signal: SignalEvent
-) -> None:
+async def _email_sales_team(adapter: EmailAdapter, session: Session, signal: SignalEvent) -> None:
     from app.domain_models import Contact
 
     contact = session.get(Contact, signal.contact_id)
@@ -193,9 +206,7 @@ async def _email_sales_team(
     )
 
 
-async def _send_resource_email(
-    adapter: SendGridAdapter, session: Session, signal: SignalEvent
-) -> None:
+async def _send_resource_email(adapter: EmailAdapter, session: Session, signal: SignalEvent) -> None:
     from app.domain_models import Contact
 
     contact = session.get(Contact, signal.contact_id)

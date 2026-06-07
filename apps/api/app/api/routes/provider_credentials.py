@@ -88,6 +88,111 @@ def _ensure_workspace_path_matches_header(workspace_id: str, workspace_header: s
         )
 
 
+SENSITIVE_CONFIG_KEYS = {
+    "apikey",
+    "api_key",
+    "apisecret",
+    "api_secret",
+    "authtoken",
+    "auth_token",
+    "password",
+    "privatekey",
+    "private_key",
+    "secret",
+    "token",
+    "webhooksecret",
+    "webhook_secret",
+}
+
+
+def _normalized_config_key(key: str) -> str:
+    return key.lower().replace("-", "_").replace(" ", "_")
+
+
+def _is_sensitive_config_key(key: str) -> bool:
+    normalized = _normalized_config_key(key)
+    compact = normalized.replace("_", "")
+    return (
+        normalized in SENSITIVE_CONFIG_KEYS
+        or compact in SENSITIVE_CONFIG_KEYS
+        or normalized.endswith("_secret")
+        or normalized.endswith("_token")
+        or compact.endswith("secret")
+        or compact.endswith("token")
+    )
+
+
+def _find_sensitive_config_keys(config: dict[str, Any], prefix: str = "") -> list[str]:
+    found: list[str] = []
+    for key, value in config.items():
+        path = f"{prefix}.{key}" if prefix else key
+        if _is_sensitive_config_key(key):
+            found.append(path)
+        if isinstance(value, dict):
+            found.extend(_find_sensitive_config_keys(value, path))
+    return found
+
+
+def _safe_config_json(config: dict[str, Any]) -> dict[str, Any]:
+    sensitive_keys = _find_sensitive_config_keys(config)
+    if sensitive_keys:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "error": {
+                    "code": "SENSITIVE_CONFIG_KEY",
+                    "message": "Store secrets in api_key/api_secret, not config_json",
+                    "semantic": "POLICY_VIOLATION",
+                    "details": {"keys": sensitive_keys},
+                }
+            },
+        )
+    return config
+
+
+def _public_config_json(config: dict[str, Any]) -> dict[str, Any]:
+    redacted: dict[str, Any] = {}
+    for key, value in config.items():
+        if _is_sensitive_config_key(key):
+            redacted[key] = "[redacted]"
+        elif isinstance(value, dict):
+            redacted[key] = _public_config_json(value)
+        else:
+            redacted[key] = value
+    return redacted
+
+
+def _ensure_provider_supported_for_capability(
+    capability: ProviderCapability,
+    provider: NotificationProvider,
+) -> None:
+    supported = {
+        option["provider"]
+        for option in PROVIDER_CATALOG.get(capability.value, [])
+    }
+    if provider.value in supported:
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail={
+            "error": {
+                "code": "UNSUPPORTED_PROVIDER_CAPABILITY",
+                "message": (
+                    f"Provider '{provider.value}' is not supported for "
+                    f"capability '{capability.value}'"
+                ),
+                "semantic": "POLICY_VIOLATION",
+                "details": {
+                    "capability": capability.value,
+                    "provider": provider.value,
+                    "supported_providers": sorted(supported),
+                },
+            }
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -119,6 +224,7 @@ def upsert_provider_credentials(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="api_key must not be empty",
         )
+    config_json = _safe_config_json(body.config_json)
 
     # Deactivate any existing credential for this workspace+provider+channel
     existing = session.exec(
@@ -139,7 +245,7 @@ def upsert_provider_credentials(
         channel=body.channel,
         encrypted_api_key=encrypt(body.api_key),
         encrypted_api_secret=encrypt(body.api_secret) if body.api_secret else None,
-        config_json=body.config_json,
+        config_json=config_json,
         is_active=True,
     )
     session.add(cred)
@@ -168,7 +274,7 @@ def upsert_provider_credentials(
         provider=cred.provider,
         channel=cred.channel,
         has_api_secret=cred.encrypted_api_secret is not None,
-        config_json=cred.config_json,
+        config_json=_public_config_json(cred.config_json),
         is_active=cred.is_active,
     )
 
@@ -201,7 +307,7 @@ def list_provider_credentials(
                 provider=r.provider,
                 channel=r.channel,
                 has_api_secret=r.encrypted_api_secret is not None,
-                config_json=r.config_json,
+                config_json=_public_config_json(r.config_json),
                 is_active=r.is_active,
             )
             for r in rows
@@ -365,6 +471,7 @@ def upsert_provider_selection(
     ``POST /provider-credentials`` (unless the provider is purely local).
     """
     _ensure_workspace_path_matches_header(workspace_id, workspace_header)
+    _ensure_provider_supported_for_capability(body.capability, body.provider)
     existing = session.exec(
         select(WorkspaceProviderSelection).where(
             WorkspaceProviderSelection.workspace_id == workspace_id,

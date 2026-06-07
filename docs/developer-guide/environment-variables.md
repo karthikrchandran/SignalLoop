@@ -67,6 +67,11 @@ Each adapter fails closed when its key is empty, so the API and UI still boot wi
 | `TWILIO_ACCOUNT_SID` | Voice outreach | Twilio account SID. |
 | `TWILIO_AUTH_TOKEN` | Voice outreach | Twilio auth token. |
 | `TWILIO_PHONE_NUMBER` | Voice outreach | Caller-ID number used by the call worker. |
+| `VAPI_API_KEY` | Managed AI voice | Vapi API key used when the workspace voice provider is `vapi`. |
+| `VAPI_PHONE_NUMBER_ID` | Managed AI voice | Vapi phone number ID used for outbound calls. |
+| `VAPI_ASSISTANT_ID` | Managed AI voice | Saved Vapi assistant ID used for outbound calls. |
+| `VAPI_API_BASE_URL` | Managed AI voice | Vapi API base URL. Defaults to `https://api.vapi.ai`. |
+| `VAPI_CALL_ENDPOINT` | Managed AI voice | Vapi call creation endpoint. Defaults to `/call`. |
 | `DEEPGRAM_API_KEY` | Post-call processing | Transcription provider key. |
 | `GROQ_API_KEY` | Post-call processing | LLM provider key for call summaries. |
 | `OLLAMA_BASE_URL` | Local LLM | Local Ollama server URL. Defaults to `http://localhost:11434`. |

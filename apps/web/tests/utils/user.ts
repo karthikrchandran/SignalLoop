@@ -12,8 +12,14 @@ export async function signUpNewUser(
   await page.getByTestId("email-input").fill(email)
   await page.getByTestId("password-input").fill(password)
   await page.getByTestId("confirm-password-input").fill(password)
+
+  const signupResponse = page.waitForResponse((response) => {
+    return response.url().includes("/api/v1/users/signup")
+      && response.request().method() === "POST"
+  })
   await page.getByRole("button", { name: "Sign Up" }).click()
-  await page.goto("/login")
+  await signupResponse
+  await page.waitForURL("/login")
 }
 
 export async function logInUser(page: Page, email: string, password: string) {
@@ -23,9 +29,7 @@ export async function logInUser(page: Page, email: string, password: string) {
   await page.getByTestId("password-input").fill(password)
   await page.getByRole("button", { name: "Log In" }).click()
   await page.waitForURL("/")
-  await expect(
-    page.getByText("Welcome back, nice to see you again!"),
-  ).toBeVisible()
+  await expect(page.getByRole("heading", { name: /Welcome back,/ })).toBeVisible()
 }
 
 export async function logOutUser(page: Page) {

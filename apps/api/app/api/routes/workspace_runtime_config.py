@@ -9,6 +9,7 @@ from sqlmodel import select
 
 from app.api.deps import SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep
+from app.api.routes.workspace_admin import router as workspace_admin_router
 from app.core.encryption import encrypt
 from app.domain.runtime_settings import resolve_workspace_runtime_config
 from app.domain_models import WorkspaceRuntimeConfig
@@ -124,3 +125,6 @@ def upsert_workspace_runtime_config(
     session.commit()
     session.refresh(row)
     return _serialize_runtime_config(session, workspace_id, row)
+
+
+router.include_router(workspace_admin_router)

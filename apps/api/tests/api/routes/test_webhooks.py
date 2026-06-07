@@ -1,10 +1,10 @@
 """Tests for ``app.api.routes.webhooks`` SendGrid endpoint (Group E coverage)."""
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
 import uuid
+from collections.abc import Generator
 from datetime import datetime, timezone
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -25,6 +25,16 @@ from app.domain.voice.models import CallRequest, VoiceScript
 from app.domain_models import Campaign, Contact
 
 WORKSPACE_ID = "ws-webhooks-test"
+
+
+@pytest.fixture(autouse=True)
+def valid_sendgrid_signature() -> Generator[None, None, None]:
+    """Default webhook route tests to a valid mocked SendGrid signature."""
+    with patch(
+        "app.api.routes.webhooks.SendGridAdapter.verify_webhook_signature",
+        return_value=True,
+    ):
+        yield
 
 
 def _make_send_request(
@@ -127,7 +137,6 @@ def test_valid_signature_empty_events_returns_ok(client: TestClient) -> None:
 
 def test_event_without_message_id_skipped(
     client: TestClient,
-    db: Session,
 ) -> None:
     """An event with no sg_message_id is logged and skipped (200)."""
     resp = client.post(
@@ -140,7 +149,6 @@ def test_event_without_message_id_skipped(
 
 def test_event_unknown_message_id_logged_and_skipped(
     client: TestClient,
-    db: Session,
 ) -> None:
     """Event referencing a SendRequest that does not exist is skipped."""
     resp = client.post(
@@ -439,7 +447,7 @@ def test_processing_exception_logged_but_returns_ok(
         db, provider_message_id=f"boom-{uuid.uuid4().hex[:8]}"
     )
 
-    async def _boom(_self, raw):  # noqa: ANN001
+    async def _boom(_self, _raw):  # noqa: ANN001
         raise RuntimeError("normalize failed")
 
     payload = [

@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     FRONTEND_HOST: str = "http://localhost:5173"
     SERVER_HOST: str = "localhost:8001"
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
+    RATE_LIMITING_ENABLED: bool | None = None
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
@@ -119,6 +120,12 @@ class Settings(BaseSettings):
     FASTER_WHISPER_MODEL: str = "base"
 
     @model_validator(mode="after")
+    def _set_default_rate_limiting(self) -> Self:
+        if self.RATE_LIMITING_ENABLED is None:
+            self.RATE_LIMITING_ENABLED = self.ENVIRONMENT != "local"
+        return self
+
+    @model_validator(mode="after")
     def _set_default_emails_from(self) -> Self:
         if not self.EMAILS_FROM_NAME:
             self.EMAILS_FROM_NAME = self.PROJECT_NAME
@@ -151,6 +158,11 @@ class Settings(BaseSettings):
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_PHONE_NUMBER: str = ""
+    VAPI_API_KEY: str = ""
+    VAPI_PHONE_NUMBER_ID: str = ""
+    VAPI_ASSISTANT_ID: str = ""
+    VAPI_API_BASE_URL: str = "https://api.vapi.ai"
+    VAPI_CALL_ENDPOINT: str = "/call"
     DEEPGRAM_API_KEY: str = ""
     GROQ_API_KEY: str = ""
     TEAM_NOTIFICATION_EMAIL: str = ""

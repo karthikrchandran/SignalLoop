@@ -22,9 +22,8 @@ from app.domain.sequences.models import (
     SequenceStep,
 )
 from app.domain.sequences.suppression import EmailSuppression
-from app.domain_models import Contact
+from app.domain_models import Campaign, CampaignStatus, Contact, GlobalControlState
 from app.workers import sequence_worker
-
 
 # ---------------------------------------------------------------------------
 # Seed factories
@@ -46,10 +45,34 @@ def _seed_contact(session: Session, *, email: str = "lead@example.com",
     return contact
 
 
-def _seed_sequence(session: Session, *, steps: int = 1) -> EmailSequence:
+def _seed_campaign(
+    session: Session,
+    *,
+    workspace_id: str = "ws-test",
+    status: CampaignStatus = CampaignStatus.active,
+) -> Campaign:
+    """Create and persist a Campaign."""
+    campaign = Campaign(
+        name="Worker Campaign",
+        workspace_id=workspace_id,
+        created_by=uuid.uuid4(),
+        status=status,
+    )
+    session.add(campaign)
+    session.commit()
+    session.refresh(campaign)
+    return campaign
+
+
+def _seed_sequence(
+    session: Session,
+    *,
+    steps: int = 1,
+    campaign_id: uuid.UUID | None = None,
+) -> EmailSequence:
     """Create an EmailSequence and N steps starting at order=1."""
     seq = EmailSequence(
-        campaign_id=uuid.uuid4(),
+        campaign_id=campaign_id or uuid.uuid4(),
         name="welcome",
         created_by=uuid.uuid4(),
     )
@@ -255,6 +278,27 @@ def test_process_batch_processes_due_state_successfully(memory_session: Session)
     adapter.send_email.assert_awaited_once()
 
 
+def test_process_batch_skips_when_global_pause_active(memory_session: Session) -> None:
+    """Global pause prevents the launched sequence worker from sending."""
+    contact = _seed_contact(memory_session)
+    campaign = _seed_campaign(memory_session, workspace_id=contact.workspace_id)
+    seq = _seed_sequence(memory_session, steps=1, campaign_id=campaign.id)
+    _seed_state(memory_session, contact=contact, sequence=seq)
+    memory_session.add(GlobalControlState(workspace_id=contact.workspace_id, paused=True))
+    memory_session.commit()
+
+    adapter = MagicMock()
+    adapter.send_email = AsyncMock(return_value={"message_id": "MSG1", "status_code": 202})
+
+    with _patch_engine(memory_session.bind), \
+         patch.object(sequence_worker, "_is_quiet_hours", return_value=False), \
+         patch.object(sequence_worker, "SendGridAdapter", return_value=adapter):
+        processed = asyncio.run(sequence_worker._process_batch())
+
+    assert processed == 0
+    adapter.send_email.assert_not_awaited()
+
+
 def test_process_batch_handles_exception_and_breaks(memory_session: Session) -> None:
     """An unexpected exception in `_process_single` triggers rollback + break."""
     contact = _seed_contact(memory_session)
@@ -429,6 +473,31 @@ def test_process_single_sends_and_advances_on_success(memory_session: Session) -
     assert sr is not None and sr.status == SendRequestStatus.sent
     assert sr.provider_message_id == "MID"
     assert state.current_step == 2
+
+
+def test_process_single_persists_send_request_before_provider_call(
+    memory_session: Session,
+) -> None:
+    """The SendRequest intent is committed before awaiting the email provider."""
+    contact = _seed_contact(memory_session)
+    seq = _seed_sequence(memory_session, steps=2)
+    state = _seed_state(memory_session, contact=contact, sequence=seq)
+
+    async def _send_email(**_kwargs: object) -> dict[str, object]:
+        sr = memory_session.exec(select(SendRequest)).first()
+        assert sr is not None
+        assert sr.status == SendRequestStatus.pending
+        return {"message_id": "MID", "status_code": 202}
+
+    adapter = MagicMock()
+    adapter.send_email = AsyncMock(side_effect=_send_email)
+
+    with patch.object(sequence_worker, "resolve_email_adapter", return_value=adapter):
+        asyncio.run(sequence_worker._process_single(memory_session, state))
+
+    sr = memory_session.exec(select(SendRequest)).first()
+    assert sr is not None
+    assert sr.status == SendRequestStatus.sent
 
 
 def test_process_single_marks_failed_on_send_error(memory_session: Session) -> None:

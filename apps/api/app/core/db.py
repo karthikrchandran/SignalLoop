@@ -26,6 +26,10 @@ def init_db(session: Session) -> None:
     """Initialise db."""
     from app import crud  # noqa: PLC0415
     from app.core.security import get_password_hash, verify_password  # noqa: PLC0415
+    from app.domain.workspaces.service import (  # noqa: PLC0415
+        ensure_workspace_membership,
+        role_for_user,
+    )
     from app.models import User, UserCreate  # noqa: PLC0415
 
     user = session.exec(
@@ -49,3 +53,11 @@ def init_db(session: Session) -> None:
         elif updated_password_hash:
             user.hashed_password = updated_password_hash
             session.add(user)
+
+    ensure_workspace_membership(
+        session,
+        workspace_id=settings.DEFAULT_WORKSPACE_ID,
+        user_id=user.id,
+        role=role_for_user(user),
+    )
+    session.commit()

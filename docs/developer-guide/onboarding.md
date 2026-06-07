@@ -67,6 +67,7 @@ Optional (only if you need that feature):
 
 - `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL` — outbound email via SendGrid.
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER` — outbound voice.
+- `VAPI_API_KEY`, `VAPI_PHONE_NUMBER_ID`, `VAPI_ASSISTANT_ID` — managed AI voice via Vapi.
 - `DEEPGRAM_API_KEY` — call transcription.
 - `GROQ_API_KEY` — post-call summarisation.
 

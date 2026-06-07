@@ -7,13 +7,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-import sys
-from datetime import date, datetime, time, timedelta, timezone
+import uuid
+from datetime import datetime, time, timedelta, timezone
 
-from sqlalchemy import func, text
+from sqlalchemy import func
 from sqlmodel import Session, select
 
-from app.core.config import settings
 from app.core.db import engine
 from app.domain.sequences.models import (
     ContactSequenceState,
@@ -24,7 +23,15 @@ from app.domain.sequences.models import (
     SequenceStep,
 )
 from app.domain.sequences.suppression import EmailSuppression
-from app.domain_models import Contact
+from app.domain_models import (
+    Campaign,
+    CampaignStatus,
+    Contact,
+    GlobalControlState,
+    GovernancePolicy,
+    PolicyStatus,
+    PolicyType,
+)
 from app.infrastructure.providers.base import EmailAdapter
 from app.infrastructure.providers.registry import resolve_email_adapter
 from app.infrastructure.providers.sendgrid import SendGridAdapter
@@ -38,6 +45,7 @@ DEFAULT_DAILY_CAP = 100  # SendGrid free tier
 QUIET_HOURS_START = time(21, 0)  # 9 PM UTC
 QUIET_HOURS_END = time(8, 0)  # 8 AM UTC
 RETRY_DELAYS = [60, 300, 900, 3600, 7200]  # seconds
+PENDING_SEND_STALE_AFTER = timedelta(minutes=15)
 
 TOKEN_PATTERN = re.compile(r"\{\{(\w+)\}\}")
 ALLOWED_TOKENS = {"first_name", "last_name", "email", "company"}
@@ -63,14 +71,39 @@ def _is_quiet_hours() -> bool:
     return QUIET_HOURS_START <= now < QUIET_HOURS_END
 
 
-def _daily_send_count(session: Session) -> int:
+def _normalize_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _daily_send_count(
+    session: Session,
+    *,
+    workspace_id: str | None = None,
+    campaign_id: uuid.UUID | None = None,
+) -> int:
     today = datetime.now(timezone.utc).date()
-    result = session.exec(
-        select(func.count(SendRequest.id)).where(
-            func.date(SendRequest.created_at) == today,
-            SendRequest.status != SendRequestStatus.failed,
+    statement = select(func.count(SendRequest.id))
+    if workspace_id is not None or campaign_id is not None:
+        statement = (
+            statement
+            .join(
+                ContactSequenceState,
+                SendRequest.contact_sequence_state_id == ContactSequenceState.id,
+            )
+            .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
+            .join(Campaign, EmailSequence.campaign_id == Campaign.id)
         )
-    ).one()
+    statement = statement.where(
+        func.date(SendRequest.created_at) == today,
+        SendRequest.status != SendRequestStatus.failed,
+    )
+    if workspace_id is not None:
+        statement = statement.where(Campaign.workspace_id == workspace_id)
+    if campaign_id is not None:
+        statement = statement.where(Campaign.id == campaign_id)
+    result = session.exec(statement).one()
     return result or 0
 
 
@@ -78,6 +111,136 @@ def _is_suppressed(session: Session, email: str) -> bool:
     return session.exec(
         select(EmailSuppression.id).where(EmailSuppression.email == email)
     ).first() is not None
+
+
+def _campaign_for_state(
+    session: Session,
+    state: ContactSequenceState,
+) -> Campaign | None:
+    sequence = session.get(EmailSequence, state.sequence_id)
+    if not sequence:
+        logger.warning("Sequence %s not found for state=%s", state.sequence_id, state.id)
+        return None
+    return session.get(Campaign, sequence.campaign_id)
+
+
+def _is_outreach_paused(
+    session: Session,
+    *,
+    workspace_id: str,
+    campaign_id: uuid.UUID | None,
+) -> bool:
+    global_pause = session.exec(
+        select(GlobalControlState).where(
+            GlobalControlState.workspace_id == workspace_id,
+            GlobalControlState.campaign_id == None,  # noqa: E711
+            GlobalControlState.paused == True,  # noqa: E712
+        )
+    ).first()
+    if global_pause:
+        return True
+
+    if campaign_id is None:
+        return False
+
+    campaign_pause = session.exec(
+        select(GlobalControlState).where(
+            GlobalControlState.workspace_id == workspace_id,
+            GlobalControlState.campaign_id == campaign_id,
+            GlobalControlState.paused == True,  # noqa: E712
+        )
+    ).first()
+    return campaign_pause is not None
+
+
+def _policy_daily_cap(payload: dict, *, campaign_scope: bool) -> int | None:
+    keys = (
+        ("campaignDailyCap", "campaignCap", "max_per_day", "maxPerDay", "dailyCap")
+        if campaign_scope
+        else ("systemDailyCap", "systemCap", "max_per_day", "maxPerDay", "dailyCap")
+    )
+    for key in keys:
+        value = payload.get(key)
+        if value is None:
+            continue
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            logger.warning("Ignoring invalid daily cap value for %s: %r", key, value)
+    return None
+
+
+def _effective_daily_cap(
+    session: Session,
+    *,
+    workspace_id: str,
+    campaign_id: uuid.UUID | None,
+) -> int:
+    policies = session.exec(
+        select(GovernancePolicy).where(
+            GovernancePolicy.workspace_id == workspace_id,
+            GovernancePolicy.policy_type == PolicyType.daily_caps,
+            GovernancePolicy.status == PolicyStatus.active,
+        )
+    ).all()
+
+    if campaign_id is not None:
+        for policy in policies:
+            if policy.campaign_id == campaign_id:
+                cap = _policy_daily_cap(policy.payload_json, campaign_scope=True)
+                if cap is not None:
+                    return cap
+
+    for policy in policies:
+        if policy.campaign_id is None:
+            cap = _policy_daily_cap(policy.payload_json, campaign_scope=False)
+            if cap is not None:
+                return cap
+
+    return DEFAULT_DAILY_CAP
+
+
+def _should_skip_for_governance(
+    session: Session,
+    state: ContactSequenceState,
+) -> bool:
+    campaign = _campaign_for_state(session, state)
+    if not campaign:
+        return False
+
+    if campaign.status == CampaignStatus.paused:
+        logger.info("Campaign %s paused - skipping state=%s", campaign.id, state.id)
+        return True
+
+    if _is_outreach_paused(
+        session,
+        workspace_id=campaign.workspace_id,
+        campaign_id=campaign.id,
+    ):
+        logger.info("Control pause active - skipping state=%s", state.id)
+        return True
+
+    cap = _effective_daily_cap(
+        session,
+        workspace_id=campaign.workspace_id,
+        campaign_id=campaign.id,
+    )
+    sent_count = _daily_send_count(
+        session,
+        workspace_id=campaign.workspace_id,
+        campaign_id=campaign.id,
+    )
+    if sent_count >= cap:
+        logger.warning(
+            "Daily email cap reached for workspace=%s campaign=%s (%d/%d)",
+            campaign.workspace_id,
+            campaign.id,
+            sent_count,
+            cap,
+        )
+        return True
+
+    return False
 
 
 async def _process_batch() -> int:
@@ -113,6 +276,8 @@ async def _process_batch() -> int:
 
         for state in due_states:
             try:
+                if _should_skip_for_governance(session, state):
+                    continue
                 await _process_single(session, state)
                 processed += 1
             except Exception:
@@ -183,6 +348,12 @@ async def _process_single(
         _advance_step(session, state, step)
         return
 
+    if existing and existing.status == SendRequestStatus.pending:
+        stale_at = _normalize_utc(existing.created_at) + PENDING_SEND_STALE_AFTER
+        if _normalize_utc(datetime.now(timezone.utc)) < stale_at:
+            logger.info("SendRequest %s already pending; skipping duplicate send", existing.id)
+            return
+
     if existing and existing.status == SendRequestStatus.failed:
         if existing.retry_count >= len(RETRY_DELAYS):
             logger.error(
@@ -193,10 +364,10 @@ async def _process_single(
             session.add(state)
             return
         # Not yet time for retry
-        retry_at = existing.created_at + timedelta(
+        retry_at = _normalize_utc(existing.created_at) + timedelta(
             seconds=RETRY_DELAYS[existing.retry_count]
         )
-        if datetime.now(timezone.utc) < retry_at:
+        if _normalize_utc(datetime.now(timezone.utc)) < retry_at:
             return
 
     # Create or reuse SendRequest
@@ -205,6 +376,10 @@ async def _process_single(
         step_order=state.current_step,
         idempotency_key=idempotency_key,
     )
+    send_request.status = SendRequestStatus.pending
+    session.add(send_request)
+    session.commit()
+    session.refresh(send_request)
 
     # Merge templates
     subject = _merge_tokens(step.subject_template, contact)
@@ -230,11 +405,13 @@ async def _process_single(
         send_request.sent_at = datetime.now(timezone.utc)
         session.add(send_request)
         _advance_step(session, state, step)
+        session.commit()
         logger.info("Sent email to %s (step %d)", contact.email, state.current_step)
     else:
         send_request.status = SendRequestStatus.failed
         send_request.retry_count += 1
         session.add(send_request)
+        session.commit()
         logger.warning(
             "Failed to send to %s (step %d, attempt %d): %s",
             contact.email, state.current_step, send_request.retry_count,
@@ -249,7 +426,7 @@ def _advance_step(
     next_step = session.exec(
         select(SequenceStep).where(
             SequenceStep.sequence_id == state.sequence_id,
-            SequenceStep.step_order == state.current_step + 1,
+            SequenceStep.step_order == current_step.step_order + 1,
         )
     ).first()
 

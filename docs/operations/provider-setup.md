@@ -143,7 +143,37 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx
 
 ---
 
-## 6. Deepgram — Speech-to-Text & Text-to-Speech
+## 6. Vapi - Managed AI Voice Calls
+
+Used by the `call_worker` when a workspace selects `vapi` as the `voice` provider.
+Vapi owns the AI voice session; EngageHub stores the returned Vapi call ID in the existing call-session provider ID field.
+
+### Configure Vapi
+1. Create or choose a Vapi assistant.
+2. Create or import a Vapi phone number.
+3. Copy the API key, phone number ID, and assistant ID.
+
+### Update `.env`
+```
+VAPI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+VAPI_PHONE_NUMBER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+VAPI_ASSISTANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+VAPI_API_BASE_URL=https://api.vapi.ai
+VAPI_CALL_ENDPOINT=/call
+```
+
+For workspace-level credentials, store the API key as `api_key` and use:
+```
+{
+  "phone_number_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "assistant_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+}
+```
+as `config_json` on a `provider_credentials` row with `provider = "vapi"` and `channel = "voice"`.
+
+---
+
+## 7. Deepgram — Speech-to-Text & Text-to-Speech
 
 Used by the `postcall_worker` to transcribe call recordings and by the call worker for TTS voice synthesis.
 
@@ -168,7 +198,7 @@ DEEPGRAM_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ---
 
-## 7. Groq — LLM Post-Call Processing
+## 8. Groq — LLM Post-Call Processing
 
 Used by the `postcall_worker` to summarize call transcripts and extract structured data using fast LLM inference.
 
@@ -203,6 +233,7 @@ After changing provider values, restart the API and workers (`StopApp.ps1` then 
 | Faster Whisper | *(no key needed)*   | http://localhost:9000/health returns `ok` |
 | SendGrid   | `SENDGRID_API_KEY`      | Send a test email via API → appears in SG activity |
 | Twilio     | `TWILIO_ACCOUNT_SID`    | Make a test call to your verified number  |
+| Vapi       | `VAPI_API_KEY`          | Select `vapi` for voice and start one test call |
 | Deepgram   | `DEEPGRAM_API_KEY`      | Workers start without provider errors     |
 | Groq       | `GROQ_API_KEY`          | Workers start without provider errors     |
 
@@ -215,7 +246,7 @@ For production, use environment variables injected by your hosting platform — 
 
 ---
 
-## 8. Choose Your Providers (Multi-Provider Support)
+## 9. Choose Your Providers (Multi-Provider Support)
 
 The platform supports multiple providers for each capability. Workspace admins can switch providers without redeploying.
 
@@ -228,6 +259,7 @@ In the web app, superusers can open `Settings -> Providers` to review and change
 | `email` | `sendgrid` | API key; production default |
 | `email` | `smtp` | Mailpit / Postmark / any SMTP relay |
 | `voice` | `twilio` | Outbound calls |
+| `voice` | `vapi` | Managed AI voice calls |
 | `stt`   | `deepgram` | Real-time + batch transcription |
 | `stt`   | `faster_whisper_local` | Local batch transcription service |
 | `tts`   | `deepgram` | Voice synthesis |
@@ -262,6 +294,13 @@ OLLAMA_MODEL=llama3.2:1b
 # Faster Whisper (local STT)
 FASTER_WHISPER_BASE_URL=http://localhost:9000
 FASTER_WHISPER_MODEL=base
+
+# Vapi (managed AI voice)
+VAPI_API_KEY=
+VAPI_PHONE_NUMBER_ID=
+VAPI_ASSISTANT_ID=
+VAPI_API_BASE_URL=https://api.vapi.ai
+VAPI_CALL_ENDPOINT=/call
 ```
 
 Run the local STT service with:
@@ -296,6 +335,14 @@ Content-Type: application/json
 { "capability": "email", "provider": "smtp" }
 ```
 The chosen provider is used the next time a worker runs. If no selection exists for a capability, the workspace falls back to the platform default (env-configured).
+
+To route outbound voice calls through Vapi:
+```http
+PUT /api/v1/workspaces/{workspace_id}/provider-selection
+Content-Type: application/json
+
+{ "capability": "voice", "provider": "vapi" }
+```
 
 **Smoke-test a stored credential**
 ```http

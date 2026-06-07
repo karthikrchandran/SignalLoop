@@ -5,6 +5,7 @@ Thumbs.db
 # Editor settings
 .vscode/
 .idea/
+instruction.md
 
 # Environment files
 .env
@@ -18,5 +19,6 @@ node_modules/
 dist/
 build/
 .cache/
+.tmp/
 __pycache__/
 *.py[cod]

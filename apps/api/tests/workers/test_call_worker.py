@@ -20,9 +20,8 @@ from app.domain.voice.models import (
     CallSession,
     VoiceScript,
 )
-from app.domain_models import Contact
+from app.domain_models import Campaign, CampaignStatus, Contact, GlobalControlState
 from app.workers import call_worker
-
 
 # ---------------------------------------------------------------------------
 # Helpers / seed factories
@@ -35,6 +34,25 @@ def _seed_contact(session: Session, *, phone: str | None = "+15551234567") -> Co
     session.commit()
     session.refresh(contact)
     return contact
+
+
+def _seed_campaign(
+    session: Session,
+    *,
+    workspace_id: str = "ws-test",
+    status: CampaignStatus = CampaignStatus.active,
+) -> Campaign:
+    """Create and persist a Campaign."""
+    campaign = Campaign(
+        name="Call Worker Campaign",
+        workspace_id=workspace_id,
+        created_by=uuid.uuid4(),
+        status=status,
+    )
+    session.add(campaign)
+    session.commit()
+    session.refresh(campaign)
+    return campaign
 
 
 def _seed_voice_script(session: Session, campaign_id: uuid.UUID) -> VoiceScript:
@@ -214,6 +232,27 @@ def test_process_batch_initiates_due_call_successfully(memory_session: Session) 
     adapter_inst.initiate_call.assert_awaited_once()
 
 
+def test_process_batch_skips_when_global_pause_active(memory_session: Session) -> None:
+    """Global pause prevents the launched call worker from dialing."""
+    contact = _seed_contact(memory_session)
+    campaign = _seed_campaign(memory_session, workspace_id=contact.workspace_id)
+    _seed_call_request(memory_session, contact_id=contact.id, campaign_id=campaign.id)
+    memory_session.add(GlobalControlState(workspace_id=contact.workspace_id, paused=True))
+    memory_session.commit()
+
+    adapter_inst = MagicMock()
+    adapter_inst._account_sid = "ACtest"
+    adapter_inst.initiate_call = AsyncMock(return_value={"call_sid": "CA123"})
+
+    with _patch_engine(memory_session.bind), \
+         patch.object(call_worker, "_is_quiet_hours", return_value=False), \
+         patch.object(call_worker, "TwilioVoiceAdapter", return_value=adapter_inst):
+        processed = asyncio.run(call_worker._process_batch())
+
+    assert processed == 0
+    adapter_inst.initiate_call.assert_not_awaited()
+
+
 def test_process_batch_handles_exception_and_breaks(memory_session: Session) -> None:
     """If `_initiate_call` raises, the loop rolls back and breaks."""
     contact = _seed_contact(memory_session)
@@ -315,6 +354,35 @@ def test_initiate_call_creates_session_and_marks_in_progress(memory_session: Ses
     ).first()
     assert cr.status == CallRequestStatus.in_progress
     assert cs is not None and cs.twilio_call_sid == "CAfreshSid"
+    assert cs.twilio_status == "initiated"
+
+
+def test_initiate_call_persists_session_before_provider_call(
+    memory_session: Session,
+) -> None:
+    """CallSession is committed as initiating before awaiting Twilio."""
+    contact = _seed_contact(memory_session)
+    cr = _seed_call_request(memory_session, contact_id=contact.id)
+
+    async def _initiate_call(**_kwargs: object) -> dict[str, str]:
+        cs = memory_session.exec(
+            select(CallSession).where(CallSession.call_request_id == cr.id)
+        ).first()
+        assert cs is not None
+        assert cs.twilio_status == "initiating"
+        return {"call_sid": "CAfreshSid"}
+
+    adapter = MagicMock()
+    adapter._account_sid = "ACtest"
+    adapter.initiate_call = AsyncMock(side_effect=_initiate_call)
+
+    with patch.object(call_worker, "resolve_voice_adapter", return_value=adapter):
+        asyncio.run(call_worker._initiate_call(memory_session, cr))
+
+    cs = memory_session.exec(
+        select(CallSession).where(CallSession.call_request_id == cr.id)
+    ).first()
+    assert cs is not None
     assert cs.twilio_status == "initiated"
 
 

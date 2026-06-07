@@ -11,7 +11,7 @@ import asyncio
 import hashlib
 import hmac
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -253,12 +253,12 @@ def test_normalize_webhook_event_defaults_for_missing_fields() -> None:
     assert out["provider_message_id"] == ""
 
 
-def test_verify_webhook_signature_no_secret_returns_true(
+def test_verify_webhook_signature_no_secret_returns_false(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Without configured secret, verification short-circuits to True."""
+    """Without configured secret, verification fails closed."""
     monkeypatch.setattr(settings, "SENDGRID_WEBHOOK_SECRET", "")
-    assert SendGridAdapter.verify_webhook_signature(b"body", "sig", "ts") is True
+    assert SendGridAdapter.verify_webhook_signature(b"body", "sig", "ts") is False
 
 
 def test_verify_webhook_signature_valid_signature(

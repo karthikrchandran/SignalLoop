@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import hmac
 import logging
 from typing import Any
 
 import httpx
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 
 from app.core.config import settings
 from app.infrastructure.providers.base import NotificationProviderAdapter
@@ -22,9 +27,8 @@ RETRY_BACKOFF_FACTOR = 2  # seconds
 class SendGridAdapter(NotificationProviderAdapter):
     """SendGrid email provider adapter using v3 API via httpx.
 
-    Credentials can be injected at construction time (multi-tenant path via
-    :func:`~app.domain.providers.credential_resolver.resolve_provider_credentials`)
-    or omitted to fall back to ``settings.*`` (single-tenant / demo mode).
+    Credentials can be injected at construction time or omitted to fall back
+    to ``settings.*`` for single-tenant / demo mode.
     """
 
     def __init__(
@@ -88,14 +92,17 @@ class SendGridAdapter(NotificationProviderAdapter):
                         }
                     if resp.status_code == 429 or resp.status_code >= 500:
                         import asyncio
+
                         wait = RETRY_BACKOFF_FACTOR ** attempt
                         logger.warning(
                             "SendGrid %s, retrying in %ss (attempt %d/%d)",
-                            resp.status_code, wait, attempt + 1, MAX_RETRIES,
+                            resp.status_code,
+                            wait,
+                            attempt + 1,
+                            MAX_RETRIES,
                         )
                         await asyncio.sleep(wait)
                         continue
-                    # 4xx client error (not 429) — don't retry
                     return {
                         "status_code": resp.status_code,
                         "error": resp.text,
@@ -103,6 +110,7 @@ class SendGridAdapter(NotificationProviderAdapter):
                     }
                 except httpx.HTTPError as exc:
                     import asyncio
+
                     last_exc = exc
                     wait = RETRY_BACKOFF_FACTOR ** attempt
                     logger.warning(
@@ -139,16 +147,38 @@ class SendGridAdapter(NotificationProviderAdapter):
     def verify_webhook_signature(
         payload_bytes: bytes, signature: str, timestamp: str
     ) -> bool:
-        """Verify webhook signature."""
-        secret = settings.SENDGRID_WEBHOOK_SECRET
-        if not secret:
-            # No secret configured — allow through with warning (MVP).
-            # SendGrid uses ECDSA verification which requires the
-            # starkbank-ecdsa or equivalent library for full validation.
-            logger.warning("SENDGRID_WEBHOOK_SECRET not set — skipping signature verification")
-            return True
+        """Verify a SendGrid Event Webhook signature.
+
+        ``SENDGRID_WEBHOOK_SECRET`` supports either a PEM ECDSA public key for
+        production SendGrid verification or a legacy HMAC secret for tests and
+        local fixtures. Missing configuration fails closed.
+        """
+        verification_key = settings.SENDGRID_WEBHOOK_SECRET
+        if not verification_key:
+            logger.error("SENDGRID_WEBHOOK_SECRET not set; rejecting webhook")
+            return False
+        if not signature or not timestamp:
+            return False
+
         signed_payload = timestamp.encode() + payload_bytes
+        if "BEGIN PUBLIC KEY" in verification_key:
+            try:
+                public_key = serialization.load_pem_public_key(
+                    verification_key.encode()
+                )
+                if not isinstance(public_key, ec.EllipticCurvePublicKey):
+                    logger.error("SENDGRID_WEBHOOK_SECRET is not an ECDSA public key")
+                    return False
+                public_key.verify(
+                    base64.b64decode(signature),
+                    signed_payload,
+                    ec.ECDSA(hashes.SHA256()),
+                )
+                return True
+            except (ValueError, binascii.Error, InvalidSignature):
+                return False
+
         expected = hmac.new(
-            secret.encode(), signed_payload, hashlib.sha256
+            verification_key.encode(), signed_payload, hashlib.sha256
         ).hexdigest()
         return hmac.compare_digest(expected, signature)

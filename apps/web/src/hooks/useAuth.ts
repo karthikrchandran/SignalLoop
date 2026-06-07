@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
+import { useEffect } from "react"
 
 import {
   type Body_login_login_access_token as AccessToken,
@@ -26,6 +27,15 @@ const useAuth = () => {
     enabled: isLoggedIn(),
     retry: false,
   })
+
+  useEffect(() => {
+    if (!currentUserQuery.isError || !isLoggedIn()) {
+      return
+    }
+
+    localStorage.removeItem("access_token")
+    navigate({ to: "/login" })
+  }, [currentUserQuery.isError, navigate])
 
   const signUpMutation = useMutation({
     mutationFn: (data: UserRegister) =>

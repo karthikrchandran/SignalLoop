@@ -20,7 +20,7 @@ from app.domain.signals.trigger_service import (
     set_trigger_enabled,
 )
 from app.domain.voice.models import CallRequest, VoiceScript
-from app.domain_models import Contact
+from app.domain_models import Campaign, Contact
 
 
 def _run(coro):
@@ -51,13 +51,13 @@ def reset_trigger_state() -> Generator[None, None, None]:
 
 
 def _make_contact(session: Session, **overrides) -> Contact:
-    defaults = dict(
-        workspace_id="ws",
-        email="alice@example.com",
-        first_name="Alice",
-        last_name="A",
-        company="Acme",
-    )
+    defaults = {
+        "workspace_id": "ws",
+        "email": "alice@example.com",
+        "first_name": "Alice",
+        "last_name": "A",
+        "company": "Acme",
+    }
     defaults.update(overrides)
     contact = Contact(**defaults)
     session.add(contact)
@@ -66,16 +66,29 @@ def _make_contact(session: Session, **overrides) -> Contact:
     return contact
 
 
+def _make_campaign(session: Session, *, workspace_id: str = "ws") -> Campaign:
+    campaign = Campaign(
+        name="Campaign",
+        created_by=uuid.uuid4(),
+        workspace_id=workspace_id,
+    )
+    session.add(campaign)
+    session.commit()
+    session.refresh(campaign)
+    return campaign
+
+
 def _make_signal(
     session: Session,
     contact_id: uuid.UUID,
     *,
     signal_type: str,
     channel: str = "email",
+    campaign_id: uuid.UUID | None = None,
 ) -> SignalEvent:
     sig = SignalEvent(
         contact_id=contact_id,
-        campaign_id=uuid.uuid4(),
+        campaign_id=campaign_id or uuid.uuid4(),
         channel=channel,
         signal_type=signal_type,
     )
@@ -204,6 +217,37 @@ def test_process_signal_voice_positive_interest_sends_resource(
     )
     executed = _run(process_signal(session, sig))
     assert executed == ["send_resource_email"]
+
+
+def test_process_signal_resolves_workspace_email_adapter(session: Session) -> None:
+    """Email trigger actions resolve the workspace-selected email provider."""
+    workspace_id = "ws-provider-selected"
+    contact = _make_contact(session, workspace_id=workspace_id)
+    campaign = _make_campaign(session, workspace_id=workspace_id)
+    sig = _make_signal(
+        session,
+        contact.id,
+        signal_type="voice_positive_interest",
+        channel="voice",
+        campaign_id=campaign.id,
+    )
+    adapter = AsyncMock()
+    adapter.send_email = AsyncMock(return_value={"status_code": 250})
+
+    with patch.object(
+        trigger_service,
+        "resolve_email_adapter",
+        return_value=adapter,
+    ) as resolver:
+        executed = _run(process_signal(session, sig))
+
+    assert executed == ["send_resource_email"]
+    resolver.assert_called_once_with(
+        session,
+        workspace_id,
+        default_factory=trigger_service.SendGridAdapter,
+    )
+    adapter.send_email.assert_awaited_once()
 
 
 def test_process_signal_send_resource_missing_contact(session: Session) -> None:

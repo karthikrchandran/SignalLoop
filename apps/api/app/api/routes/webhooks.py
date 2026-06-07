@@ -25,7 +25,7 @@ from app.domain.signals.models import SignalEvent
 from app.domain.signals.signal_detector import detect_email_signal
 from app.domain.signals.trigger_service import process_signal
 from app.domain.timeline.timeline_service import invalidate_timeline_cache
-from app.domain_models import Campaign
+from app.domain_models import Campaign, NotificationProvider, ProviderEventLog
 from app.infrastructure.providers.sendgrid import SendGridAdapter
 
 logger = logging.getLogger(__name__)
@@ -49,15 +49,24 @@ async def handle_sendgrid_webhook(request: Request, session: SessionDep) -> dict
     events: list[dict[str, Any]] = await request.json()
     adapter = SendGridAdapter()
     timeline_cache_targets: set[tuple[uuid.UUID, uuid.UUID]] = set()
+    seen_provider_events: set[str] = set()
 
     for raw_event in events:
         try:
             normalized = await adapter.normalize_webhook_event(raw_event)
             provider_msg_id = normalized["provider_message_id"]
             event_type = normalized["event_type"]
+            provider_event_id = normalized.get("provider_event_id") or raw_event.get("sg_event_id", "")
 
             if not provider_msg_id:
                 continue
+            if provider_event_id:
+                if provider_event_id in seen_provider_events or _provider_event_seen(
+                    session,
+                    provider_event_id,
+                ):
+                    logger.info("Skipping replayed SendGrid event %s", provider_event_id)
+                    continue
 
             # Find matching SendRequest
             send_request = session.exec(
@@ -69,6 +78,8 @@ async def handle_sendgrid_webhook(request: Request, session: SessionDep) -> dict
             if not send_request:
                 logger.warning("No SendRequest found for message_id=%s", provider_msg_id)
                 continue
+
+            workspace_id = _workspace_for_send_request(session, send_request)
 
             # Store the event
             email_event = EmailEvent(
@@ -85,6 +96,18 @@ async def handle_sendgrid_webhook(request: Request, session: SessionDep) -> dict
             timeline_cache_targets.update(
                 await _process_event(session, send_request, event_type, normalized, raw_event)
             )
+            if provider_event_id:
+                session.add(
+                    ProviderEventLog(
+                        workspace_id=workspace_id,
+                        provider=NotificationProvider.sendgrid,
+                        provider_event_id=provider_event_id,
+                        event_type=event_type,
+                        raw_payload=raw_event,
+                        normalized_event=normalized,
+                    )
+                )
+                seen_provider_events.add(provider_event_id)
         except Exception:
             logger.exception("Error processing webhook event: %s", raw_event.get("sg_event_id", "unknown"))
 
@@ -92,6 +115,15 @@ async def handle_sendgrid_webhook(request: Request, session: SessionDep) -> dict
     for contact_id, campaign_id in timeline_cache_targets:
         await invalidate_timeline_cache(request, contact_id, campaign_id)
     return {"status": "ok"}
+
+
+def _provider_event_seen(session: Session, provider_event_id: str) -> bool:
+    return session.exec(
+        select(ProviderEventLog.id).where(
+            ProviderEventLog.provider == NotificationProvider.sendgrid,
+            ProviderEventLog.provider_event_id == provider_event_id,
+        )
+    ).first() is not None
 
 
 async def _process_event(

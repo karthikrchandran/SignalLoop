@@ -36,16 +36,22 @@ from app.domain.voice.models import (
     VoiceScript,
 )
 from app.domain.voice.script_parser import parse_script
-from app.domain_models import Campaign, Contact, NotificationProvider, ProviderCredential
+from app.domain_models import (
+    Campaign,
+    Contact,
+    NotificationProvider,
+    ProviderCredential,
+    ProviderEventLog,
+)
 from app.infrastructure.providers.deepgram_stt import DeepgramSTTAdapter
 from app.infrastructure.providers.deepgram_tts import DeepgramTTSAdapter
+from app.infrastructure.providers.errors import ProviderConfigurationError
+from app.infrastructure.providers.groq_llm import GroqLLMAdapter
 from app.infrastructure.providers.registry import (
     resolve_llm_adapter,
     resolve_stt_adapter,
     resolve_tts_adapter,
 )
-from app.infrastructure.providers.errors import ProviderConfigurationError
-from app.infrastructure.providers.groq_llm import GroqLLMAdapter
 from app.infrastructure.providers.twilio_voice import TwilioVoiceAdapter
 
 logger = logging.getLogger(__name__)
@@ -103,6 +109,75 @@ def _verify_twilio_webhook(
         for auth_token in auth_tokens
     ):
         raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+
+
+def _twilio_provider_event_id(event_kind: str, params: dict[str, str]) -> str:
+    call_sid = params.get("CallSid", "").strip()
+    account_sid = params.get("AccountSid", "").strip()
+    if event_kind == "recording":
+        event_marker = (
+            params.get("RecordingSid", "").strip()
+            or params.get("RecordingUrl", "").strip()
+            or params.get("RecordingStatus", "").strip()
+        )
+    else:
+        event_marker = (
+            params.get("CallStatus", "").strip().lower()
+            or params.get("CallEvent", "").strip().lower()
+        )
+    sequence_marker = (
+        params.get("SequenceNumber", "").strip()
+        or params.get("Timestamp", "").strip()
+        or params.get("CallbackSource", "").strip()
+    )
+    raw = "|".join(
+        part
+        for part in (event_kind, account_sid, call_sid, event_marker, sequence_marker)
+        if part
+    )
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    return f"twilio:{event_kind}:{digest}"
+
+
+def _workspace_for_call_request(session: Session, call_request: CallRequest | None) -> str:
+    if not call_request:
+        return "system"
+    campaign = session.get(Campaign, call_request.campaign_id)
+    if campaign:
+        return campaign.workspace_id
+    contact = session.get(Contact, call_request.contact_id)
+    return contact.workspace_id if contact else "system"
+
+
+def _record_twilio_provider_event(
+    session: Session,
+    *,
+    workspace_id: str,
+    provider_event_id: str,
+    event_type: str,
+    raw_payload: dict[str, str],
+    normalized_event: dict[str, str],
+) -> bool:
+    existing = session.exec(
+        select(ProviderEventLog.id).where(
+            ProviderEventLog.provider == NotificationProvider.twilio,
+            ProviderEventLog.provider_event_id == provider_event_id,
+        )
+    ).first()
+    if existing:
+        return False
+
+    session.add(
+        ProviderEventLog(
+            workspace_id=workspace_id,
+            provider=NotificationProvider.twilio,
+            provider_event_id=provider_event_id,
+            event_type=event_type,
+            raw_payload=raw_payload,
+            normalized_event=normalized_event,
+        )
+    )
+    return True
 
 
 def _twilio_auth_tokens_for_request(
@@ -546,8 +621,26 @@ async def status_callback(request: Request, session: SessionDep) -> dict[str, st
         logger.warning("Status callback for unknown call_sid=%s", call_sid)
         return {"status": "ignored"}
 
+    call_request = session.get(CallRequest, call_session.call_request_id)
+    workspace_id = _workspace_for_call_request(session, call_request)
+    provider_event_id = _twilio_provider_event_id("status", params)
+    if not _record_twilio_provider_event(
+        session,
+        workspace_id=workspace_id,
+        provider_event_id=provider_event_id,
+        event_type="twilio_call_status",
+        raw_payload=params,
+        normalized_event={
+            "call_sid": call_sid,
+            "call_status": call_status,
+        },
+    ):
+        logger.info("Ignoring replayed Twilio status event: %s", provider_event_id)
+        return {"status": "ignored"}
+
     if not _should_apply_twilio_status(call_session.twilio_status, call_status):
         logger.info("Ignoring stale Twilio status: call=%s status=%s", call_sid, call_status)
+        session.commit()
         return {"status": "ignored"}
 
     duration = _parse_positive_int(str(form.get("CallDuration", "0")))
@@ -566,7 +659,6 @@ async def status_callback(request: Request, session: SessionDep) -> dict[str, st
         if outcome:
             call_session.outcome = outcome
 
-    call_request = session.get(CallRequest, call_session.call_request_id)
     if call_request:
         _apply_call_request_status(call_request, call_status, call_session.outcome)
 
@@ -596,6 +688,22 @@ async def recording_callback(request: Request, session: SessionDep) -> dict[str,
         ).first()
         if call_session:
             call_request = session.get(CallRequest, call_session.call_request_id)
+            workspace_id = _workspace_for_call_request(session, call_request)
+            provider_event_id = _twilio_provider_event_id("recording", params)
+            if not _record_twilio_provider_event(
+                session,
+                workspace_id=workspace_id,
+                provider_event_id=provider_event_id,
+                event_type="twilio_recording",
+                raw_payload=params,
+                normalized_event={
+                    "call_sid": call_sid,
+                    "recording_url": recording_url,
+                    "recording_sid": str(form.get("RecordingSid", "")),
+                },
+            ):
+                logger.info("Ignoring replayed Twilio recording event: %s", provider_event_id)
+                return {"status": "ignored"}
             call_session.twilio_account_sid = str(form.get("AccountSid", "")) or call_session.twilio_account_sid
             if not call_session.recording_url or call_session.recording_url == recording_url:
                 call_session.recording_url = recording_url
