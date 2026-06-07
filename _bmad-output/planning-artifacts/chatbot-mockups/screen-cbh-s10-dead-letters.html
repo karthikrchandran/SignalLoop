@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CBH-S10 - Dead Letters</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="mockup-shell">
+    <aside class="sidebar"><div class="brand">EngageHub</div><div class="nav-section"><div class="nav-title">Operator</div><div class="nav-item">System Health</div><div class="nav-item active">Dead Letters</div><div class="nav-item">Audit Log</div></div><div class="nav-section"><div class="nav-title">Chatbot</div><div class="nav-item">Inbox <span class="badge-count">3</span></div></div></aside>
+    <main class="main">
+      <section class="topline">
+        <div><p class="eyebrow">CBH-S10</p><h1>Chatbot Dead Letters</h1><p class="subhead">Operator-only recovery for verified messages that failed all worker retries.</p></div>
+        <div class="actions"><span class="status danger">4 failed</span><button class="button">Refresh</button></div>
+      </section>
+      <section class="metric-row">
+        <div class="card metric"><div class="metric-label">Failed messages</div><div class="metric-value">4</div><div class="metric-note">7 day retention</div></div>
+        <div class="card metric"><div class="metric-label">Retries today</div><div class="metric-value">11</div><div class="metric-note">Automatic attempts</div></div>
+        <div class="card metric"><div class="metric-label">Top channel</div><div class="metric-value">WA</div><div class="metric-note">Token errors</div></div>
+        <div class="card metric"><div class="metric-label">Oldest failed</div><div class="metric-value">2h</div><div class="metric-note">Visible to operator</div></div>
+      </section>
+      <section class="card">
+        <div class="card-header"><div><h2 class="card-title">Dead-letter queue</h2><p class="card-copy mono">GET /api/v1/chatbot/dead-letters</p></div><span class="status info">Workspace scoped</span></div>
+        <table class="table">
+          <thead><tr><th>Message ID</th><th>Channel</th><th>Last error</th><th>Attempts</th><th>Failed at</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">wamid.HBg...</td><td>WhatsApp</td><td>401 invalid token</td><td>3</td><td>10:40</td><td><button class="button primary">Retry</button></td></tr>
+            <tr><td class="mono">m_982341</td><td>Facebook</td><td>LLM timeout</td><td>3</td><td>10:18</td><td><button class="button primary">Retry</button></td></tr>
+            <tr><td class="mono">tg_7718</td><td>Telegram</td><td>Index unavailable</td><td>3</td><td>09:51</td><td><button class="button primary">Retry</button></td></tr>
+          </tbody>
+        </table>
+      </section>
+      <div class="banner warning" style="margin-top:16px;"><span>Retry requeues the original payload to chatbot:inbound:{workspace_id}; deduplication still prevents duplicate bot responses.</span></div>
+    </main>
+  </div>
+</body>
+</html>

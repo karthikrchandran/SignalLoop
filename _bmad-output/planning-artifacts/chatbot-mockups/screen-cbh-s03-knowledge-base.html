@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CBH-S03 - Knowledge Base</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="mockup-shell">
+    <aside class="sidebar"><div class="brand">EngageHub</div><div class="nav-title">Chatbot</div><div class="nav-item">Channels</div><div class="nav-item active">Knowledge Base</div><div class="nav-item">Inbox <span class="badge-count">3</span></div><div class="nav-item">Analytics</div><div class="nav-item">Settings</div></aside>
+    <main class="main">
+      <section class="topline">
+        <div><p class="eyebrow">CBH-S03</p><h1>Knowledge Base</h1><p class="subhead">Add sources once. All connected channels answer from this workspace-scoped index.</p></div>
+        <div class="actions"><button class="button">Re-index All</button><button class="button primary">Test Bot</button></div>
+      </section>
+      <div class="banner"><span><strong>Indexing 12 pages...</strong> 38 percent complete. Estimated 2 minutes remaining.</span><div class="progress" style="width:180px;"><span style="width:38%;"></span></div></div>
+      <section class="grid-main-side">
+        <article class="card">
+          <div class="card-header"><div><h2 class="card-title">Add knowledge</h2><p class="card-copy">Website URLs, documents, FAQ text, and structured Q&A enter the same vector index.</p></div></div>
+          <div class="pad">
+            <div class="tabs"><span class="tab active">Website URLs</span><span class="tab">Documents</span><span class="tab">FAQ / Q&A</span></div>
+            <div class="field"><label>URLs</label><textarea class="textarea">https://acme.com
+https://acme.com/pricing
+https://acme.com/support</textarea></div>
+            <div class="actions"><button class="button primary">Crawl and Index</button><button class="button">Clear</button></div>
+          </div>
+        </article>
+        <aside class="card pad">
+          <h2 class="card-title">Current index</h2>
+          <div class="kv"><div><span>Version</span><strong>2026-06-05-a</strong></div><div><span>Chunks</span><strong>312</strong></div><div><span>Sources</span><strong>6 active</strong></div><div><span>Nightly re-index</span><strong>02:00 local</strong></div></div>
+          <div class="banner warning" style="margin:0;">In-flight conversations keep their pinned index version until session end.</div>
+        </aside>
+      </section>
+      <section class="card" style="margin-top:16px;">
+        <div class="card-header"><h2 class="card-title">Sources</h2><span class="status info">Workspace scoped</span></div>
+        <div class="source-row"><div><strong>acme.com website</strong><div class="muted small">URL crawl, depth 2</div></div><span class="status success">247 chunks</span></div>
+        <div class="source-row"><div><strong>product-catalog.pdf</strong><div class="muted small">Document upload, 18 MB</div></div><span class="status info">Indexing 62%</span></div>
+        <div class="source-row"><div><strong>Refund policy FAQ</strong><div class="muted small">Structured Q&A edited today</div></div><span class="status warning">Stale</span></div>
+        <div class="source-row"><div><strong>old-brochure.pdf</strong><div class="muted small">Parser failed on encrypted PDF</div></div><span class="status danger">Failed</span></div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+

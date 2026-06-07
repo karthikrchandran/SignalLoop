@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CBH-S02 - Channel Sheet</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="sheet-page">
+    <div class="mockup-shell">
+      <aside class="sidebar"><div class="brand">EngageHub</div><div class="nav-title">Chatbot</div><div class="nav-item active">Channels</div><div class="nav-item">Knowledge Base</div><div class="nav-item">Inbox <span class="badge-count">3</span></div></aside>
+      <main class="main">
+        <section class="topline"><div><p class="eyebrow">CBH-S02</p><h1>Channels</h1><p class="subhead">The connection sheet keeps credential setup focused while preserving page context.</p></div></section>
+        <section class="grid-3">
+          <div class="card pad"><span class="status success">Facebook live</span><h2 class="card-title" style="margin-top:14px;">Facebook Messenger</h2></div>
+          <div class="card pad"><span class="status warning">Verifying</span><h2 class="card-title" style="margin-top:14px;">WhatsApp Business</h2></div>
+          <div class="card pad"><span class="status muted">Not set up</span><h2 class="card-title" style="margin-top:14px;">Telegram Bot</h2></div>
+        </section>
+      </main>
+    </div>
+    <div class="sheet-backdrop"></div>
+    <aside class="sheet">
+      <p class="eyebrow">Connect channel</p>
+      <h1 style="font-size:24px;">Connect WhatsApp Business</h1>
+      <p class="subhead">Credentials are stored in encrypted ProviderCredential records scoped to this workspace.</p>
+      <div style="margin-top:22px;">
+        <div class="field"><label>Phone Number ID</label><input class="input" value="109876543210" /></div>
+        <div class="field"><label>Access Token</label><input class="input" value="masked-token-value" /></div>
+        <div class="field"><label>Webhook Verify Token</label><input class="input" value="workspace-wa-verify" /></div>
+        <div class="field"><label>Bot display name</label><input class="input" value="Aria from Acme" /></div>
+        <div class="field"><label>Greeting message</label><textarea class="textarea">Hi, I'm Aria, an AI assistant. How can I help today?</textarea></div>
+        <div class="banner warning"><span>Verification failed: Meta returned invalid token. Update the access token and try again.</span></div>
+      </div>
+      <div class="actions" style="justify-content:flex-end; margin-top:20px;"><button class="button">Cancel</button><button class="button primary">Save and Verify</button></div>
+    </aside>
+  </div>
+</body>
+</html>
+

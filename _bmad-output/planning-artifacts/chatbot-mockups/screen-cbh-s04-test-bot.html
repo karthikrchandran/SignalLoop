@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CBH-S04 - Test Bot</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="sheet-page">
+    <div class="mockup-shell">
+      <aside class="sidebar"><div class="brand">EngageHub</div><div class="nav-title">Chatbot</div><div class="nav-item">Channels</div><div class="nav-item active">Knowledge Base</div><div class="nav-item">Inbox <span class="badge-count">3</span></div></aside>
+      <main class="main">
+        <section class="topline"><div><p class="eyebrow">CBH-S04</p><h1>Knowledge Base</h1><p class="subhead">Test Bot opens as a sheet so admins keep source context nearby.</p></div><button class="button primary">Test Bot</button></section>
+        <section class="card pad"><h2 class="card-title">Sources ready</h2><p class="card-copy">312 chunks indexed from website, documents, and FAQ.</p></section>
+      </main>
+    </div>
+    <div class="sheet-backdrop"></div>
+    <aside class="sheet">
+      <p class="eyebrow">CBH-S04</p>
+      <h1 style="font-size:24px;">Test Bot</h1>
+      <p class="subhead">Responses use the current index and show retrieved source chunks.</p>
+      <div class="messages" style="min-height:660px; padding:18px 0;">
+        <div class="bubble right"><div class="bubble-label">Admin</div><div class="bubble-box">What is the refund policy?</div></div>
+        <div class="bubble bot"><div class="bubble-label">Bot <span class="status info">I'm an AI assistant</span></div><div class="bubble-box">Acme offers a full refund within 14 days for eligible plans. I found this in your Refund policy FAQ and support page.</div></div>
+        <div class="card pad" style="box-shadow:none;">
+          <h2 class="card-title">Based on</h2>
+          <table class="table">
+            <tbody>
+              <tr><td>Refund policy FAQ</td><td><span class="status success">92%</span></td></tr>
+              <tr><td>support/refunds</td><td><span class="status info">86%</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="bubble right"><div class="bubble-label">Admin</div><div class="bubble-box">Do you support 5 users?</div></div>
+        <div class="bubble bot"><div class="bubble-label">Bot <span class="status info">I'm an AI assistant</span></div><div class="bubble-box">Yes. The Team plan supports up to 10 users.</div></div>
+      </div>
+      <div class="composer" style="padding:0; border-top:0;"><input class="input" value="Ask your bot a question..." /><button class="button primary">Send</button></div>
+    </aside>
+  </div>
+</body>
+</html>
+

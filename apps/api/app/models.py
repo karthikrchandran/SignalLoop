@@ -1,3 +1,4 @@
+# ruff: noqa: E402, F401, I001
 """Persistence + API models for the ``app`` domain."""
 
 import uuid
@@ -136,3 +137,14 @@ from app.domain.sequences.suppression import EmailSuppression  # noqa: E402
 from app.domain.signals.models import SignalEvent  # noqa: E402
 from app.domain.voice.models import CallRequest, CallSession, VoiceScript  # noqa: E402
 from app.domain.signals.scheduling import SchedulingRequest  # noqa: E402
+from app.domain.workspaces.models import Workspace, WorkspaceMembership  # noqa: E402
+from app.domain.chatbot.models import (  # noqa: E402
+    ChatbotAnalyticsSnapshot,
+    ChatbotBotConfig,
+    ChatbotChannelConfig,
+    ChatbotConversation,
+    ChatbotKnowledgeChunk,
+    ChatbotKnowledgeSource,
+    ChatbotMessage,
+    ChatbotOptOut,
+)

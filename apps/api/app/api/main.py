@@ -26,6 +26,7 @@ from app.api.routes import (
     workspace_runtime_config,
 )
 from app.core.config import settings
+from app.routers.chatbot import router as chatbot_router
 
 api_router = APIRouter()
 api_router.include_router(login.router)
@@ -48,6 +49,7 @@ api_router.include_router(provider_credentials.router)
 api_router.include_router(workspace_runtime_config.router)
 api_router.include_router(audit_log.router)
 api_router.include_router(kpis.router)
+api_router.include_router(chatbot_router)
 
 
 if settings.ENVIRONMENT == "local":

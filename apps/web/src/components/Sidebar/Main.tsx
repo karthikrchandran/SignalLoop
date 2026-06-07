@@ -4,7 +4,9 @@ import type { LucideIcon } from "lucide-react"
 import {
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
@@ -14,16 +16,24 @@ export type Item = {
   icon: LucideIcon
   title: string
   path: string
+  badge?: number
 }
 
-interface MainProps {
+export type ItemGroup = {
+  title?: string
   items: Item[]
 }
 
-export function Main({ items }: MainProps) {
+interface MainProps {
+  items?: Item[]
+  groups?: ItemGroup[]
+}
+
+export function Main({ items = [], groups }: MainProps) {
   const { isMobile, setOpenMobile } = useSidebar()
   const router = useRouterState()
   const currentPath = router.location.pathname
+  const visibleGroups = groups ?? [{ items }]
 
   const handleMenuClick = () => {
     if (isMobile) {
@@ -32,29 +42,35 @@ export function Main({ items }: MainProps) {
   }
 
   return (
-    <SidebarGroup>
-      <SidebarGroupContent>
-        <SidebarMenu>
-          {items.map((item) => {
-            const isActive = currentPath === item.path
+    <>
+      {visibleGroups.map((group, index) => (
+        <SidebarGroup key={group.title ?? `sidebar-group-${index}`}>
+          {group.title ? <SidebarGroupLabel>{group.title}</SidebarGroupLabel> : null}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {group.items.map((item) => {
+                const isActive = currentPath === item.path || currentPath.startsWith(`${item.path}/`)
 
-            return (
-              <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton
-                  tooltip={item.title}
-                  isActive={isActive}
-                  asChild
-                >
-                  <RouterLink to={item.path} onClick={handleMenuClick}>
-                    <item.icon />
-                    <span>{item.title}</span>
-                  </RouterLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )
-          })}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      tooltip={item.title}
+                      isActive={isActive}
+                      asChild
+                    >
+                      <RouterLink to={item.path} onClick={handleMenuClick}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </RouterLink>
+                    </SidebarMenuButton>
+                    {item.badge ? <SidebarMenuBadge>{item.badge}</SidebarMenuBadge> : null}
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ))}
+    </>
   )
 }

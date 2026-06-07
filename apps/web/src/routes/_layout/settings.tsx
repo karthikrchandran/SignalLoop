@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { OptOutsTab } from "@/features/chatbot/OptOutsTab"
 import useAuth from "@/hooks/useAuth"
 import { engagehubRequest, getWorkspaceId } from "@/lib/engagehub-api"
 
@@ -95,6 +96,9 @@ const emptyRuntimeConfigForm = (): RuntimeConfigFormState => ({
   teamNotificationEmail: "",
 })
 
+const canManageChatbotOptOuts = (user?: { is_superuser?: boolean; role?: string | null } | null) =>
+  Boolean(user?.is_superuser || user?.role === "admin" || user?.role === "super_admin")
+
 export const Route = createFileRoute("/_layout/settings")({
   component: UserSettings,
   head: () => ({
@@ -109,24 +113,34 @@ export const Route = createFileRoute("/_layout/settings")({
 function UserSettings() {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { user: currentUser, isLoading, isError, error } = useAuth()
+  const currentUserWithRole = currentUser as ({ is_superuser?: boolean; role?: string | null } & typeof currentUser) | null | undefined
   const finalTabs = useMemo(() => {
-    const baseTabs = currentUser?.is_superuser
+    const baseTabs = currentUserWithRole?.is_superuser
       ? tabsConfig.filter((tab) => tab.value !== "danger-zone")
       : tabsConfig
 
-    if (!currentUser?.is_superuser) {
-      return baseTabs
-    }
+    const chatbotTabs = canManageChatbotOptOuts(currentUserWithRole)
+      ? [
+          {
+            value: "opt-outs",
+            title: "Opt-outs",
+            component: OptOutsTab,
+          },
+        ]
+      : []
 
-    return [
-      ...baseTabs,
-      {
-        value: "workspace-setup",
-        title: "Workspace setup",
-        component: WorkspaceSetupTab,
-      },
-    ]
-  }, [currentUser?.is_superuser])
+    const superuserTabs = currentUserWithRole?.is_superuser
+      ? [
+          {
+            value: "workspace-setup",
+            title: "Workspace setup",
+            component: WorkspaceSetupTab,
+          },
+        ]
+      : []
+
+    return [...baseTabs, ...chatbotTabs, ...superuserTabs]
+  }, [currentUserWithRole?.is_superuser, currentUserWithRole?.role])
 
   if (pathname !== "/settings") {
     return <Outlet />

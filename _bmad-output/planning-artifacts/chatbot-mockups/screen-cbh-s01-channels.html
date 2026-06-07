@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CBH-S01 - Channels</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="mockup-shell">
+    <aside class="sidebar">
+      <div class="brand">EngageHub</div>
+      <div class="nav-section">
+        <div class="nav-item">Dashboard</div><div class="nav-item">Voice Agents</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-title">Chatbot</div>
+        <div class="nav-item active">Channels</div><div class="nav-item">Knowledge Base</div><div class="nav-item">Inbox <span class="badge-count">3</span></div><div class="nav-item">Analytics</div><div class="nav-item">Settings</div>
+      </div>
+    </aside>
+    <main class="main">
+      <section class="topline">
+        <div>
+          <p class="eyebrow">CBH-S01</p>
+          <h1>Channels</h1>
+          <p class="subhead">Connect official messaging channels to the same shared chatbot brain.</p>
+        </div>
+        <div class="actions"><button class="button">Refresh</button><a class="button" href="index.html">Mockup index</a></div>
+      </section>
+
+      <section class="grid-3">
+        <article class="card channel-card">
+          <div class="card-header"><div><span class="channel-icon">f</span></div><span class="status success">Connected Active</span></div>
+          <div class="channel-body">
+            <h2 class="card-title">Facebook Messenger</h2>
+            <p class="card-copy">Page messages route to the shared bot and inbox.</p>
+            <div class="kv"><div><span>Last webhook</span><strong>2 min ago</strong></div><div><span>Bot mode</span><strong>On</strong></div><div><span>Delivery failures</span><strong>0 today</strong></div></div>
+            <div class="actions"><button class="button">Edit</button><button class="button">Disconnect</button></div>
+          </div>
+        </article>
+        <article class="card channel-card">
+          <div class="card-header"><div><span class="channel-icon" style="background:#059669">wa</span></div><span class="status danger">Error</span></div>
+          <div class="channel-body">
+            <h2 class="card-title">WhatsApp Business</h2>
+            <p class="card-copy">Token rejected on last send attempt after retry.</p>
+            <div class="kv"><div><span>Last webhook</span><strong>12 min ago</strong></div><div><span>Bot mode</span><strong>On</strong></div><div><span>Last error</span><strong>401 token</strong></div></div>
+            <div class="actions"><button class="button primary">Reconnect</button><button class="button">Details</button></div>
+          </div>
+        </article>
+        <article class="card channel-card">
+          <div class="card-header"><div><span class="channel-icon" style="background:#0ea5e9">tg</span></div><span class="status muted">Not set up</span></div>
+          <div class="channel-body">
+            <h2 class="card-title">Telegram Bot</h2>
+            <p class="card-copy">Optional MVP channel. Does not block Facebook and WhatsApp release.</p>
+            <div class="kv"><div><span>Last webhook</span><strong>Never</strong></div><div><span>Bot mode</span><strong>Off</strong></div><div><span>Approval</span><strong>Not required</strong></div></div>
+            <button class="button primary">Connect</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="card pad" style="margin-top:16px;">
+        <h2 class="card-title">Connection events</h2>
+        <table class="table">
+          <tbody>
+            <tr><td>10:42</td><td>Facebook webhook verified</td><td><span class="status success">OK</span></td></tr>
+            <tr><td>10:40</td><td>WhatsApp send failed after 3 retries</td><td><span class="status danger">Dead-lettered</span></td></tr>
+            <tr><td>09:55</td><td>Telegram channel not configured</td><td><span class="status muted">Optional</span></td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+

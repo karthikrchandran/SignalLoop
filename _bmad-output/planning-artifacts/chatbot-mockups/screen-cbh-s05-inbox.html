@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CBH-S05 - Inbox</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="mockup-shell">
+    <aside class="sidebar"><div class="brand">EngageHub</div><div class="nav-title">Chatbot</div><div class="nav-item">Channels</div><div class="nav-item">Knowledge Base</div><div class="nav-item active">Inbox <span class="badge-count">3</span></div><div class="nav-item">Analytics</div><div class="nav-item">Settings</div></aside>
+    <main class="main">
+      <section class="topline">
+        <div><p class="eyebrow">CBH-S05</p><h1>Inbox</h1><p class="subhead">Real-time triage for escalated and active chatbot conversations.</p></div>
+        <div class="actions"><span class="status success">SSE connected</span><button class="button">Export</button></div>
+      </section>
+      <section class="card split">
+        <div class="split-left">
+          <div class="thread-filter">
+            <div class="tabs"><span class="tab active">All</span><span class="tab">Escalated</span><span class="tab">Bot</span><span class="tab">Resolved</span></div>
+            <div class="grid-2"><select class="select"><option>All channels</option></select><select class="select"><option>Last 7 days</option></select></div>
+          </div>
+          <div class="thread-row escalated"><div><strong>Maya Chen</strong><span class="muted" style="float:right;">1m</span></div><div class="muted small">WhatsApp - "Can I talk to someone?"</div><span class="status warning">Escalated</span></div>
+          <div class="thread-row bot"><div><strong>Alex P.</strong><span class="muted" style="float:right;">5m</span></div><div class="muted small">Facebook - "Do you support teams?"</div><span class="status info">Bot active</span></div>
+          <div class="thread-row out"><div><strong>Bright Labs</strong><span class="muted" style="float:right;">18m</span></div><div class="muted small">WhatsApp - Outside business hours</div><span class="status violet">Out of hours</span></div>
+          <div class="thread-row opted"><div><strong>@sam</strong><span class="muted" style="float:right;">22m</span></div><div class="muted small">Telegram - "STOP"</div><span class="status muted">Opted out</span></div>
+        </div>
+        <div class="split-right" style="display:flex; align-items:center; justify-content:center;">
+          <div class="card pad" style="width:460px; box-shadow:none;">
+            <h2 class="card-title">Select a thread</h2>
+            <p class="card-copy">New escalations insert at the top, update the sidebar badge, and show a toast without refresh. If SSE disconnects, polling starts every 30 seconds.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+

@@ -1,5 +1,5 @@
 import { useSuspenseQuery } from "@tanstack/react-query"
-import { createFileRoute, redirect } from "@tanstack/react-router"
+import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router"
 import { Suspense } from "react"
 
 import { type UserPublic, UsersService } from "@/client"
@@ -8,6 +8,13 @@ import { columns, type UserTableData } from "@/components/Admin/columns"
 import { DataTable } from "@/components/Common/DataTable"
 import PendingUsers from "@/components/Pending/PendingUsers"
 import useAuth from "@/hooks/useAuth"
+
+type UserWithRole = UserPublic & {
+  role?: string | null
+}
+
+const isDeadLetterOperator = (user: UserWithRole) =>
+  Boolean(user.is_superuser || user.role === "operator" || user.role === "super_admin")
 
 function getUsersQueryOptions() {
   return {
@@ -18,8 +25,13 @@ function getUsersQueryOptions() {
 
 export const Route = createFileRoute("/_layout/admin")({
   component: Admin,
-  beforeLoad: async () => {
-    const user = await UsersService.readUserMe()
+  beforeLoad: async ({ location }) => {
+    const user = await UsersService.readUserMe() as UserWithRole
+    const isDeadLettersRoute = location.pathname === "/admin/chatbot/dead-letters"
+    if (isDeadLettersRoute && isDeadLetterOperator(user)) {
+      return
+    }
+
     if (!user.is_superuser) {
       throw redirect({
         to: "/",
@@ -56,6 +68,12 @@ function UsersTable() {
 }
 
 function Admin() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+
+  if (pathname !== "/admin") {
+    return <Outlet />
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">

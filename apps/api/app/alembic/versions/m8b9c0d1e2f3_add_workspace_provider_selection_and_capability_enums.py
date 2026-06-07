@@ -23,7 +23,16 @@ branch_labels: str | tuple[str, ...] | None = None
 depends_on: str | tuple[str, ...] | None = None
 
 
-# New values to append to the existing ``notificationprovider`` enum.
+# Values that predate the multi-provider story.  Older migrations stored these
+# in string columns, so a fresh Alembic database may not have this enum yet.
+BASE_PROVIDER_VALUES: tuple[str, ...] = (
+    "sendgrid",
+    "twilio",
+    "mailchimp",
+    "calendly",
+)
+
+# New values to append to the ``notificationprovider`` enum.
 NEW_PROVIDER_VALUES: tuple[str, ...] = (
     "smtp",
     "ses",
@@ -48,7 +57,14 @@ NEW_PROVIDER_VALUES: tuple[str, ...] = (
     "openrouter",
     "gemini",
     "vapi",
+    # ChatBot Hub channel providers (also extended in o0d1e2f3g4h5; idempotent here)
+    "facebook_messenger",
+    "whatsapp_cloud",
+    "telegram_bot",
+    "linkedin_redirect",
 )
+
+ALL_PROVIDER_VALUES: tuple[str, ...] = BASE_PROVIDER_VALUES + NEW_PROVIDER_VALUES
 
 CAPABILITY_VALUES: tuple[str, ...] = (
     "email",
@@ -66,12 +82,19 @@ def upgrade() -> None:
     dialect = bind.dialect.name
 
     # ------------------------------------------------------------------
-    # 1. Extend the ``notificationprovider`` enum with the new values.
+    # 1. Ensure ``notificationprovider`` exists and has all current values.
     # ------------------------------------------------------------------
     if dialect == "postgresql":
+        notification_provider = postgresql.ENUM(
+            *ALL_PROVIDER_VALUES,
+            name="notificationprovider",
+            create_type=False,
+        )
+        notification_provider.create(bind, checkfirst=True)
+
         # ``ALTER TYPE ... ADD VALUE`` must run outside a transaction block.
         with op.get_context().autocommit_block():
-            for value in NEW_PROVIDER_VALUES:
+            for value in ALL_PROVIDER_VALUES:
                 op.execute(
                     sa.text(
                         f"ALTER TYPE notificationprovider "
@@ -114,7 +137,9 @@ def upgrade() -> None:
         sa.Column(
             "provider",
             postgresql.ENUM(
-                name="notificationprovider", create_type=False
+                *ALL_PROVIDER_VALUES,
+                name="notificationprovider",
+                create_type=False,
             )
             if dialect == "postgresql"
             else sa.String(length=64),

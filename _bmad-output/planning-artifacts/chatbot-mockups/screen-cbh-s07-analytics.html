@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CBH-S07 - Analytics</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="mockup-shell">
+    <aside class="sidebar"><div class="brand">EngageHub</div><div class="nav-title">Chatbot</div><div class="nav-item">Channels</div><div class="nav-item">Knowledge Base</div><div class="nav-item">Inbox <span class="badge-count">3</span></div><div class="nav-item active">Analytics</div><div class="nav-item">Settings</div></aside>
+    <main class="main">
+      <section class="topline">
+        <div><p class="eyebrow">CBH-S07</p><h1>Analytics</h1><p class="subhead">Workspace-scoped chatbot performance from 15-minute analytics snapshots.</p></div>
+        <div class="actions"><select class="select" style="width:150px;"><option>Last 7 days</option></select><button class="button">Refresh</button></div>
+      </section>
+      <section class="metric-row">
+        <div class="card metric"><div class="metric-label">Conversations</div><div class="metric-value">240</div><div class="metric-note">+18% vs previous period</div></div>
+        <div class="card metric"><div class="metric-label">Containment</div><div class="metric-value">87%</div><div class="metric-note">Resolved without agent</div></div>
+        <div class="card metric"><div class="metric-label">Leads captured</div><div class="metric-value">31</div><div class="metric-note">Consent recorded</div></div>
+        <div class="card metric"><div class="metric-label">Escalations</div><div class="metric-value">18</div><div class="metric-note">Updated 5 min ago</div></div>
+      </section>
+      <section class="grid-2">
+        <article class="card pad"><h2 class="card-title">Conversations over time</h2><div class="line-chart"><svg viewBox="0 0 600 220" preserveAspectRatio="none"><polyline points="20,170 110,145 190,120 280,126 360,82 455,96 580,54" fill="none" stroke="#2563eb" stroke-width="5"/><polyline points="20,190 110,178 190,164 280,156 360,130 455,118 580,110" fill="none" stroke="#f59e0b" stroke-width="4"/></svg></div></article>
+        <article class="card pad"><h2 class="card-title">Channel breakdown</h2><div class="chart"><div class="bar" style="height:80%;"></div><div class="bar" style="height:62%; background:#86efac;"></div><div class="bar" style="height:26%; background:#c4b5fd;"></div></div></article>
+      </section>
+      <section class="card" style="margin-top:16px;">
+        <div class="card-header"><h2 class="card-title">Outcome breakdown</h2><span class="status info">Workspace only</span></div>
+        <table class="table"><thead><tr><th>Channel</th><th>Bot-resolved</th><th>Escalated</th><th>Lead-captured</th><th>Opted-out</th></tr></thead><tbody><tr><td>WhatsApp</td><td>112</td><td>9</td><td>22</td><td>3</td></tr><tr><td>Facebook</td><td>77</td><td>7</td><td>8</td><td>2</td></tr><tr><td>Telegram</td><td>20</td><td>2</td><td>1</td><td>0</td></tr></tbody></table>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+

@@ -7,7 +7,16 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import JSON, Column, DateTime, Index, String, Text, UniqueConstraint, text
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlmodel import Field, SQLModel
 
 
@@ -90,6 +99,11 @@ class NotificationProvider(str, Enum):
     together = "together"
     openrouter = "openrouter"
     gemini = "gemini"
+    # --- chatbot channels ---
+    facebook_messenger = "facebook_messenger"
+    whatsapp_cloud = "whatsapp_cloud"
+    telegram_bot = "telegram_bot"
+    linkedin_redirect = "linkedin_redirect"
     # --- scheduling / other ---
     mailchimp = "mailchimp"
     calendly = "calendly"
@@ -360,6 +374,10 @@ class Contact(SQLModel, table=True):
     company: str | None = Field(default=None, max_length=255)
     phone: str | None = Field(default=None, max_length=32)
     timezone: str = Field(default="UTC", max_length=64)
+    source_channel: str | None = Field(default=None, max_length=64)
+    tags_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    intent_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    last_seen_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
 
 
@@ -508,6 +526,13 @@ class ProviderEventLog(SQLModel, table=True):
     """Normalised inbound webhook events from external notification providers."""
 
     __tablename__ = "provider_event_logs"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "provider_event_id",
+            name="uq_provider_event_provider_event_id",
+        ),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)

@@ -1,0 +1,7 @@
+export { default as AnalyticsPage } from "./AnalyticsPage"
+export { default as BotSettingsPage } from "./BotSettingsPage"
+export { default as ChannelsPage } from "./ChannelsPage"
+export { createChatbotPlaceholder } from "./ChatbotPlaceholderPage"
+export { default as DeadLettersPage } from "./DeadLettersPage"
+export { default as InboxPage } from "./InboxPage"
+export { default as KnowledgeBasePage } from "./KnowledgeBasePage"

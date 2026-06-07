@@ -1,13 +1,18 @@
 import {
   BarChart3,
+  AlertTriangle,
+  BookOpen,
   Briefcase,
   FileText,
   Home,
+  Inbox,
   ListOrdered,
   Mic2,
+  Plug,
   PlugZap,
   Settings,
   Shield,
+  SlidersHorizontal,
   Users,
 } from "lucide-react"
 
@@ -20,7 +25,7 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar"
 import useAuth from "@/hooks/useAuth"
-import { type Item, Main } from "./Main"
+import { type Item, type ItemGroup, Main } from "./Main"
 import { User } from "./User"
 
 const baseItems: Item[] = [
@@ -35,16 +40,44 @@ const baseItems: Item[] = [
   { icon: Settings, title: "Settings", path: "/settings" },
 ]
 
+const adminChatbotItems: Item[] = [
+  { icon: Plug, title: "Channels", path: "/chatbot/channels" },
+  { icon: BookOpen, title: "Knowledge Base", path: "/chatbot/knowledge-base" },
+  { icon: Inbox, title: "Inbox", path: "/chatbot/inbox" },
+  { icon: BarChart3, title: "Analytics", path: "/chatbot/analytics" },
+  { icon: SlidersHorizontal, title: "Settings", path: "/chatbot/settings" },
+]
+
+const agentChatbotItems: Item[] = [
+  { icon: Inbox, title: "Inbox", path: "/chatbot/inbox" },
+  { icon: BarChart3, title: "Analytics", path: "/chatbot/analytics" },
+]
+
+type UserWithRole = {
+  is_superuser?: boolean
+  role?: string | null
+}
+
+const isChatbotAdmin = (user: UserWithRole | null | undefined) =>
+  Boolean(user?.is_superuser || user?.role === "admin" || user?.role === "super_admin")
+
 export function AppSidebar() {
   const { user: currentUser } = useAuth()
+  const userWithRole = currentUser as UserWithRole | null | undefined
 
   const items = currentUser?.is_superuser
     ? [
         ...baseItems,
         { icon: PlugZap, title: "Providers", path: "/settings/providers" },
+        { icon: AlertTriangle, title: "Chatbot Dead Letters", path: "/admin/chatbot/dead-letters" },
         { icon: Users, title: "Admin", path: "/admin" },
       ]
     : baseItems
+  const chatbotItems = isChatbotAdmin(userWithRole) ? adminChatbotItems : agentChatbotItems
+  const groups: ItemGroup[] = [
+    { items },
+    { title: "Chatbot", items: chatbotItems },
+  ]
 
   return (
     <Sidebar collapsible="icon">
@@ -52,7 +85,7 @@ export function AppSidebar() {
         <Logo variant="responsive" />
       </SidebarHeader>
       <SidebarContent>
-        <Main items={items} />
+        <Main groups={groups} />
       </SidebarContent>
       <SidebarFooter>
         <SidebarAppearance />
