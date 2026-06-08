@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlmodel import Session, SQLModel, create_engine
 
+from app.domain.audit.audit_events import AuditEvent
 from app.domain.chatbot.models import (
     ChatbotChannelType,
     ChatbotConversation,
@@ -14,9 +15,23 @@ from app.domain.chatbot.models import (
     ChatbotMessageSender,
 )
 from app.domain.engagement_intelligence.service import build_engagement_overview
-from app.domain.sequences.models import ContactSequenceState, EmailSequence
+from app.domain.sequences.models import (
+    ContactSequenceState,
+    EmailSequence,
+    SendRequest,
+    SendRequestStatus,
+)
 from app.domain.voice.models import CallOutcome, CallRequest, CallSession, VoiceScript
-from app.domain_models import Campaign, Contact, OfferPack, ProspectingSnapshot
+from app.domain_models import (
+    Campaign,
+    Contact,
+    ContactProgression,
+    ContactProgressionState,
+    NotificationProvider,
+    OfferPack,
+    ProspectingSnapshot,
+    ProviderEventLog,
+)
 
 
 def _session() -> Session:
@@ -119,7 +134,30 @@ def _seed_workspace(session: Session, *, workspace_id: str = "ws-a") -> None:
     )
     session.add(sequence)
     session.flush()
-    session.add(ContactSequenceState(contact_id=ada.id, sequence_id=sequence.id))
+    sequence_state = ContactSequenceState(
+        contact_id=ada.id,
+        sequence_id=sequence.id,
+        next_send_at=datetime.now(timezone.utc) - timedelta(hours=6),
+    )
+    session.add(sequence_state)
+    session.flush()
+    session.add(
+        SendRequest(
+            contact_sequence_state_id=sequence_state.id,
+            step_order=1,
+            idempotency_key=f"{workspace_id}-ada-step-1",
+            status=SendRequestStatus.failed,
+            retry_count=3,
+        )
+    )
+    session.add(
+        ContactProgression(
+            contact_id=ada.id,
+            campaign_id=campaign.id,
+            current_state=ContactProgressionState.engaged,
+            last_action_at=datetime.now(timezone.utc) - timedelta(days=5),
+        )
+    )
 
     session.add(
         ProspectingSnapshot(
@@ -143,6 +181,34 @@ def _seed_workspace(session: Session, *, workspace_id: str = "ws-a") -> None:
     session.add(
         OfferPack(
             workspace_id=workspace_id, name="Starter Demo Pack", created_by=owner_id
+        )
+    )
+    session.add(
+        ProviderEventLog(
+            workspace_id=workspace_id,
+            provider=NotificationProvider.sendgrid,
+            provider_event_id=f"{workspace_id}-sendgrid-delivered",
+            event_type="delivered",
+            normalized_event={"channel": "email"},
+        )
+    )
+    session.add(
+        ProviderEventLog(
+            workspace_id=workspace_id,
+            provider=NotificationProvider.sendgrid,
+            provider_event_id=f"{workspace_id}-sendgrid-bounce",
+            event_type="bounce",
+            normalized_event={"channel": "email", "reason": "mailbox unavailable"},
+        )
+    )
+    session.add(
+        AuditEvent(
+            event_name="prospect.researched",
+            workspace_id=workspace_id,
+            actor_role="admin",
+            resource_type="prospecting_snapshot",
+            resource_id=str(grace.id),
+            payload={"summary": "Generated Compiler Co research and outreach draft."},
         )
     )
 
@@ -185,6 +251,30 @@ def test_engagement_overview_ranks_actions_and_unifies_work_queue() -> None:
     assert overview.journey.stages[1].count == 1
     assert overview.knowledge_gaps[0].title == "Pricing clarity"
     assert overview.offer_recommendations[0].title == "Use Starter Demo Pack"
+    assert overview.experiment_recommendations[0].title == (
+        "Pricing clarity holdout test"
+    )
+    assert overview.experiment_recommendations[0].holdout_percent == 10
+    assert overview.audit_replay[0].event_name == "prospect.researched"
+    assert overview.audit_replay[0].actor_role == "admin"
+    sendgrid_health = next(
+        item for item in overview.provider_health if item.provider == "sendgrid"
+    )
+    assert sendgrid_health.status == "needs_attention"
+    assert sendgrid_health.success_count == 1
+    assert sendgrid_health.failure_count == 2
+    assert "Review failed sendgrid delivery events" in (
+        sendgrid_health.recommended_action
+    )
+    assert overview.pipeline_risks[0].contact_name == "Ada Lovelace"
+    assert overview.pipeline_risks[0].risk_level == "high"
+    assert overview.pipeline_risks[0].reasons == [
+        "Open chatbot escalation",
+        "Answered voice call is waiting for scheduling",
+        "Failed email send",
+        "Stalled active sequence",
+        "Engaged contact has no recent action",
+    ]
 
 
 def test_engagement_overview_is_workspace_scoped() -> None:
@@ -197,3 +287,8 @@ def test_engagement_overview_is_workspace_scoped() -> None:
     assert overview.unified_inbox == []
     assert all(stage.count == 0 for stage in overview.journey.stages)
     assert overview.knowledge_gaps == []
+    assert overview.offer_recommendations == []
+    assert overview.experiment_recommendations == []
+    assert overview.audit_replay == []
+    assert overview.provider_health == []
+    assert overview.pipeline_risks == []

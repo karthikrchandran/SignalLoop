@@ -1,12 +1,16 @@
 import {
+  Activity,
+  AlertTriangle,
   ArrowRight,
   BrainCircuit,
   ClipboardList,
+  FlaskConical,
   GitBranch,
   Inbox,
   Lightbulb,
   Loader2,
   RefreshCw,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react"
 import type { ReactNode } from "react"
@@ -23,13 +27,17 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
+  type AuditReplayItem,
   type EngagementOverview,
+  type ExperimentRecommendation,
   getEngagementOverview,
   type JourneyEdge,
   type JourneyStage,
   type KnowledgeGap,
   type NextBestAction,
   type OfferRecommendation,
+  type PipelineRisk,
+  type ProviderHealth,
   type UnifiedInboxItem,
 } from "@/features/engagehub-ai/api"
 
@@ -38,6 +46,15 @@ const priorityVariant = (
 ): "default" | "destructive" | "outline" => {
   if (priority === "high") return "destructive"
   if (priority === "medium") return "default"
+  return "outline"
+}
+
+const statusVariant = (
+  status: string,
+): "default" | "destructive" | "outline" | "secondary" => {
+  if (status === "needs_attention" || status === "high") return "destructive"
+  if (status === "ready" || status === "healthy") return "default"
+  if (status === "medium") return "secondary"
   return "outline"
 }
 
@@ -152,6 +169,18 @@ export default function EngageHubAiPage() {
               generatedAt={overview?.generated_at ?? null}
             />
           </div>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <ExperimentHoldoutPanel
+              experiments={overview?.experiment_recommendations ?? []}
+            />
+            <ProviderCommandCenter
+              providers={overview?.provider_health ?? []}
+            />
+          </div>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <PipelineRiskView risks={overview?.pipeline_risks ?? []} />
+            <ComplianceReplay items={overview?.audit_replay ?? []} />
+          </div>
         </>
       )}
     </div>
@@ -256,7 +285,7 @@ function WorkQueueItem({ item }: { item: UnifiedInboxItem }) {
         <div>
           <p className="font-medium">{item.title}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {item.contact_name} · {item.source} · {item.status}
+            {item.contact_name} / {item.source} / {item.status}
           </p>
         </div>
         <Badge variant={priorityVariant(item.priority)}>{item.priority}</Badge>
@@ -418,6 +447,207 @@ function OfferRecommendations({
         )}
       </div>
     </section>
+  )
+}
+
+function ExperimentHoldoutPanel({
+  experiments,
+}: {
+  experiments: ExperimentRecommendation[]
+}) {
+  return (
+    <section className="space-y-3">
+      <SectionHeader
+        icon={<FlaskConical className="h-5 w-5 text-primary" />}
+        title="Experiment and holdout testing"
+        description="Recommended tests that can prove whether AI changes improve outcomes."
+      />
+      <div className="space-y-3">
+        {experiments.length ? (
+          experiments.map((experiment) => (
+            <div key={experiment.id} className="rounded-lg border p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{experiment.title}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {experiment.hypothesis}
+                  </p>
+                </div>
+                <Badge variant={statusVariant(experiment.status)}>
+                  {experiment.status}
+                </Badge>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <SignalStat label="Metric" value={experiment.primary_metric} />
+                <SignalStat
+                  label="Holdout"
+                  value={`${experiment.holdout_percent}%`}
+                />
+                <SignalStat
+                  label="Eligible"
+                  value={String(experiment.eligible_count)}
+                />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {experiment.variants.map((variant) => (
+                  <Badge key={variant} variant="outline">
+                    {variant}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          ))
+        ) : (
+          <EmptyState message="No experiment recommendations are ready." />
+        )}
+      </div>
+    </section>
+  )
+}
+
+function ProviderCommandCenter({ providers }: { providers: ProviderHealth[] }) {
+  return (
+    <section className="space-y-3">
+      <SectionHeader
+        icon={<Activity className="h-5 w-5 text-primary" />}
+        title="Provider command center"
+        description="Delivery and channel provider status from sends, calls, and webhooks."
+      />
+      <div className="space-y-3">
+        {providers.length ? (
+          providers.map((provider) => (
+            <div key={provider.id} className="rounded-lg border p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{provider.provider}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {provider.channel} provider
+                  </p>
+                </div>
+                <Badge variant={statusVariant(provider.status)}>
+                  {provider.status.replace(/_/g, " ")}
+                </Badge>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <SignalStat
+                  label="Success"
+                  value={String(provider.success_count)}
+                />
+                <SignalStat
+                  label="Failures"
+                  value={String(provider.failure_count)}
+                />
+                <SignalStat
+                  label="Last event"
+                  value={
+                    provider.last_event_at
+                      ? formatDate(provider.last_event_at)
+                      : "No event"
+                  }
+                />
+              </div>
+              <p className="mt-3 rounded-md bg-muted/30 p-3 text-sm">
+                {provider.recommended_action}
+              </p>
+            </div>
+          ))
+        ) : (
+          <EmptyState message="No provider events or delivery checks found." />
+        )}
+      </div>
+    </section>
+  )
+}
+
+function PipelineRiskView({ risks }: { risks: PipelineRisk[] }) {
+  return (
+    <section className="space-y-3">
+      <SectionHeader
+        icon={<AlertTriangle className="h-5 w-5 text-primary" />}
+        title="Pipeline risk view"
+        description="Contacts at risk because follow-up, delivery, or handoff work is blocked."
+      />
+      <div className="space-y-3">
+        {risks.length ? (
+          risks.map((risk) => (
+            <div key={risk.id} className="rounded-lg border p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{risk.contact_name}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {risk.company ?? "No company"} / Score {risk.risk_score}
+                  </p>
+                </div>
+                <Badge variant={statusVariant(risk.risk_level)}>
+                  {risk.risk_level}
+                </Badge>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {risk.reasons.map((reason) => (
+                  <Badge key={reason} variant="outline">
+                    {reason}
+                  </Badge>
+                ))}
+              </div>
+              <p className="mt-3 rounded-md bg-muted/30 p-3 text-sm">
+                {risk.recommended_action}
+              </p>
+            </div>
+          ))
+        ) : (
+          <EmptyState message="No pipeline risks are currently flagged." />
+        )}
+      </div>
+    </section>
+  )
+}
+
+function ComplianceReplay({ items }: { items: AuditReplayItem[] }) {
+  return (
+    <section className="space-y-3">
+      <SectionHeader
+        icon={<ShieldCheck className="h-5 w-5 text-primary" />}
+        title="Compliance replay"
+        description="Recent auditable AI and operator actions for traceability review."
+      />
+      <div className="space-y-3">
+        {items.length ? (
+          items.map((item) => (
+            <div key={item.id} className="rounded-lg border p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{item.event_name}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {item.resource_type ?? "workspace"} /{" "}
+                    {item.actor_role ?? "system"}
+                  </p>
+                </div>
+                <Badge variant="outline">{formatDate(item.created_at)}</Badge>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                {item.summary}
+              </p>
+              {item.resource_id && (
+                <div className="mt-3 rounded-md bg-muted/30 p-3 text-xs text-muted-foreground">
+                  {item.resource_id}
+                </div>
+              )}
+            </div>
+          ))
+        ) : (
+          <EmptyState message="No audit replay events found for this workspace." />
+        )}
+      </div>
+    </section>
+  )
+}
+
+function SignalStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md bg-muted/30 p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 break-words text-sm font-medium">{value}</p>
+    </div>
   )
 }
 

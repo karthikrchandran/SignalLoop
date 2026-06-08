@@ -130,6 +130,65 @@ const OVERVIEW = {
       priority: "high",
     },
   ],
+  experiment_recommendations: [
+    {
+      id: "experiment-pricing",
+      title: "Pricing clarity holdout test",
+      hypothesis:
+        "Adding pricing clarity content will reduce human escalations from high-intent chatbot leads.",
+      primary_metric: "Escalation rate",
+      variants: ["Current answer", "Pricing clarity answer"],
+      holdout_percent: 10,
+      eligible_count: 2,
+      status: "ready",
+    },
+  ],
+  audit_replay: [
+    {
+      id: "audit-1",
+      event_name: "prospect.researched",
+      resource_type: "prospecting_snapshot",
+      resource_id: "contact-2",
+      actor_role: "admin",
+      summary: "Generated Compiler Co research and outreach draft.",
+      created_at: "2026-06-08T10:10:00Z",
+      payload: {
+        summary: "Generated Compiler Co research and outreach draft.",
+      },
+    },
+  ],
+  provider_health: [
+    {
+      id: "provider-sendgrid-email",
+      provider: "sendgrid",
+      channel: "email",
+      status: "needs_attention",
+      success_count: 1,
+      failure_count: 2,
+      last_event_at: "2026-06-08T10:05:00Z",
+      recommended_action:
+        "Review failed sendgrid delivery events and retry blocked contacts.",
+    },
+  ],
+  pipeline_risks: [
+    {
+      id: "risk-contact-1",
+      contact_id: "contact-1",
+      contact_name: "Ada Lovelace",
+      company: "Analytical",
+      risk_level: "high",
+      risk_score: 100,
+      reasons: [
+        "Open chatbot escalation",
+        "Answered voice call is waiting for scheduling",
+        "Failed email send",
+        "Stalled active sequence",
+        "Engaged contact has no recent action",
+      ],
+      recommended_action:
+        "Resolve the escalation, repair delivery, and schedule the requested meeting.",
+    },
+  ],
 }
 
 test.use({ storageState: { cookies: [], origins: [] } })
@@ -179,7 +238,9 @@ test("EngageHub AI shows actions, unified inbox, journey canvas, and recommendat
     page.getByText("Reply to escalated chatbot thread"),
   ).toBeVisible()
   await expect(page.getByText("Unified work queue")).toBeVisible()
-  await expect(page.getByText("Chatbot escalation")).toBeVisible()
+  await expect(
+    page.getByText("Chatbot escalation", { exact: true }),
+  ).toBeVisible()
   await expect(page.getByText("Voice follow-up").first()).toBeVisible()
   await expect(page.getByText("Journey orchestration canvas")).toBeVisible()
   await expect(page.getByText("Chatbot capture")).toBeVisible()
@@ -188,4 +249,12 @@ test("EngageHub AI shows actions, unified inbox, journey canvas, and recommendat
   await expect(page.getByText("Pricing clarity", { exact: true })).toBeVisible()
   await expect(page.getByText("Offer recommendations")).toBeVisible()
   await expect(page.getByText("Use Starter Demo Pack")).toBeVisible()
+  await expect(page.getByText("Experiment and holdout testing")).toBeVisible()
+  await expect(page.getByText("Pricing clarity holdout test")).toBeVisible()
+  await expect(page.getByText("Compliance replay")).toBeVisible()
+  await expect(page.getByText("prospect.researched")).toBeVisible()
+  await expect(page.getByText("Provider command center")).toBeVisible()
+  await expect(page.getByText("sendgrid", { exact: true })).toBeVisible()
+  await expect(page.getByText("Pipeline risk view")).toBeVisible()
+  await expect(page.getByText("Ada Lovelace").first()).toBeVisible()
 })

@@ -4,17 +4,32 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlmodel import Session, SQLModel, select
 
+from app.domain.audit.audit_events import AuditEvent
 from app.domain.chatbot.models import (
     ChatbotConversation,
     ChatbotConversationStatus,
     ChatbotMessage,
 )
-from app.domain.sequences.models import ContactSequenceState, SequenceStatus
-from app.domain.voice.models import CallRequest, CallSession
-from app.domain_models import Contact, OfferPack, ProspectingSnapshot
+from app.domain.sequences.models import (
+    ContactSequenceState,
+    SendRequest,
+    SendRequestStatus,
+    SequenceStatus,
+)
+from app.domain.voice.models import CallOutcome, CallRequest, CallSession
+from app.domain_models import (
+    Contact,
+    ContactProgression,
+    ContactProgressionState,
+    NotificationProvider,
+    OfferPack,
+    ProspectingSnapshot,
+    ProviderEventLog,
+)
 
 
 class NextBestActionPublic(SQLModel):
@@ -82,6 +97,50 @@ class OfferRecommendationPublic(SQLModel):
     priority: str
 
 
+class ExperimentRecommendationPublic(SQLModel):
+    id: str
+    title: str
+    hypothesis: str
+    primary_metric: str
+    variants: list[str]
+    holdout_percent: int
+    eligible_count: int
+    status: str
+
+
+class AuditReplayItemPublic(SQLModel):
+    id: str
+    event_name: str
+    resource_type: str | None = None
+    resource_id: str | None = None
+    actor_role: str | None = None
+    summary: str
+    created_at: datetime
+    payload: dict[str, Any]
+
+
+class ProviderHealthPublic(SQLModel):
+    id: str
+    provider: str
+    channel: str
+    status: str
+    success_count: int
+    failure_count: int
+    last_event_at: datetime | None = None
+    recommended_action: str
+
+
+class PipelineRiskPublic(SQLModel):
+    id: str
+    contact_id: uuid.UUID
+    contact_name: str
+    company: str | None = None
+    risk_level: str
+    risk_score: int
+    reasons: list[str]
+    recommended_action: str
+
+
 class EngagementOverviewPublic(SQLModel):
     generated_at: datetime
     next_best_actions: list[NextBestActionPublic]
@@ -89,6 +148,10 @@ class EngagementOverviewPublic(SQLModel):
     journey: JourneyCanvasPublic
     knowledge_gaps: list[KnowledgeGapPublic]
     offer_recommendations: list[OfferRecommendationPublic]
+    experiment_recommendations: list[ExperimentRecommendationPublic]
+    audit_replay: list[AuditReplayItemPublic]
+    provider_health: list[ProviderHealthPublic]
+    pipeline_risks: list[PipelineRiskPublic]
 
 
 def _contact_name(contact: Contact | None) -> str:
@@ -107,6 +170,18 @@ def _shorten(value: str | None, fallback: str, *, limit: int = 180) -> str:
 
 def _status_value(value: object) -> str:
     return str(getattr(value, "value", value) or "unknown")
+
+
+def _provider_value(value: object) -> str:
+    return str(getattr(value, "value", value) or "unknown")
+
+
+def _aware(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
 
 
 def _extract_questions(value: object) -> list[str]:
@@ -159,6 +234,10 @@ def _load_workspace_data(
     list[ProspectingSnapshot],
     list[tuple[ContactSequenceState, Contact]],
     list[OfferPack],
+    list[AuditEvent],
+    list[ProviderEventLog],
+    list[tuple[SendRequest, ContactSequenceState, Contact]],
+    list[tuple[ContactProgression, Contact]],
 ]:
     contacts = list(
         session.exec(select(Contact).where(Contact.workspace_id == workspace_id)).all()
@@ -208,7 +287,54 @@ def _load_workspace_data(
             .limit(5)
         ).all()
     )
-    return contact_map, conversations, calls, snapshots, sequence_states, offer_packs
+    audit_events = list(
+        session.exec(
+            select(AuditEvent)
+            .where(AuditEvent.workspace_id == workspace_id)
+            .order_by(AuditEvent.created_at.desc())
+            .limit(25)
+        ).all()
+    )
+    provider_events = list(
+        session.exec(
+            select(ProviderEventLog)
+            .where(ProviderEventLog.workspace_id == workspace_id)
+            .order_by(ProviderEventLog.received_at.desc())
+            .limit(50)
+        ).all()
+    )
+    send_requests = list(
+        session.exec(
+            select(SendRequest, ContactSequenceState, Contact)
+            .join(
+                ContactSequenceState,
+                SendRequest.contact_sequence_state_id == ContactSequenceState.id,
+            )
+            .join(Contact, ContactSequenceState.contact_id == Contact.id)
+            .where(Contact.workspace_id == workspace_id)
+            .order_by(SendRequest.created_at.desc())
+            .limit(50)
+        ).all()
+    )
+    progressions = list(
+        session.exec(
+            select(ContactProgression, Contact)
+            .join(Contact, ContactProgression.contact_id == Contact.id)
+            .where(Contact.workspace_id == workspace_id)
+        ).all()
+    )
+    return (
+        contact_map,
+        conversations,
+        calls,
+        snapshots,
+        sequence_states,
+        offer_packs,
+        audit_events,
+        provider_events,
+        send_requests,
+        progressions,
+    )
 
 
 def _build_next_best_actions(
@@ -268,6 +394,9 @@ def _build_next_best_actions(
             else None
         )
         message = _latest_message(session, conversation)
+        reason_text = conversation.escalation_reason or (
+            message.content if message else None
+        )
         actions.append(
             NextBestActionPublic(
                 id=f"nba-chatbot-{conversation.id}",
@@ -281,9 +410,7 @@ def _build_next_best_actions(
                 if conversation.escalated
                 else "Review open chatbot thread",
                 reason=_shorten(
-                    conversation.escalation_reason or message.content
-                    if message
-                    else None,
+                    reason_text,
                     "Open chatbot thread needs human review.",
                 ),
                 recommended_action="Open the thread and answer the buyer's question.",
@@ -609,37 +736,401 @@ def _build_offer_recommendations(
     ]
 
 
+def _build_experiment_recommendations(
+    *,
+    gaps: list[KnowledgeGapPublic],
+    next_best_actions: list[NextBestActionPublic],
+) -> list[ExperimentRecommendationPublic]:
+    experiments: list[ExperimentRecommendationPublic] = []
+    for gap in gaps[:2]:
+        experiments.append(
+            ExperimentRecommendationPublic(
+                id=f"experiment-{gap.id.replace('gap-', '')}",
+                title=f"{gap.title} holdout test",
+                hypothesis=(
+                    f"Adding {gap.title.lower()} content will reduce human "
+                    "escalations from high-intent leads."
+                ),
+                primary_metric="Escalation rate"
+                if gap.source == "chatbot"
+                else "Follow-up completion rate",
+                variants=["Current answer", f"{gap.title} enriched answer"],
+                holdout_percent=10,
+                eligible_count=max(gap.evidence_count, len(next_best_actions)),
+                status="ready"
+                if max(gap.evidence_count, len(next_best_actions)) >= 2
+                else "draft",
+            )
+        )
+
+    if not experiments and next_best_actions:
+        experiments.append(
+            ExperimentRecommendationPublic(
+                id="experiment-next-action-channel",
+                title="Next action channel holdout test",
+                hypothesis=(
+                    "Testing the recommended channel against the current "
+                    "default will improve completed follow-ups."
+                ),
+                primary_metric="Completed follow-up rate",
+                variants=["Current channel", "AI recommended channel"],
+                holdout_percent=10,
+                eligible_count=len(next_best_actions),
+                status="ready" if len(next_best_actions) >= 2 else "draft",
+            )
+        )
+    return experiments[:4]
+
+
+def _build_audit_replay(
+    audit_events: list[AuditEvent],
+) -> list[AuditReplayItemPublic]:
+    replay: list[AuditReplayItemPublic] = []
+    for event in audit_events[:12]:
+        payload = event.payload or {}
+        raw_summary = payload.get("summary") or payload.get("description")
+        summary = (
+            str(raw_summary)
+            if raw_summary
+            else f"{event.event_name} on {event.resource_type or 'workspace'}."
+        )
+        replay.append(
+            AuditReplayItemPublic(
+                id=f"audit-{event.id}",
+                event_name=event.event_name,
+                resource_type=event.resource_type,
+                resource_id=event.resource_id,
+                actor_role=event.actor_role,
+                summary=_shorten(summary, "Audit event recorded."),
+                created_at=event.created_at,
+                payload=payload,
+            )
+        )
+    return replay
+
+
+def _provider_channel(provider: str, event: ProviderEventLog | None = None) -> str:
+    if event is not None:
+        raw_channel = (event.normalized_event or {}).get("channel")
+        if isinstance(raw_channel, str) and raw_channel.strip():
+            return raw_channel.strip()
+    if provider in {
+        NotificationProvider.twilio.value,
+        NotificationProvider.vapi.value,
+    }:
+        return "voice"
+    if provider in {
+        NotificationProvider.facebook_messenger.value,
+        NotificationProvider.whatsapp_cloud.value,
+        NotificationProvider.telegram_bot.value,
+        NotificationProvider.linkedin_redirect.value,
+    }:
+        return "chatbot"
+    return "email"
+
+
+def _build_provider_health(
+    *,
+    provider_events: list[ProviderEventLog],
+    send_requests: list[tuple[SendRequest, ContactSequenceState, Contact]],
+    calls: list[tuple[CallRequest, CallSession | None, Contact]],
+) -> list[ProviderHealthPublic]:
+    success_events = {
+        "accepted",
+        "answered",
+        "delivered",
+        "opened",
+        "processed",
+        "sent",
+    }
+    failure_events = {
+        "bounce",
+        "bounced",
+        "complained",
+        "deferred",
+        "dropped",
+        "failed",
+        "reject",
+        "spam_report",
+        "undelivered",
+    }
+    buckets: dict[
+        tuple[str, str],
+        dict[str, int | datetime | None],
+    ] = {}
+
+    def bucket(provider: str, channel: str) -> dict[str, int | datetime | None]:
+        return buckets.setdefault(
+            (provider, channel),
+            {"success": 0, "failure": 0, "last_event_at": None},
+        )
+
+    def touch(
+        provider: str,
+        channel: str,
+        *,
+        success: bool = False,
+        failure: bool = False,
+        occurred_at: datetime | None = None,
+    ) -> None:
+        row = bucket(provider, channel)
+        if success:
+            row["success"] = int(row["success"] or 0) + 1
+        if failure:
+            row["failure"] = int(row["failure"] or 0) + 1
+        current = _aware(
+            row["last_event_at"] if isinstance(row["last_event_at"], datetime) else None
+        )
+        candidate = _aware(occurred_at)
+        if candidate is not None and (current is None or candidate > current):
+            row["last_event_at"] = candidate
+
+    for event in provider_events:
+        provider = _provider_value(event.provider)
+        channel = _provider_channel(provider, event)
+        event_type = event.event_type.lower()
+        touch(
+            provider,
+            channel,
+            success=event_type in success_events,
+            failure=event_type in failure_events,
+            occurred_at=event.received_at,
+        )
+
+    email_provider = next(
+        (
+            _provider_value(event.provider)
+            for event in provider_events
+            if _provider_channel(_provider_value(event.provider), event) == "email"
+        ),
+        "email",
+    )
+    for send_request, _, _ in send_requests:
+        touch(
+            email_provider,
+            "email",
+            success=send_request.status == SendRequestStatus.sent,
+            failure=send_request.status == SendRequestStatus.failed,
+            occurred_at=send_request.sent_at or send_request.created_at,
+        )
+
+    for _, call_session, _ in calls:
+        if call_session is None:
+            continue
+        touch(
+            NotificationProvider.twilio.value,
+            "voice",
+            success=call_session.outcome == CallOutcome.answered,
+            failure=call_session.outcome in {CallOutcome.failed, CallOutcome.no_answer},
+            occurred_at=call_session.created_at,
+        )
+
+    health: list[ProviderHealthPublic] = []
+    for (provider, channel), row in buckets.items():
+        success_count = int(row["success"] or 0)
+        failure_count = int(row["failure"] or 0)
+        status = (
+            "needs_attention"
+            if failure_count
+            else "healthy"
+            if success_count
+            else "idle"
+        )
+        recommended_action = (
+            f"Review failed {provider} delivery events and retry blocked contacts."
+            if failure_count
+            else f"Keep {provider} {channel} monitoring enabled."
+            if success_count
+            else f"Connect or test the {provider} {channel} provider."
+        )
+        health.append(
+            ProviderHealthPublic(
+                id=f"provider-{provider}-{channel}",
+                provider=provider,
+                channel=channel,
+                status=status,
+                success_count=success_count,
+                failure_count=failure_count,
+                last_event_at=row["last_event_at"]
+                if isinstance(row["last_event_at"], datetime)
+                else None,
+                recommended_action=recommended_action,
+            )
+        )
+
+    return sorted(
+        health,
+        key=lambda item: (
+            item.status != "needs_attention",
+            -item.failure_count,
+            item.provider,
+        ),
+    )[:8]
+
+
+def _pipeline_recommendation(reasons: list[str]) -> str:
+    if {
+        "Open chatbot escalation",
+        "Answered voice call is waiting for scheduling",
+        "Failed email send",
+    }.issubset(set(reasons)):
+        return (
+            "Resolve the escalation, repair delivery, and schedule the "
+            "requested meeting."
+        )
+    if "Failed email send" in reasons:
+        return "Repair delivery and retry the blocked outreach step."
+    if "Open chatbot escalation" in reasons:
+        return "Resolve the chatbot escalation before the buyer goes cold."
+    if "Answered voice call is waiting for scheduling" in reasons:
+        return "Schedule the requested meeting and update the contact state."
+    return "Review the stalled contact and choose the next human follow-up."
+
+
+def _build_pipeline_risks(
+    *,
+    conversations: list[ChatbotConversation],
+    calls: list[tuple[CallRequest, CallSession | None, Contact]],
+    send_requests: list[tuple[SendRequest, ContactSequenceState, Contact]],
+    sequence_states: list[tuple[ContactSequenceState, Contact]],
+    progressions: list[tuple[ContactProgression, Contact]],
+    contact_map: dict[uuid.UUID, Contact],
+) -> list[PipelineRiskPublic]:
+    rows: dict[uuid.UUID, dict[str, object]] = {}
+
+    def add_risk(contact: Contact | None, points: int, reason: str) -> None:
+        if contact is None:
+            return
+        row = rows.setdefault(
+            contact.id,
+            {"contact": contact, "score": 0, "reasons": []},
+        )
+        reasons = row["reasons"]
+        if isinstance(reasons, list) and reason not in reasons:
+            reasons.append(reason)
+        row["score"] = int(row["score"]) + points
+
+    for conversation in conversations:
+        if conversation.escalated or conversation.status in {
+            ChatbotConversationStatus.escalated,
+            ChatbotConversationStatus.agent_active,
+            ChatbotConversationStatus.bot_paused,
+        }:
+            contact = (
+                contact_map.get(conversation.contact_id)
+                if conversation.contact_id
+                else None
+            )
+            add_risk(contact, 35, "Open chatbot escalation")
+
+    for _, call_session, contact in calls:
+        if call_session is None:
+            continue
+        if call_session.scheduling_interest:
+            add_risk(
+                contact,
+                25,
+                "Answered voice call is waiting for scheduling",
+            )
+        if call_session.outcome in {CallOutcome.failed, CallOutcome.no_answer}:
+            add_risk(contact, 20, "Voice follow-up did not connect")
+
+    for send_request, _, contact in send_requests:
+        if send_request.status == SendRequestStatus.failed:
+            add_risk(contact, 25, "Failed email send")
+
+    now = datetime.now(timezone.utc)
+    for state, contact in sequence_states:
+        next_send_at = _aware(state.next_send_at)
+        if state.status == SequenceStatus.active and (
+            next_send_at is not None and next_send_at < now
+        ):
+            add_risk(contact, 15, "Stalled active sequence")
+
+    stale_states = {
+        ContactProgressionState.engaged,
+        ContactProgressionState.nurturing,
+        ContactProgressionState.replied,
+    }
+    for progression, contact in progressions:
+        last_action_at = _aware(progression.last_action_at)
+        if progression.current_state in stale_states and (
+            last_action_at is not None and (now - last_action_at).days >= 3
+        ):
+            add_risk(contact, 15, "Engaged contact has no recent action")
+
+    risks: list[PipelineRiskPublic] = []
+    for contact_id, row in rows.items():
+        contact = row["contact"]
+        if not isinstance(contact, Contact):
+            continue
+        reasons = row["reasons"]
+        reason_list = reasons if isinstance(reasons, list) else []
+        score = min(100, int(row["score"]))
+        risk_level = "high" if score >= 60 else "medium" if score >= 30 else "low"
+        risks.append(
+            PipelineRiskPublic(
+                id=f"risk-{contact_id}",
+                contact_id=contact_id,
+                contact_name=_contact_name(contact),
+                company=contact.company,
+                risk_level=risk_level,
+                risk_score=score,
+                reasons=[str(reason) for reason in reason_list],
+                recommended_action=_pipeline_recommendation(
+                    [str(reason) for reason in reason_list]
+                ),
+            )
+        )
+
+    return sorted(
+        risks,
+        key=lambda item: (-item.risk_score, item.contact_name),
+    )[:8]
+
+
 def build_engagement_overview(
     session: Session,
     *,
     workspace_id: str,
 ) -> EngagementOverviewPublic:
     """Build a deterministic intelligence snapshot for one workspace."""
-    contact_map, conversations, calls, snapshots, sequence_states, offer_packs = (
-        _load_workspace_data(session, workspace_id)
-    )
+    (
+        contact_map,
+        conversations,
+        calls,
+        snapshots,
+        sequence_states,
+        offer_packs,
+        audit_events,
+        provider_events,
+        send_requests,
+        progressions,
+    ) = _load_workspace_data(session, workspace_id)
     gaps = _build_knowledge_gaps(
         conversations=conversations,
         calls=calls,
         session=session,
     )
+    next_best_actions = _build_next_best_actions(
+        contact_map=contact_map,
+        conversations=conversations,
+        calls=calls,
+        snapshots=snapshots,
+        sequence_states=sequence_states,
+        session=session,
+    )
+    unified_inbox = _build_unified_inbox(
+        contact_map=contact_map,
+        conversations=conversations,
+        calls=calls,
+        snapshots=snapshots,
+        session=session,
+    )
     return EngagementOverviewPublic(
         generated_at=datetime.now(timezone.utc),
-        next_best_actions=_build_next_best_actions(
-            contact_map=contact_map,
-            conversations=conversations,
-            calls=calls,
-            snapshots=snapshots,
-            sequence_states=sequence_states,
-            session=session,
-        ),
-        unified_inbox=_build_unified_inbox(
-            contact_map=contact_map,
-            conversations=conversations,
-            calls=calls,
-            snapshots=snapshots,
-            session=session,
-        ),
+        next_best_actions=next_best_actions,
+        unified_inbox=unified_inbox,
         journey=_build_journey(
             conversations=conversations,
             calls=calls,
@@ -650,5 +1141,23 @@ def build_engagement_overview(
         offer_recommendations=_build_offer_recommendations(
             gaps=gaps,
             offer_packs=offer_packs,
+        ),
+        experiment_recommendations=_build_experiment_recommendations(
+            gaps=gaps,
+            next_best_actions=next_best_actions,
+        ),
+        audit_replay=_build_audit_replay(audit_events),
+        provider_health=_build_provider_health(
+            provider_events=provider_events,
+            send_requests=send_requests,
+            calls=calls,
+        ),
+        pipeline_risks=_build_pipeline_risks(
+            conversations=conversations,
+            calls=calls,
+            send_requests=send_requests,
+            sequence_states=sequence_states,
+            progressions=progressions,
+            contact_map=contact_map,
         ),
     )
