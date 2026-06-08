@@ -113,6 +113,15 @@ if (-not (Wait-Http "http://localhost:8001/api/v1/utils/health-check/" 60)) {
 }
 
 Write-Host ""
+Write-Host "=== Seeding login user ===" -ForegroundColor Cyan
+Push-Location $apiDir
+try {
+    & uv run python -m app.initial_data
+} finally {
+    Pop-Location
+}
+
+Write-Host ""
 Write-Host "=== Seeding provider selections ===" -ForegroundColor Cyan
 & uv run python tooling/seed_demo_providers.py
 
