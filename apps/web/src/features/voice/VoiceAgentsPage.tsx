@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, Loader2, Mic2, Pencil, Plus, RefreshCw, TriangleAlert, Trash2 } from "lucide-react"
+import {
+  CheckCircle2,
+  Loader2,
+  Mic2,
+  Pencil,
+  Play,
+  Plus,
+  RefreshCw,
+  Square,
+  TriangleAlert,
+  Trash2,
+  User,
+} from "lucide-react"
 
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -69,6 +81,9 @@ type SetupIntegration = {
   label: string
   configured: boolean
   source: string
+  capability?: string | null
+  provider?: string | null
+  provider_label?: string | null
   note?: string | null
 }
 
@@ -82,9 +97,57 @@ type SetupOverview = {
   integrations: SetupIntegration[]
 }
 
-const SAMPLE_SCRIPT = [
+type VoiceProfileId = "alex" | "morgan"
+
+type VoiceProfile = {
+  id: VoiceProfileId
+  name: string
+  gender: "Male" | "Female"
+  accent: string
+  tone: string
+  description: string
+  demoGreeting: string
+  voiceHints: string[]
+  pitch: number
+  rate: number
+}
+
+const VOICE_PROFILES: VoiceProfile[] = [
+  {
+    id: "alex",
+    name: "Alex",
+    gender: "Male",
+    accent: "Neutral North American",
+    tone: "Professional and authoritative",
+    description:
+      "Best for B2B outreach, appointment confirmations, and executive-level conversations.",
+    demoGreeting:
+      "Good morning. My name is Alex, and I am your outreach assistant. I am here to make every conversation count.",
+    voiceHints: ["david", "alex", "daniel", "mark", "male", "en-us"],
+    pitch: 0.9,
+    rate: 0.95,
+  },
+  {
+    id: "morgan",
+    name: "Morgan",
+    gender: "Female",
+    accent: "Neutral North American",
+    tone: "Empathetic and conversational",
+    description:
+      "Best for customer re-engagement, follow-ups, support check-ins, and relationship-led outreach.",
+    demoGreeting:
+      "Good morning. I am Morgan, and I am glad we have a chance to connect. I am here to listen and help.",
+    voiceHints: ["samantha", "zira", "susan", "karen", "female", "en-us"],
+    pitch: 1.1,
+    rate: 0.92,
+  },
+]
+
+const DEFAULT_VOICE_PROFILE = VOICE_PROFILES[0]
+
+const scriptForProfile = (profile: VoiceProfile) => [
   "## Opening Pitch",
-  "Hi {{first_name}}, this is EngageHub calling about your campaign.",
+  `Hi {{first_name}}, this is ${profile.name} from EngageHub calling about your campaign.`,
   "",
   "## Q&A",
   "Q: What does this cover?",
@@ -98,6 +161,25 @@ const SAMPLE_SCRIPT = [
 ].join("\n")
 
 const formatDate = (value: string) => new Date(value).toLocaleString()
+
+function pickSpeechVoice(hints: string[], gender: VoiceProfile["gender"]) {
+  if (!("speechSynthesis" in window)) return null
+  const voices = window.speechSynthesis.getVoices()
+  if (!voices.length) return null
+  const englishVoices = voices.filter((voice) => voice.lang.toLowerCase().startsWith("en"))
+  for (const hint of hints) {
+    const match = englishVoices.find((voice) => voice.name.toLowerCase().includes(hint.toLowerCase()))
+    if (match) return match
+  }
+  const fallbackHints = gender === "Male"
+    ? ["david", "mark", "james", "tom", "daniel"]
+    : ["samantha", "susan", "zira", "karen", "victoria", "fiona"]
+  for (const hint of fallbackHints) {
+    const match = englishVoices.find((voice) => voice.name.toLowerCase().includes(hint))
+    if (match) return match
+  }
+  return englishVoices[0] ?? null
+}
 
 export default function VoiceAgentsPage() {
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([])
@@ -114,18 +196,49 @@ export default function VoiceAgentsPage() {
   const [editorMode, setEditorMode] = useState<"create" | "edit">("create")
   const [scriptName, setScriptName] = useState("")
   const [editorCampaignId, setEditorCampaignId] = useState("")
-  const [scriptContent, setScriptContent] = useState(SAMPLE_SCRIPT)
+  const [scriptContent, setScriptContent] = useState(scriptForProfile(DEFAULT_VOICE_PROFILE))
   const [active, setActive] = useState(true)
+  const [selectedVoiceProfileId, setSelectedVoiceProfileId] = useState<VoiceProfileId>(DEFAULT_VOICE_PROFILE.id)
+  const [speakingProfileId, setSpeakingProfileId] = useState<VoiceProfileId | null>(null)
+  const [voicesReady, setVoicesReady] = useState(false)
+
+  const selectedVoiceProfile = useMemo(
+    () => VOICE_PROFILES.find((profile) => profile.id === selectedVoiceProfileId) ?? DEFAULT_VOICE_PROFILE,
+    [selectedVoiceProfileId],
+  )
 
   const filteredScripts = useMemo(
     () => scripts.filter((script) => !selectedCampaignId || script.campaign_id === selectedCampaignId),
     [scripts, selectedCampaignId],
   )
 
-  const integrationMap = useMemo(
-    () => new Map((setupOverview?.integrations ?? []).map((integration) => [integration.key, integration])),
-    [setupOverview],
-  )
+  const findIntegration = (
+    capability: string,
+    legacyKeys: string[] = [],
+  ) => {
+    const integrations = setupOverview?.integrations ?? []
+    return integrations.find((integration) =>
+      integration.capability === capability ||
+      integration.key === capability ||
+      legacyKeys.includes(integration.key) ||
+      legacyKeys.includes(integration.provider ?? ""),
+    )
+  }
+
+  const voiceIntegration = findIntegration("voice", ["twilio", "vapi"])
+  const sttIntegration = findIntegration("stt", ["deepgram"])
+  const llmIntegration = findIntegration("llm", ["groq"])
+
+  useEffect(() => {
+    if (!("speechSynthesis" in window)) return
+    const loadVoices = () => setVoicesReady(window.speechSynthesis.getVoices().length > 0)
+    loadVoices()
+    window.speechSynthesis.addEventListener("voiceschanged", loadVoices)
+    return () => {
+      window.speechSynthesis.removeEventListener("voiceschanged", loadVoices)
+      window.speechSynthesis.cancel()
+    }
+  }, [])
 
   const loadIndex = async () => {
     setLoading(true)
@@ -196,11 +309,34 @@ export default function VoiceAgentsPage() {
 
   const openCreateDialog = () => {
     setEditorMode("create")
-    setScriptName("")
+    setScriptName(`${selectedVoiceProfile.name} campaign script`)
     setEditorCampaignId(selectedCampaignId || campaigns[0]?.id || "")
-    setScriptContent(SAMPLE_SCRIPT)
+    setScriptContent(scriptForProfile(selectedVoiceProfile))
     setActive(true)
     setDialogOpen(true)
+  }
+
+  const previewVoiceProfile = (profile: VoiceProfile) => {
+    if (!("speechSynthesis" in window)) {
+      setFeedback("Browser voice preview is not available in this environment.")
+      return
+    }
+
+    window.speechSynthesis.cancel()
+    if (speakingProfileId === profile.id) {
+      setSpeakingProfileId(null)
+      return
+    }
+
+    const utterance = new SpeechSynthesisUtterance(profile.demoGreeting)
+    const speechVoice = pickSpeechVoice(profile.voiceHints, profile.gender)
+    if (speechVoice) utterance.voice = speechVoice
+    utterance.pitch = profile.pitch
+    utterance.rate = profile.rate
+    utterance.onstart = () => setSpeakingProfileId(profile.id)
+    utterance.onend = () => setSpeakingProfileId(null)
+    utterance.onerror = () => setSpeakingProfileId(null)
+    window.speechSynthesis.speak(utterance)
   }
 
   const openEditDialog = () => {
@@ -293,10 +429,10 @@ export default function VoiceAgentsPage() {
         <div>
           <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
             <Mic2 className="h-7 w-7 text-primary" />
-            Voice Setup
+            Voice Agents
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage real voice scripts, campaign linkage, and provider readiness for AI calling.
+            Choose an AI voice profile, manage real campaign scripts, and check provider readiness for AI calling.
           </p>
         </div>
         <div className="flex gap-2">
@@ -314,24 +450,38 @@ export default function VoiceAgentsPage() {
       {error && <Alert variant="destructive">{error}</Alert>}
       {feedback && <Alert>{feedback}</Alert>}
 
+      <div className="grid gap-4 md:grid-cols-2">
+        {VOICE_PROFILES.map((profile) => (
+          <VoiceProfileCard
+            key={profile.id}
+            profile={profile}
+            selected={selectedVoiceProfileId === profile.id}
+            speaking={speakingProfileId === profile.id}
+            voicesReady={voicesReady}
+            onSelect={() => setSelectedVoiceProfileId(profile.id)}
+            onPreview={() => previewVoiceProfile(profile)}
+          />
+        ))}
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-4">
         <ReadinessCard
-          title="Twilio Voice"
-          configured={integrationMap.get("twilio")?.configured ?? false}
-          source={integrationMap.get("twilio")?.source ?? "missing"}
-          detail={integrationMap.get("twilio")?.note ?? "Voice calling, callbacks, and media streams."}
+          title={voiceIntegration?.provider_label ?? voiceIntegration?.label ?? "Voice provider"}
+          configured={voiceIntegration?.configured ?? false}
+          source={voiceIntegration?.source ?? "missing"}
+          detail={voiceIntegration?.note ?? "Voice calling, callbacks, and media streams."}
         />
         <ReadinessCard
-          title="Deepgram"
-          configured={integrationMap.get("deepgram")?.configured ?? false}
-          source={integrationMap.get("deepgram")?.source ?? "missing"}
-          detail={integrationMap.get("deepgram")?.note ?? "Speech-to-text and text-to-speech for live calls."}
+          title={sttIntegration?.provider_label ?? sttIntegration?.label ?? "Speech-to-text"}
+          configured={sttIntegration?.configured ?? false}
+          source={sttIntegration?.source ?? "missing"}
+          detail={sttIntegration?.note ?? "Speech-to-text for live calls."}
         />
         <ReadinessCard
-          title="Groq"
-          configured={integrationMap.get("groq")?.configured ?? false}
-          source={integrationMap.get("groq")?.source ?? "missing"}
-          detail={integrationMap.get("groq")?.note ?? "Live call responses and voice conversation logic."}
+          title={llmIntegration?.provider_label ?? llmIntegration?.label ?? "LLM provider"}
+          configured={llmIntegration?.configured ?? false}
+          source={llmIntegration?.source ?? "missing"}
+          detail={llmIntegration?.note ?? "Live call responses and voice conversation logic."}
         />
         <ReadinessCard
           title="Public callbacks"
@@ -589,6 +739,78 @@ function ReadinessCard(props: {
       </CardHeader>
       <CardContent>
         <p className="text-sm text-muted-foreground">{props.detail}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function VoiceProfileCard({
+  profile,
+  selected,
+  speaking,
+  voicesReady,
+  onSelect,
+  onPreview,
+}: {
+  profile: VoiceProfile
+  selected: boolean
+  speaking: boolean
+  voicesReady: boolean
+  onSelect: () => void
+  onPreview: () => void
+}) {
+  return (
+    <Card className={selected ? "border-primary bg-primary/5" : "border-border/70"}>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 gap-3">
+            <div className={`flex h-10 w-10 items-center justify-center rounded-full text-primary ${speaking ? "bg-primary/25" : "bg-primary/10"}`}>
+              <User className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <CardTitle className="text-base">{profile.name}</CardTitle>
+              <CardDescription>{profile.accent}</CardDescription>
+            </div>
+          </div>
+          {selected && <Badge>Selected</Badge>}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="secondary">{profile.gender}</Badge>
+          <Badge variant="outline">{profile.tone}</Badge>
+        </div>
+        <p className="text-sm text-muted-foreground">{profile.description}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={selected ? "default" : "outline"}
+            size="sm"
+            onClick={onSelect}
+            aria-label={`Select ${profile.name} voice profile`}
+          >
+            Use {profile.name}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onPreview}
+            aria-label={speaking ? `Stop ${profile.name} voice preview` : `Preview ${profile.name} voice`}
+          >
+            {speaking ? (
+              <Square className="mr-2 h-4 w-4" />
+            ) : (
+              <Play className="mr-2 h-4 w-4" />
+            )}
+            {speaking ? "Stop" : "Preview"}
+          </Button>
+        </div>
+        {!voicesReady && (
+          <p className="text-xs text-muted-foreground">
+            Browser voice preview is loading.
+          </p>
+        )}
       </CardContent>
     </Card>
   )

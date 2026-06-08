@@ -101,7 +101,7 @@ test.beforeEach(async ({ page }) => {
 // Display + readiness cards
 // ---------------------------------------------------------------------------
 
-test("Voice Setup page shows scripts and readiness cards when fully configured", async ({ page }) => {
+test("Voice Agents page shows profiles, scripts, and readiness cards when fully configured", async ({ page }) => {
   await page.route("**/api/v1/scripts/", async (route) => {
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: SCRIPTS, count: 2 }) })
   })
@@ -116,7 +116,9 @@ test("Voice Setup page shows scripts and readiness cards when fully configured",
 
   await page.goto("/voice-agents")
 
-  await expect(page.getByRole("heading", { name: "Voice Setup" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Voice Agents" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Select Alex voice profile" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Select Morgan voice profile" })).toBeVisible()
   await expect(page.getByRole("button", { name: /Pitch v1/i })).toBeVisible()
   await expect(page.getByRole("button", { name: /Pitch v2/i })).toBeVisible()
   await expect(page.getByText("Twilio Voice")).toBeVisible()
