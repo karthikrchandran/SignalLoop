@@ -7,6 +7,9 @@ test.beforeEach(async ({ page }) => {
 })
 
 test("Chatbot setup and knowledge mockups render with test bot flow", async ({ page }) => {
+  await page.goto("/chatbot")
+  await expect(page).toHaveURL(/\/chatbot\/channels/)
+
   await page.goto("/chatbot/channels")
 
   await expect(page.getByRole("heading", { name: "Channels" })).toBeVisible()

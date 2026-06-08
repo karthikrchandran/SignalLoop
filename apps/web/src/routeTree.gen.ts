@@ -24,6 +24,7 @@ import { Route as LayoutOfferPacksRouteImport } from './routes/_layout/offer-pac
 import { Route as LayoutGovernanceRouteImport } from './routes/_layout/governance'
 import { Route as LayoutControlsRouteImport } from './routes/_layout/controls'
 import { Route as LayoutContactsRouteImport } from './routes/_layout/contacts'
+import { Route as LayoutChatbotRouteImport } from './routes/_layout/chatbot'
 import { Route as LayoutCampaignsRouteImport } from './routes/_layout/campaigns'
 import { Route as LayoutAnalyticsRouteImport } from './routes/_layout/analytics'
 import { Route as LayoutAdminRouteImport } from './routes/_layout/admin'
@@ -110,6 +111,11 @@ const LayoutContactsRoute = LayoutContactsRouteImport.update({
   path: '/contacts',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutChatbotRoute = LayoutChatbotRouteImport.update({
+  id: '/chatbot',
+  path: '/chatbot',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutCampaignsRoute = LayoutCampaignsRouteImport.update({
   id: '/campaigns',
   path: '/campaigns',
@@ -131,30 +137,30 @@ const LayoutSettingsProvidersRoute = LayoutSettingsProvidersRouteImport.update({
   getParentRoute: () => LayoutSettingsRoute,
 } as any)
 const LayoutChatbotSettingsRoute = LayoutChatbotSettingsRouteImport.update({
-  id: '/chatbot/settings',
-  path: '/chatbot/settings',
-  getParentRoute: () => LayoutRoute,
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => LayoutChatbotRoute,
 } as any)
 const LayoutChatbotKnowledgeBaseRoute =
   LayoutChatbotKnowledgeBaseRouteImport.update({
-    id: '/chatbot/knowledge-base',
-    path: '/chatbot/knowledge-base',
-    getParentRoute: () => LayoutRoute,
+    id: '/knowledge-base',
+    path: '/knowledge-base',
+    getParentRoute: () => LayoutChatbotRoute,
   } as any)
 const LayoutChatbotInboxRoute = LayoutChatbotInboxRouteImport.update({
-  id: '/chatbot/inbox',
-  path: '/chatbot/inbox',
-  getParentRoute: () => LayoutRoute,
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => LayoutChatbotRoute,
 } as any)
 const LayoutChatbotChannelsRoute = LayoutChatbotChannelsRouteImport.update({
-  id: '/chatbot/channels',
-  path: '/chatbot/channels',
-  getParentRoute: () => LayoutRoute,
+  id: '/channels',
+  path: '/channels',
+  getParentRoute: () => LayoutChatbotRoute,
 } as any)
 const LayoutChatbotAnalyticsRoute = LayoutChatbotAnalyticsRouteImport.update({
-  id: '/chatbot/analytics',
-  path: '/chatbot/analytics',
-  getParentRoute: () => LayoutRoute,
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => LayoutChatbotRoute,
 } as any)
 const LayoutChatbotInboxThreadIdRoute =
   LayoutChatbotInboxThreadIdRouteImport.update({
@@ -178,6 +184,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof LayoutAdminRouteWithChildren
   '/analytics': typeof LayoutAnalyticsRoute
   '/campaigns': typeof LayoutCampaignsRoute
+  '/chatbot': typeof LayoutChatbotRouteWithChildren
   '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
   '/governance': typeof LayoutGovernanceRoute
@@ -204,6 +211,7 @@ export interface FileRoutesByTo {
   '/admin': typeof LayoutAdminRouteWithChildren
   '/analytics': typeof LayoutAnalyticsRoute
   '/campaigns': typeof LayoutCampaignsRoute
+  '/chatbot': typeof LayoutChatbotRouteWithChildren
   '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
   '/governance': typeof LayoutGovernanceRoute
@@ -233,6 +241,7 @@ export interface FileRoutesById {
   '/_layout/admin': typeof LayoutAdminRouteWithChildren
   '/_layout/analytics': typeof LayoutAnalyticsRoute
   '/_layout/campaigns': typeof LayoutCampaignsRoute
+  '/_layout/chatbot': typeof LayoutChatbotRouteWithChildren
   '/_layout/contacts': typeof LayoutContactsRoute
   '/_layout/controls': typeof LayoutControlsRoute
   '/_layout/governance': typeof LayoutGovernanceRoute
@@ -263,6 +272,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/analytics'
     | '/campaigns'
+    | '/chatbot'
     | '/contacts'
     | '/controls'
     | '/governance'
@@ -289,6 +299,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/analytics'
     | '/campaigns'
+    | '/chatbot'
     | '/contacts'
     | '/controls'
     | '/governance'
@@ -317,6 +328,7 @@ export interface FileRouteTypes {
     | '/_layout/admin'
     | '/_layout/analytics'
     | '/_layout/campaigns'
+    | '/_layout/chatbot'
     | '/_layout/contacts'
     | '/_layout/controls'
     | '/_layout/governance'
@@ -452,6 +464,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutContactsRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/chatbot': {
+      id: '/_layout/chatbot'
+      path: '/chatbot'
+      fullPath: '/chatbot'
+      preLoaderRoute: typeof LayoutChatbotRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/campaigns': {
       id: '/_layout/campaigns'
       path: '/campaigns'
@@ -482,38 +501,38 @@ declare module '@tanstack/react-router' {
     }
     '/_layout/chatbot/settings': {
       id: '/_layout/chatbot/settings'
-      path: '/chatbot/settings'
+      path: '/settings'
       fullPath: '/chatbot/settings'
       preLoaderRoute: typeof LayoutChatbotSettingsRouteImport
-      parentRoute: typeof LayoutRoute
+      parentRoute: typeof LayoutChatbotRoute
     }
     '/_layout/chatbot/knowledge-base': {
       id: '/_layout/chatbot/knowledge-base'
-      path: '/chatbot/knowledge-base'
+      path: '/knowledge-base'
       fullPath: '/chatbot/knowledge-base'
       preLoaderRoute: typeof LayoutChatbotKnowledgeBaseRouteImport
-      parentRoute: typeof LayoutRoute
+      parentRoute: typeof LayoutChatbotRoute
     }
     '/_layout/chatbot/inbox': {
       id: '/_layout/chatbot/inbox'
-      path: '/chatbot/inbox'
+      path: '/inbox'
       fullPath: '/chatbot/inbox'
       preLoaderRoute: typeof LayoutChatbotInboxRouteImport
-      parentRoute: typeof LayoutRoute
+      parentRoute: typeof LayoutChatbotRoute
     }
     '/_layout/chatbot/channels': {
       id: '/_layout/chatbot/channels'
-      path: '/chatbot/channels'
+      path: '/channels'
       fullPath: '/chatbot/channels'
       preLoaderRoute: typeof LayoutChatbotChannelsRouteImport
-      parentRoute: typeof LayoutRoute
+      parentRoute: typeof LayoutChatbotRoute
     }
     '/_layout/chatbot/analytics': {
       id: '/_layout/chatbot/analytics'
-      path: '/chatbot/analytics'
+      path: '/analytics'
       fullPath: '/chatbot/analytics'
       preLoaderRoute: typeof LayoutChatbotAnalyticsRouteImport
-      parentRoute: typeof LayoutRoute
+      parentRoute: typeof LayoutChatbotRoute
     }
     '/_layout/chatbot/inbox/$threadId': {
       id: '/_layout/chatbot/inbox/$threadId'
@@ -544,6 +563,37 @@ const LayoutAdminRouteWithChildren = LayoutAdminRoute._addFileChildren(
   LayoutAdminRouteChildren,
 )
 
+interface LayoutChatbotInboxRouteChildren {
+  LayoutChatbotInboxThreadIdRoute: typeof LayoutChatbotInboxThreadIdRoute
+}
+
+const LayoutChatbotInboxRouteChildren: LayoutChatbotInboxRouteChildren = {
+  LayoutChatbotInboxThreadIdRoute: LayoutChatbotInboxThreadIdRoute,
+}
+
+const LayoutChatbotInboxRouteWithChildren =
+  LayoutChatbotInboxRoute._addFileChildren(LayoutChatbotInboxRouteChildren)
+
+interface LayoutChatbotRouteChildren {
+  LayoutChatbotAnalyticsRoute: typeof LayoutChatbotAnalyticsRoute
+  LayoutChatbotChannelsRoute: typeof LayoutChatbotChannelsRoute
+  LayoutChatbotInboxRoute: typeof LayoutChatbotInboxRouteWithChildren
+  LayoutChatbotKnowledgeBaseRoute: typeof LayoutChatbotKnowledgeBaseRoute
+  LayoutChatbotSettingsRoute: typeof LayoutChatbotSettingsRoute
+}
+
+const LayoutChatbotRouteChildren: LayoutChatbotRouteChildren = {
+  LayoutChatbotAnalyticsRoute: LayoutChatbotAnalyticsRoute,
+  LayoutChatbotChannelsRoute: LayoutChatbotChannelsRoute,
+  LayoutChatbotInboxRoute: LayoutChatbotInboxRouteWithChildren,
+  LayoutChatbotKnowledgeBaseRoute: LayoutChatbotKnowledgeBaseRoute,
+  LayoutChatbotSettingsRoute: LayoutChatbotSettingsRoute,
+}
+
+const LayoutChatbotRouteWithChildren = LayoutChatbotRoute._addFileChildren(
+  LayoutChatbotRouteChildren,
+)
+
 interface LayoutSettingsRouteChildren {
   LayoutSettingsProvidersRoute: typeof LayoutSettingsProvidersRoute
 }
@@ -556,21 +606,11 @@ const LayoutSettingsRouteWithChildren = LayoutSettingsRoute._addFileChildren(
   LayoutSettingsRouteChildren,
 )
 
-interface LayoutChatbotInboxRouteChildren {
-  LayoutChatbotInboxThreadIdRoute: typeof LayoutChatbotInboxThreadIdRoute
-}
-
-const LayoutChatbotInboxRouteChildren: LayoutChatbotInboxRouteChildren = {
-  LayoutChatbotInboxThreadIdRoute: LayoutChatbotInboxThreadIdRoute,
-}
-
-const LayoutChatbotInboxRouteWithChildren =
-  LayoutChatbotInboxRoute._addFileChildren(LayoutChatbotInboxRouteChildren)
-
 interface LayoutRouteChildren {
   LayoutAdminRoute: typeof LayoutAdminRouteWithChildren
   LayoutAnalyticsRoute: typeof LayoutAnalyticsRoute
   LayoutCampaignsRoute: typeof LayoutCampaignsRoute
+  LayoutChatbotRoute: typeof LayoutChatbotRouteWithChildren
   LayoutContactsRoute: typeof LayoutContactsRoute
   LayoutControlsRoute: typeof LayoutControlsRoute
   LayoutGovernanceRoute: typeof LayoutGovernanceRoute
@@ -581,17 +621,13 @@ interface LayoutRouteChildren {
   LayoutTemplatesRoute: typeof LayoutTemplatesRoute
   LayoutVoiceAgentsRoute: typeof LayoutVoiceAgentsRoute
   LayoutIndexRoute: typeof LayoutIndexRoute
-  LayoutChatbotAnalyticsRoute: typeof LayoutChatbotAnalyticsRoute
-  LayoutChatbotChannelsRoute: typeof LayoutChatbotChannelsRoute
-  LayoutChatbotInboxRoute: typeof LayoutChatbotInboxRouteWithChildren
-  LayoutChatbotKnowledgeBaseRoute: typeof LayoutChatbotKnowledgeBaseRoute
-  LayoutChatbotSettingsRoute: typeof LayoutChatbotSettingsRoute
 }
 
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutAdminRoute: LayoutAdminRouteWithChildren,
   LayoutAnalyticsRoute: LayoutAnalyticsRoute,
   LayoutCampaignsRoute: LayoutCampaignsRoute,
+  LayoutChatbotRoute: LayoutChatbotRouteWithChildren,
   LayoutContactsRoute: LayoutContactsRoute,
   LayoutControlsRoute: LayoutControlsRoute,
   LayoutGovernanceRoute: LayoutGovernanceRoute,
@@ -602,11 +638,6 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutTemplatesRoute: LayoutTemplatesRoute,
   LayoutVoiceAgentsRoute: LayoutVoiceAgentsRoute,
   LayoutIndexRoute: LayoutIndexRoute,
-  LayoutChatbotAnalyticsRoute: LayoutChatbotAnalyticsRoute,
-  LayoutChatbotChannelsRoute: LayoutChatbotChannelsRoute,
-  LayoutChatbotInboxRoute: LayoutChatbotInboxRouteWithChildren,
-  LayoutChatbotKnowledgeBaseRoute: LayoutChatbotKnowledgeBaseRoute,
-  LayoutChatbotSettingsRoute: LayoutChatbotSettingsRoute,
 }
 
 const LayoutRouteWithChildren =
