@@ -7,6 +7,7 @@ import AddUser from "@/components/Admin/AddUser"
 import { columns, type UserTableData } from "@/components/Admin/columns"
 import { DataTable } from "@/components/Common/DataTable"
 import PendingUsers from "@/components/Pending/PendingUsers"
+import { isChatbotDemoMode } from "@/features/chatbot/demo"
 import useAuth from "@/hooks/useAuth"
 
 type UserWithRole = UserPublic & {
@@ -26,6 +27,9 @@ function getUsersQueryOptions() {
 export const Route = createFileRoute("/_layout/admin")({
   component: Admin,
   beforeLoad: async ({ location }) => {
+    if (isChatbotDemoMode() && location.pathname === "/admin/chatbot/dead-letters") {
+      return
+    }
     const user = await UsersService.readUserMe() as UserWithRole
     const isDeadLettersRoute = location.pathname === "/admin/chatbot/dead-letters"
     if (isDeadLettersRoute && isDeadLetterOperator(user)) {

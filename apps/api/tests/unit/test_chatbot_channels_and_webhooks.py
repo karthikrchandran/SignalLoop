@@ -10,6 +10,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from app.domain.chatbot.models import (
     ChatbotChannelConfig,
+    ChatbotChannelStatus,
     ChatbotChannelType,
 )
 from app.domain.chatbot.repositories import get_channel_config_by_id
@@ -21,7 +22,7 @@ from app.domain.chatbot.webhook_ingestion import (
     retry_dead_letter,
     write_dead_letter,
 )
-from app.domain_models import NotificationProvider
+from app.domain_models import NotificationProvider, ProviderCredential
 from app.infrastructure.providers.chat.facebook_messenger import (
     FacebookMessengerAdapter,
 )
@@ -29,6 +30,7 @@ from app.infrastructure.providers.chat.registry import (
     build_chat_adapter,
     provider_for_channel,
 )
+from app.routers.chatbot.channels import list_channels
 from app.infrastructure.providers.chat.telegram_bot import TelegramBotAdapter
 from app.infrastructure.providers.chat.whatsapp_cloud import WhatsAppCloudAdapter
 
@@ -229,3 +231,63 @@ def test_channel_lookup_is_workspace_scoped_by_id() -> None:
 
         assert get_channel_config_by_id("ws-a", session, channel.id) is not None
         assert get_channel_config_by_id("ws-b", session, channel.id) is None
+
+
+def test_list_channels_includes_real_connect_readiness() -> None:
+    with _session() as session:
+        credential = ProviderCredential(
+            workspace_id="ws-a",
+            provider=NotificationProvider.whatsapp_cloud,
+            channel="chatbot",
+            encrypted_api_key="encrypted",
+            encrypted_api_secret="encrypted-secret",
+            config_json={},
+        )
+        session.add(credential)
+        session.commit()
+        session.refresh(credential)
+
+        ready_channel = ChatbotChannelConfig(
+            workspace_id="ws-a",
+            channel_type=ChatbotChannelType.whatsapp_business,
+            display_name="Main WhatsApp",
+            credential_id=credential.id,
+            status=ChatbotChannelStatus.connected,
+            is_active=True,
+            config_json={
+                "phone_number_id": "15551234567",
+                "verify_token": "configured",
+                "webhook_secret_present": True,
+            },
+        )
+        missing_channel = ChatbotChannelConfig(
+            workspace_id="ws-a",
+            channel_type=ChatbotChannelType.facebook_messenger,
+            display_name="Facebook Page",
+            status=ChatbotChannelStatus.draft,
+            is_active=False,
+            config_json={},
+        )
+        session.add(ready_channel)
+        session.add(missing_channel)
+        session.commit()
+
+        response = list_channels("ws-a", session, object())
+        by_type = {row.channel_type: row for row in response.data}
+
+        whatsapp = by_type[ChatbotChannelType.whatsapp_business]
+        assert whatsapp.readiness.ready is True
+        assert whatsapp.readiness.status == "ready"
+        assert whatsapp.readiness.missing == []
+        assert whatsapp.readiness.webhook_url_path == f"/api/v1/chatbot/webhooks/{whatsapp.id}"
+
+        facebook = by_type[ChatbotChannelType.facebook_messenger]
+        assert facebook.readiness.ready is False
+        assert facebook.readiness.status == "needs_credentials"
+        assert facebook.readiness.missing == [
+            "provider credential",
+            "page_id",
+            "webhook secret",
+            "verify_token",
+            "activation",
+        ]

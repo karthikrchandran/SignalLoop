@@ -68,6 +68,17 @@ export default function AnalyticsPage() {
       })),
     [data?.channel_breakdown],
   )
+  const conversionStages = useMemo(() => {
+    if (!data) return []
+    return [
+      { label: "Conversations", value: data.conversion_funnel.conversations },
+      { label: "Leads captured", value: data.conversion_funnel.leads_captured },
+      { label: "Prospecting researched", value: data.conversion_funnel.prospecting_researched },
+      { label: "Added to campaign", value: data.conversion_funnel.added_to_campaign },
+      { label: "Sequence enrolled", value: data.conversion_funnel.sequence_enrolled },
+      { label: "Voice follow-up", value: data.conversion_funnel.voice_followups },
+    ]
+  }, [data])
 
   return (
     <div className="flex flex-col gap-6">
@@ -114,6 +125,31 @@ export default function AnalyticsPage() {
             <MetricCard label="Leads Captured" value={String(data.totals.leads_captured)} />
             <MetricCard label="Escalations" value={String(data.totals.escalations)} />
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Conversion funnel</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                {conversionStages.map((stage, index) => (
+                  <div key={stage.label} className="min-w-0 rounded-lg border bg-muted/30 p-3">
+                    <p className="truncate text-xs font-medium text-muted-foreground">{stage.label}</p>
+                    <div className="mt-2 flex items-baseline justify-between gap-2">
+                      <span className="text-2xl font-semibold tracking-tight">{stage.value}</span>
+                      {index > 0 ? (
+                        <span className="text-xs text-muted-foreground">
+                          {conversionStages[index - 1]?.value
+                            ? `${Math.round((stage.value / conversionStages[index - 1].value) * 100)}%`
+                            : "0%"}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="grid gap-4 xl:grid-cols-2">
             <Card>

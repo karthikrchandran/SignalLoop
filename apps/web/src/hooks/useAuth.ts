@@ -9,22 +9,33 @@ import {
   type UserRegister,
   UsersService,
 } from "@/client"
+import { isChatbotDemoMode } from "@/features/chatbot/demo"
 import { handleError } from "@/utils"
 import useCustomToast from "./useCustomToast"
 
 const isLoggedIn = () => {
-  return localStorage.getItem("access_token") !== null
+  return localStorage.getItem("access_token") !== null || isChatbotDemoMode()
 }
+
+const demoUser = {
+  id: "demo-user",
+  email: "demo@engagehub.local",
+  full_name: "Demo Admin",
+  is_active: true,
+  is_superuser: true,
+  role: "admin",
+} as UserPublic & { role: string }
 
 const useAuth = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { showErrorToast } = useCustomToast()
+  const chatbotDemoMode = isChatbotDemoMode()
 
   const currentUserQuery = useQuery<UserPublic | null, Error>({
     queryKey: ["currentUser"],
     queryFn: UsersService.readUserMe,
-    enabled: isLoggedIn(),
+    enabled: isLoggedIn() && !chatbotDemoMode,
     retry: false,
   })
 
@@ -73,10 +84,10 @@ const useAuth = () => {
     signUpMutation,
     loginMutation,
     logout,
-    user: currentUserQuery.data,
-    isLoading: currentUserQuery.isLoading,
-    isError: currentUserQuery.isError,
-    error: currentUserQuery.error,
+    user: chatbotDemoMode ? demoUser : currentUserQuery.data,
+    isLoading: chatbotDemoMode ? false : currentUserQuery.isLoading,
+    isError: chatbotDemoMode ? false : currentUserQuery.isError,
+    error: chatbotDemoMode ? null : currentUserQuery.error,
   }
 }
 

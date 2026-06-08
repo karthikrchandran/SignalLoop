@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Bot, MessageCircle, Phone, Send, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   type ChatbotChannel,
   type ChatbotChannelType,
@@ -63,6 +64,7 @@ export default function ChannelsPage() {
     () => new Map(channels.map((channel) => [channel.channel_type, channel])),
     [channels],
   )
+  const readyCount = useMemo(() => channels.filter((channel) => channel.readiness.ready).length, [channels])
 
   const loadChannels = async () => {
     setLoading(true)
@@ -111,6 +113,20 @@ export default function ChannelsPage() {
       </div>
 
       {error ? <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div> : null}
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Real-connect readiness</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-2xl font-semibold tracking-tight">
+            {readyCount} of {channelDefinitions.length} channels ready
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Live channels need provider credentials, provider IDs, webhook verification, and activation.
+          </p>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-3">
         {channelDefinitions.map((definition) => {

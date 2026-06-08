@@ -12,6 +12,7 @@ from app.domain.audit.audit_events import (
     append_audit_event_to_session,
     audit_actor_role,
 )
+from app.domain.chatbot.channel_readiness import build_channel_readiness
 from app.domain.chatbot.prompts import validate_ai_disclosure
 from app.domain.chatbot.repositories import (
     get_or_create_bot_config,
@@ -45,6 +46,7 @@ def _channel_public(row) -> ChatbotChannelPublic:
         is_active=row.is_active,
         has_credential=row.credential_id is not None,
         config_json=row.config_json,
+        readiness=build_channel_readiness(row),
         last_verified_at=row.last_verified_at,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -163,4 +165,3 @@ def update_config(
     session.commit()
     session.refresh(row)
     return _config_public(workspace_id, session)
-

@@ -41,6 +41,21 @@ export type ChatbotChannelStatus =
   | "error"
   | "disabled"
 
+export type ChatbotChannelReadinessStatus =
+  | "ready"
+  | "needs_credentials"
+  | "needs_provider_config"
+  | "needs_webhook"
+  | "needs_activation"
+  | "error"
+
+export type ChatbotChannelReadiness = {
+  ready: boolean
+  status: ChatbotChannelReadinessStatus
+  missing: string[]
+  webhook_url_path: string
+}
+
 export type ChatbotChannel = {
   id: string
   workspace_id: string
@@ -50,6 +65,7 @@ export type ChatbotChannel = {
   is_active: boolean
   has_credential: boolean
   config_json: Record<string, unknown>
+  readiness: ChatbotChannelReadiness
   last_verified_at?: string | null
   created_at: string
   updated_at: string
@@ -185,6 +201,14 @@ export type ChatbotAnalytics = {
     escalations: number
     bot_messages: number
     opt_outs: number
+  }
+  conversion_funnel: {
+    conversations: number
+    leads_captured: number
+    prospecting_researched: number
+    added_to_campaign: number
+    sequence_enrolled: number
+    voice_followups: number
   }
   timeseries: Array<{
     date: string

@@ -21,10 +21,14 @@ from app.domain.chatbot.models import (
 )
 from app.domain.chatbot.schemas import (
     ChatbotAnalyticsChannelBreakdownPublic,
+    ChatbotAnalyticsConversionFunnelPublic,
     ChatbotAnalyticsPublic,
     ChatbotAnalyticsSeriesPointPublic,
     ChatbotAnalyticsTotalsPublic,
 )
+from app.domain.sequences.models import ContactSequenceState
+from app.domain.voice.models import CallRequest
+from app.domain_models import ContactProgression, ProspectingSnapshot
 from app.models import User
 from app.routers.chatbot.router import WorkspaceId, require_chatbot_agent
 
@@ -75,6 +79,73 @@ def _is_bot_resolved(conversation: ChatbotConversation) -> bool:
     if _is_escalated(conversation) or _is_lead(conversation):
         return False
     return _enum_value(conversation.outcome) == ChatbotConversationOutcome.bot_resolved.value or not conversation.escalated
+
+
+def _distinct_contact_count(rows) -> int:
+    return len({row for row in rows if row is not None})
+
+
+def _conversion_funnel(
+    *,
+    session,
+    workspace_id: str,
+    conversations: list[ChatbotConversation],
+    leads_captured: int,
+) -> ChatbotAnalyticsConversionFunnelPublic:
+    lead_contact_ids = {
+        conversation.contact_id
+        for conversation in conversations
+        if _is_lead(conversation) and conversation.contact_id is not None
+    }
+    if not lead_contact_ids:
+        return ChatbotAnalyticsConversionFunnelPublic(
+            conversations=len(conversations),
+            leads_captured=leads_captured,
+            prospecting_researched=0,
+            added_to_campaign=0,
+            sequence_enrolled=0,
+            voice_followups=0,
+        )
+
+    contact_ids = list(lead_contact_ids)
+    researched = _distinct_contact_count(
+        session.exec(
+            select(ProspectingSnapshot.contact_id).where(
+                ProspectingSnapshot.workspace_id == workspace_id,
+                ProspectingSnapshot.contact_id.in_(contact_ids),
+            )
+        ).all()
+    )
+    added_to_campaign = _distinct_contact_count(
+        session.exec(
+            select(ContactProgression.contact_id).where(
+                ContactProgression.contact_id.in_(contact_ids),
+            )
+        ).all()
+    )
+    sequence_enrolled = _distinct_contact_count(
+        session.exec(
+            select(ContactSequenceState.contact_id).where(
+                ContactSequenceState.contact_id.in_(contact_ids),
+            )
+        ).all()
+    )
+    voice_followups = _distinct_contact_count(
+        session.exec(
+            select(CallRequest.contact_id).where(
+                CallRequest.contact_id.in_(contact_ids),
+            )
+        ).all()
+    )
+
+    return ChatbotAnalyticsConversionFunnelPublic(
+        conversations=len(conversations),
+        leads_captured=leads_captured,
+        prospecting_researched=researched,
+        added_to_campaign=added_to_campaign,
+        sequence_enrolled=sequence_enrolled,
+        voice_followups=voice_followups,
+    )
 
 
 @router.get("", response_model=ChatbotAnalyticsPublic)
@@ -207,6 +278,12 @@ def get_chatbot_analytics(
             escalations=escalations,
             bot_messages=bot_message_count,
             opt_outs=len(opt_outs),
+        ),
+        conversion_funnel=_conversion_funnel(
+            session=session,
+            workspace_id=workspace_id,
+            conversations=conversations,
+            leads_captured=leads,
         ),
         timeseries=[
             ChatbotAnalyticsSeriesPointPublic(date=day, **values)

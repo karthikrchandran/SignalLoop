@@ -53,7 +53,13 @@ let demoChannels: ChatbotChannel[] = [
     status: "connected",
     is_active: true,
     has_credential: true,
-    config_json: { phone_number_id: "15551234567", verify_token: "configured" },
+    config_json: { phone_number_id: "15551234567", verify_token: "configured", webhook_secret_present: true },
+    readiness: {
+      ready: true,
+      status: "ready",
+      missing: [],
+      webhook_url_path: "/api/v1/chatbot/webhooks/demo-channel-wa",
+    },
     last_verified_at: iso(-120),
     created_at: iso(-7200),
     updated_at: iso(-120),
@@ -66,7 +72,13 @@ let demoChannels: ChatbotChannel[] = [
     status: "connected",
     is_active: true,
     has_credential: true,
-    config_json: { page_id: "108812345678901", verify_token: "configured" },
+    config_json: { page_id: "108812345678901", verify_token: "configured", webhook_secret_present: true },
+    readiness: {
+      ready: true,
+      status: "ready",
+      missing: [],
+      webhook_url_path: "/api/v1/chatbot/webhooks/demo-channel-fb",
+    },
     last_verified_at: iso(-180),
     created_at: iso(-7000),
     updated_at: iso(-180),
@@ -80,6 +92,12 @@ let demoChannels: ChatbotChannel[] = [
     is_active: false,
     has_credential: true,
     config_json: { bot_username: "engagehub_demo_bot" },
+    readiness: {
+      ready: false,
+      status: "needs_webhook",
+      missing: ["webhook secret", "activation"],
+      webhook_url_path: "/api/v1/chatbot/webhooks/demo-channel-tg",
+    },
     last_verified_at: null,
     created_at: iso(-5000),
     updated_at: iso(-45),
@@ -325,6 +343,52 @@ function nextId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+function demoChannelReadiness(input: {
+  id: string
+  channel_type: ChatbotChannel["channel_type"]
+  config_json: ChatbotChannel["config_json"]
+  has_credential: boolean
+  is_active: boolean
+}): ChatbotChannel["readiness"] {
+  const missing: string[] = []
+  const requiredField =
+    input.channel_type === "whatsapp_business"
+      ? "phone_number_id"
+      : input.channel_type === "facebook_messenger"
+        ? "page_id"
+        : input.channel_type === "telegram"
+          ? "bot_username"
+          : "redirect_url"
+
+  if (!input.has_credential) missing.push("provider credential")
+  if (!String(input.config_json[requiredField] || "").trim()) missing.push(requiredField)
+  if (!input.config_json.webhook_secret_present) missing.push("webhook secret")
+  if (
+    (input.channel_type === "whatsapp_business" || input.channel_type === "facebook_messenger") &&
+    !String(input.config_json.verify_token || "").trim()
+  ) {
+    missing.push("verify_token")
+  }
+  if (!input.is_active) missing.push("activation")
+
+  const status = !input.has_credential
+    ? "needs_credentials"
+    : missing.includes("webhook secret") || missing.includes("verify_token")
+      ? "needs_webhook"
+      : missing.length === 1 && missing[0] === "activation"
+        ? "needs_activation"
+        : missing.length > 0
+          ? "needs_provider_config"
+          : "ready"
+
+  return {
+    ready: status === "ready",
+    status,
+    missing,
+    webhook_url_path: `/api/v1/chatbot/webhooks/${input.id}`,
+  }
+}
+
 export async function demoListChatbotChannels(): Promise<ChatbotChannelsResponse> {
   await delay()
   return { data: [...demoChannels], count: demoChannels.length }
@@ -333,6 +397,10 @@ export async function demoListChatbotChannels(): Promise<ChatbotChannelsResponse
 export async function demoCreateChatbotChannel(input: ChatbotChannelInput): Promise<ChatbotChannel> {
   await delay()
   const existing = demoChannels.find((channel) => channel.channel_type === input.channel_type)
+  const configJson = {
+    ...input.config_json,
+    ...(input.credentials.webhook_secret ? { webhook_secret_present: true } : {}),
+  }
   const row: ChatbotChannel = {
     id: existing?.id || nextId("demo-channel"),
     workspace_id: DEMO_WORKSPACE_ID,
@@ -341,11 +409,19 @@ export async function demoCreateChatbotChannel(input: ChatbotChannelInput): Prom
     status: input.is_active ? "connected" : "draft",
     is_active: input.is_active,
     has_credential: true,
-    config_json: input.config_json,
+    config_json: configJson,
+    readiness: demoChannelReadiness({
+      id: existing?.id || "pending",
+      channel_type: input.channel_type,
+      config_json: configJson,
+      has_credential: true,
+      is_active: input.is_active,
+    }),
     last_verified_at: input.is_active ? iso() : null,
     created_at: existing?.created_at || iso(),
     updated_at: iso(),
   }
+  row.readiness = demoChannelReadiness(row)
   demoChannels = existing
     ? demoChannels.map((channel) => (channel.id === existing.id ? row : channel))
     : [...demoChannels, row]
@@ -360,15 +436,21 @@ export async function demoUpdateChatbotChannel(
   await delay()
   const current = demoChannels.find((channel) => channel.id === channelId)
   if (!current) throw new Error("Demo channel not found")
+  const configJson = {
+    ...(input.config_json ?? current.config_json),
+    ...(input.credentials?.webhook_secret ? { webhook_secret_present: true } : {}),
+  }
   const updated: ChatbotChannel = {
     ...current,
     display_name: input.display_name ?? current.display_name,
     is_active: input.is_active ?? current.is_active,
     status: input.is_active === false ? "disabled" : current.status,
     has_credential: current.has_credential || Boolean(input.credentials?.api_key),
-    config_json: input.config_json ?? current.config_json,
+    config_json: configJson,
+    readiness: current.readiness,
     updated_at: iso(),
   }
+  updated.readiness = demoChannelReadiness(updated)
   demoChannels = demoChannels.map((channel) => (channel.id === channelId ? updated : channel))
   demoConfig = { ...demoConfig, channel_overrides: demoChannels, updated_at: iso() }
   return updated
@@ -482,6 +564,14 @@ export async function demoGetChatbotAnalytics(_range: ChatbotAnalyticsRange = {}
       escalations: 18,
       bot_messages: 198,
       opt_outs: 5,
+    },
+    conversion_funnel: {
+      conversations: 240,
+      leads_captured: 31,
+      prospecting_researched: 18,
+      added_to_campaign: 14,
+      sequence_enrolled: 11,
+      voice_followups: 6,
     },
     timeseries: [
       { date: day(-6), conversations: 21, bot_messages: 18, leads_captured: 3, escalations: 2, opt_outs: 0 },

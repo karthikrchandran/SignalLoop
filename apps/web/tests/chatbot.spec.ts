@@ -3,6 +3,8 @@ import { expect, test } from "@playwright/test"
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem("chatbot_demo_mode", "true")
+    window.localStorage.setItem("access_token", "demo-token")
+    window.localStorage.setItem("workspace_id", "demo-workspace")
   })
 })
 
@@ -16,6 +18,11 @@ test("Chatbot setup and knowledge mockups render with test bot flow", async ({ p
   await expect(page.getByText("Facebook Messenger")).toBeVisible()
   await expect(page.getByText("WhatsApp Business")).toBeVisible()
   await expect(page.getByText("Telegram", { exact: true })).toBeVisible()
+  await expect(page.getByText("Real-connect readiness")).toBeVisible()
+  await expect(page.getByText("2 of 3 channels ready")).toBeVisible()
+  await expect(page.getByText("Ready for live traffic").first()).toBeVisible()
+  await expect(page.getByText("Needs activation and webhook verification")).toBeVisible()
+  await expect(page.getByText("/api/v1/chatbot/webhooks/demo-channel-wa")).toBeVisible()
 
   await page.getByRole("button", { name: "Edit" }).first().click()
   await expect(page.getByText("Facebook Messenger connection")).toBeVisible()
@@ -44,6 +51,9 @@ test("Chatbot inbox detail and analytics mockups render", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Analytics" })).toBeVisible()
   await expect(page.getByText("Conversations").first()).toBeVisible()
   await expect(page.getByText("Containment")).toBeVisible()
+  await expect(page.getByText("Conversion funnel")).toBeVisible()
+  await expect(page.getByText("Prospecting researched")).toBeVisible()
+  await expect(page.getByText("Voice follow-up")).toBeVisible()
   await expect(page.getByText("Outcome breakdown")).toBeVisible()
   await expect(page.getByText("WhatsApp Business")).toBeVisible()
 })

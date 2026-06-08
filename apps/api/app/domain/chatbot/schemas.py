@@ -77,6 +77,15 @@ class ChatbotChannelToggle(BaseModel):
     is_active: bool
 
 
+class ChatbotChannelReadinessPublic(BaseModel):
+    """Real-connect checklist for a configured chatbot channel."""
+
+    ready: bool
+    status: str
+    missing: list[str] = Field(default_factory=list)
+    webhook_url_path: str
+
+
 class ChatbotChannelPublic(BaseModel):
     """Masked API response for a chatbot channel config."""
 
@@ -88,6 +97,7 @@ class ChatbotChannelPublic(BaseModel):
     is_active: bool
     has_credential: bool
     config_json: dict[str, Any]
+    readiness: ChatbotChannelReadinessPublic
     last_verified_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
@@ -162,6 +172,17 @@ class ChatbotAnalyticsChannelBreakdownPublic(BaseModel):
     conversations: int
 
 
+class ChatbotAnalyticsConversionFunnelPublic(BaseModel):
+    """Lead conversion funnel from chatbot conversation into follow-up workflows."""
+
+    conversations: int
+    leads_captured: int
+    prospecting_researched: int
+    added_to_campaign: int
+    sequence_enrolled: int
+    voice_followups: int
+
+
 class ChatbotAnalyticsPublic(BaseModel):
     """Chatbot analytics response for the current workspace."""
 
@@ -170,6 +191,7 @@ class ChatbotAnalyticsPublic(BaseModel):
     date_to: date
     updated_at: datetime
     totals: ChatbotAnalyticsTotalsPublic
+    conversion_funnel: ChatbotAnalyticsConversionFunnelPublic
     timeseries: list[ChatbotAnalyticsSeriesPointPublic]
     channel_breakdown: list[ChatbotAnalyticsChannelBreakdownPublic]
 
