@@ -32,6 +32,13 @@ class ProspectingResearchRequest(SQLModel):
     company_url: str | None = Field(default=None, max_length=2048)
 
 
+class ProspectingBulkResearchRequest(SQLModel):
+    """Request payload for running prospecting research for selected contacts."""
+
+    contact_ids: list[uuid.UUID] = Field(min_length=1, max_length=50)
+    company_url: str | None = Field(default=None, max_length=2048)
+
+
 class ProspectingResearchPublic(ProspectingBrief):
     """API response model for a prospecting snapshot."""
 
@@ -47,6 +54,25 @@ class ProspectingResearchListPublic(SQLModel):
 
     data: list[ProspectingResearchPublic]
     count: int
+
+
+class ProspectingEnrollmentRequest(SQLModel):
+    """Request payload for adding selected prospects to outreach."""
+
+    contact_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
+    campaign_id: uuid.UUID
+    sequence_id: uuid.UUID | None = None
+
+
+class ProspectingEnrollmentPublic(SQLModel):
+    """API response model for selected prospect enrollment."""
+
+    selected_count: int
+    campaign_added_count: int
+    campaign_existing_count: int
+    sequence_enrolled_count: int = 0
+    sequence_existing_count: int = 0
+    message: str
 
 
 class ProspectingReadyContactPublic(SQLModel):

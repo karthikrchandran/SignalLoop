@@ -7,13 +7,18 @@ from sqlmodel import Session, select
 from app.domain.audit.audit_events import append_audit_event_to_session
 from app.domain.prospecting.schemas import (
     ProspectingBrief,
+    ProspectingEnrollmentPublic,
     ProspectingReadyContactPublic,
     ProspectingResearchPublic,
     ProspectingSource,
 )
+from app.domain.sequences.models import ContactSequenceState, EmailSequence, SequenceStatus
 from app.domain_models import (
+    Campaign,
     Contact,
     ContactEvent,
+    ContactProgression,
+    ContactProgressionState,
     ContactStateHistory,
     ProspectingSnapshot,
 )
@@ -22,6 +27,14 @@ from app.infrastructure.rag.crawler import crawl_website
 
 class ProspectingContactNotFoundError(Exception):
     """Raised when the requested contact is not in the active workspace."""
+
+
+class ProspectingCampaignNotFoundError(Exception):
+    """Raised when the requested campaign is not in the active workspace."""
+
+
+class ProspectingSequenceNotFoundError(Exception):
+    """Raised when the requested sequence is not in the active workspace or campaign."""
 
 
 def _contact_name(contact: Contact) -> str:
@@ -363,6 +376,170 @@ async def create_prospecting_snapshot(
     session.commit()
     session.refresh(snapshot)
     return snapshot
+
+
+def _unique_ids(values: list[uuid.UUID]) -> list[uuid.UUID]:
+    return list(dict.fromkeys(values))
+
+
+def _load_selected_contacts(
+    *,
+    session: Session,
+    workspace_id: str,
+    contact_ids: list[uuid.UUID],
+) -> list[Contact]:
+    unique_contact_ids = _unique_ids(contact_ids)
+    contacts = list(
+        session.exec(
+            select(Contact).where(
+                Contact.workspace_id == workspace_id,
+                Contact.id.in_(unique_contact_ids),  # type: ignore[attr-defined]
+            )
+        ).all()
+    )
+    by_id = {contact.id: contact for contact in contacts}
+    if len(by_id) != len(unique_contact_ids):
+        raise ProspectingContactNotFoundError
+    return [by_id[contact_id] for contact_id in unique_contact_ids]
+
+
+async def create_bulk_prospecting_snapshots(
+    *,
+    session: Session,
+    workspace_id: str,
+    contact_ids: list[uuid.UUID],
+    company_url: str | None,
+    actor_id: uuid.UUID | None,
+    actor_role: str | None,
+) -> list[ProspectingSnapshot]:
+    """Create prospecting snapshots for selected workspace contacts."""
+    contacts = _load_selected_contacts(session=session, workspace_id=workspace_id, contact_ids=contact_ids)
+    snapshots: list[ProspectingSnapshot] = []
+    for contact in contacts:
+        snapshots.append(
+            await create_prospecting_snapshot(
+                session=session,
+                workspace_id=workspace_id,
+                contact_id=contact.id,
+                company_url=company_url,
+                actor_id=actor_id,
+                actor_role=actor_role,
+            )
+        )
+    return snapshots
+
+
+def enroll_selected_prospects(
+    *,
+    session: Session,
+    workspace_id: str,
+    contact_ids: list[uuid.UUID],
+    campaign_id: uuid.UUID,
+    sequence_id: uuid.UUID | None,
+    actor_id: uuid.UUID | None,
+    actor_role: str | None,
+) -> ProspectingEnrollmentPublic:
+    """Add selected prospects to a campaign and optionally to one sequence."""
+    contacts = _load_selected_contacts(session=session, workspace_id=workspace_id, contact_ids=contact_ids)
+    campaign = session.exec(
+        select(Campaign).where(Campaign.workspace_id == workspace_id, Campaign.id == campaign_id)
+    ).first()
+    if campaign is None:
+        raise ProspectingCampaignNotFoundError
+
+    sequence: EmailSequence | None = None
+    if sequence_id is not None:
+        sequence = session.exec(
+            select(EmailSequence)
+            .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+            .where(
+                EmailSequence.id == sequence_id,
+                EmailSequence.campaign_id == campaign_id,
+                Campaign.workspace_id == workspace_id,
+            )
+        ).first()
+        if sequence is None:
+            raise ProspectingSequenceNotFoundError
+
+    campaign_added_count = 0
+    campaign_existing_count = 0
+    sequence_enrolled_count = 0
+    sequence_existing_count = 0
+
+    for contact in contacts:
+        progression = session.exec(
+            select(ContactProgression).where(
+                ContactProgression.contact_id == contact.id,
+                ContactProgression.campaign_id == campaign_id,
+            )
+        ).first()
+        if progression:
+            campaign_existing_count += 1
+        else:
+            session.add(
+                ContactProgression(
+                    contact_id=contact.id,
+                    campaign_id=campaign_id,
+                    current_state=ContactProgressionState.inbox,
+                )
+            )
+            campaign_added_count += 1
+
+        if sequence is None:
+            continue
+        sequence_state = session.exec(
+            select(ContactSequenceState).where(
+                ContactSequenceState.contact_id == contact.id,
+                ContactSequenceState.sequence_id == sequence.id,
+            )
+        ).first()
+        if sequence_state:
+            sequence_existing_count += 1
+        else:
+            session.add(
+                ContactSequenceState(
+                    contact_id=contact.id,
+                    sequence_id=sequence.id,
+                    status=SequenceStatus.active,
+                    signal_type="prospecting",
+                )
+            )
+            sequence_enrolled_count += 1
+
+    append_audit_event_to_session(
+        session,
+        event_name="prospecting.contacts_enrolled",
+        workspace_id=workspace_id,
+        actor_id=actor_id,
+        actor_role=actor_role,
+        resource_type="campaign",
+        resource_id=str(campaign_id),
+        payload={
+            "campaign_id": str(campaign_id),
+            "sequence_id": str(sequence_id) if sequence_id else None,
+            "selected_count": len(contacts),
+            "campaign_added_count": campaign_added_count,
+            "campaign_existing_count": campaign_existing_count,
+            "sequence_enrolled_count": sequence_enrolled_count,
+            "sequence_existing_count": sequence_existing_count,
+        },
+    )
+    session.commit()
+
+    message = f"Added {campaign_added_count} prospects to {campaign.name}."
+    if sequence is not None:
+        message = (
+            f"Added {campaign_added_count} prospects to {campaign.name} and enrolled "
+            f"{sequence_enrolled_count} in {sequence.name}."
+        )
+    return ProspectingEnrollmentPublic(
+        selected_count=len(contacts),
+        campaign_added_count=campaign_added_count,
+        campaign_existing_count=campaign_existing_count,
+        sequence_enrolled_count=sequence_enrolled_count,
+        sequence_existing_count=sequence_existing_count,
+        message=message,
+    )
 
 
 def list_prospecting_snapshots(

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Clock3, Copy, Loader2, RefreshCw, SearchCheck, Sparkles } from "lucide-react"
+import { Clock3, Copy, Loader2, RefreshCw, SearchCheck, Send, Sparkles, Users } from "lucide-react"
 
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -9,12 +9,18 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
+  enrollProspects,
   listProspectingResearch,
+  listProspectingCampaigns,
+  listProspectingSequences,
   listReadyContacts,
+  runBulkProspectingResearch,
   runProspectingResearch,
+  type ProspectingCampaign,
   type ProspectingPriority,
   type ProspectingReadyContact,
   type ProspectingResearchResult,
+  type ProspectingSequence,
 } from "@/features/prospecting/api"
 
 function contactLabel(contact: ProspectingReadyContact) {
@@ -76,7 +82,12 @@ function DraftPanel({
 
 export default function ProspectingPage() {
   const [contacts, setContacts] = useState<ProspectingReadyContact[]>([])
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([])
   const [selectedContactId, setSelectedContactId] = useState("")
+  const [campaigns, setCampaigns] = useState<ProspectingCampaign[]>([])
+  const [sequences, setSequences] = useState<ProspectingSequence[]>([])
+  const [selectedCampaignId, setSelectedCampaignId] = useState("")
+  const [selectedSequenceId, setSelectedSequenceId] = useState("")
   const [search, setSearch] = useState("")
   const [companyUrl, setCompanyUrl] = useState("")
   const [result, setResult] = useState<ProspectingResearchResult | null>(null)
@@ -84,11 +95,18 @@ export default function ProspectingPage() {
   const [loadingContacts, setLoadingContacts] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [researching, setResearching] = useState(false)
+  const [bulkResearching, setBulkResearching] = useState(false)
+  const [enrolling, setEnrolling] = useState(false)
   const [feedback, setFeedback] = useState("")
 
   const selectedContact = useMemo(
     () => contacts.find((contact) => contact.id === selectedContactId) || null,
     [contacts, selectedContactId],
+  )
+
+  const selectedCampaignSequences = useMemo(
+    () => sequences.filter((sequence) => sequence.campaign_id === selectedCampaignId),
+    [sequences, selectedCampaignId],
   )
 
   async function loadContacts(nextSearch = search) {
@@ -97,6 +115,7 @@ export default function ProspectingPage() {
     try {
       const response = await listReadyContacts(nextSearch)
       setContacts(response.data)
+      setSelectedContactIds((current) => current.filter((id) => response.data.some((contact) => contact.id === id)))
       setSelectedContactId((current) => {
         if (current && response.data.some((contact) => contact.id === current)) {
           return current
@@ -110,10 +129,38 @@ export default function ProspectingPage() {
     }
   }
 
+  async function loadOutreachTargets() {
+    try {
+      const [campaignResponse, sequenceResponse] = await Promise.all([
+        listProspectingCampaigns(),
+        listProspectingSequences(),
+      ])
+      setCampaigns(campaignResponse.data)
+      setSequences(sequenceResponse.data)
+      setSelectedCampaignId((current) => current || campaignResponse.data[0]?.id || "")
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Could not load outreach targets")
+    }
+  }
+
   useEffect(() => {
     void loadContacts("")
+    void loadOutreachTargets()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!selectedCampaignId) {
+      setSelectedSequenceId("")
+      return
+    }
+    setSelectedSequenceId((current) => {
+      if (current && selectedCampaignSequences.some((sequence) => sequence.id === current)) {
+        return current
+      }
+      return selectedCampaignSequences[0]?.id || ""
+    })
+  }, [selectedCampaignId, selectedCampaignSequences])
 
   async function loadHistory(contactId: string) {
     setLoadingHistory(true)
@@ -156,6 +203,61 @@ export default function ProspectingPage() {
       setFeedback(error instanceof Error ? error.message : "Could not run prospecting research")
     } finally {
       setResearching(false)
+    }
+  }
+
+  function toggleSelectedContact(contactId: string) {
+    setSelectedContactIds((current) =>
+      current.includes(contactId)
+        ? current.filter((id) => id !== contactId)
+        : [...current, contactId],
+    )
+  }
+
+  function selectAllContacts() {
+    setSelectedContactIds(contacts.map((contact) => contact.id))
+  }
+
+  async function runSelectedResearch() {
+    if (selectedContactIds.length === 0) return
+    setBulkResearching(true)
+    setFeedback("")
+    try {
+      const payload = await runBulkProspectingResearch({
+        contact_ids: selectedContactIds,
+        company_url: companyUrl.trim() || null,
+      })
+      const nextResult =
+        payload.data.find((snapshot) => snapshot.contact_id === selectedContactId) ||
+        payload.data[0] ||
+        null
+      setResult(nextResult)
+      if (nextResult?.contact_id === selectedContactId) {
+        setHistory((current) => [nextResult, ...current.filter((item) => item.id !== nextResult.id)])
+      }
+      setFeedback(`Researched ${payload.count} selected prospects.`)
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Could not run selected prospecting research")
+    } finally {
+      setBulkResearching(false)
+    }
+  }
+
+  async function addSelectedToOutreach() {
+    if (selectedContactIds.length === 0 || !selectedCampaignId) return
+    setEnrolling(true)
+    setFeedback("")
+    try {
+      const payload = await enrollProspects({
+        contact_ids: selectedContactIds,
+        campaign_id: selectedCampaignId,
+        sequence_id: selectedSequenceId || null,
+      })
+      setFeedback(payload.message)
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Could not add selected prospects to outreach")
+    } finally {
+      setEnrolling(false)
     }
   }
 
@@ -215,33 +317,57 @@ export default function ProspectingPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2 text-sm">
                 <span className="font-medium">Handoff queue</span>
-                <Badge variant="outline">{contacts.length} contacts</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{contacts.length} contacts</Badge>
+                  <Badge variant="secondary">{selectedContactIds.length} selected</Badge>
+                </div>
               </div>
+              {contacts.length > 0 && (
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={selectAllContacts}>
+                    Select all
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedContactIds([])}>
+                    Clear
+                  </Button>
+                </div>
+              )}
               {contacts.length ? (
                 <div className="space-y-2">
                   {contacts.map((contact) => (
-                    <button
+                    <div
                       key={contact.id}
-                      type="button"
-                      className={`w-full rounded-md border px-3 py-2 text-left transition hover:bg-muted/60 ${
+                      className={`flex w-full items-start gap-3 rounded-md border px-3 py-2 transition hover:bg-muted/60 ${
                         contact.id === selectedContactId ? "border-primary bg-muted/40" : "bg-background"
                       }`}
-                      onClick={() => setSelectedContactId(contact.id)}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium">{contactLabel(contact)}</div>
-                          <div className="truncate text-xs text-muted-foreground">{contact.email}</div>
+                      <input
+                        type="checkbox"
+                        className="mt-1 size-4"
+                        aria-label={`Select ${contactLabel(contact)}`}
+                        checked={selectedContactIds.includes(contact.id)}
+                        onChange={() => toggleSelectedContact(contact.id)}
+                      />
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => setSelectedContactId(contact.id)}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium">{contactLabel(contact)}</div>
+                            <div className="truncate text-xs text-muted-foreground">{contact.email}</div>
+                          </div>
+                          <Badge variant={priorityVariant(contact.priority)}>
+                            {priorityLabel(contact.priority)}
+                          </Badge>
                         </div>
-                        <Badge variant={priorityVariant(contact.priority)}>
-                          {priorityLabel(contact.priority)}
-                        </Badge>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <Badge variant="outline">Score {contact.lead_score}</Badge>
-                        {contact.handoff_source && <Badge variant="secondary">Messaging Hub</Badge>}
-                      </div>
-                    </button>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Badge variant="outline">Score {contact.lead_score}</Badge>
+                          {contact.handoff_source && <Badge variant="secondary">Messaging Hub</Badge>}
+                        </div>
+                      </button>
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -308,6 +434,73 @@ export default function ProspectingPage() {
               {researching ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Sparkles className="mr-2 size-4" />}
               Run research
             </Button>
+
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => void runSelectedResearch()}
+              disabled={selectedContactIds.length === 0 || bulkResearching}
+            >
+              {bulkResearching ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Users className="mr-2 size-4" />}
+              Run selected research
+            </Button>
+
+            <div className="rounded-md border bg-background p-3">
+              <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+                <Send className="size-4" />
+                Outreach handoff
+              </div>
+              <div className="space-y-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="prospecting-campaign">Campaign</Label>
+                  <select
+                    id="prospecting-campaign"
+                    className="h-10 rounded-md border bg-background px-3 text-sm"
+                    value={selectedCampaignId}
+                    onChange={(event) => setSelectedCampaignId(event.target.value)}
+                    disabled={campaigns.length === 0}
+                  >
+                    {campaigns.length === 0 ? (
+                      <option value="">No campaigns found</option>
+                    ) : (
+                      campaigns.map((campaign) => (
+                        <option key={campaign.id} value={campaign.id}>
+                          {campaign.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="prospecting-sequence">Sequence</Label>
+                  <select
+                    id="prospecting-sequence"
+                    className="h-10 rounded-md border bg-background px-3 text-sm"
+                    value={selectedSequenceId}
+                    onChange={(event) => setSelectedSequenceId(event.target.value)}
+                    disabled={!selectedCampaignId || selectedCampaignSequences.length === 0}
+                  >
+                    {selectedCampaignSequences.length === 0 ? (
+                      <option value="">No sequence for campaign</option>
+                    ) : (
+                      selectedCampaignSequences.map((sequence) => (
+                        <option key={sequence.id} value={sequence.id}>
+                          {sequence.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => void addSelectedToOutreach()}
+                  disabled={selectedContactIds.length === 0 || !selectedCampaignId || enrolling}
+                >
+                  {enrolling ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Send className="mr-2 size-4" />}
+                  Add selected to outreach
+                </Button>
+              </div>
+            </div>
 
             <div className="rounded-md border bg-background">
               <div className="flex items-center justify-between gap-2 border-b px-3 py-2">

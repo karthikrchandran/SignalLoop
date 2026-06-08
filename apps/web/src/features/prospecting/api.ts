@@ -44,6 +44,11 @@ export type ProspectingResearchRequest = {
   company_url?: string | null
 }
 
+export type ProspectingBulkResearchRequest = {
+  contact_ids: string[]
+  company_url?: string | null
+}
+
 export type ProspectingResearchResult = {
   id: string
   contact_id: string
@@ -62,6 +67,45 @@ export type ProspectingResearchResult = {
 export type ProspectingResearchListResponse = {
   data: ProspectingResearchResult[]
   count: number
+}
+
+export type ProspectingCampaign = {
+  id: string
+  name: string
+  status: string
+}
+
+export type ProspectingCampaignListResponse = {
+  data: ProspectingCampaign[]
+  count: number
+}
+
+export type ProspectingSequence = {
+  id: string
+  campaign_id: string
+  name: string
+  active: boolean
+  created_at: string
+}
+
+export type ProspectingSequenceListResponse = {
+  data: ProspectingSequence[]
+  count: number
+}
+
+export type ProspectingEnrollmentRequest = {
+  contact_ids: string[]
+  campaign_id: string
+  sequence_id?: string | null
+}
+
+export type ProspectingEnrollmentResult = {
+  selected_count: number
+  campaign_added_count: number
+  campaign_existing_count: number
+  sequence_enrolled_count: number
+  sequence_existing_count: number
+  message: string
 }
 
 export function listContacts(search = "") {
@@ -90,6 +134,14 @@ export function runProspectingResearch(input: ProspectingResearchRequest) {
   })
 }
 
+export function runBulkProspectingResearch(input: ProspectingBulkResearchRequest) {
+  return engagehubRequest<ProspectingResearchListResponse>("/api/v1/prospecting/research/bulk", {
+    method: "POST",
+    idempotent: true,
+    body: input,
+  })
+}
+
 export function listProspectingResearch(contactId?: string) {
   const params = new URLSearchParams()
   if (contactId) {
@@ -99,4 +151,20 @@ export function listProspectingResearch(contactId?: string) {
   return engagehubRequest<ProspectingResearchListResponse>(
     `/api/v1/prospecting/research${query ? `?${query}` : ""}`,
   )
+}
+
+export function listProspectingCampaigns() {
+  return engagehubRequest<ProspectingCampaignListResponse>("/api/v1/campaigns/")
+}
+
+export function listProspectingSequences() {
+  return engagehubRequest<ProspectingSequenceListResponse>("/api/v1/sequences/")
+}
+
+export function enrollProspects(input: ProspectingEnrollmentRequest) {
+  return engagehubRequest<ProspectingEnrollmentResult>("/api/v1/prospecting/enroll", {
+    method: "POST",
+    idempotent: true,
+    body: input,
+  })
 }

@@ -7,7 +7,14 @@ from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.domain.audit.audit_events import AuditEvent
-from app.domain_models import Contact, ProspectingSnapshot
+from app.domain.sequences.models import ContactSequenceState, EmailSequence
+from app.domain_models import (
+    Campaign,
+    Contact,
+    ContactProgression,
+    ContactProgressionState,
+    ProspectingSnapshot,
+)
 from app.infrastructure.rag.crawler import CrawledPage
 
 
@@ -156,3 +163,131 @@ def test_ready_contacts_returns_ranked_chatbot_handoffs(
     assert row["handoff_source"] == "web"
     assert "Captured from Messaging Hub" in row["priority_reasons"]
     assert "Buyer intent detected" in row["priority_reasons"]
+
+
+def test_bulk_prospecting_research_persists_snapshots(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    workspace_id = f"ws-prospecting-bulk-{uuid.uuid4().hex[:8]}"
+    contacts = [
+        Contact(
+            workspace_id=workspace_id,
+            email=f"ada-{uuid.uuid4().hex[:8]}@example.com",
+            first_name="Ada",
+            last_name="Lovelace",
+            company="Analytical",
+            tags_json=["chatbot-lead"],
+            intent_json=["pricing-request"],
+        ),
+        Contact(
+            workspace_id=workspace_id,
+            email=f"grace-{uuid.uuid4().hex[:8]}@example.com",
+            first_name="Grace",
+            last_name="Hopper",
+            company="Compiler Co",
+            tags_json=["chatbot-lead"],
+            intent_json=["demo-request"],
+        ),
+    ]
+    db.add_all(contacts)
+    db.commit()
+    for contact in contacts:
+        db.refresh(contact)
+
+    response = client.post(
+        f"{settings.API_V1_STR}/prospecting/research/bulk",
+        headers=_headers(superuser_token_headers, workspace_id, idempotency=True),
+        json={"contact_ids": [str(contact.id) for contact in contacts]},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 2
+    assert {row["contact_id"] for row in payload["data"]} == {str(contact.id) for contact in contacts}
+
+    snapshots = db.exec(
+        select(ProspectingSnapshot).where(ProspectingSnapshot.workspace_id == workspace_id)
+    ).all()
+    assert len(snapshots) == 2
+
+
+def test_prospecting_enrollment_assigns_selected_contacts_to_campaign_and_sequence(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    workspace_id = f"ws-prospecting-enroll-{uuid.uuid4().hex[:8]}"
+    campaign = Campaign(
+        workspace_id=workspace_id,
+        name="Prospecting Campaign",
+        created_by=uuid.uuid4(),
+    )
+    db.add(campaign)
+    db.commit()
+    db.refresh(campaign)
+    sequence = EmailSequence(
+        campaign_id=campaign.id,
+        name="Prospecting Sequence",
+        created_by=uuid.uuid4(),
+    )
+    contacts = [
+        Contact(
+            workspace_id=workspace_id,
+            email=f"ada-{uuid.uuid4().hex[:8]}@example.com",
+            first_name="Ada",
+            last_name="Lovelace",
+            company="Analytical",
+        ),
+        Contact(
+            workspace_id=workspace_id,
+            email=f"grace-{uuid.uuid4().hex[:8]}@example.com",
+            first_name="Grace",
+            last_name="Hopper",
+            company="Compiler Co",
+        ),
+    ]
+    db.add(sequence)
+    db.add_all(contacts)
+    db.commit()
+    db.refresh(sequence)
+    for contact in contacts:
+        db.refresh(contact)
+
+    db.add(
+        ContactProgression(
+            contact_id=contacts[0].id,
+            campaign_id=campaign.id,
+            current_state=ContactProgressionState.inbox,
+        )
+    )
+    db.add(ContactSequenceState(contact_id=contacts[0].id, sequence_id=sequence.id))
+    db.commit()
+
+    response = client.post(
+        f"{settings.API_V1_STR}/prospecting/enroll",
+        headers=_headers(superuser_token_headers, workspace_id, idempotency=True),
+        json={
+            "contact_ids": [str(contact.id) for contact in contacts],
+            "campaign_id": str(campaign.id),
+            "sequence_id": str(sequence.id),
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["selected_count"] == 2
+    assert payload["campaign_added_count"] == 1
+    assert payload["campaign_existing_count"] == 1
+    assert payload["sequence_enrolled_count"] == 1
+    assert payload["sequence_existing_count"] == 1
+
+    campaign_rows = db.exec(
+        select(ContactProgression).where(ContactProgression.campaign_id == campaign.id)
+    ).all()
+    sequence_rows = db.exec(
+        select(ContactSequenceState).where(ContactSequenceState.sequence_id == sequence.id)
+    ).all()
+    assert len(campaign_rows) == 2
+    assert len(sequence_rows) == 2
