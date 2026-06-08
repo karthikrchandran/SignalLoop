@@ -84,7 +84,7 @@ export default function DeadLettersPage() {
           <p className="text-sm font-medium text-muted-foreground">Operator</p>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <AlertTriangle className="size-6 text-muted-foreground" />
-            Chatbot Dead Letters
+            Messaging Dead Letters
           </h1>
           <p className="text-sm text-muted-foreground">Verified messages that failed all worker retries.</p>
         </div>
@@ -122,7 +122,7 @@ export default function DeadLettersPage() {
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">No dead-lettered chatbot messages.</TableCell>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">No dead-lettered messaging events.</TableCell>
                 </TableRow>
               ) : (
                 rows.map((row) => (

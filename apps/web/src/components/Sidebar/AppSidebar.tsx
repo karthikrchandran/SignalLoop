@@ -69,14 +69,14 @@ export function AppSidebar() {
     ? [
         ...baseItems,
         { icon: PlugZap, title: "Providers", path: "/settings/providers" },
-        { icon: AlertTriangle, title: "Chatbot Dead Letters", path: "/admin/chatbot/dead-letters" },
+        { icon: AlertTriangle, title: "Messaging Dead Letters", path: "/admin/chatbot/dead-letters" },
         { icon: Users, title: "Admin", path: "/admin" },
       ]
     : baseItems
   const chatbotItems = isChatbotAdmin(userWithRole) ? adminChatbotItems : agentChatbotItems
   const groups: ItemGroup[] = [
     { items },
-    { title: "Chatbot", items: chatbotItems },
+    { title: "Messaging Hub", items: chatbotItems },
   ]
 
   return (

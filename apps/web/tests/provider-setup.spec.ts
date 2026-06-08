@@ -41,6 +41,25 @@ const providerOptions = {
       ],
     },
     {
+      capability: "voice",
+      providers: [
+        {
+          provider: "twilio",
+          label: "Twilio Voice",
+          requires_creds: true,
+          free_tier: "$15 trial credit",
+          local: false,
+        },
+        {
+          provider: "vapi",
+          label: "Vapi AI Voice",
+          requires_creds: true,
+          free_tier: "Starter credits / free testing numbers",
+          local: false,
+        },
+      ],
+    },
+    {
       capability: "stt",
       providers: [
         {
@@ -96,6 +115,7 @@ async function mockProviderEndpoints(
   const selections = new Map([
     ["email", "smtp"],
     ["llm", "groq"],
+    ["voice", "vapi"],
     ["stt", "faster_whisper_local"],
   ])
 
@@ -146,13 +166,15 @@ async function mockProviderEndpoints(
   )
 }
 
-test("renders one provider section per local-demo capability", async ({ page }) => {
+test("renders provider sections for catalog capabilities including Vapi voice", async ({ page }) => {
   await mockProviderEndpoints(page)
 
   await page.goto("/settings/providers")
 
   await expect(page.getByRole("heading", { name: "Provider Setup" })).toBeVisible()
   await expect(page.getByTestId("provider-card-email")).toContainText("Email")
+  await expect(page.getByTestId("provider-card-voice")).toContainText("Voice")
+  await expect(page.getByTestId("provider-card-voice")).toContainText("Vapi AI Voice")
   await expect(page.getByTestId("provider-card-llm")).toContainText("LLM")
   await expect(page.getByTestId("provider-card-stt")).toContainText("STT")
 })

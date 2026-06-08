@@ -58,7 +58,7 @@ export default function BotSettingsPage() {
     <div className="relative flex flex-col gap-6 pb-20">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">Chatbot</p>
+          <p className="text-sm font-medium text-muted-foreground">Messaging Hub</p>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <Bot className="size-6 text-muted-foreground" />
             Bot Settings
@@ -265,4 +265,3 @@ export default function BotSettingsPage() {
     </div>
   )
 }
-

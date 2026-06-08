@@ -45,7 +45,7 @@ export function OptOutsTab() {
   return (
     <div className="space-y-3">
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">No active chatbot opt-outs.</div>
+        <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">No active messaging opt-outs.</div>
       ) : (
         <Table>
           <TableHeader>

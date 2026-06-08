@@ -29,7 +29,14 @@ import {
   updateProviderSelection,
 } from "@/lib/engagehub-api"
 
-const capabilityOrder: ProviderCapability[] = ["email", "llm", "stt"]
+const capabilityOrder: ProviderCapability[] = [
+  "email",
+  "sms",
+  "voice",
+  "stt",
+  "tts",
+  "llm",
+]
 
 const capabilityLabels: Record<ProviderCapability, string> = {
   email: "Email",

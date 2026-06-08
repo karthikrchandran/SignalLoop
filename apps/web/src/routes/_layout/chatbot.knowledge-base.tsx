@@ -22,6 +22,6 @@ export const Route = createFileRoute("/_layout/chatbot/knowledge-base")({
     }
   },
   head: () => ({
-    meta: [{ title: "Chatbot Knowledge Base - EngageHub" }],
+    meta: [{ title: "Messaging Hub Knowledge Base - EngageHub" }],
   }),
 })

@@ -57,7 +57,7 @@ test("Chatbot opt-outs and dead-letter recovery mockups render actions", async (
   await page.getByRole("button", { name: "Cancel" }).click()
 
   await page.goto("/admin/chatbot/dead-letters")
-  await expect(page.getByRole("heading", { name: "Chatbot Dead Letters" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Messaging Dead Letters" })).toBeVisible()
   await expect(page.getByText("wamid.demo.failed")).toBeVisible()
   await page.getByRole("button", { name: "Retry" }).first().click()
   await expect(page.getByText("Dead-lettered message requeued")).toBeVisible()

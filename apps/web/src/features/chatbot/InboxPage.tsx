@@ -76,7 +76,7 @@ export default function InboxPage({ threadId }: InboxPageProps) {
     <div className="flex h-[calc(100vh-7rem)] min-h-[620px] flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">Chatbot</p>
+          <p className="text-sm font-medium text-muted-foreground">Messaging Hub</p>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <Inbox className="size-6 text-muted-foreground" />
             Inbox

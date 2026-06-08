@@ -72,11 +72,11 @@ const iconMap = {
 
 export function createChatbotPlaceholder(kind: ChatbotPlaceholderKind) {
   const labels = {
-    channels: { title: "Channels", eyebrow: "Chatbot" },
-    knowledge: { title: "Knowledge Base", eyebrow: "Chatbot" },
-    inbox: { title: "Inbox", eyebrow: "Chatbot" },
-    analytics: { title: "Analytics", eyebrow: "Chatbot" },
-    settings: { title: "Settings", eyebrow: "Chatbot" },
+    channels: { title: "Channels", eyebrow: "Messaging Hub" },
+    knowledge: { title: "Knowledge Base", eyebrow: "Messaging Hub" },
+    inbox: { title: "Inbox", eyebrow: "Messaging Hub" },
+    analytics: { title: "Analytics", eyebrow: "Messaging Hub" },
+    settings: { title: "Settings", eyebrow: "Messaging Hub" },
   } satisfies Record<keyof typeof screenCopy, { title: string; eyebrow: string }>
   const copy = screenCopy[kind]
   return (

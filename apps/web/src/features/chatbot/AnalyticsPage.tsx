@@ -48,7 +48,7 @@ export default function AnalyticsPage() {
     try {
       setData(await getChatbotAnalytics(range))
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to load chatbot analytics")
+      setError(requestError instanceof Error ? requestError.message : "Failed to load messaging analytics")
     } finally {
       setLoading(false)
     }
@@ -73,12 +73,12 @@ export default function AnalyticsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">Chatbot</p>
+          <p className="text-sm font-medium text-muted-foreground">Messaging Hub</p>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <BarChart3 className="size-6 text-muted-foreground" />
             Analytics
           </h1>
-          <p className="text-sm text-muted-foreground">Chatbot performance for the current workspace.</p>
+          <p className="text-sm text-muted-foreground">Messaging performance for the current workspace.</p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <div className="grid gap-1.5">
@@ -177,7 +177,7 @@ export default function AnalyticsPage() {
               <TableBody>
                 {data.channel_breakdown.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">No chatbot analytics for this range.</TableCell>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">No messaging analytics for this range.</TableCell>
                   </TableRow>
                 ) : (
                   data.channel_breakdown.map((row) => (

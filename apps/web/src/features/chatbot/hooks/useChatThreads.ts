@@ -90,7 +90,7 @@ export function useChatThreads(initialThreadId?: string | null) {
         stopFallback()
       },
       onInbox: () => {
-        toast.info("New chatbot inbox activity")
+        toast.info("New messaging inbox activity")
         void loadThreads()
       },
     }).then(() => {
