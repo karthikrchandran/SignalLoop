@@ -64,9 +64,50 @@ const CALL_PREP = {
   personalization_bullets: ["Reference the website pricing chat."],
   suggested_next_action: "Call with the pricing-context opener.",
   email_draft: "Subject: Pricing follow-up\n\nHi Ada,",
-  voice_opener: "Hi Ada, I am calling about your pricing question for Analytical.",
+  voice_opener:
+    "Hi Ada, I am calling about your pricing question for Analytical.",
   sources: [{ label: "CRM contact", summary: "Ada at Analytical" }],
   created_at: "2026-06-08T10:01:00Z",
+}
+
+const CALLS = {
+  data: [
+    {
+      call_request_id: "call-1",
+      contact_id: "contact-1",
+      campaign_id: "camp-1",
+      status: "completed",
+      outcome: "answered",
+      duration_seconds: 96,
+      scheduled_at: "2026-06-08T10:05:00Z",
+      created_at: "2026-06-08T10:04:00Z",
+    },
+  ],
+  count: 1,
+}
+
+const CALL_DETAIL = {
+  call_request_id: "call-1",
+  contact_id: "contact-1",
+  campaign_id: "camp-1",
+  status: "completed",
+  trigger_reason: "manual_test_call",
+  outcome: "answered",
+  duration_seconds: 96,
+  recording_url: null,
+  transcript:
+    "Ada said they are interested but need pricing clarity before booking the demo next Tuesday.",
+  unanswered_questions: ["pricing clarity before booking a demo"],
+  scheduling_interest: true,
+  scheduled_at: "2026-06-08T10:05:00Z",
+  intelligence: {
+    summary: "Buyer showed interest and needs pricing clarity before booking.",
+    sentiment: "positive",
+    objection: "pricing clarity before booking a demo",
+    next_action: "Book the requested meeting time.",
+    recommended_follow_up:
+      "Send a pricing-focused follow-up, then confirm the demo time.",
+  },
 }
 
 const SETUP_CONFIGURED: object = {
@@ -197,7 +238,11 @@ const SETUP_MISSING: object = {
 
 test.use({ storageState: { cookies: [], origins: [] } })
 
+let queuedTestCallPayload: unknown | null = null
+
 test.beforeEach(async ({ page }) => {
+  queuedTestCallPayload = null
+
   await page.addInitScript(() => {
     localStorage.setItem("access_token", "e2e-test-token")
     localStorage.setItem("workspace_id", "ws-e2e")
@@ -230,6 +275,51 @@ test.beforeEach(async ({ page }) => {
       contentType: "application/json",
       body: JSON.stringify({ data: [CALL_PREP], count: 1 }),
     })
+  })
+
+  await page.route("**/api/v1/calls/**", async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+
+    if (request.method() === "GET" && url.pathname.endsWith("/api/v1/calls/")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(CALLS),
+      })
+      return
+    }
+
+    if (
+      request.method() === "GET" &&
+      url.pathname.endsWith("/api/v1/calls/call-1")
+    ) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(CALL_DETAIL),
+      })
+      return
+    }
+
+    if (
+      request.method() === "POST" &&
+      url.pathname.endsWith("/api/v1/calls/test-call")
+    ) {
+      queuedTestCallPayload = request.postDataJSON()
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          call_request_id: "call-test-1",
+          status: "queued",
+          message: "Test call queued",
+        }),
+      })
+      return
+    }
+
+    await route.continue()
   })
 })
 
@@ -295,6 +385,20 @@ test("Voice Agents page shows profiles, language support, and scripts when fully
     page.getByText("Hi Ada, I am calling about your pricing question"),
   ).toBeVisible()
   await expect(page.getByText("Voice readiness needs setup")).toBeHidden()
+  await expect(page.getByText("Voice execution")).toBeVisible()
+  await expect(page.getByText("Selected provider")).toBeVisible()
+  await expect(page.getByText("Twilio Voice").first()).toBeVisible()
+  await expect(page.getByText("Call outcome intelligence")).toBeVisible()
+  await expect(
+    page.getByText("Buyer showed interest and needs pricing clarity"),
+  ).toBeVisible()
+  await page.getByRole("button", { name: "Queue test call" }).click()
+  await expect(page.getByText(/^Test call queued\.$/)).toBeVisible()
+  expect(queuedTestCallPayload).toEqual({
+    contact_id: "contact-1",
+    campaign_id: "camp-1",
+    voice_script_id: "script-1",
+  })
   await expect(page.getByText("Twilio SMS")).toBeHidden()
 })
 
@@ -320,7 +424,7 @@ test("Readiness notice links to provider setup when voice prerequisites are not 
   await page.goto("/voice-agents")
 
   await expect(page.getByText("Voice readiness needs setup")).toBeVisible()
-  await expect(page.getByText(/Twilio Voice/)).toBeVisible()
+  await expect(page.getByText(/Twilio Voice/).first()).toBeVisible()
   await expect(page.getByText(/Deepgram Nova-2/)).toBeVisible()
   await expect(page.getByText(/Groq/)).toBeVisible()
   await expect(

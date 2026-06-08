@@ -1,8 +1,10 @@
 import { Link } from "@tanstack/react-router"
 import {
+  Brain,
   Loader2,
   Mic2,
   Pencil,
+  PhoneCall,
   Play,
   Plus,
   RefreshCw,
@@ -99,6 +101,45 @@ type SetupOverview = {
     twilio_media_stream_url: string
   }
   integrations: SetupIntegration[]
+}
+
+type CallListItem = {
+  call_request_id: string
+  contact_id: string
+  campaign_id: string
+  status: string
+  outcome: string | null
+  duration_seconds: number | null
+  scheduled_at: string | null
+  created_at: string
+}
+
+type CallsResponse = {
+  data: CallListItem[]
+  count: number
+}
+
+type CallOutcomeIntelligence = {
+  summary: string
+  sentiment: string
+  objection: string | null
+  next_action: string
+  recommended_follow_up: string
+}
+
+type CallDetail = CallListItem & {
+  trigger_reason: string | null
+  recording_url: string | null
+  transcript: string | null
+  unanswered_questions: string[] | null
+  scheduling_interest: boolean | null
+  intelligence: CallOutcomeIntelligence | null
+}
+
+type TestCallResponse = {
+  call_request_id: string
+  status: string
+  message: string
 }
 
 type VoiceProfileId = "alex" | "morgan" | "rajesh" | "priya"
@@ -316,6 +357,10 @@ export default function VoiceAgentsPage() {
   const [callPrepSnapshots, setCallPrepSnapshots] = useState<
     ProspectingResearchResult[]
   >([])
+  const [recentCalls, setRecentCalls] = useState<CallListItem[]>([])
+  const [latestCallDetail, setLatestCallDetail] = useState<CallDetail | null>(
+    null,
+  )
   const [setupOverview, setSetupOverview] = useState<SetupOverview | null>(null)
   const [selectedCampaignId, setSelectedCampaignId] = useState("")
   const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null)
@@ -324,6 +369,7 @@ export default function VoiceAgentsPage() {
   )
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [testCallLoading, setTestCallLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -410,6 +456,18 @@ export default function VoiceAgentsPage() {
   const missingVoiceReadinessItems = voiceReadinessItems.filter(
     (item) => !item.ready,
   )
+  const latestCallPrepSnapshot = callPrepSnapshots[0] ?? null
+  const selectedVoiceProviderName = integrationDisplayName(
+    voiceIntegration,
+    "Voice provider",
+  )
+  const testCallDisabledReason = !selectedScript
+    ? "Select a voice script."
+    : !latestCallPrepSnapshot
+      ? "Run prospecting research first."
+      : missingVoiceReadinessItems.length > 0
+        ? "Complete voice readiness setup."
+        : null
 
   useEffect(() => {
     if (!("speechSynthesis" in window)) return
@@ -431,21 +489,29 @@ export default function VoiceAgentsPage() {
         data: [],
         count: 0,
       }))
+      const callsRequest = engagehubRequest<CallsResponse>(
+        "/api/v1/calls/?limit=5",
+      ).catch(() => ({
+        data: [],
+        count: 0,
+      }))
       const [
         campaignResponse,
         scriptsResponse,
         overviewResponse,
         callPrepResponse,
-      ] =
-        await Promise.all([
-          engagehubRequest<CampaignsResponse>("/api/v1/campaigns/"),
-          engagehubRequest<ScriptsResponse>("/api/v1/scripts/"),
-          engagehubRequest<SetupOverview>("/api/v1/utils/setup-overview/"),
-          callPrepRequest,
-        ])
+        callsResponse,
+      ] = await Promise.all([
+        engagehubRequest<CampaignsResponse>("/api/v1/campaigns/"),
+        engagehubRequest<ScriptsResponse>("/api/v1/scripts/"),
+        engagehubRequest<SetupOverview>("/api/v1/utils/setup-overview/"),
+        callPrepRequest,
+        callsRequest,
+      ])
       setCampaigns(campaignResponse.data)
       setScripts(scriptsResponse.data)
       setCallPrepSnapshots(callPrepResponse.data)
+      setRecentCalls(callsResponse.data)
       setSetupOverview(overviewResponse)
       setSelectedCampaignId(
         (current) => current || campaignResponse.data[0]?.id || "",
@@ -465,6 +531,19 @@ export default function VoiceAgentsPage() {
       })
       if (!editorCampaignId && campaignResponse.data[0]) {
         setEditorCampaignId(campaignResponse.data[0].id)
+      }
+      const latestCall = callsResponse.data[0]
+      if (latestCall) {
+        try {
+          const detail = await engagehubRequest<CallDetail>(
+            `/api/v1/calls/${latestCall.call_request_id}`,
+          )
+          setLatestCallDetail(detail)
+        } catch {
+          setLatestCallDetail(null)
+        }
+      } else {
+        setLatestCallDetail(null)
       }
     } catch (requestError) {
       setError(
@@ -661,6 +740,42 @@ export default function VoiceAgentsPage() {
     }
   }
 
+  const queueTestCall = async () => {
+    if (!selectedScript || !latestCallPrepSnapshot) {
+      setError(
+        "Select a script and prospecting contact before queueing a call.",
+      )
+      return
+    }
+
+    setTestCallLoading(true)
+    setError(null)
+    setFeedback(null)
+    try {
+      const response = await engagehubRequest<TestCallResponse>(
+        "/api/v1/calls/test-call",
+        {
+          method: "POST",
+          body: {
+            contact_id: latestCallPrepSnapshot.contact_id,
+            campaign_id: selectedScript.campaign_id,
+            voice_script_id: selectedScript.id,
+          },
+        },
+      )
+      await loadIndex()
+      setFeedback(`${response.message}.`)
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Could not queue test call",
+      )
+    } finally {
+      setTestCallLoading(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
@@ -741,7 +856,26 @@ export default function VoiceAgentsPage() {
         <VoiceReadinessNotice missingItems={missingVoiceReadinessItems} />
       )}
 
-      <ProspectingCallPrepCard snapshot={callPrepSnapshots[0] ?? null} />
+      <VoiceExecutionCard
+        callbacksReady={setupOverview?.callbacks.public_host ?? false}
+        disabledReason={testCallDisabledReason}
+        providerConfigured={voiceIntegration?.configured ?? false}
+        providerName={selectedVoiceProviderName}
+        selectedScriptName={selectedScript?.name ?? null}
+        testContactSummary={
+          latestCallPrepSnapshot ? "Latest prospecting contact" : null
+        }
+        testCallLoading={testCallLoading}
+        onQueueTestCall={() => void queueTestCall()}
+      />
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <ProspectingCallPrepCard snapshot={latestCallPrepSnapshot} />
+        <CallOutcomeIntelligenceCard
+          call={latestCallDetail}
+          fallbackCall={recentCalls[0] ?? null}
+        />
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
         <Card className="border-border/70">
@@ -1169,9 +1303,7 @@ function ProspectingCallPrepCard({
             </CardDescription>
           </div>
           {snapshot && (
-            <Badge variant="outline">
-              {formatDate(snapshot.created_at)}
-            </Badge>
+            <Badge variant="outline">{formatDate(snapshot.created_at)}</Badge>
           )}
         </div>
       </CardHeader>
@@ -1208,7 +1340,10 @@ function ProspectingCallPrepCard({
             </div>
             <div className="flex flex-wrap gap-2">
               {snapshot.sources.map((source) => (
-                <Badge key={`${source.label}-${source.summary}`} variant="secondary">
+                <Badge
+                  key={`${source.label}-${source.summary}`}
+                  variant="secondary"
+                >
                   {source.label}
                 </Badge>
               ))}
@@ -1221,6 +1356,162 @@ function ProspectingCallPrepCard({
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function VoiceExecutionCard({
+  callbacksReady,
+  disabledReason,
+  providerConfigured,
+  providerName,
+  selectedScriptName,
+  testContactSummary,
+  testCallLoading,
+  onQueueTestCall,
+}: {
+  callbacksReady: boolean
+  disabledReason: string | null
+  providerConfigured: boolean
+  providerName: string
+  selectedScriptName: string | null
+  testContactSummary: string | null
+  testCallLoading: boolean
+  onQueueTestCall: () => void
+}) {
+  return (
+    <Card className="border-border/70">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle>Voice execution</CardTitle>
+            <CardDescription>
+              Provider, callback, and manual test-call readiness for the
+              selected script.
+            </CardDescription>
+          </div>
+          <Badge variant={providerConfigured ? "default" : "destructive"}>
+            {providerConfigured ? "Ready" : "Needs setup"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-3">
+          <MetricCard label="Selected provider" value={providerName} />
+          <MetricCard
+            label="Callbacks"
+            value={callbacksReady ? "Public" : "Local only"}
+          />
+          <MetricCard
+            label="Selected script"
+            value={selectedScriptName ?? "No script selected"}
+          />
+        </div>
+        <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Manual test call</p>
+            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+              {testContactSummary ?? "No prospecting contact selected."}
+            </p>
+            {disabledReason && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {disabledReason}
+              </p>
+            )}
+          </div>
+          <Button
+            type="button"
+            className="w-full shrink-0 sm:w-auto"
+            onClick={onQueueTestCall}
+            disabled={Boolean(disabledReason) || testCallLoading}
+          >
+            {testCallLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <PhoneCall className="mr-2 h-4 w-4" />
+            )}
+            Queue test call
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function CallOutcomeIntelligenceCard({
+  call,
+  fallbackCall,
+}: {
+  call: CallDetail | null
+  fallbackCall: CallListItem | null
+}) {
+  const intelligence = call?.intelligence ?? null
+  const sentimentVariant =
+    intelligence?.sentiment === "negative"
+      ? "destructive"
+      : intelligence?.sentiment === "positive"
+        ? "default"
+        : "secondary"
+
+  return (
+    <Card className="border-border/70">
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-primary" />
+              Call outcome intelligence
+            </CardTitle>
+            <CardDescription>
+              Summary, objection, and next action from the latest call.
+            </CardDescription>
+          </div>
+          {intelligence && (
+            <Badge variant={sentimentVariant}>{intelligence.sentiment}</Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {intelligence ? (
+          <>
+            <div className="rounded-lg border p-4">
+              <p className="text-sm font-medium">Summary</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {intelligence.summary}
+              </p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <OutcomeField
+                label="Objection"
+                value={intelligence.objection ?? "No objection captured."}
+              />
+              <OutcomeField
+                label="Next action"
+                value={intelligence.next_action}
+              />
+            </div>
+            <OutcomeField
+              label="Recommended follow-up"
+              value={intelligence.recommended_follow_up}
+            />
+          </>
+        ) : (
+          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            {fallbackCall
+              ? `Latest call is ${fallbackCall.status}. Intelligence appears after call processing.`
+              : "Completed calls will show outcome intelligence here."}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function OutcomeField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border p-4">
+      <p className="text-sm font-medium">{label}</p>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">{value}</p>
+    </div>
   )
 }
 

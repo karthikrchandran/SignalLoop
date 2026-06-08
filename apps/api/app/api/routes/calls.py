@@ -1,9 +1,10 @@
 """Call review screen — list, detail, and manual action endpoints."""
+
 from __future__ import annotations
 
 import html
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlmodel import SQLModel, func, select
@@ -27,18 +28,23 @@ from app.domain.sequences.models import (
 )
 from app.domain.voice.models import (
     CallRequest,
+    CallRequestStatus,
     CallSession,
+    VoiceScript,
 )
 from app.domain_models import Campaign, Contact, OutboxEvent
 from app.infrastructure.providers.base import EmailAdapter
 from app.infrastructure.providers.registry import resolve_email_adapter
 from app.infrastructure.providers.sendgrid import SendGridAdapter
 
-router = APIRouter(prefix="/calls", tags=["calls"], dependencies=[Depends(require_admin)])
+router = APIRouter(
+    prefix="/calls", tags=["calls"], dependencies=[Depends(require_admin)]
+)
 
 
 class CallListItem(SQLModel):
     """List item: call list."""
+
     call_request_id: uuid.UUID
     contact_id: uuid.UUID
     campaign_id: uuid.UUID
@@ -51,12 +57,45 @@ class CallListItem(SQLModel):
 
 class CallListPublic(SQLModel):
     """API response model: call list."""
+
     data: list[CallListItem]
     count: int
 
 
+class TestCallCreate(SQLModel):
+    """Request payload for queueing a manual voice test call."""
+
+    contact_id: uuid.UUID
+    campaign_id: uuid.UUID
+    voice_script_id: uuid.UUID
+    scheduled_at: datetime | None = None
+
+
+class TestCallPublic(SQLModel):
+    """API response model: queued test call."""
+
+    call_request_id: uuid.UUID
+    contact_id: uuid.UUID
+    campaign_id: uuid.UUID
+    voice_script_id: uuid.UUID
+    status: str
+    scheduled_at: datetime
+    message: str
+
+
+class CallOutcomeIntelligencePublic(SQLModel):
+    """Derived call intelligence for post-call routing."""
+
+    summary: str
+    sentiment: str
+    objection: str | None
+    next_action: str
+    recommended_follow_up: str
+
+
 class CallDetailPublic(SQLModel):
     """API response model: call detail."""
+
     call_request_id: uuid.UUID
     contact_id: uuid.UUID
     campaign_id: uuid.UUID
@@ -69,6 +108,7 @@ class CallDetailPublic(SQLModel):
     unanswered_questions: list[str] | None
     scheduling_interest: bool | None
     scheduled_at: datetime | None
+    intelligence: CallOutcomeIntelligencePublic | None = None
 
 
 def _get_call_request_or_404(
@@ -96,6 +136,149 @@ def _call_action_intent_key(call_request_id: uuid.UUID, action: str) -> str:
 def _provider_send_accepted(result: dict) -> bool:
     status_code = int(result.get("status_code") or 0)
     return 200 <= status_code < 300
+
+
+def _extract_unanswered_questions(unanswered_questions: object) -> list[str]:
+    if unanswered_questions is None:
+        return []
+    if isinstance(unanswered_questions, list):
+        return [str(item).strip() for item in unanswered_questions if str(item).strip()]
+    if isinstance(unanswered_questions, dict):
+        raw_questions = (
+            unanswered_questions.get("questions")
+            or unanswered_questions.get("items")
+            or unanswered_questions.get("unanswered")
+            or []
+        )
+        if isinstance(raw_questions, list):
+            return [str(item).strip() for item in raw_questions if str(item).strip()]
+        if isinstance(raw_questions, str) and raw_questions.strip():
+            return [raw_questions.strip()]
+    if isinstance(unanswered_questions, str) and unanswered_questions.strip():
+        return [unanswered_questions.strip()]
+    return []
+
+
+def _sentiment_from_transcript(transcript: str) -> str:
+    text = transcript.lower()
+    negative_terms = (
+        "not interested",
+        "no budget",
+        "too expensive",
+        "bad fit",
+        "do not call",
+        "stop calling",
+        "declined",
+    )
+    positive_terms = (
+        "interested",
+        "book",
+        "booking",
+        "demo",
+        "schedule",
+        "yes",
+        "great",
+        "next tuesday",
+    )
+    if any(term in text for term in negative_terms):
+        return "negative"
+    if any(term in text for term in positive_terms):
+        return "positive"
+    return "neutral"
+
+
+def _detect_objection(transcript: str, questions: list[str]) -> str | None:
+    if questions:
+        return questions[0]
+
+    text = transcript.lower()
+    if "pricing" in text or "price" in text:
+        return "pricing clarity"
+    if "budget" in text:
+        return "budget concern"
+    if "timing" in text or "later" in text:
+        return "timing concern"
+    if "authority" in text or "manager" in text or "approval" in text:
+        return "approval needed"
+    return None
+
+
+def _summary_for_call(
+    session: CallSession,
+    *,
+    transcript: str,
+    objection: str | None,
+) -> str:
+    if session.scheduling_interest and objection:
+        return f"Buyer showed interest and needs {objection}."
+    if session.scheduling_interest:
+        return "Buyer showed interest in scheduling a follow-up."
+    if objection:
+        return f"Call surfaced {objection}."
+    if transcript:
+        sentence = transcript.strip().split(".")[0].strip()
+        return sentence[:220] if sentence else "Call completed with transcript."
+    if session.outcome:
+        return f"Call completed with outcome {session.outcome.value}."
+    return "Call completed."
+
+
+def _build_call_outcome_intelligence(
+    session: CallSession | None,
+) -> CallOutcomeIntelligencePublic | None:
+    if session is None:
+        return None
+
+    transcript = (session.transcript or "").strip()
+    questions = _extract_unanswered_questions(session.unanswered_questions)
+    objection = _detect_objection(transcript, questions)
+    sentiment = _sentiment_from_transcript(transcript)
+
+    if (
+        not transcript
+        and not questions
+        and not session.outcome
+        and not session.scheduling_interest
+    ):
+        return None
+
+    if session.scheduling_interest:
+        next_action = "Book the requested meeting time."
+    elif objection:
+        next_action = f"Send a follow-up that addresses {objection}."
+    elif session.outcome and session.outcome.value in {
+        "voicemail",
+        "no_answer",
+        "busy",
+    }:
+        next_action = "Retry the call or send an email follow-up."
+    else:
+        next_action = "Send a recap and continue the sequence."
+
+    if objection and session.scheduling_interest:
+        recommended_follow_up = f"Send a follow-up that addresses {objection}, then confirm the meeting time."
+    elif objection:
+        recommended_follow_up = f"Lead with {objection} in the next outreach touch."
+    elif session.outcome and session.outcome.value == "voicemail":
+        recommended_follow_up = (
+            "Send the voicemail recap by email and schedule a retry."
+        )
+    else:
+        recommended_follow_up = (
+            "Continue the sequence with a short recap and clear next step."
+        )
+
+    return CallOutcomeIntelligencePublic(
+        summary=_summary_for_call(
+            session,
+            transcript=transcript,
+            objection=objection,
+        ),
+        sentiment=sentiment,
+        objection=objection,
+        next_action=next_action,
+        recommended_follow_up=recommended_follow_up,
+    )
 
 
 def _raise_call_action_in_progress(action: str) -> None:
@@ -154,6 +337,85 @@ def _email_adapter(session: SessionDep, workspace_id: str) -> EmailAdapter:
     )
 
 
+@router.post("/test-call", response_model=TestCallPublic)
+def queue_test_call(
+    session: SessionDep,
+    current_user: CurrentUser,
+    workspace_id: WorkspaceIdDep,
+    payload: TestCallCreate,
+) -> TestCallPublic:
+    """Queue a manual voice test call for the selected contact and script."""
+    return _queue_test_call_once(
+        session=session,
+        current_user=current_user,
+        workspace_id=workspace_id,
+        payload=payload,
+    )
+
+
+def _queue_test_call_once(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    workspace_id: str,
+    payload: TestCallCreate,
+) -> TestCallPublic:
+    campaign = session.get(Campaign, payload.campaign_id)
+    if not campaign or campaign.workspace_id != workspace_id:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    contact = session.get(Contact, payload.contact_id)
+    if not contact or contact.workspace_id != workspace_id:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    if not contact.phone:
+        raise HTTPException(status_code=400, detail="Contact phone is required")
+
+    script = session.get(VoiceScript, payload.voice_script_id)
+    if not script or script.campaign_id != campaign.id:
+        raise HTTPException(status_code=404, detail="Voice script not found")
+    if not script.active:
+        raise HTTPException(status_code=400, detail="Voice script is inactive")
+
+    scheduled_at = payload.scheduled_at or datetime.now(timezone.utc)
+    call_request = CallRequest(
+        contact_id=contact.id,
+        campaign_id=campaign.id,
+        voice_script_id=script.id,
+        trigger_reason="manual_test_call",
+        status=CallRequestStatus.queued,
+        scheduled_at=scheduled_at,
+    )
+    session.add(call_request)
+    session.flush()
+
+    append_audit_event_to_session(
+        session,
+        event_name="call.test_call_queued",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        actor_role=audit_actor_role(current_user),
+        resource_type="call_request",
+        resource_id=str(call_request.id),
+        payload={
+            "call_request_id": str(call_request.id),
+            "contact_id": str(contact.id),
+            "campaign_id": str(campaign.id),
+            "voice_script_id": str(script.id),
+        },
+    )
+    session.commit()
+    session.refresh(call_request)
+    return TestCallPublic(
+        call_request_id=call_request.id,
+        contact_id=contact.id,
+        campaign_id=campaign.id,
+        voice_script_id=script.id,
+        status=call_request.status.value,
+        scheduled_at=call_request.scheduled_at,
+        message="Test call queued",
+    )
+
+
 @router.get("/", response_model=CallListPublic)
 def list_calls(
     session: SessionDep,
@@ -185,13 +447,17 @@ def list_calls(
             select(CallRequest, CallSession)
             .join(Campaign, CallRequest.campaign_id == Campaign.id)
             .join(CallSession, CallRequest.id == CallSession.call_request_id)
-            .where(Campaign.workspace_id == workspace_id, CallSession.outcome == outcome)
+            .where(
+                Campaign.workspace_id == workspace_id, CallSession.outcome == outcome
+            )
         )
         count_query = (
             select(func.count(CallRequest.id))
             .join(Campaign, CallRequest.campaign_id == Campaign.id)
             .join(CallSession, CallRequest.id == CallSession.call_request_id)
-            .where(Campaign.workspace_id == workspace_id, CallSession.outcome == outcome)
+            .where(
+                Campaign.workspace_id == workspace_id, CallSession.outcome == outcome
+            )
         )
         if campaign_id:
             query = query.where(CallRequest.campaign_id == campaign_id)
@@ -243,9 +509,12 @@ def get_call_detail(
         duration_seconds=sess.duration_seconds if sess else None,
         recording_url=sess.recording_url if sess else None,
         transcript=sess.transcript if sess else None,
-        unanswered_questions=sess.unanswered_questions if sess else None,
+        unanswered_questions=(
+            _extract_unanswered_questions(sess.unanswered_questions) if sess else None
+        ),
         scheduling_interest=sess.scheduling_interest if sess else None,
         scheduled_at=req.scheduled_at,
+        intelligence=_build_call_outcome_intelligence(sess),
     )
 
 
@@ -309,7 +578,9 @@ async def _send_demo_email_once(
         idempotency_key=intent.idempotency_key,
     )
     if not _provider_send_accepted(result):
-        raise HTTPException(status_code=502, detail="Email provider rejected demo email")
+        raise HTTPException(
+            status_code=502, detail="Email provider rejected demo email"
+        )
 
     append_audit_event_to_session(
         session,
@@ -369,7 +640,9 @@ async def _flag_for_sales_once(
 
     team_email = resolve_team_notification_email(session, workspace_id)
     if not team_email:
-        raise HTTPException(status_code=500, detail="Team notification email not configured")
+        raise HTTPException(
+            status_code=500, detail="Team notification email not configured"
+        )
 
     name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or "Unknown"
     intent = _prepare_call_action_intent(
@@ -393,7 +666,9 @@ async def _flag_for_sales_once(
         idempotency_key=intent.idempotency_key,
     )
     if not _provider_send_accepted(result):
-        raise HTTPException(status_code=502, detail="Email provider rejected sales flag")
+        raise HTTPException(
+            status_code=502, detail="Email provider rejected sales flag"
+        )
 
     append_audit_event_to_session(
         session,
