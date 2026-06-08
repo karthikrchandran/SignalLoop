@@ -44,7 +44,7 @@ function Test-AlembicSingleHead {
   Write-Host "==> Alembic single-head check"
   Push-Location $ApiDir
   try {
-    $heads = & uv run alembic heads 2>&1
+    $heads = & uv --no-cache run alembic heads 2>&1
     $exitCode = $LASTEXITCODE
     $heads | ForEach-Object { Write-Host $_ }
     if ($exitCode -ne 0) {
@@ -65,19 +65,19 @@ Invoke-CheckedStep `
   -Name "API ruff check" `
   -WorkingDirectory $ApiDir `
   -Command "uv" `
-  run ruff check app/domain/engagement_intelligence tests/unit/test_engagement_intelligence.py
+  --no-cache run ruff check app/domain/engagement_intelligence tests/unit/test_engagement_intelligence.py
 
 Invoke-CheckedStep `
   -Name "API ruff format check" `
   -WorkingDirectory $ApiDir `
   -Command "uv" `
-  run ruff format --check app/domain/engagement_intelligence tests/unit/test_engagement_intelligence.py
+  --no-cache run ruff format --check app/domain/engagement_intelligence tests/unit/test_engagement_intelligence.py
 
 Invoke-CheckedStep `
   -Name "API targeted tests" `
   -WorkingDirectory $ApiDir `
   -Command "uv" `
-  run pytest tests/unit/test_engagement_intelligence.py tests/unit/test_call_manual_actions.py -q
+  --no-cache run pytest tests/unit/test_engagement_intelligence.py tests/unit/test_call_manual_actions.py -q
 
 Test-AlembicSingleHead
 
