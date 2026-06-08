@@ -20,6 +20,7 @@ import { Route as LayoutTemplatesRouteImport } from './routes/_layout/templates'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
 import { Route as LayoutSequencesRouteImport } from './routes/_layout/sequences'
 import { Route as LayoutReportingRouteImport } from './routes/_layout/reporting'
+import { Route as LayoutProspectingRouteImport } from './routes/_layout/prospecting'
 import { Route as LayoutOfferPacksRouteImport } from './routes/_layout/offer-packs'
 import { Route as LayoutGovernanceRouteImport } from './routes/_layout/governance'
 import { Route as LayoutControlsRouteImport } from './routes/_layout/controls'
@@ -89,6 +90,11 @@ const LayoutSequencesRoute = LayoutSequencesRouteImport.update({
 const LayoutReportingRoute = LayoutReportingRouteImport.update({
   id: '/reporting',
   path: '/reporting',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutProspectingRoute = LayoutProspectingRouteImport.update({
+  id: '/prospecting',
+  path: '/prospecting',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutOfferPacksRoute = LayoutOfferPacksRouteImport.update({
@@ -189,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/controls': typeof LayoutControlsRoute
   '/governance': typeof LayoutGovernanceRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
+  '/prospecting': typeof LayoutProspectingRoute
   '/reporting': typeof LayoutReportingRoute
   '/sequences': typeof LayoutSequencesRoute
   '/settings': typeof LayoutSettingsRouteWithChildren
@@ -216,6 +223,7 @@ export interface FileRoutesByTo {
   '/controls': typeof LayoutControlsRoute
   '/governance': typeof LayoutGovernanceRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
+  '/prospecting': typeof LayoutProspectingRoute
   '/reporting': typeof LayoutReportingRoute
   '/sequences': typeof LayoutSequencesRoute
   '/settings': typeof LayoutSettingsRouteWithChildren
@@ -246,6 +254,7 @@ export interface FileRoutesById {
   '/_layout/controls': typeof LayoutControlsRoute
   '/_layout/governance': typeof LayoutGovernanceRoute
   '/_layout/offer-packs': typeof LayoutOfferPacksRoute
+  '/_layout/prospecting': typeof LayoutProspectingRoute
   '/_layout/reporting': typeof LayoutReportingRoute
   '/_layout/sequences': typeof LayoutSequencesRoute
   '/_layout/settings': typeof LayoutSettingsRouteWithChildren
@@ -277,6 +286,7 @@ export interface FileRouteTypes {
     | '/controls'
     | '/governance'
     | '/offer-packs'
+    | '/prospecting'
     | '/reporting'
     | '/sequences'
     | '/settings'
@@ -304,6 +314,7 @@ export interface FileRouteTypes {
     | '/controls'
     | '/governance'
     | '/offer-packs'
+    | '/prospecting'
     | '/reporting'
     | '/sequences'
     | '/settings'
@@ -333,6 +344,7 @@ export interface FileRouteTypes {
     | '/_layout/controls'
     | '/_layout/governance'
     | '/_layout/offer-packs'
+    | '/_layout/prospecting'
     | '/_layout/reporting'
     | '/_layout/sequences'
     | '/_layout/settings'
@@ -434,6 +446,13 @@ declare module '@tanstack/react-router' {
       path: '/reporting'
       fullPath: '/reporting'
       preLoaderRoute: typeof LayoutReportingRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/prospecting': {
+      id: '/_layout/prospecting'
+      path: '/prospecting'
+      fullPath: '/prospecting'
+      preLoaderRoute: typeof LayoutProspectingRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/offer-packs': {
@@ -615,6 +634,7 @@ interface LayoutRouteChildren {
   LayoutControlsRoute: typeof LayoutControlsRoute
   LayoutGovernanceRoute: typeof LayoutGovernanceRoute
   LayoutOfferPacksRoute: typeof LayoutOfferPacksRoute
+  LayoutProspectingRoute: typeof LayoutProspectingRoute
   LayoutReportingRoute: typeof LayoutReportingRoute
   LayoutSequencesRoute: typeof LayoutSequencesRoute
   LayoutSettingsRoute: typeof LayoutSettingsRouteWithChildren
@@ -632,6 +652,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutControlsRoute: LayoutControlsRoute,
   LayoutGovernanceRoute: LayoutGovernanceRoute,
   LayoutOfferPacksRoute: LayoutOfferPacksRoute,
+  LayoutProspectingRoute: LayoutProspectingRoute,
   LayoutReportingRoute: LayoutReportingRoute,
   LayoutSequencesRoute: LayoutSequencesRoute,
   LayoutSettingsRoute: LayoutSettingsRouteWithChildren,

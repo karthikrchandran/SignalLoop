@@ -13,6 +13,7 @@ from app.api.routes import (
     kpis,
     login,
     private,
+    prospecting,
     provider_credentials,
     scripts,
     sequences,
@@ -45,6 +46,7 @@ api_router.include_router(triggers.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(calls.router)
 api_router.include_router(contacts.router)
+api_router.include_router(prospecting.router)
 api_router.include_router(provider_credentials.router)
 api_router.include_router(workspace_runtime_config.router)
 api_router.include_router(audit_log.router)

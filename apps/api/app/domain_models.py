@@ -381,6 +381,23 @@ class Contact(SQLModel, table=True):
     created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
 
 
+class ProspectingSnapshot(SQLModel, table=True):
+    """Persisted prospecting research result for one contact."""
+
+    __tablename__ = "prospecting_snapshots"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(sa_type=String(64), index=True)
+    contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
+    created_by: uuid.UUID | None = Field(default=None, index=True)
+    company_url: str | None = Field(default=None, sa_type=Text)
+    sources_json: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    research_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    email_draft: str = Field(sa_type=Text)
+    voice_opener: str = Field(sa_type=Text)
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True), index=True)
+
+
 class ContactProgression(SQLModel, table=True):
     """Tracks the current delivery-pipeline state for one contact within a campaign."""
 

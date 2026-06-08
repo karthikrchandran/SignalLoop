@@ -118,6 +118,7 @@ from app.domain_models import (  # noqa: E402
     OfferPack,
     OfferPackTemplateBinding,
     OfferPackVersion,
+    ProspectingSnapshot,
     Template,
     TemplateToken,
     TemplateVersion,
