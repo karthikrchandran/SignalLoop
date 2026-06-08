@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.domain.prospecting.schemas import ProspectingSource
-from app.domain.prospecting.service import build_prospecting_brief
+from app.domain.prospecting.service import build_prospecting_brief, score_prospecting_contact
 from app.domain_models import Contact
 
 
@@ -37,3 +37,26 @@ def test_build_prospecting_brief_uses_contact_signals_and_sources() -> None:
     assert "Subject:" in brief.email_draft
     assert "Ada" in brief.email_draft
     assert "Ada" in brief.voice_opener
+
+
+def test_score_prospecting_contact_prioritizes_chatbot_handoff() -> None:
+    contact = Contact(
+        workspace_id="ws-prospecting-unit",
+        email="ada@example.com",
+        first_name="Ada",
+        last_name="Lovelace",
+        company="Analytical",
+        phone="+15551234567",
+        source_channel="web",
+        tags_json=["chatbot-lead", "web"],
+        intent_json=["pricing-request", "demo-request"],
+    )
+
+    scored = score_prospecting_contact(contact)
+
+    assert scored.lead_score >= 80
+    assert scored.priority == "high"
+    assert scored.handoff_source == "web"
+    assert "Captured from Messaging Hub" in scored.priority_reasons
+    assert "Buyer intent detected" in scored.priority_reasons
+    assert "Voice ready" in scored.priority_reasons

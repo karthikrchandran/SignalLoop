@@ -47,3 +47,31 @@ class ProspectingResearchListPublic(SQLModel):
 
     data: list[ProspectingResearchPublic]
     count: int
+
+
+class ProspectingReadyContactPublic(SQLModel):
+    """Workspace contact ranked for prospecting follow-up."""
+
+    id: uuid.UUID
+    workspace_id: str
+    email: str
+    first_name: str | None = None
+    last_name: str | None = None
+    company: str | None = None
+    phone: str | None = None
+    timezone: str
+    source_channel: str | None = None
+    tags: list[str]
+    intents: list[str]
+    lead_score: int
+    priority: str
+    priority_reasons: list[str]
+    handoff_source: str | None = None
+    created_at: datetime
+
+
+class ProspectingReadyContactsPublic(SQLModel):
+    """API response model for ranked prospecting contacts."""
+
+    data: list[ProspectingReadyContactPublic]
+    count: int

@@ -109,3 +109,50 @@ def test_run_prospecting_research_enforces_workspace_isolation(
     )
 
     assert response.status_code == 404
+
+
+def test_ready_contacts_returns_ranked_chatbot_handoffs(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    workspace_id = f"ws-prospecting-ready-{uuid.uuid4().hex[:8]}"
+    hot_contact = Contact(
+        workspace_id=workspace_id,
+        email=f"ada-{uuid.uuid4().hex[:8]}@example.com",
+        first_name="Ada",
+        last_name="Lovelace",
+        company="Analytical",
+        phone="+15551234567",
+        source_channel="web",
+        tags_json=["chatbot-lead", "web"],
+        intent_json=["pricing-request"],
+    )
+    cold_contact = Contact(
+        workspace_id=workspace_id,
+        email=f"grace-{uuid.uuid4().hex[:8]}@example.com",
+        first_name="Grace",
+        last_name="Hopper",
+        company="Compiler Co",
+        tags_json=["imported"],
+        intent_json=[],
+    )
+    db.add(hot_contact)
+    db.add(cold_contact)
+    db.commit()
+
+    response = client.get(
+        f"{settings.API_V1_STR}/prospecting/ready-contacts?only_handoffs=true",
+        headers=_headers(superuser_token_headers, workspace_id),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 1
+    row = payload["data"][0]
+    assert row["id"] == str(hot_contact.id)
+    assert row["priority"] == "high"
+    assert row["lead_score"] >= 80
+    assert row["handoff_source"] == "web"
+    assert "Captured from Messaging Hub" in row["priority_reasons"]
+    assert "Buyer intent detected" in row["priority_reasons"]

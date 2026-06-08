@@ -9,6 +9,7 @@ from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
 from app.domain.audit.audit_events import audit_actor_role
 from app.domain.prospecting.schemas import (
+    ProspectingReadyContactsPublic,
     ProspectingResearchListPublic,
     ProspectingResearchPublic,
     ProspectingResearchRequest,
@@ -16,11 +17,32 @@ from app.domain.prospecting.schemas import (
 from app.domain.prospecting.service import (
     ProspectingContactNotFoundError,
     create_prospecting_snapshot,
+    list_ready_contacts,
     list_prospecting_snapshots,
     snapshot_to_public,
 )
 
 router = APIRouter(prefix="/prospecting", tags=["prospecting"])
+
+
+@router.get("/ready-contacts", response_model=ProspectingReadyContactsPublic, dependencies=[Depends(require_admin)])
+def read_ready_contacts(
+    *,
+    session: SessionDep,
+    workspace_id: WorkspaceIdDep,
+    search: Annotated[str | None, Query(max_length=255)] = None,
+    only_handoffs: Annotated[bool, Query()] = False,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+) -> ProspectingReadyContactsPublic:
+    """Return workspace contacts ranked for prospecting handoff."""
+    contacts = list_ready_contacts(
+        session=session,
+        workspace_id=workspace_id,
+        search=search,
+        only_handoffs=only_handoffs,
+        limit=limit,
+    )
+    return ProspectingReadyContactsPublic(data=contacts, count=len(contacts))
 
 
 @router.post("/research", response_model=ProspectingResearchPublic, dependencies=[Depends(require_admin)])

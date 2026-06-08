@@ -17,6 +17,23 @@ export type ContactListResponse = {
   count: number
 }
 
+export type ProspectingPriority = "high" | "medium" | "low"
+
+export type ProspectingReadyContact = ProspectingContact & {
+  source_channel: string | null
+  tags: string[]
+  intents: string[]
+  lead_score: number
+  priority: ProspectingPriority
+  priority_reasons: string[]
+  handoff_source: string | null
+}
+
+export type ProspectingReadyContactsResponse = {
+  data: ProspectingReadyContact[]
+  count: number
+}
+
 export type ProspectingSource = {
   label: string
   summary: string
@@ -53,6 +70,16 @@ export function listContacts(search = "") {
     params.set("search", search.trim())
   }
   return engagehubRequest<ContactListResponse>(`/api/v1/contacts/?${params.toString()}`)
+}
+
+export function listReadyContacts(search = "") {
+  const params = new URLSearchParams({ limit: "50" })
+  if (search.trim()) {
+    params.set("search", search.trim())
+  }
+  return engagehubRequest<ProspectingReadyContactsResponse>(
+    `/api/v1/prospecting/ready-contacts?${params.toString()}`,
+  )
 }
 
 export function runProspectingResearch(input: ProspectingResearchRequest) {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, RefreshCw, SearchCheck, Sparkles } from "lucide-react"
+import { Clock3, Copy, Loader2, RefreshCw, SearchCheck, Sparkles } from "lucide-react"
 
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -9,16 +9,28 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
-  listContacts,
+  listProspectingResearch,
+  listReadyContacts,
   runProspectingResearch,
-  type ProspectingContact,
+  type ProspectingPriority,
+  type ProspectingReadyContact,
   type ProspectingResearchResult,
 } from "@/features/prospecting/api"
 
-function contactLabel(contact: ProspectingContact) {
+function contactLabel(contact: ProspectingReadyContact) {
   const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ")
   const company = contact.company ? ` - ${contact.company}` : ""
   return `${name || contact.email}${company}`
+}
+
+function priorityLabel(priority: ProspectingPriority) {
+  return `${priority[0].toUpperCase()}${priority.slice(1)} priority`
+}
+
+function priorityVariant(priority: ProspectingPriority) {
+  if (priority === "high") return "default"
+  if (priority === "medium") return "secondary"
+  return "outline"
 }
 
 function BulletList({ items }: { items: string[] }) {
@@ -36,10 +48,25 @@ function BulletList({ items }: { items: string[] }) {
   )
 }
 
-function DraftPanel({ title, value }: { title: string; value: string }) {
+function DraftPanel({
+  title,
+  value,
+  copyLabel,
+  onCopy,
+}: {
+  title: string
+  value: string
+  copyLabel: string
+  onCopy: () => void
+}) {
   return (
     <div className="rounded-md border bg-background">
-      <div className="border-b px-3 py-2 text-sm font-medium">{title}</div>
+      <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+        <div className="text-sm font-medium">{title}</div>
+        <Button type="button" variant="ghost" size="sm" aria-label={copyLabel} onClick={onCopy}>
+          <Copy className="size-4" />
+        </Button>
+      </div>
       <pre className="min-h-28 whitespace-pre-wrap px-3 py-3 text-sm leading-6 text-foreground">
         {value}
       </pre>
@@ -48,12 +75,14 @@ function DraftPanel({ title, value }: { title: string; value: string }) {
 }
 
 export default function ProspectingPage() {
-  const [contacts, setContacts] = useState<ProspectingContact[]>([])
+  const [contacts, setContacts] = useState<ProspectingReadyContact[]>([])
   const [selectedContactId, setSelectedContactId] = useState("")
   const [search, setSearch] = useState("")
   const [companyUrl, setCompanyUrl] = useState("")
   const [result, setResult] = useState<ProspectingResearchResult | null>(null)
+  const [history, setHistory] = useState<ProspectingResearchResult[]>([])
   const [loadingContacts, setLoadingContacts] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(false)
   const [researching, setResearching] = useState(false)
   const [feedback, setFeedback] = useState("")
 
@@ -66,7 +95,7 @@ export default function ProspectingPage() {
     setLoadingContacts(true)
     setFeedback("")
     try {
-      const response = await listContacts(nextSearch)
+      const response = await listReadyContacts(nextSearch)
       setContacts(response.data)
       setSelectedContactId((current) => {
         if (current && response.data.some((contact) => contact.id === current)) {
@@ -86,6 +115,32 @@ export default function ProspectingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  async function loadHistory(contactId: string) {
+    setLoadingHistory(true)
+    try {
+      const response = await listProspectingResearch(contactId)
+      setHistory(response.data)
+      setResult(response.data[0] || null)
+    } catch (error) {
+      setHistory([])
+      setResult(null)
+      setFeedback(error instanceof Error ? error.message : "Could not load research history")
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!selectedContactId) {
+      setHistory([])
+      setResult(null)
+      return
+    }
+    setResult(null)
+    void loadHistory(selectedContactId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedContactId])
+
   async function runResearch() {
     if (!selectedContactId) return
     setResearching(true)
@@ -96,10 +151,20 @@ export default function ProspectingPage() {
         company_url: companyUrl.trim() || null,
       })
       setResult(payload)
+      setHistory((current) => [payload, ...current.filter((item) => item.id !== payload.id)])
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Could not run prospecting research")
     } finally {
       setResearching(false)
+    }
+  }
+
+  async function copyDraft(label: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value)
+      setFeedback(`${label} copied.`)
+    } catch {
+      setFeedback(`Could not copy ${label.toLowerCase()}.`)
     }
   }
 
@@ -127,8 +192,8 @@ export default function ProspectingPage() {
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <Card>
           <CardHeader>
-            <CardTitle>Research input</CardTitle>
-            <CardDescription>Use contact history first; add a website when available.</CardDescription>
+            <CardTitle>Ready for prospecting</CardTitle>
+            <CardDescription>Ranked by chatbot handoffs, buyer intent, contactability, and account context.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-2">
@@ -145,6 +210,45 @@ export default function ProspectingPage() {
                   <span className="sr-only">Search</span>
                 </Button>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="font-medium">Handoff queue</span>
+                <Badge variant="outline">{contacts.length} contacts</Badge>
+              </div>
+              {contacts.length ? (
+                <div className="space-y-2">
+                  {contacts.map((contact) => (
+                    <button
+                      key={contact.id}
+                      type="button"
+                      className={`w-full rounded-md border px-3 py-2 text-left transition hover:bg-muted/60 ${
+                        contact.id === selectedContactId ? "border-primary bg-muted/40" : "bg-background"
+                      }`}
+                      onClick={() => setSelectedContactId(contact.id)}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">{contactLabel(contact)}</div>
+                          <div className="truncate text-xs text-muted-foreground">{contact.email}</div>
+                        </div>
+                        <Badge variant={priorityVariant(contact.priority)}>
+                          {priorityLabel(contact.priority)}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Badge variant="outline">Score {contact.lead_score}</Badge>
+                        {contact.handoff_source && <Badge variant="secondary">Messaging Hub</Badge>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-md border border-dashed px-3 py-5 text-center text-sm text-muted-foreground">
+                  No contacts found.
+                </div>
+              )}
             </div>
 
             <div className="grid gap-2">
@@ -184,9 +288,19 @@ export default function ProspectingPage() {
                 <div className="font-medium">{contactLabel(selectedContact)}</div>
                 <div className="mt-1 text-muted-foreground">{selectedContact.email}</div>
                 <div className="mt-2 flex flex-wrap gap-2">
+                  <Badge variant={priorityVariant(selectedContact.priority)}>
+                    {priorityLabel(selectedContact.priority)}
+                  </Badge>
+                  <Badge variant="outline">Score {selectedContact.lead_score}</Badge>
+                  {selectedContact.handoff_source && <Badge variant="secondary">Messaging Hub</Badge>}
                   {selectedContact.phone && <Badge variant="secondary">Voice ready</Badge>}
                   {selectedContact.company && <Badge variant="outline">{selectedContact.company}</Badge>}
                 </div>
+                {selectedContact.priority_reasons.length > 0 && (
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    {selectedContact.priority_reasons.join(" | ")}
+                  </div>
+                )}
               </div>
             )}
 
@@ -194,6 +308,39 @@ export default function ProspectingPage() {
               {researching ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Sparkles className="mr-2 size-4" />}
               Run research
             </Button>
+
+            <div className="rounded-md border bg-background">
+              <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Clock3 className="size-4" />
+                  Research history
+                </div>
+                {loadingHistory && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+              </div>
+              <div className="max-h-72 space-y-2 overflow-auto p-3">
+                {history.length ? (
+                  history.map((snapshot) => (
+                    <button
+                      key={snapshot.id}
+                      type="button"
+                      className={`w-full rounded-md border px-3 py-2 text-left text-sm transition hover:bg-muted/60 ${
+                        result?.id === snapshot.id ? "border-primary bg-muted/40" : "bg-background"
+                      }`}
+                      onClick={() => setResult(snapshot)}
+                    >
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(snapshot.created_at).toLocaleString()}
+                      </div>
+                      <div className="mt-1 leading-5">{snapshot.account_summary}</div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="rounded-md border border-dashed px-3 py-5 text-center text-sm text-muted-foreground">
+                    No research snapshots yet.
+                  </div>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -249,8 +396,18 @@ export default function ProspectingPage() {
 
           {result && (
             <div className="grid gap-6 lg:grid-cols-2">
-              <DraftPanel title="Email draft" value={result.email_draft} />
-              <DraftPanel title="Voice opener" value={result.voice_opener} />
+              <DraftPanel
+                title="Email draft"
+                value={result.email_draft}
+                copyLabel="Copy email draft"
+                onCopy={() => void copyDraft("Email draft", result.email_draft)}
+              />
+              <DraftPanel
+                title="Voice opener"
+                value={result.voice_opener}
+                copyLabel="Copy voice opener"
+                onCopy={() => void copyDraft("Voice opener", result.voice_opener)}
+              />
             </div>
           )}
         </div>

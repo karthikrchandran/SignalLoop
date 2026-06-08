@@ -3,7 +3,7 @@
  *
  * Tests the backend-backed script management UI introduced in CC-4:
  *   - load and display scripts filtered by campaign
- *   - readiness cards for Twilio / Deepgram / Groq
+ *   - compact readiness notice for voice prerequisites
  *   - create a new script (POST)
  *   - edit a script (PUT)
  *   - deactivate (DELETE)
@@ -21,8 +21,20 @@ const CAMPAIGNS = [
 ]
 
 const SCRIPTS = [
-  { id: "script-1", campaign_id: "camp-1", name: "Pitch v1", active: true, created_at: "2025-01-01T00:00:00Z" },
-  { id: "script-2", campaign_id: "camp-1", name: "Pitch v2", active: false, created_at: "2025-01-02T00:00:00Z" },
+  {
+    id: "script-1",
+    campaign_id: "camp-1",
+    name: "Pitch v1",
+    active: true,
+    created_at: "2025-01-01T00:00:00Z",
+  },
+  {
+    id: "script-2",
+    campaign_id: "camp-1",
+    name: "Pitch v2",
+    active: false,
+    created_at: "2025-01-02T00:00:00Z",
+  },
 ]
 
 const SCRIPT_DETAIL = {
@@ -31,13 +43,30 @@ const SCRIPT_DETAIL = {
   name: "Pitch v1",
   active: true,
   created_at: "2025-01-01T00:00:00Z",
-  content: "## Opening Pitch\nHi!\n\n## Q&A\nQ: Available?\nA: Yes.\n\n## Fallback\nI'll follow up.\n\n## Scheduling\nWhen are you free?",
+  content:
+    "## Opening Pitch\nHi!\n\n## Q&A\nQ: Available?\nA: Yes.\n\n## Fallback\nI'll follow up.\n\n## Scheduling\nWhen are you free?",
   parsed: {
     opening_pitch: "Hi!",
     fallback_response: "I'll follow up.",
     scheduling_question: "When are you free?",
     qa_pairs: [{ question: "Available?", answer: "Yes." }],
   },
+}
+
+const CALL_PREP = {
+  id: "prep-1",
+  contact_id: "contact-1",
+  company_url: "https://analytical.example",
+  account_summary:
+    "Ada Lovelace is evaluating EngageHub after a website pricing chat.",
+  pain_points: ["Keep the voice follow-up aligned to chat and CRM history."],
+  objections: ["May need pricing clarity before booking a demo."],
+  personalization_bullets: ["Reference the website pricing chat."],
+  suggested_next_action: "Call with the pricing-context opener.",
+  email_draft: "Subject: Pricing follow-up\n\nHi Ada,",
+  voice_opener: "Hi Ada, I am calling about your pricing question for Analytical.",
+  sources: [{ label: "CRM contact", summary: "Ada at Analytical" }],
+  created_at: "2026-06-08T10:01:00Z",
 }
 
 const SETUP_CONFIGURED: object = {
@@ -48,9 +77,56 @@ const SETUP_CONFIGURED: object = {
     twilio_media_stream_url: "wss://example.ngrok.io/api/v1/voice/stream",
   },
   integrations: [
-    { key: "twilio", label: "Twilio Voice", configured: true, source: "env", note: null },
-    { key: "deepgram", label: "Deepgram", configured: true, source: "env", note: null },
-    { key: "groq", label: "Groq", configured: true, source: "env", note: null },
+    {
+      key: "sms",
+      label: "SMS: Twilio SMS",
+      capability: "sms",
+      provider: "twilio",
+      provider_label: "Twilio SMS",
+      configured: true,
+      source: "env",
+      note: null,
+    },
+    {
+      key: "voice",
+      label: "VOICE: Twilio Voice",
+      capability: "voice",
+      provider: "twilio",
+      provider_label: "Twilio Voice",
+      configured: true,
+      source: "env",
+      note: null,
+    },
+    {
+      key: "stt",
+      label: "STT: Deepgram Nova-2",
+      capability: "stt",
+      provider: "deepgram",
+      provider_label: "Deepgram Nova-2",
+      configured: true,
+      source: "env",
+      note: null,
+    },
+    {
+      key: "tts",
+      label: "TTS: Deepgram Aura",
+      capability: "tts",
+      provider: "deepgram",
+      provider_label: "Deepgram Aura",
+      configured: true,
+      source: "env",
+      note: null,
+    },
+    {
+      key: "llm",
+      label: "LLM: Groq",
+      capability: "llm",
+      provider: "groq",
+      provider_label: "Groq",
+      configured: true,
+      source: "env",
+      note: null,
+    },
   ],
 }
 
@@ -62,9 +138,56 @@ const SETUP_MISSING: object = {
     twilio_media_stream_url: "",
   },
   integrations: [
-    { key: "twilio", label: "Twilio Voice", configured: false, source: "missing", note: null },
-    { key: "deepgram", label: "Deepgram", configured: false, source: "missing", note: null },
-    { key: "groq", label: "Groq", configured: false, source: "missing", note: null },
+    {
+      key: "sms",
+      label: "SMS: Twilio SMS",
+      capability: "sms",
+      provider: "twilio",
+      provider_label: "Twilio SMS",
+      configured: true,
+      source: "env",
+      note: null,
+    },
+    {
+      key: "voice",
+      label: "VOICE: Twilio Voice",
+      capability: "voice",
+      provider: "twilio",
+      provider_label: "Twilio Voice",
+      configured: false,
+      source: "missing",
+      note: null,
+    },
+    {
+      key: "stt",
+      label: "STT: Deepgram Nova-2",
+      capability: "stt",
+      provider: "deepgram",
+      provider_label: "Deepgram Nova-2",
+      configured: false,
+      source: "missing",
+      note: null,
+    },
+    {
+      key: "tts",
+      label: "TTS: Deepgram Aura",
+      capability: "tts",
+      provider: "deepgram",
+      provider_label: "Deepgram Aura",
+      configured: false,
+      source: "missing",
+      note: null,
+    },
+    {
+      key: "llm",
+      label: "LLM: Groq",
+      capability: "llm",
+      provider: "groq",
+      provider_label: "Groq",
+      configured: false,
+      source: "missing",
+      note: null,
+    },
   ],
 }
 
@@ -84,7 +207,12 @@ test.beforeEach(async ({ page }) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ id: "user-1", email: "admin@example.com", full_name: "Admin", is_superuser: true }),
+      body: JSON.stringify({
+        id: "user-1",
+        email: "admin@example.com",
+        full_name: "Admin",
+        is_superuser: true,
+      }),
     })
   })
 
@@ -95,64 +223,171 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify({ data: CAMPAIGNS }),
     })
   })
+
+  await page.route("**/api/v1/prospecting/research**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [CALL_PREP], count: 1 }),
+    })
+  })
 })
 
 // ---------------------------------------------------------------------------
-// Display + readiness cards
+// Display + readiness notice
 // ---------------------------------------------------------------------------
 
-test("Voice Agents page shows profiles, scripts, and readiness cards when fully configured", async ({ page }) => {
+test("Voice Agents page shows profiles, language support, and scripts when fully configured", async ({
+  page,
+}) => {
   await page.route("**/api/v1/scripts/", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: SCRIPTS, count: 2 }) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: SCRIPTS, count: 2 }),
+    })
   })
 
   await page.route("**/api/v1/scripts/script-1", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SCRIPT_DETAIL) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SCRIPT_DETAIL),
+    })
   })
 
   await page.route("**/api/v1/utils/setup-overview/**", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SETUP_CONFIGURED) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SETUP_CONFIGURED),
+    })
   })
 
   await page.goto("/voice-agents")
 
-  await expect(page.getByRole("heading", { name: "Voice Agents" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Select Alex voice profile" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Select Morgan voice profile" })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "Voice Agents" }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Select Alex voice profile" }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Select Morgan voice profile" }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Select Rajesh voice profile" }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Select Priya voice profile" }),
+  ).toBeVisible()
+  await expect(page.getByLabel("Voice language")).toContainText("English")
+  await page.getByLabel("Voice language").click()
+  await page.getByRole("option", { name: "Hindi" }).click()
+  await expect(page.getByLabel("Voice language")).toContainText("Hindi")
   await expect(page.getByRole("button", { name: /Pitch v1/i })).toBeVisible()
   await expect(page.getByRole("button", { name: /Pitch v2/i })).toBeVisible()
-  await expect(page.getByText("Twilio Voice")).toBeVisible()
-  await expect(page.getByText("Deepgram")).toBeVisible()
-  await expect(page.getByText("Groq")).toBeVisible()
+  await expect(page.getByText("Prospecting call prep")).toBeVisible()
+  await expect(
+    page.getByText("Ada Lovelace is evaluating EngageHub"),
+  ).toBeVisible()
+  await expect(
+    page.getByText("Hi Ada, I am calling about your pricing question"),
+  ).toBeVisible()
+  await expect(page.getByText("Voice readiness needs setup")).toBeHidden()
+  await expect(page.getByText("Twilio SMS")).toBeHidden()
 })
 
-test("Readiness cards show warning state when integrations are not configured", async ({ page }) => {
+test("Readiness notice links to provider setup when voice prerequisites are not configured", async ({
+  page,
+}) => {
   await page.route("**/api/v1/scripts/", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [], count: 0 }) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [], count: 0 }),
+    })
   })
 
   await page.route("**/api/v1/utils/setup-overview/**", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SETUP_MISSING) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SETUP_MISSING),
+    })
   })
 
   await page.goto("/voice-agents")
 
-  await expect(page.getByText("Twilio Voice")).toBeVisible()
-  // All three readiness cards must be present even when unconfigured
-  const readinessCards = page.getByText(/Twilio Voice|Deepgram|Groq/)
-  await expect(readinessCards.first()).toBeVisible()
+  await expect(page.getByText("Voice readiness needs setup")).toBeVisible()
+  await expect(page.getByText(/Twilio Voice/)).toBeVisible()
+  await expect(page.getByText(/Deepgram Nova-2/)).toBeVisible()
+  await expect(page.getByText(/Groq/)).toBeVisible()
+  await expect(
+    page.getByRole("link", { name: "Configure providers" }),
+  ).toHaveAttribute("href", "/settings/providers")
+  await expect(page.getByText("Twilio SMS")).toBeHidden()
+})
+
+test("New Hindi script uses the selected Indian persona and language", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/scripts/", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: SCRIPTS, count: 2 }),
+    })
+  })
+
+  await page.route("**/api/v1/scripts/script-1", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SCRIPT_DETAIL),
+    })
+  })
+
+  await page.route("**/api/v1/utils/setup-overview/**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SETUP_CONFIGURED),
+    })
+  })
+
+  await page.goto("/voice-agents")
+
+  await page
+    .getByRole("button", { name: "Select Rajesh voice profile" })
+    .click()
+  await page.getByLabel("Voice language").click()
+  await page.getByRole("option", { name: "Hindi" }).click()
+  await page.getByRole("button", { name: /new script/i }).click()
+
+  await expect(page.getByLabel(/script name/i)).toHaveValue(
+    "Rajesh Hindi campaign script",
+  )
+  await expect(page.getByLabel(/script content/i)).toHaveValue(/Namaste/)
+  await expect(page.getByLabel(/script content/i)).toHaveValue(/Rajesh/)
 })
 
 // ---------------------------------------------------------------------------
 // Create
 // ---------------------------------------------------------------------------
 
-test("Create new script opens dialog, submits POST, and shows success feedback", async ({ page }) => {
+test("Create new script opens dialog, submits POST, and shows success feedback", async ({
+  page,
+}) => {
   let postCalled = false
 
   await page.route("**/api/v1/scripts/", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: SCRIPTS, count: 2 }) })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: SCRIPTS, count: 2 }),
+      })
       return
     }
     if (route.request().method() === "POST") {
@@ -160,7 +395,13 @@ test("Create new script opens dialog, submits POST, and shows success feedback",
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ id: "script-new", campaign_id: "camp-1", name: "New Script", active: true, created_at: "2025-01-03T00:00:00Z" }),
+        body: JSON.stringify({
+          id: "script-new",
+          campaign_id: "camp-1",
+          name: "New Script",
+          active: true,
+          created_at: "2025-01-03T00:00:00Z",
+        }),
       })
       return
     }
@@ -168,11 +409,19 @@ test("Create new script opens dialog, submits POST, and shows success feedback",
   })
 
   await page.route("**/api/v1/scripts/script-1", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SCRIPT_DETAIL) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SCRIPT_DETAIL),
+    })
   })
 
   await page.route("**/api/v1/utils/setup-overview/**", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SETUP_CONFIGURED) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SETUP_CONFIGURED),
+    })
   })
 
   await page.goto("/voice-agents")
@@ -191,12 +440,18 @@ test("Create new script opens dialog, submits POST, and shows success feedback",
 // Edit
 // ---------------------------------------------------------------------------
 
-test("Edit existing script sends PUT and shows success feedback", async ({ page }) => {
+test("Edit existing script sends PUT and shows success feedback", async ({
+  page,
+}) => {
   let putCalled = false
 
   await page.route("**/api/v1/scripts/", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: SCRIPTS, count: 2 }) })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: SCRIPTS, count: 2 }),
+      })
       return
     }
     await route.continue()
@@ -204,19 +459,31 @@ test("Edit existing script sends PUT and shows success feedback", async ({ page 
 
   await page.route("**/api/v1/scripts/script-1", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SCRIPT_DETAIL) })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(SCRIPT_DETAIL),
+      })
       return
     }
     if (route.request().method() === "PUT") {
       putCalled = true
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...SCRIPT_DETAIL, name: "Renamed Script" }) })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ...SCRIPT_DETAIL, name: "Renamed Script" }),
+      })
       return
     }
     await route.continue()
   })
 
   await page.route("**/api/v1/utils/setup-overview/**", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SETUP_CONFIGURED) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SETUP_CONFIGURED),
+    })
   })
 
   await page.goto("/voice-agents")
@@ -242,7 +509,11 @@ test("Deactivate script sends DELETE and shows feedback", async ({ page }) => {
 
   await page.route("**/api/v1/scripts/", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: SCRIPTS, count: 2 }) })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: SCRIPTS, count: 2 }),
+      })
       return
     }
     await route.continue()
@@ -250,24 +521,39 @@ test("Deactivate script sends DELETE and shows feedback", async ({ page }) => {
 
   await page.route("**/api/v1/scripts/script-1", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SCRIPT_DETAIL) })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(SCRIPT_DETAIL),
+      })
       return
     }
     if (route.request().method() === "DELETE") {
       deleteCalled = true
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ message: "Script deactivated" }) })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Script deactivated" }),
+      })
       return
     }
     await route.continue()
   })
 
   await page.route("**/api/v1/utils/setup-overview/**", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SETUP_CONFIGURED) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SETUP_CONFIGURED),
+    })
   })
 
   await page.goto("/voice-agents")
 
-  await page.getByRole("button", { name: /deactivate|delete/i }).first().click()
+  await page
+    .getByRole("button", { name: /deactivate|delete/i })
+    .first()
+    .click()
 
   await expect(page.getByText(/^Script deactivated\.$/)).toBeVisible()
   expect(deleteCalled).toBe(true)
@@ -279,11 +565,19 @@ test("Deactivate script sends DELETE and shows feedback", async ({ page }) => {
 
 test("API error on voice page load shows error alert", async ({ page }) => {
   await page.route("**/api/v1/scripts/", async (route) => {
-    await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "server error" }) })
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "server error" }),
+    })
   })
 
   await page.route("**/api/v1/utils/setup-overview/**", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SETUP_MISSING) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SETUP_MISSING),
+    })
   })
 
   await page.goto("/voice-agents")

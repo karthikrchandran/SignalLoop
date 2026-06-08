@@ -23,7 +23,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test("runs prospecting research and shows outreach drafts", async ({ page }) => {
-  await page.route(/\/api\/v1\/contacts\/?(\?.*)?$/, async (route) => {
+  await page.route("**/api/v1/prospecting/ready-contacts**", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -38,6 +38,17 @@ test("runs prospecting research and shows outreach drafts", async ({ page }) => 
             company: "Analytical",
             phone: "+15551234567",
             timezone: "America/New_York",
+            source_channel: "web",
+            tags: ["chatbot-lead", "web"],
+            intents: ["pricing-request"],
+            lead_score: 90,
+            priority: "high",
+            priority_reasons: [
+              "Captured from Messaging Hub",
+              "Buyer intent detected",
+              "Voice ready",
+            ],
+            handoff_source: "web",
             created_at: "2026-06-08T10:00:00Z",
           },
           {
@@ -49,6 +60,13 @@ test("runs prospecting research and shows outreach drafts", async ({ page }) => 
             company: "Compiler Co",
             phone: null,
             timezone: "UTC",
+            source_channel: null,
+            tags: ["imported"],
+            intents: [],
+            lead_score: 15,
+            priority: "low",
+            priority_reasons: ["Company known"],
+            handoff_source: null,
             created_at: "2026-06-08T10:00:00Z",
           },
         ],
@@ -57,7 +75,34 @@ test("runs prospecting research and shows outreach drafts", async ({ page }) => 
     })
   })
 
-  await page.route("**/api/v1/prospecting/research", async (route) => {
+  await page.route(/\/api\/v1\/prospecting\/research(\?.*)?$/, async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            {
+              id: "44444444-4444-4444-8444-444444444444",
+              contact_id: "11111111-1111-4111-8111-111111111111",
+              company_url: null,
+              account_summary: "Previous research noted chatbot pricing intent for Analytical.",
+              pain_points: ["Follow up before pricing interest goes cold."],
+              objections: ["May need budget approval."],
+              personalization_bullets: ["Reference the website chat."],
+              suggested_next_action: "Send a short pricing follow-up.",
+              email_draft: "Subject: Following up on pricing\n\nHi Ada,",
+              voice_opener: "Hi Ada, following up on your pricing question.",
+              sources: [{ label: "CRM contact", summary: "Ada at Analytical" }],
+              created_at: "2026-06-08T09:30:00Z",
+            },
+          ],
+          count: 1,
+        }),
+      })
+      return
+    }
+
     expect(route.request().method()).toBe("POST")
     await route.fulfill({
       status: 200,
@@ -88,11 +133,18 @@ test("runs prospecting research and shows outreach drafts", async ({ page }) => 
   await page.goto("/prospecting")
 
   await expect(page.getByRole("heading", { name: "Prospecting" })).toBeVisible()
+  await expect(page.getByText("Ready for prospecting")).toBeVisible()
+  await expect(page.getByText("High priority").first()).toBeVisible()
+  await expect(page.getByText("Score 90").first()).toBeVisible()
+  await expect(page.getByText("Messaging Hub").first()).toBeVisible()
   await page.getByLabel("Contact", { exact: true }).selectOption("11111111-1111-4111-8111-111111111111")
+  await expect(page.getByText("Previous research noted chatbot pricing intent").first()).toBeVisible()
   await page.getByLabel("Company website").fill("https://analytical.example")
   await page.getByRole("button", { name: "Run research" }).click()
 
-  await expect(page.getByText("Ada Lovelace is a prospect at Analytical")).toBeVisible()
+  await expect(page.getByText("Ada Lovelace is a prospect at Analytical").first()).toBeVisible()
   await expect(page.getByText("Subject: Idea for Analytical outreach follow-up")).toBeVisible()
   await expect(page.getByText("Hi Ada, this is EngageHub calling about Analytical.")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Copy email draft" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Copy voice opener" })).toBeVisible()
 })

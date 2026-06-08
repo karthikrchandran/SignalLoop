@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 from app.domain.audit.audit_events import append_audit_event_to_session
 from app.domain.prospecting.schemas import (
     ProspectingBrief,
+    ProspectingReadyContactPublic,
     ProspectingResearchPublic,
     ProspectingSource,
 )
@@ -49,6 +50,109 @@ def _compact(values: list[str]) -> list[str]:
             seen.add(key)
             compacted.append(normalized)
     return compacted
+
+
+def _normalized_values(values: list[str] | None) -> set[str]:
+    return {value.strip().lower() for value in (values or []) if value and value.strip()}
+
+
+def _has_buyer_intent(intents: set[str]) -> bool:
+    intent_text = " ".join(intents)
+    return any(token in intent_text for token in ["pricing", "demo", "purchase", "trial", "quote", "sales"])
+
+
+def score_prospecting_contact(contact: Contact) -> ProspectingReadyContactPublic:
+    """Score one contact for near-term prospecting follow-up."""
+    tags = list(contact.tags_json or [])
+    intents = list(contact.intent_json or [])
+    normalized_tags = _normalized_values(tags)
+    normalized_intents = _normalized_values(intents)
+    is_handoff = "chatbot-lead" in normalized_tags or bool(contact.source_channel)
+
+    score = 0
+    reasons: list[str] = []
+    if is_handoff:
+        score += 35
+        reasons.append("Captured from Messaging Hub")
+    if _has_buyer_intent(normalized_intents):
+        score += 25
+        reasons.append("Buyer intent detected")
+    if contact.phone:
+        score += 15
+        reasons.append("Voice ready")
+    if contact.company:
+        score += 10
+        reasons.append("Company known")
+    if contact.last_seen_at:
+        score += 10
+        reasons.append("Recent activity")
+    if not contact.email.endswith("@chatbot.local.invalid"):
+        score += 5
+        reasons.append("Email available")
+
+    score = min(score, 100)
+    priority = "high" if score >= 70 else "medium" if score >= 40 else "low"
+
+    return ProspectingReadyContactPublic(
+        id=contact.id,
+        workspace_id=contact.workspace_id,
+        email=contact.email,
+        first_name=contact.first_name,
+        last_name=contact.last_name,
+        company=contact.company,
+        phone=contact.phone,
+        timezone=contact.timezone,
+        source_channel=contact.source_channel,
+        tags=tags,
+        intents=intents,
+        lead_score=score,
+        priority=priority,
+        priority_reasons=reasons,
+        handoff_source=contact.source_channel if is_handoff else None,
+        created_at=contact.created_at,
+    )
+
+
+def list_ready_contacts(
+    *,
+    session: Session,
+    workspace_id: str,
+    search: str | None = None,
+    only_handoffs: bool = False,
+    limit: int = 20,
+) -> list[ProspectingReadyContactPublic]:
+    """Return workspace contacts ranked for prospecting."""
+    contacts = list(
+        session.exec(
+            select(Contact)
+            .where(Contact.workspace_id == workspace_id)
+            .order_by(Contact.created_at.desc())
+            .limit(200)
+        ).all()
+    )
+    scored = [score_prospecting_contact(contact) for contact in contacts]
+    if only_handoffs:
+        scored = [contact for contact in scored if contact.handoff_source]
+    if search and search.strip():
+        query = search.strip().lower()
+
+        def matches(contact: ProspectingReadyContactPublic) -> bool:
+            haystack = " ".join(
+                [
+                    contact.email,
+                    contact.first_name or "",
+                    contact.last_name or "",
+                    contact.company or "",
+                    contact.source_channel or "",
+                    *contact.tags,
+                    *contact.intents,
+                ]
+            ).lower()
+            return query in haystack
+
+        scored = [contact for contact in scored if matches(contact)]
+    scored.sort(key=lambda contact: (contact.lead_score, contact.created_at), reverse=True)
+    return scored[:limit]
 
 
 def _source_text(sources: list[ProspectingSource]) -> str:
