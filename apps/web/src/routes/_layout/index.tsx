@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 import {
   ArrowRight,
   BarChart3,
@@ -38,7 +38,7 @@ const statCards = [
     icon: Phone,
     label: "Voice Calls (Week)",
     value: "—",
-    trend: "Alex & Morgan agents",
+    trend: "4 voice personas",
   },
   {
     icon: TrendingUp,
@@ -67,7 +67,7 @@ const featureCards = [
     icon: Mic2,
     title: "Voice Agents",
     description:
-      "Configure AI voice agents (Alex & Morgan) with custom scripts and knowledgebases.",
+      "Configure Alex, Morgan, Rajesh, and Priya with custom scripts and knowledgebases.",
     path: "/voice-agents",
   },
   {
@@ -96,7 +96,9 @@ export const Route = createFileRoute("/_layout/")({
 function Dashboard() {
   const { user: currentUser } = useAuth()
   const firstName =
-    currentUser?.full_name?.split(" ")[0] || currentUser?.email?.split("@")[0] || "there"
+    currentUser?.full_name?.split(" ")[0] ||
+    currentUser?.email?.split("@")[0] ||
+    "there"
 
   return (
     <div className="flex flex-col gap-8">
@@ -150,7 +152,11 @@ function Dashboard() {
                   <CardDescription>{section.description}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button asChild variant="outline" className="w-full justify-between">
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full justify-between"
+                  >
                     <Link to={section.path as never}>
                       Open
                       <ArrowRight className="h-4 w-4" />

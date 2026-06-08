@@ -103,13 +103,13 @@ Primary navigation items:
 | Dashboard | High-level overview and quick access to major workflows. |
 | Campaigns | Guided campaign intake, audience selection from the existing Contacts lead pool, filtered subsets, offer-pack assignment, and strategy setup. |
 | Sequences | Build and manage multi-step outreach flows. |
-| Voice Agents | Configure Alex and Morgan voice agents, scripts, test calls, and shared knowledgebase files. |
+| Voice Agents | Configure Alex, Morgan, Rajesh, and Priya voice agents, scripts, test calls, and shared knowledgebase files. |
 | Contacts | Download the CSV template, analyze imports, map fields, preview rows, fix validation issues, import contacts, search the shared lead pool, and view timelines from selected contact links. |
 | Analytics | Review campaign performance, email rates, voice calls, and sequence funnel data. |
 | Templates | Create reusable email templates, preview tokens, publish compliant versions. |
 | Controls | Manage daily sending caps, quiet hours, and emergency pause/resume controls. |
 | Settings | Update profile, password, and account preferences. |
-| Providers | Administrator-only setup for active email, LLM, and speech-to-text providers. |
+| Providers | Administrator-only setup for active email, SMS, voice, speech-to-text, text-to-speech, and LLM providers. |
 
 Administrators may also see Providers for workspace provider setup and Admin for user management.
 
@@ -273,22 +273,25 @@ Voice Agents lets you choose, configure, and test AI voice outreach behavior.
 
 ![Voice agents screen](screenshots/07-voice-agents.png)
 
-EngageHub includes two voice agents:
+EngageHub includes four voice agents with English and Hindi preview/script starter support:
 
 | Agent | Best For | Tone |
 | --- | --- | --- |
 | Alex | B2B outreach, appointment confirmations, executive communication | Professional and authoritative |
 | Morgan | Re-engagement, follow-ups, support check-ins, relationship-driven outreach | Empathetic and conversational |
+| Rajesh | Regional outreach, follow-ups, appointment calls with Hindi support | Warm and confident |
+| Priya | Hindi-aware re-engagement, customer check-ins, relationship-led follow-ups | Friendly and reassuring |
 
 ### Choose an Agent
 
 Steps:
 
 1. Select Voice Agents in the sidebar.
-2. Review the Alex and Morgan cards.
-3. Select the agent you want to configure.
-4. Use Demo to hear a sample greeting.
-5. Select Stop if you want to stop playback.
+2. Review the Alex, Morgan, Rajesh, and Priya cards.
+3. Choose English or Hindi from Voice language.
+4. Select the agent you want to configure.
+5. Use Preview to hear a sample greeting.
+6. Select Stop if you want to stop playback.
 
 ### Configure a Call Script
 
@@ -317,7 +320,7 @@ Script writing tips:
 
 ### Add Shared Knowledgebase Files
 
-Knowledgebase files give Alex and Morgan additional context when contacts ask questions outside the script.
+Knowledgebase files give Alex, Morgan, Rajesh, and Priya additional context when contacts ask questions outside the script.
 
 ![Voice knowledgebase screen](screenshots/07b-voice-knowledgebase.png)
 
@@ -677,11 +680,11 @@ Good practice:
 
 ## 12. Provider Setup (Administrators)
 
-Provider Setup is available to superusers. It controls which providers the current workspace uses for email, LLM, and speech-to-text.
+Provider Setup is available to superusers. It controls which providers the current workspace uses for email, SMS, voice, speech-to-text, text-to-speech, and LLM.
 
 What you can do here:
 
-- Review the active provider for Email, LLM, and STT.
+- Review the active provider for Email, SMS, Voice, STT, TTS, and LLM.
 - Choose local providers for local demo work.
 - Choose managed providers after credentials have been added through the API.
 - Refresh or test that the provider-options API is responding.
@@ -739,7 +742,7 @@ If something does not behave as described in this guide:
 | Token | A placeholder such as `{{contact.firstName}}` that is replaced at send time. |
 | Offer pack | A published, versioned bundle of offer content used by a campaign. |
 | Lead pool | The shared list of contacts available for selection by any campaign. |
-| Voice agent | An AI voice persona (Alex or Morgan) that places outbound calls. |
+| Voice agent | An AI voice persona (Alex, Morgan, Rajesh, or Priya) that places outbound calls. |
 | Knowledgebase | Files supplied to voice agents for context beyond the script. |
 | Quiet hours | A configured window where no outreach is sent. |
 | Emergency pause | An administrator action that immediately halts all outreach. |
@@ -864,13 +867,13 @@ Follow this end-to-end workflow when launching your first campaign.
    - Publish the selected template.
 2. Prepare voice behavior if calls are included.
    - Go to Voice Agents.
-   - Select Alex or Morgan.
+   - Select Alex, Morgan, Rajesh, or Priya.
    - Review the call script.
    - Upload relevant knowledgebase files.
    - Run a preview test call if available.
 3. Confirm provider setup if you are an administrator.
    - Go to Providers.
-   - Confirm local or managed providers are selected for Email, LLM, and STT.
+   - Confirm local or managed providers are selected for Email, SMS, Voice, STT, TTS, and LLM.
 4. Configure safety controls.
    - Go to Controls.
    - Review daily sending limits and quiet hours.
