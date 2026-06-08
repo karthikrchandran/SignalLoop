@@ -1,7 +1,8 @@
 import {
-  BarChart3,
   AlertTriangle,
+  BarChart3,
   BookOpen,
+  BrainCircuit,
   Briefcase,
   FileText,
   Home,
@@ -32,6 +33,7 @@ import { User } from "./User"
 const baseItems: Item[] = [
   { icon: Home, title: "Dashboard", path: "/" },
   { icon: Briefcase, title: "Campaigns", path: "/campaigns" },
+  { icon: BrainCircuit, title: "EngageHub AI", path: "/engagehub-ai" },
   { icon: ListOrdered, title: "Sequences", path: "/sequences" },
   { icon: Mic2, title: "Voice Agents", path: "/voice-agents" },
   { icon: Users, title: "Contacts", path: "/contacts" },
@@ -61,7 +63,11 @@ type UserWithRole = {
 }
 
 const isChatbotAdmin = (user: UserWithRole | null | undefined) =>
-  Boolean(user?.is_superuser || user?.role === "admin" || user?.role === "super_admin")
+  Boolean(
+    user?.is_superuser ||
+      user?.role === "admin" ||
+      user?.role === "super_admin",
+  )
 
 export function AppSidebar() {
   const { user: currentUser } = useAuth()
@@ -71,11 +77,17 @@ export function AppSidebar() {
     ? [
         ...baseItems,
         { icon: PlugZap, title: "Providers", path: "/settings/providers" },
-        { icon: AlertTriangle, title: "Messaging Dead Letters", path: "/admin/chatbot/dead-letters" },
+        {
+          icon: AlertTriangle,
+          title: "Messaging Dead Letters",
+          path: "/admin/chatbot/dead-letters",
+        },
         { icon: Users, title: "Admin", path: "/admin" },
       ]
     : baseItems
-  const chatbotItems = isChatbotAdmin(userWithRole) ? adminChatbotItems : agentChatbotItems
+  const chatbotItems = isChatbotAdmin(userWithRole)
+    ? adminChatbotItems
+    : agentChatbotItems
   const groups: ItemGroup[] = [
     { items },
     { title: "Messaging Hub", items: chatbotItems },

@@ -10,6 +10,7 @@ from app.api.routes import (
     contacts,
     controls,
     dashboard,
+    engagement_intelligence,
     kpis,
     login,
     private,
@@ -44,6 +45,7 @@ api_router.include_router(webhooks.router)
 api_router.include_router(signals.router)
 api_router.include_router(triggers.router)
 api_router.include_router(dashboard.router)
+api_router.include_router(engagement_intelligence.router)
 api_router.include_router(calls.router)
 api_router.include_router(contacts.router)
 api_router.include_router(prospecting.router)

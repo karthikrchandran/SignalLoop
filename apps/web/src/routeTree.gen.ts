@@ -23,6 +23,7 @@ import { Route as LayoutReportingRouteImport } from './routes/_layout/reporting'
 import { Route as LayoutProspectingRouteImport } from './routes/_layout/prospecting'
 import { Route as LayoutOfferPacksRouteImport } from './routes/_layout/offer-packs'
 import { Route as LayoutGovernanceRouteImport } from './routes/_layout/governance'
+import { Route as LayoutEngagehubAiRouteImport } from './routes/_layout/engagehub-ai'
 import { Route as LayoutControlsRouteImport } from './routes/_layout/controls'
 import { Route as LayoutContactsRouteImport } from './routes/_layout/contacts'
 import { Route as LayoutChatbotRouteImport } from './routes/_layout/chatbot'
@@ -105,6 +106,11 @@ const LayoutOfferPacksRoute = LayoutOfferPacksRouteImport.update({
 const LayoutGovernanceRoute = LayoutGovernanceRouteImport.update({
   id: '/governance',
   path: '/governance',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutEngagehubAiRoute = LayoutEngagehubAiRouteImport.update({
+  id: '/engagehub-ai',
+  path: '/engagehub-ai',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutControlsRoute = LayoutControlsRouteImport.update({
@@ -193,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/chatbot': typeof LayoutChatbotRouteWithChildren
   '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
+  '/engagehub-ai': typeof LayoutEngagehubAiRoute
   '/governance': typeof LayoutGovernanceRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
   '/prospecting': typeof LayoutProspectingRoute
@@ -221,6 +228,7 @@ export interface FileRoutesByTo {
   '/chatbot': typeof LayoutChatbotRouteWithChildren
   '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
+  '/engagehub-ai': typeof LayoutEngagehubAiRoute
   '/governance': typeof LayoutGovernanceRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
   '/prospecting': typeof LayoutProspectingRoute
@@ -252,6 +260,7 @@ export interface FileRoutesById {
   '/_layout/chatbot': typeof LayoutChatbotRouteWithChildren
   '/_layout/contacts': typeof LayoutContactsRoute
   '/_layout/controls': typeof LayoutControlsRoute
+  '/_layout/engagehub-ai': typeof LayoutEngagehubAiRoute
   '/_layout/governance': typeof LayoutGovernanceRoute
   '/_layout/offer-packs': typeof LayoutOfferPacksRoute
   '/_layout/prospecting': typeof LayoutProspectingRoute
@@ -284,6 +293,7 @@ export interface FileRouteTypes {
     | '/chatbot'
     | '/contacts'
     | '/controls'
+    | '/engagehub-ai'
     | '/governance'
     | '/offer-packs'
     | '/prospecting'
@@ -312,6 +322,7 @@ export interface FileRouteTypes {
     | '/chatbot'
     | '/contacts'
     | '/controls'
+    | '/engagehub-ai'
     | '/governance'
     | '/offer-packs'
     | '/prospecting'
@@ -342,6 +353,7 @@ export interface FileRouteTypes {
     | '/_layout/chatbot'
     | '/_layout/contacts'
     | '/_layout/controls'
+    | '/_layout/engagehub-ai'
     | '/_layout/governance'
     | '/_layout/offer-packs'
     | '/_layout/prospecting'
@@ -467,6 +479,13 @@ declare module '@tanstack/react-router' {
       path: '/governance'
       fullPath: '/governance'
       preLoaderRoute: typeof LayoutGovernanceRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/engagehub-ai': {
+      id: '/_layout/engagehub-ai'
+      path: '/engagehub-ai'
+      fullPath: '/engagehub-ai'
+      preLoaderRoute: typeof LayoutEngagehubAiRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/controls': {
@@ -632,6 +651,7 @@ interface LayoutRouteChildren {
   LayoutChatbotRoute: typeof LayoutChatbotRouteWithChildren
   LayoutContactsRoute: typeof LayoutContactsRoute
   LayoutControlsRoute: typeof LayoutControlsRoute
+  LayoutEngagehubAiRoute: typeof LayoutEngagehubAiRoute
   LayoutGovernanceRoute: typeof LayoutGovernanceRoute
   LayoutOfferPacksRoute: typeof LayoutOfferPacksRoute
   LayoutProspectingRoute: typeof LayoutProspectingRoute
@@ -650,6 +670,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutChatbotRoute: LayoutChatbotRouteWithChildren,
   LayoutContactsRoute: LayoutContactsRoute,
   LayoutControlsRoute: LayoutControlsRoute,
+  LayoutEngagehubAiRoute: LayoutEngagehubAiRoute,
   LayoutGovernanceRoute: LayoutGovernanceRoute,
   LayoutOfferPacksRoute: LayoutOfferPacksRoute,
   LayoutProspectingRoute: LayoutProspectingRoute,
