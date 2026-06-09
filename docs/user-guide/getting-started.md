@@ -105,6 +105,7 @@ Primary navigation items:
 | Sequences | Build and manage multi-step outreach flows. |
 | Voice Agents | Configure Alex, Morgan, Rajesh, and Priya voice agents, scripts, test calls, and shared knowledgebase files. |
 | Contacts | Download the CSV template, analyze imports, map fields, preview rows, fix validation issues, import contacts, search the shared lead pool, and view timelines from selected contact links. |
+| Customer 360 | Review one account's summary, contacts, cross-channel activity, open work, next best action, and unified timeline before follow-up. |
 | Analytics | Review campaign performance, email rates, voice calls, and sequence funnel data. |
 | Templates | Create reusable email templates, preview tokens, publish compliant versions. |
 | Controls | Manage daily sending caps, quiet hours, and emergency pause/resume controls. |
@@ -638,6 +639,12 @@ When to use the timeline:
 - During QA, to confirm a campaign step was actually delivered.
 - During investigation, when a contact reports unexpected outreach or wants to opt out.
 - During analytics review, to verify a funnel drop-off is reflected at the individual level.
+
+## Customer 360
+
+Customer 360 is the account-level workspace for a company. It shows the account summary, contacts, chatbot activity, email sequence activity, voice call activity, prospecting research, open work, next best action, and unified account timeline.
+
+Use Customer 360 before follow-up when you need to understand what has happened across every channel for one account.
 
 ## 11. Settings and Profile
 
