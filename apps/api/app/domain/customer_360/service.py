@@ -71,7 +71,10 @@ def _latest_message(
 ) -> ChatbotMessage | None:
     return session.exec(
         select(ChatbotMessage)
-        .where(ChatbotMessage.conversation_id == conversation.id)
+        .where(
+            ChatbotMessage.conversation_id == conversation.id,
+            ChatbotMessage.workspace_id == conversation.workspace_id,
+        )
         .order_by(ChatbotMessage.created_at.desc())
     ).first()
 
@@ -88,6 +91,11 @@ def _snapshot_next_action(snapshot: ProspectingSnapshot) -> str | None:
     if isinstance(value, str) and value.strip():
         return value
     return None
+
+
+def _without_final_period(value: str) -> str:
+    value = value.strip()
+    return value[:-1] if value.endswith(".") else value
 
 
 def _load_contacts(
@@ -232,6 +240,7 @@ def _build_profile_parts(
         session.exec(
             select(ChatbotConversation)
             .where(
+                ChatbotConversation.workspace_id == account.workspace_id,
                 ChatbotConversation.contact_id.in_(contact_ids),
                 ChatbotConversation.deleted_at.is_(None),
             )
@@ -256,7 +265,10 @@ def _build_profile_parts(
     snapshots = list(
         session.exec(
             select(ProspectingSnapshot)
-            .where(ProspectingSnapshot.contact_id.in_(contact_ids))
+            .where(
+                ProspectingSnapshot.workspace_id == account.workspace_id,
+                ProspectingSnapshot.contact_id.in_(contact_ids),
+            )
             .order_by(ProspectingSnapshot.created_at.desc()),
         ).all(),
     )
@@ -465,17 +477,18 @@ def _build_profile_parts(
             voice_opener_available=bool((latest_snapshot.voice_opener or "").strip()),
             created_at=latest_snapshot.created_at,
         )
-        contact = contact_map.get(latest_snapshot.contact_id)
+    for snapshot in snapshots:
+        contact = contact_map.get(snapshot.contact_id)
         timeline.append(
             Customer360TimelineEventPublic(
-                id=f"prospecting-{latest_snapshot.id}",
+                id=f"prospecting-{snapshot.id}",
                 source="prospecting",
                 event_type="prospecting_research",
                 title="Prospecting research created",
-                detail=_snapshot_summary(latest_snapshot),
-                contact_id=latest_snapshot.contact_id,
+                detail=_snapshot_summary(snapshot),
+                contact_id=snapshot.contact_id,
                 contact_name=_contact_name(contact) if contact else None,
-                timestamp=latest_snapshot.created_at,
+                timestamp=snapshot.created_at,
             ),
         )
 
@@ -486,8 +499,8 @@ def _build_profile_parts(
             key=lambda item: item.created_at,
             reverse=True,
         )[0]
-        if first_work.source in {"chatbot", "voice"}:
-            title = "Reply with pricing clarity, then queue a call"
+        if prospecting_brief and prospecting_brief.suggested_next_action:
+            title = _without_final_period(prospecting_brief.suggested_next_action)
         else:
             title = first_work.title
         next_best_action = Customer360NextActionPublic(

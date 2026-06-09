@@ -38,6 +38,7 @@ def _seed_account(
     session: Session,
     *,
     workspace_id: str = "ws-a",
+    suggested_next_action: str = "Reply with pricing clarity, then queue a call.",
 ) -> tuple[Account, Contact, Contact]:
     owner_id = uuid.uuid4()
     account = Account(
@@ -167,9 +168,7 @@ def _seed_account(
                 "account_summary": (
                     "Analytical Health is evaluating cross-channel outreach."
                 ),
-                "suggested_next_action": (
-                    "Reply with pricing clarity, then queue a call."
-                ),
+                "suggested_next_action": suggested_next_action,
             },
             email_draft="Subject: Analytical Health follow-up",
             voice_opener="Hi Ada, following up on pricing.",
@@ -178,6 +177,33 @@ def _seed_account(
     )
     session.commit()
     return account, ada, grace
+
+
+def _add_prospecting_snapshot(
+    session: Session,
+    *,
+    workspace_id: str,
+    contact_id: uuid.UUID,
+    account_summary: str,
+    suggested_next_action: str,
+    created_at: datetime,
+) -> ProspectingSnapshot:
+    snapshot = ProspectingSnapshot(
+        workspace_id=workspace_id,
+        contact_id=contact_id,
+        company_url="https://analytical.example",
+        sources_json=[{"label": "CRM contact", "summary": "Research source"}],
+        research_json={
+            "account_summary": account_summary,
+            "suggested_next_action": suggested_next_action,
+        },
+        email_draft="Subject: Follow-up",
+        voice_opener="Hi, following up.",
+        created_at=created_at,
+    )
+    session.add(snapshot)
+    session.flush()
+    return snapshot
 
 
 def test_list_customer_360_accounts_returns_account_rollups() -> None:
@@ -235,3 +261,88 @@ def test_get_account_profile_returns_none_for_wrong_workspace() -> None:
         profile = get_account_profile(session, workspace_id="ws-b", account_id=account.id)
 
     assert profile is None
+
+
+def test_customer_360_excludes_cross_workspace_channel_rows() -> None:
+    with _session() as session:
+        account, ada, _grace = _seed_account(session)
+        session.add(
+            ChatbotConversation(
+                workspace_id="ws-b",
+                channel_type=ChatbotChannelType.whatsapp_business,
+                visitor_id="foreign-visitor",
+                contact_id=ada.id,
+                status=ChatbotConversationStatus.escalated,
+                escalated=True,
+                escalation_reason="Foreign workspace escalation",
+                last_message_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+            )
+        )
+        _add_prospecting_snapshot(
+            session,
+            workspace_id="ws-b",
+            contact_id=ada.id,
+            account_summary="Foreign workspace research must not leak.",
+            suggested_next_action="Do not use this cross-workspace action.",
+            created_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        )
+        session.commit()
+
+        profile = get_account_profile(session, workspace_id="ws-a", account_id=account.id)
+        rows = list_customer_360_accounts(session, workspace_id="ws-a")
+
+    assert profile is not None
+    assert profile.channel_summaries["chatbot"].count == 1
+    assert profile.channel_summaries["prospecting"].count == 1
+    assert profile.prospecting_brief is not None
+    assert (
+        profile.prospecting_brief.account_summary
+        == "Analytical Health is evaluating cross-channel outreach."
+    )
+    assert rows.data[0].channel_counts["chatbot"] == 1
+    assert rows.data[0].channel_counts["prospecting"] == 1
+    assert rows.data[0].top_next_action == "Reply with pricing clarity, then queue a call."
+    assert "Foreign workspace research must not leak." not in {
+        event.detail for event in profile.timeline
+    }
+
+
+def test_profile_next_action_uses_prospecting_action_when_open_work_exists() -> None:
+    with _session() as session:
+        account, _ada, _grace = _seed_account(
+            session,
+            suggested_next_action="Send a security packet, then invite procurement.",
+        )
+
+        profile = get_account_profile(session, workspace_id="ws-a", account_id=account.id)
+
+    assert profile is not None
+    assert profile.next_best_action is not None
+    assert profile.next_best_action.title == "Send a security packet, then invite procurement"
+    assert profile.next_best_action.title != "Reply with pricing clarity, then queue a call"
+
+
+def test_profile_timeline_includes_all_prospecting_snapshots() -> None:
+    with _session() as session:
+        account, ada, grace = _seed_account(session)
+        _add_prospecting_snapshot(
+            session,
+            workspace_id="ws-a",
+            contact_id=grace.id,
+            account_summary="Grace confirmed procurement review.",
+            suggested_next_action="Send Grace the implementation timeline.",
+            created_at=datetime.now(timezone.utc) - timedelta(days=3),
+        )
+        session.commit()
+
+        profile = get_account_profile(session, workspace_id="ws-a", account_id=account.id)
+
+    assert profile is not None
+    prospecting_events = [
+        event
+        for event in profile.timeline
+        if event.source == "prospecting"
+        and event.event_type == "prospecting_research"
+    ]
+    assert len(prospecting_events) == 2
+    assert {event.contact_id for event in prospecting_events} == {ada.id, grace.id}
