@@ -5,7 +5,7 @@ import {
   RefreshCw,
   Search,
 } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -73,23 +73,32 @@ export default function Customer360AccountsPage() {
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const latestRequestId = useRef(0)
 
   const loadAccounts = useCallback(async (nextSearch = "") => {
+    const requestId = latestRequestId.current + 1
+    latestRequestId.current = requestId
     setLoading(true)
     setError("")
 
     try {
       const response = await listCustomer360Accounts(nextSearch)
+      if (latestRequestId.current !== requestId) return
+
       setAccounts(response.data)
       setCount(response.count)
     } catch (requestError) {
+      if (latestRequestId.current !== requestId) return
+
       setError(
         requestError instanceof Error
           ? requestError.message
           : "Could not load accounts",
       )
     } finally {
-      setLoading(false)
+      if (latestRequestId.current === requestId) {
+        setLoading(false)
+      }
     }
   }, [])
 
