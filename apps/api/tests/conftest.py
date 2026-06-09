@@ -68,6 +68,7 @@ def db() -> Generator[Session, None, None]:
         init_db(session)
         yield session
         _clear_users(session)
+        init_db(session)
 
 
 @pytest.fixture(autouse=True)
