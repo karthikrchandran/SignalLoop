@@ -362,12 +362,35 @@ class GlobalControlState(SQLModel, table=True):
 # ---------------------------------------------------------------------------
 
 
+class Account(SQLModel, table=True):
+    """First-class customer account."""
+
+    __tablename__ = "accounts"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "account_key", name="uq_account_workspace_key"),
+        Index("idx_accounts_workspace_name", "workspace_id", "name"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(sa_type=String(64), index=True)
+    name: str = Field(sa_type=String(255))
+    account_key: str = Field(sa_type=String(255), index=True)
+    website_url: str | None = Field(default=None, sa_type=Text)
+    industry: str | None = Field(default=None, max_length=255)
+    status: str = Field(default="active", max_length=64)
+    summary: str | None = Field(default=None, sa_type=Text)
+    tags_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+
+
 class Contact(SQLModel, table=True):
     """Contact."""
     __tablename__ = "contacts"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
+    account_id: uuid.UUID | None = Field(default=None, foreign_key="accounts.id", index=True)
     email: str = Field(sa_type=String(255), index=True)
     first_name: str | None = Field(default=None, max_length=255)
     last_name: str | None = Field(default=None, max_length=255)
@@ -689,6 +712,7 @@ class ContactPublic(SQLModel):
     """API response model: contact."""
     id: uuid.UUID
     workspace_id: str
+    account_id: uuid.UUID | None = None
     email: str
     first_name: str | None = None
     last_name: str | None = None
@@ -696,6 +720,22 @@ class ContactPublic(SQLModel):
     phone: str | None = None
     timezone: str
     created_at: datetime
+
+
+class AccountPublic(SQLModel):
+    """API response model: account."""
+
+    id: uuid.UUID
+    workspace_id: str
+    name: str
+    account_key: str
+    website_url: str | None = None
+    industry: str | None = None
+    status: str
+    summary: str | None = None
+    tags: list[str] = []
+    created_at: datetime
+    updated_at: datetime
 
 
 class ContactsPublic(SQLModel):

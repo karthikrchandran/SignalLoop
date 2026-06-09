@@ -106,6 +106,7 @@ class NewPassword(SQLModel):
 
 
 from app.domain_models import (  # noqa: E402
+    Account,
     Campaign,
     CampaignChannelStrategy,
     CampaignContactImport,
