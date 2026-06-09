@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pytest import MonkeyPatch
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.domain.accounts.service import (
@@ -49,6 +50,46 @@ def test_find_or_create_account_reuses_account_by_workspace_and_key() -> None:
     assert first.account_key == "analytical-health-inc"
 
 
+class _EmptyResult:
+    def first(self) -> None:
+        return None
+
+
+def test_find_or_create_account_reselects_after_duplicate_key_race(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    with _session() as session:
+        existing = Account(
+            workspace_id="ws-a",
+            name="Analytical Health Inc",
+            account_key="analytical-health-inc",
+        )
+        session.add(existing)
+        session.commit()
+        session.refresh(existing)
+
+        real_exec = session.exec
+        select_calls = 0
+
+        def exec_with_initial_miss(statement, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+            nonlocal select_calls
+            select_calls += 1
+            if select_calls == 1:
+                return _EmptyResult()
+            return real_exec(statement, *args, **kwargs)
+
+        monkeypatch.setattr(session, "exec", exec_with_initial_miss)
+
+        account = find_or_create_account_for_company(
+            session,
+            workspace_id="ws-a",
+            company_name="Analytical Health, Inc.",
+        )
+
+    assert account.id == existing.id
+    assert select_calls == 2
+
+
 def test_find_or_create_account_ignores_blank_company() -> None:
     with _session() as session:
         account = find_or_create_account_for_company(
@@ -56,8 +97,10 @@ def test_find_or_create_account_ignores_blank_company() -> None:
             workspace_id="ws-a",
             company_name=" ",
         )
+        accounts = session.exec(select(Account)).all()
 
     assert account is None
+    assert accounts == []
 
 
 def test_account_to_public_maps_fields() -> None:

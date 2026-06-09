@@ -733,7 +733,7 @@ class AccountPublic(SQLModel):
     industry: str | None = None
     status: str
     summary: str | None = None
-    tags: list[str] = []
+    tags: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
