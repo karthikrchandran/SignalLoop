@@ -89,7 +89,7 @@ export type Customer360TimelineEvent = {
 export type Customer360AccountProfile = {
   account: Customer360Account
   contacts: Customer360Contact[]
-  channel_summaries: Customer360ChannelSummary[]
+  channel_summaries: Record<string, Customer360ChannelSummary>
   next_best_action?: Customer360NextAction | null
   open_work: Customer360OpenWork[]
   prospecting_brief?: Customer360ProspectingBrief | null

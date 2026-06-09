@@ -79,36 +79,36 @@ function accountProfile() {
         display_name: "Grace Hopper",
       },
     ],
-    channel_summaries: [
-      {
+    channel_summaries: {
+      chatbot: {
         channel: "chatbot",
         label: "Chatbot",
         count: 1,
         status: "Active",
         detail: "Escalation captured from buyer chat.",
       },
-      {
+      email: {
         channel: "email",
         label: "Email",
         count: 1,
         status: "Ready",
         detail: "Pricing follow-up drafted.",
       },
-      {
+      voice: {
         channel: "voice",
         label: "Voice",
         count: 1,
         status: "Complete",
         detail: "Call completed with decision maker.",
       },
-      {
+      prospecting: {
         channel: "prospecting",
         label: "Prospecting",
         count: 1,
         status: "Queued",
         detail: "Brief refreshed from account signals.",
       },
-    ],
+    },
     next_best_action: {
       title: "Reply with pricing clarity, then queue a call",
       reason: "The buyer asked for pricing and is ready for a voice follow-up.",

@@ -107,9 +107,7 @@ function contactName(contact: Customer360Contact) {
 
 function channelSummaries(profile: Customer360AccountProfile) {
   return channelDefaults.map((fallback) => {
-    const summary = profile.channel_summaries.find(
-      (candidate) => candidate.channel === fallback.channel,
-    )
+    const summary = profile.channel_summaries[fallback.channel]
 
     return summary
       ? {
