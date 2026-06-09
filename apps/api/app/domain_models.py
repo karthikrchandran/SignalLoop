@@ -738,6 +738,98 @@ class AccountPublic(SQLModel):
     updated_at: datetime
 
 
+class Customer360AccountRowPublic(AccountPublic):
+    """Customer 360 account list row."""
+
+    contact_count: int
+    last_activity_at: datetime | None = None
+    channel_counts: dict[str, int] = Field(default_factory=dict)
+    top_next_action: str | None = None
+
+
+class Customer360AccountsPublic(SQLModel):
+    """Customer 360 account list response."""
+
+    data: list[Customer360AccountRowPublic] = Field(default_factory=list)
+    count: int
+
+
+class Customer360ContactPublic(ContactPublic):
+    """Contact shown inside a Customer 360 account."""
+
+    display_name: str
+
+
+class Customer360ChannelSummaryPublic(SQLModel):
+    """One channel summary card."""
+
+    channel: str
+    label: str
+    count: int
+    status: str
+    detail: str
+
+
+class Customer360NextActionPublic(SQLModel):
+    """Recommended account-level follow-up."""
+
+    title: str
+    reason: str
+    source: str
+    priority: str
+
+
+class Customer360OpenWorkPublic(SQLModel):
+    """Open work item for an account."""
+
+    id: str
+    source: str
+    title: str
+    contact_id: uuid.UUID | None = None
+    contact_name: str | None = None
+    status: str
+    created_at: datetime
+
+
+class Customer360ProspectingBriefPublic(SQLModel):
+    """Latest prospecting brief for an account."""
+
+    snapshot_id: uuid.UUID
+    contact_id: uuid.UUID
+    account_summary: str
+    suggested_next_action: str | None = None
+    email_draft_available: bool
+    voice_opener_available: bool
+    created_at: datetime
+
+
+class Customer360TimelineEventPublic(SQLModel):
+    """Account-level timeline event."""
+
+    id: str
+    source: str
+    event_type: str
+    title: str
+    detail: str
+    contact_id: uuid.UUID | None = None
+    contact_name: str | None = None
+    timestamp: datetime
+
+
+class Customer360AccountProfilePublic(SQLModel):
+    """Full Account Command Center payload."""
+
+    account: AccountPublic
+    contacts: list[Customer360ContactPublic] = Field(default_factory=list)
+    channel_summaries: dict[str, Customer360ChannelSummaryPublic] = Field(
+        default_factory=dict,
+    )
+    next_best_action: Customer360NextActionPublic | None = None
+    open_work: list[Customer360OpenWorkPublic] = Field(default_factory=list)
+    prospecting_brief: Customer360ProspectingBriefPublic | None = None
+    timeline: list[Customer360TimelineEventPublic] = Field(default_factory=list)
+
+
 class ContactsPublic(SQLModel):
     """API response model: contacts."""
     data: list[ContactPublic]
