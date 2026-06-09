@@ -80,6 +80,7 @@ def _latest_message(
         .where(
             ChatbotMessage.conversation_id == conversation.id,
             ChatbotMessage.workspace_id == conversation.workspace_id,
+            ChatbotMessage.deleted_at.is_(None),
         )
         .order_by(ChatbotMessage.created_at.desc())
     ).first()
@@ -102,6 +103,13 @@ def _snapshot_next_action(snapshot: ProspectingSnapshot) -> str | None:
 def _without_final_period(value: str) -> str:
     value = value.strip()
     return value[:-1] if value.endswith(".") else value
+
+
+def _excerpt(value: str | None, *, limit: int = 180) -> str:
+    text = " ".join((value or "").split())
+    if len(text) <= limit:
+        return text
+    return f"{text[: limit - 3].rstrip()}..."
 
 
 def _load_contacts(
@@ -409,8 +417,14 @@ def _build_profile_parts(
                     if conversation.escalated
                     else "Chatbot conversation"
                 ),
-                detail=conversation.escalation_reason
-                or (message.content if message and message.content else "Chatbot activity"),
+                detail=_excerpt(
+                    conversation.escalation_reason
+                    or (
+                        message.content
+                        if message and message.content
+                        else "Chatbot activity"
+                    ),
+                ),
                 contact_id=conversation.contact_id,
                 contact_name=_contact_name(contact) if contact else None,
                 timestamp=timestamp,
@@ -438,10 +452,10 @@ def _build_profile_parts(
                 source="voice",
                 event_type="call_session",
                 title="Voice call completed" if call_session else "Voice call queued",
-                detail=(
+                detail=_excerpt(
                     call_session.transcript
                     if call_session and call_session.transcript
-                    else call_request.trigger_reason
+                    else call_request.trigger_reason,
                 ),
                 contact_id=call_request.contact_id,
                 contact_name=_contact_name(contact) if contact else None,
@@ -515,15 +529,21 @@ def _build_profile_parts(
             reverse=True,
         )[0]
         if prospecting_brief and prospecting_brief.suggested_next_action:
-            title = _without_final_period(prospecting_brief.suggested_next_action)
+            next_best_action = Customer360NextActionPublic(
+                title=_without_final_period(prospecting_brief.suggested_next_action),
+                reason="Prospecting research is ready.",
+                source="prospecting",
+                priority="medium",
+            )
         else:
-            title = first_work.title
-        next_best_action = Customer360NextActionPublic(
-            title=title,
-            reason=f"{account.name} has open {first_work.source} work.",
-            source=first_work.source,
-            priority="high" if first_work.source in {"chatbot", "voice"} else "medium",
-        )
+            next_best_action = Customer360NextActionPublic(
+                title=first_work.title,
+                reason=f"{account.name} has open {first_work.source} work.",
+                source=first_work.source,
+                priority=(
+                    "high" if first_work.source in {"chatbot", "voice"} else "medium"
+                ),
+            )
     elif prospecting_brief and prospecting_brief.suggested_next_action:
         next_best_action = Customer360NextActionPublic(
             title=prospecting_brief.suggested_next_action,

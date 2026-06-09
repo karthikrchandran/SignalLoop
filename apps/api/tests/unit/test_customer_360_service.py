@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.domain.chatbot.models import (
     ChatbotChannelType,
@@ -407,7 +407,70 @@ def test_profile_next_action_uses_prospecting_action_when_open_work_exists() -> 
     assert profile is not None
     assert profile.next_best_action is not None
     assert profile.next_best_action.title == "Send a security packet, then invite procurement"
+    assert profile.next_best_action.source == "prospecting"
+    assert profile.next_best_action.reason == "Prospecting research is ready."
+    assert profile.next_best_action.priority == "medium"
     assert profile.next_best_action.title != "Reply with pricing clarity, then queue a call"
+
+
+def test_chatbot_timeline_uses_latest_non_deleted_message() -> None:
+    with _session() as session:
+        account, ada, _grace = _seed_account(session)
+        conversation = session.exec(
+            select(ChatbotConversation).where(ChatbotConversation.contact_id == ada.id)
+        ).one()
+        conversation.escalation_reason = None
+        older_content = "Older non-deleted chatbot message should be returned."
+        session.add(
+            ChatbotMessage(
+                workspace_id="ws-a",
+                conversation_id=conversation.id,
+                direction=ChatbotMessageDirection.inbound,
+                sender=ChatbotMessageSender.visitor,
+                content=older_content,
+                created_at=datetime.now(timezone.utc) - timedelta(minutes=3),
+            )
+        )
+        session.add(
+            ChatbotMessage(
+                workspace_id="ws-a",
+                conversation_id=conversation.id,
+                direction=ChatbotMessageDirection.inbound,
+                sender=ChatbotMessageSender.visitor,
+                content="Deleted newest chatbot message should not be returned.",
+                created_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+                deleted_at=datetime.now(timezone.utc),
+            )
+        )
+        session.commit()
+
+        profile = get_account_profile(session, workspace_id="ws-a", account_id=account.id)
+
+    assert profile is not None
+    chatbot_event = next(event for event in profile.timeline if event.source == "chatbot")
+    assert chatbot_event.detail == older_content
+
+
+def test_timeline_voice_transcript_detail_is_bounded() -> None:
+    with _session() as session:
+        account, _ada, _grace = _seed_account(session)
+        call_session = session.exec(select(CallSession)).one()
+        long_transcript = (
+            "LONG_TRANSCRIPT_START "
+            + ("implementation pricing detail " * 20)
+            + "RAW_TRANSCRIPT_END"
+        )
+        call_session.transcript = long_transcript
+        session.add(call_session)
+        session.commit()
+
+        profile = get_account_profile(session, workspace_id="ws-a", account_id=account.id)
+
+    assert profile is not None
+    voice_event = next(event for event in profile.timeline if event.source == "voice")
+    assert voice_event.detail != long_transcript
+    assert len(voice_event.detail) <= 180
+    assert "RAW_TRANSCRIPT_END" not in voice_event.detail
 
 
 def test_profile_timeline_includes_all_prospecting_snapshots() -> None:
