@@ -9,6 +9,7 @@ from app.api.routes import (
     campaigns,
     contacts,
     controls,
+    customer_360,
     dashboard,
     engagement_intelligence,
     kpis,
@@ -47,6 +48,7 @@ api_router.include_router(triggers.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(engagement_intelligence.router)
 api_router.include_router(calls.router)
+api_router.include_router(customer_360.router)
 api_router.include_router(contacts.router)
 api_router.include_router(prospecting.router)
 api_router.include_router(provider_credentials.router)
