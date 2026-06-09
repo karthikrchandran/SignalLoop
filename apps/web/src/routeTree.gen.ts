@@ -32,6 +32,7 @@ import { Route as LayoutCampaignsRouteImport } from './routes/_layout/campaigns'
 import { Route as LayoutAnalyticsRouteImport } from './routes/_layout/analytics'
 import { Route as LayoutAdminRouteImport } from './routes/_layout/admin'
 import { Route as LayoutSettingsProvidersRouteImport } from './routes/_layout/settings.providers'
+import { Route as LayoutCustomer360AccountIdRouteImport } from './routes/_layout/customer-360.$accountId'
 import { Route as LayoutChatbotSettingsRouteImport } from './routes/_layout/chatbot.settings'
 import { Route as LayoutChatbotKnowledgeBaseRouteImport } from './routes/_layout/chatbot.knowledge-base'
 import { Route as LayoutChatbotInboxRouteImport } from './routes/_layout/chatbot.inbox'
@@ -154,6 +155,12 @@ const LayoutSettingsProvidersRoute = LayoutSettingsProvidersRouteImport.update({
   path: '/providers',
   getParentRoute: () => LayoutSettingsRoute,
 } as any)
+const LayoutCustomer360AccountIdRoute =
+  LayoutCustomer360AccountIdRouteImport.update({
+    id: '/$accountId',
+    path: '/$accountId',
+    getParentRoute: () => LayoutCustomer360Route,
+  } as any)
 const LayoutChatbotSettingsRoute = LayoutChatbotSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -205,7 +212,7 @@ export interface FileRoutesByFullPath {
   '/chatbot': typeof LayoutChatbotRouteWithChildren
   '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
-  '/customer-360': typeof LayoutCustomer360Route
+  '/customer-360': typeof LayoutCustomer360RouteWithChildren
   '/engagehub-ai': typeof LayoutEngagehubAiRoute
   '/governance': typeof LayoutGovernanceRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
@@ -220,6 +227,7 @@ export interface FileRoutesByFullPath {
   '/chatbot/inbox': typeof LayoutChatbotInboxRouteWithChildren
   '/chatbot/knowledge-base': typeof LayoutChatbotKnowledgeBaseRoute
   '/chatbot/settings': typeof LayoutChatbotSettingsRoute
+  '/customer-360/$accountId': typeof LayoutCustomer360AccountIdRoute
   '/settings/providers': typeof LayoutSettingsProvidersRoute
   '/admin/chatbot/dead-letters': typeof LayoutAdminChatbotDeadLettersRoute
   '/chatbot/inbox/$threadId': typeof LayoutChatbotInboxThreadIdRoute
@@ -235,7 +243,7 @@ export interface FileRoutesByTo {
   '/chatbot': typeof LayoutChatbotRouteWithChildren
   '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
-  '/customer-360': typeof LayoutCustomer360Route
+  '/customer-360': typeof LayoutCustomer360RouteWithChildren
   '/engagehub-ai': typeof LayoutEngagehubAiRoute
   '/governance': typeof LayoutGovernanceRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
@@ -251,6 +259,7 @@ export interface FileRoutesByTo {
   '/chatbot/inbox': typeof LayoutChatbotInboxRouteWithChildren
   '/chatbot/knowledge-base': typeof LayoutChatbotKnowledgeBaseRoute
   '/chatbot/settings': typeof LayoutChatbotSettingsRoute
+  '/customer-360/$accountId': typeof LayoutCustomer360AccountIdRoute
   '/settings/providers': typeof LayoutSettingsProvidersRoute
   '/admin/chatbot/dead-letters': typeof LayoutAdminChatbotDeadLettersRoute
   '/chatbot/inbox/$threadId': typeof LayoutChatbotInboxThreadIdRoute
@@ -268,7 +277,7 @@ export interface FileRoutesById {
   '/_layout/chatbot': typeof LayoutChatbotRouteWithChildren
   '/_layout/contacts': typeof LayoutContactsRoute
   '/_layout/controls': typeof LayoutControlsRoute
-  '/_layout/customer-360': typeof LayoutCustomer360Route
+  '/_layout/customer-360': typeof LayoutCustomer360RouteWithChildren
   '/_layout/engagehub-ai': typeof LayoutEngagehubAiRoute
   '/_layout/governance': typeof LayoutGovernanceRoute
   '/_layout/offer-packs': typeof LayoutOfferPacksRoute
@@ -284,6 +293,7 @@ export interface FileRoutesById {
   '/_layout/chatbot/inbox': typeof LayoutChatbotInboxRouteWithChildren
   '/_layout/chatbot/knowledge-base': typeof LayoutChatbotKnowledgeBaseRoute
   '/_layout/chatbot/settings': typeof LayoutChatbotSettingsRoute
+  '/_layout/customer-360/$accountId': typeof LayoutCustomer360AccountIdRoute
   '/_layout/settings/providers': typeof LayoutSettingsProvidersRoute
   '/_layout/admin/chatbot/dead-letters': typeof LayoutAdminChatbotDeadLettersRoute
   '/_layout/chatbot/inbox/$threadId': typeof LayoutChatbotInboxThreadIdRoute
@@ -317,6 +327,7 @@ export interface FileRouteTypes {
     | '/chatbot/inbox'
     | '/chatbot/knowledge-base'
     | '/chatbot/settings'
+    | '/customer-360/$accountId'
     | '/settings/providers'
     | '/admin/chatbot/dead-letters'
     | '/chatbot/inbox/$threadId'
@@ -348,6 +359,7 @@ export interface FileRouteTypes {
     | '/chatbot/inbox'
     | '/chatbot/knowledge-base'
     | '/chatbot/settings'
+    | '/customer-360/$accountId'
     | '/settings/providers'
     | '/admin/chatbot/dead-letters'
     | '/chatbot/inbox/$threadId'
@@ -380,6 +392,7 @@ export interface FileRouteTypes {
     | '/_layout/chatbot/inbox'
     | '/_layout/chatbot/knowledge-base'
     | '/_layout/chatbot/settings'
+    | '/_layout/customer-360/$accountId'
     | '/_layout/settings/providers'
     | '/_layout/admin/chatbot/dead-letters'
     | '/_layout/chatbot/inbox/$threadId'
@@ -556,6 +569,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSettingsProvidersRouteImport
       parentRoute: typeof LayoutSettingsRoute
     }
+    '/_layout/customer-360/$accountId': {
+      id: '/_layout/customer-360/$accountId'
+      path: '/$accountId'
+      fullPath: '/customer-360/$accountId'
+      preLoaderRoute: typeof LayoutCustomer360AccountIdRouteImport
+      parentRoute: typeof LayoutCustomer360Route
+    }
     '/_layout/chatbot/settings': {
       id: '/_layout/chatbot/settings'
       path: '/settings'
@@ -651,6 +671,17 @@ const LayoutChatbotRouteWithChildren = LayoutChatbotRoute._addFileChildren(
   LayoutChatbotRouteChildren,
 )
 
+interface LayoutCustomer360RouteChildren {
+  LayoutCustomer360AccountIdRoute: typeof LayoutCustomer360AccountIdRoute
+}
+
+const LayoutCustomer360RouteChildren: LayoutCustomer360RouteChildren = {
+  LayoutCustomer360AccountIdRoute: LayoutCustomer360AccountIdRoute,
+}
+
+const LayoutCustomer360RouteWithChildren =
+  LayoutCustomer360Route._addFileChildren(LayoutCustomer360RouteChildren)
+
 interface LayoutSettingsRouteChildren {
   LayoutSettingsProvidersRoute: typeof LayoutSettingsProvidersRoute
 }
@@ -670,7 +701,7 @@ interface LayoutRouteChildren {
   LayoutChatbotRoute: typeof LayoutChatbotRouteWithChildren
   LayoutContactsRoute: typeof LayoutContactsRoute
   LayoutControlsRoute: typeof LayoutControlsRoute
-  LayoutCustomer360Route: typeof LayoutCustomer360Route
+  LayoutCustomer360Route: typeof LayoutCustomer360RouteWithChildren
   LayoutEngagehubAiRoute: typeof LayoutEngagehubAiRoute
   LayoutGovernanceRoute: typeof LayoutGovernanceRoute
   LayoutOfferPacksRoute: typeof LayoutOfferPacksRoute
@@ -690,7 +721,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutChatbotRoute: LayoutChatbotRouteWithChildren,
   LayoutContactsRoute: LayoutContactsRoute,
   LayoutControlsRoute: LayoutControlsRoute,
-  LayoutCustomer360Route: LayoutCustomer360Route,
+  LayoutCustomer360Route: LayoutCustomer360RouteWithChildren,
   LayoutEngagehubAiRoute: LayoutEngagehubAiRoute,
   LayoutGovernanceRoute: LayoutGovernanceRoute,
   LayoutOfferPacksRoute: LayoutOfferPacksRoute,

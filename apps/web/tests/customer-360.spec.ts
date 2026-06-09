@@ -36,6 +36,121 @@ function accountsResponse(account: Record<string, unknown>) {
   }
 }
 
+function accountProfile() {
+  return {
+    account: {
+      id: ACCOUNT_ID,
+      workspace_id: "default",
+      name: "Analytical Health",
+      account_key: "analytical-health",
+      website_url: null,
+      industry: "Healthcare",
+      status: "active",
+      summary: "Multi-location healthcare buyer.",
+      tags: ["pricing", "voice-ready"],
+      created_at: "2026-06-08T10:00:00Z",
+      updated_at: "2026-06-08T10:00:00Z",
+    },
+    contacts: [
+      {
+        id: "contact-ada",
+        workspace_id: "default",
+        account_id: ACCOUNT_ID,
+        email: "ada@analytical.health",
+        first_name: "Ada",
+        last_name: "Lovelace",
+        company: "Analytical Health",
+        phone: "+1555010101",
+        timezone: "America/New_York",
+        created_at: "2026-06-08T10:10:00Z",
+        display_name: "Ada Lovelace",
+      },
+      {
+        id: "contact-grace",
+        workspace_id: "default",
+        account_id: ACCOUNT_ID,
+        email: "grace@analytical.health",
+        first_name: "Grace",
+        last_name: "Hopper",
+        company: "Analytical Health",
+        phone: "+1555010102",
+        timezone: "America/New_York",
+        created_at: "2026-06-08T10:20:00Z",
+        display_name: "Grace Hopper",
+      },
+    ],
+    channel_summaries: [
+      {
+        channel: "chatbot",
+        label: "Chatbot",
+        count: 1,
+        status: "Active",
+        detail: "Escalation captured from buyer chat.",
+      },
+      {
+        channel: "email",
+        label: "Email",
+        count: 1,
+        status: "Ready",
+        detail: "Pricing follow-up drafted.",
+      },
+      {
+        channel: "voice",
+        label: "Voice",
+        count: 1,
+        status: "Complete",
+        detail: "Call completed with decision maker.",
+      },
+      {
+        channel: "prospecting",
+        label: "Prospecting",
+        count: 1,
+        status: "Queued",
+        detail: "Brief refreshed from account signals.",
+      },
+    ],
+    next_best_action: {
+      title: "Reply with pricing clarity, then queue a call",
+      reason: "The buyer asked for pricing and is ready for a voice follow-up.",
+      source: "voice",
+      priority: "high",
+    },
+    open_work: [
+      {
+        id: "work-chatbot-escalation",
+        source: "chatbot",
+        title: "Chatbot escalation",
+        contact_id: "contact-ada",
+        contact_name: "Ada Lovelace",
+        status: "open",
+        created_at: "2026-06-08T11:00:00Z",
+      },
+    ],
+    prospecting_brief: {
+      snapshot_id: "snapshot-analytical-health",
+      contact_id: "contact-ada",
+      account_summary:
+        "Analytical Health is evaluating cross-channel outreach.",
+      suggested_next_action: "Send pricing clarity and offer a voice call.",
+      email_draft_available: true,
+      voice_opener_available: true,
+      created_at: "2026-06-08T11:30:00Z",
+    },
+    timeline: [
+      {
+        id: "timeline-voice-call",
+        source: "voice",
+        event_type: "call.completed",
+        title: "Voice call completed",
+        detail: "Pricing question needs a human",
+        contact_id: "contact-ada",
+        contact_name: "Ada Lovelace",
+        timestamp: "2026-06-08T12:00:00Z",
+      },
+    ],
+  }
+}
+
 test.use({ storageState: { cookies: [], origins: [] } })
 
 test.beforeEach(async ({ page }) => {
@@ -60,6 +175,20 @@ test.beforeEach(async ({ page }) => {
 
 test("shows Customer 360 accounts with channel rollups", async ({ page }) => {
   await page.route("**/api/v1/customer-360/accounts**", async (route) => {
+    const url = new URL(route.request().url())
+
+    if (
+      url.pathname === `/api/v1/customer-360/accounts/${ACCOUNT_ID}` ||
+      url.pathname.endsWith(`/customer-360/accounts/${ACCOUNT_ID}`)
+    ) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(accountProfile()),
+      })
+      return
+    }
+
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -79,6 +208,50 @@ test("shows Customer 360 accounts with channel rollups", async ({ page }) => {
   await expect(
     page.getByRole("link", { name: "Open Analytical Health" }),
   ).toHaveAttribute("href", `/customer-360/${ACCOUNT_ID}`)
+
+  await page.getByRole("link", { name: "Open Analytical Health" }).click()
+
+  await expect(page).toHaveURL(new RegExp(`/customer-360/${ACCOUNT_ID}$`))
+  await expect(
+    page.getByRole("heading", { name: "Analytical Health" }),
+  ).toBeVisible()
+  await expect(page.getByText("Multi-location healthcare buyer.")).toBeVisible()
+})
+
+test("shows a Customer 360 account profile", async ({ page }) => {
+  await page.route(
+    `**/api/v1/customer-360/accounts/${ACCOUNT_ID}`,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(accountProfile()),
+      })
+    },
+  )
+
+  await page.goto(`/customer-360/${ACCOUNT_ID}`)
+
+  await expect(
+    page.getByRole("heading", { name: "Analytical Health" }),
+  ).toBeVisible()
+  await expect(page.getByText("Multi-location healthcare buyer.")).toBeVisible()
+  await expect(
+    page.getByText("Ada Lovelace", { exact: true }).first(),
+  ).toBeVisible()
+  await expect(page.getByText("Grace Hopper", { exact: true })).toBeVisible()
+  await expect(page.getByText("Chatbot", { exact: true }).first()).toBeVisible()
+  await expect(page.getByText("Email", { exact: true }).first()).toBeVisible()
+  await expect(page.getByText("Voice", { exact: true }).first()).toBeVisible()
+  await expect(
+    page.getByText("Prospecting", { exact: true }).first(),
+  ).toBeVisible()
+  await expect(
+    page.getByText("Reply with pricing clarity, then queue a call"),
+  ).toBeVisible()
+  await expect(page.getByText("Unified account timeline")).toBeVisible()
+  await expect(page.getByText("Voice call completed")).toBeVisible()
+  await expect(page.getByText("Pricing question needs a human")).toBeVisible()
 })
 
 test("keeps searched accounts when the initial list response finishes later", async ({
