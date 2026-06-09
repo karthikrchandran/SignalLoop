@@ -738,6 +738,42 @@ class AccountPublic(SQLModel):
     updated_at: datetime
 
 
+class AccountCreate(SQLModel):
+    """Request payload for creating an account."""
+
+    name: str = Field(min_length=1, max_length=255)
+    website_url: str | None = None
+    industry: str | None = Field(default=None, max_length=255)
+    status: str = Field(default="active", max_length=64)
+    summary: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
+
+class AccountUpdate(SQLModel):
+    """Request payload for updating account metadata."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    website_url: str | None = None
+    industry: str | None = Field(default=None, max_length=255)
+    status: str | None = Field(default=None, max_length=64)
+    summary: str | None = None
+    tags: list[str] | None = None
+
+
+class AccountContactAssignment(SQLModel):
+    """Request payload for assigning contacts to an account."""
+
+    contact_ids: list[uuid.UUID] = Field(default_factory=list)
+
+
+class AccountContactAssignmentPublic(SQLModel):
+    """API response model: account contact assignment result."""
+
+    account_id: uuid.UUID
+    assigned_contact_ids: list[uuid.UUID] = Field(default_factory=list)
+    count: int
+
+
 class Customer360AccountRowPublic(AccountPublic):
     """Customer 360 account list row."""
 
