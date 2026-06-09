@@ -13,10 +13,16 @@ from app.domain.chatbot.models import (
     ChatbotConversationStatus,
     ChatbotMessage,
 )
-from app.domain.sequences.models import ContactSequenceState, EmailEvent, SendRequest
+from app.domain.sequences.models import (
+    ContactSequenceState,
+    EmailEvent,
+    EmailSequence,
+    SendRequest,
+)
 from app.domain.voice.models import CallRequest, CallSession
 from app.domain_models import (
     Account,
+    Campaign,
     Contact,
     Customer360AccountProfilePublic,
     Customer360AccountRowPublic,
@@ -250,15 +256,24 @@ def _build_profile_parts(
     call_rows = list(
         session.exec(
             select(CallRequest, CallSession)
+            .join(Campaign, Campaign.id == CallRequest.campaign_id)
             .outerjoin(CallSession, CallRequest.id == CallSession.call_request_id)
-            .where(CallRequest.contact_id.in_(contact_ids))
+            .where(
+                CallRequest.contact_id.in_(contact_ids),
+                Campaign.workspace_id == account.workspace_id,
+            )
             .order_by(CallRequest.created_at.desc()),
         ).all(),
     )
     sequence_states = list(
         session.exec(
             select(ContactSequenceState)
-            .where(ContactSequenceState.contact_id.in_(contact_ids))
+            .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
+            .join(Campaign, Campaign.id == EmailSequence.campaign_id)
+            .where(
+                ContactSequenceState.contact_id.in_(contact_ids),
+                Campaign.workspace_id == account.workspace_id,
+            )
             .order_by(ContactSequenceState.created_at.desc()),
         ).all(),
     )

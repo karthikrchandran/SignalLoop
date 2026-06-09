@@ -307,6 +307,94 @@ def test_customer_360_excludes_cross_workspace_channel_rows() -> None:
     }
 
 
+def test_customer_360_excludes_cross_workspace_voice_and_email_rows() -> None:
+    with _session() as session:
+        account, ada, _grace = _seed_account(session)
+        owner_id = uuid.uuid4()
+        foreign_campaign = Campaign(
+            name="Foreign Outreach",
+            workspace_id="ws-b",
+            created_by=owner_id,
+        )
+        session.add(foreign_campaign)
+        session.flush()
+
+        foreign_script = VoiceScript(
+            campaign_id=foreign_campaign.id,
+            name="Foreign Discovery",
+            content="Foreign voice script.",
+            created_by=owner_id,
+        )
+        session.add(foreign_script)
+        session.flush()
+
+        foreign_call_request = CallRequest(
+            contact_id=ada.id,
+            campaign_id=foreign_campaign.id,
+            voice_script_id=foreign_script.id,
+            trigger_reason="foreign_workspace_call",
+            scheduled_at=datetime.now(timezone.utc) - timedelta(minutes=3),
+        )
+        session.add(foreign_call_request)
+        session.flush()
+        session.add(
+            CallSession(
+                call_request_id=foreign_call_request.id,
+                outcome=CallOutcome.answered,
+                duration_seconds=44,
+                transcript="FOREIGN WS-B transcript should not leak.",
+                scheduling_interest=True,
+                created_at=datetime.now(timezone.utc) - timedelta(minutes=2),
+            )
+        )
+
+        foreign_sequence = EmailSequence(
+            campaign_id=foreign_campaign.id,
+            name="Foreign Welcome",
+            active=True,
+            created_by=owner_id,
+        )
+        session.add(foreign_sequence)
+        session.flush()
+        foreign_state = ContactSequenceState(
+            contact_id=ada.id,
+            sequence_id=foreign_sequence.id,
+        )
+        session.add(foreign_state)
+        session.flush()
+        foreign_send = SendRequest(
+            contact_sequence_state_id=foreign_state.id,
+            step_order=1,
+            idempotency_key="ws-b-ada-foreign-step-1",
+            status=SendRequestStatus.sent,
+            sent_at=datetime.now(timezone.utc) - timedelta(minutes=4),
+        )
+        session.add(foreign_send)
+        session.flush()
+        session.add(
+            EmailEvent(
+                send_request_id=foreign_send.id,
+                event_type="foreign_opened_marker",
+                timestamp=datetime.now(timezone.utc) - timedelta(minutes=1),
+            )
+        )
+        session.commit()
+
+        profile = get_account_profile(session, workspace_id="ws-a", account_id=account.id)
+        rows = list_customer_360_accounts(session, workspace_id="ws-a")
+
+    assert profile is not None
+    assert profile.channel_summaries["voice"].count == 1
+    assert profile.channel_summaries["email"].count == 1
+    assert rows.data[0].channel_counts["voice"] == 1
+    assert rows.data[0].channel_counts["email"] == 1
+    timeline_text = {
+        f"{event.event_type} {event.title} {event.detail}" for event in profile.timeline
+    }
+    assert not any("FOREIGN WS-B transcript" in item for item in timeline_text)
+    assert not any("foreign_opened_marker" in item for item in timeline_text)
+
+
 def test_profile_next_action_uses_prospecting_action_when_open_work_exists() -> None:
     with _session() as session:
         account, _ada, _grace = _seed_account(
