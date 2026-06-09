@@ -83,6 +83,7 @@ def test_contact_import_preview_and_commit(
     persisted = db.exec(select(Contact).where(Contact.email == email)).first()
     assert persisted is not None
     assert persisted.account_id is not None
+    assert contact["account_id"] == str(persisted.account_id)
     account = db.get(Account, persisted.account_id)
     assert account is not None
     assert account.workspace_id == workspace_id
