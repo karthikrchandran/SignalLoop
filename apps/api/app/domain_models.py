@@ -763,15 +763,16 @@ class AccountUpdate(SQLModel):
 class AccountContactAssignment(SQLModel):
     """Request payload for assigning contacts to an account."""
 
-    contact_ids: list[uuid.UUID] = Field(default_factory=list)
+    contact_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
 
 
 class AccountContactAssignmentPublic(SQLModel):
     """API response model: account contact assignment result."""
 
     account_id: uuid.UUID
-    assigned_contact_ids: list[uuid.UUID] = Field(default_factory=list)
-    count: int
+    assigned_count: int = 0
+    unassigned_count: int = 0
+    contact_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
 class Customer360AccountRowPublic(AccountPublic):

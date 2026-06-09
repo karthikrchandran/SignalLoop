@@ -8,6 +8,7 @@ from app.api.deps import SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep
 from app.domain.accounts.service import (
     AccountAlreadyExistsError,
+    AccountNameRequiredError,
     account_to_public,
     create_account,
     update_account,
@@ -31,6 +32,8 @@ def create_workspace_account(
     """Create an account in the active workspace."""
     try:
         account = create_account(session, workspace_id=workspace_id, data=body)
+    except AccountNameRequiredError:
+        raise HTTPException(status_code=400, detail="Account name is required")
     except AccountAlreadyExistsError:
         raise HTTPException(status_code=409, detail="Account already exists")
     session.commit()
@@ -54,6 +57,8 @@ def update_workspace_account(
             account_id=account_id,
             data=body,
         )
+    except AccountNameRequiredError:
+        raise HTTPException(status_code=400, detail="Account name is required")
     except AccountAlreadyExistsError:
         raise HTTPException(status_code=409, detail="Account already exists")
     if account is None:

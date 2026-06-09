@@ -72,6 +72,22 @@ def test_account_create_rejects_duplicate_normalized_name_in_workspace(
     assert duplicate_response.json()["detail"] == "Account already exists"
 
 
+def test_account_create_rejects_empty_normalized_name(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    workspace_id = f"ws-accounts-{uuid.uuid4().hex[:8]}"
+
+    response = client.post(
+        f"{settings.API_V1_STR}/accounts",
+        headers=_headers(superuser_token_headers, workspace_id),
+        json={"name": " !!! --- "},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Account name is required"
+
+
 def test_account_update_metadata_regenerates_key_and_updates_linked_contact_company(
     client: TestClient,
     superuser_token_headers: dict[str, str],
@@ -134,6 +150,104 @@ def test_account_update_metadata_regenerates_key_and_updates_linked_contact_comp
     db.expire_all()
     persisted = db.exec(select(Account).where(Account.id == account.id)).one()
     assert persisted.tags_json == ["strategic", "renewal"]
+
+
+def test_account_update_rejects_empty_normalized_name(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    workspace_id = f"ws-accounts-{uuid.uuid4().hex[:8]}"
+    account = Account(
+        workspace_id=workspace_id,
+        name=f"Compiler Co {uuid.uuid4().hex[:8]}",
+        account_key=f"compiler-co-{uuid.uuid4().hex[:8]}",
+    )
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+
+    response = client.patch(
+        f"{settings.API_V1_STR}/accounts/{account.id}",
+        headers=_headers(superuser_token_headers, workspace_id),
+        json={"name": " ... !!! "},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Account name is required"
+
+
+def test_account_update_rejects_duplicate_normalized_name(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    workspace_id = f"ws-accounts-{uuid.uuid4().hex[:8]}"
+    suffix = uuid.uuid4().hex[:8]
+    existing = Account(
+        workspace_id=workspace_id,
+        name=f"Analytical Health {suffix}",
+        account_key=generate_account_key(f"Analytical Health {suffix}"),
+    )
+    account = Account(
+        workspace_id=workspace_id,
+        name=f"Compiler Co {suffix}",
+        account_key=generate_account_key(f"Compiler Co {suffix}"),
+    )
+    db.add(existing)
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+
+    response = client.patch(
+        f"{settings.API_V1_STR}/accounts/{account.id}",
+        headers=_headers(superuser_token_headers, workspace_id),
+        json={"name": f"Analytical   Health {suffix}"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Account already exists"
+
+
+def test_account_update_ignores_explicit_null_metadata_fields(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    workspace_id = f"ws-accounts-{uuid.uuid4().hex[:8]}"
+    account = Account(
+        workspace_id=workspace_id,
+        name=f"Compiler Co {uuid.uuid4().hex[:8]}",
+        account_key=f"compiler-co-{uuid.uuid4().hex[:8]}",
+        website_url="https://compiler.example",
+        industry="Healthcare",
+        status="target",
+        summary="Existing summary.",
+        tags_json=["priority"],
+    )
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+
+    response = client.patch(
+        f"{settings.API_V1_STR}/accounts/{account.id}",
+        headers=_headers(superuser_token_headers, workspace_id),
+        json={
+            "website_url": None,
+            "industry": None,
+            "status": None,
+            "summary": None,
+            "tags": None,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["website_url"] == "https://compiler.example"
+    assert payload["industry"] == "Healthcare"
+    assert payload["status"] == "target"
+    assert payload["summary"] == "Existing summary."
+    assert payload["tags"] == ["priority"]
 
 
 def test_account_update_is_workspace_scoped(

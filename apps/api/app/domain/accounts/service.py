@@ -20,6 +20,10 @@ class AccountAlreadyExistsError(Exception):
     """Raised when an account key already exists in the workspace."""
 
 
+class AccountNameRequiredError(Exception):
+    """Raised when an account display name cannot produce a usable key."""
+
+
 def generate_account_key(name: str) -> str:
     """Return a deterministic account key for a display name."""
     normalized = re.sub(r"[^a-z0-9]+", "-", name.strip().lower())
@@ -103,7 +107,9 @@ def create_account(
     """Create a workspace-scoped account from an explicit command payload."""
     name = data.name.strip()
     account_key = generate_account_key(name)
-    if not account_key or _find_account_by_key(
+    if not account_key:
+        raise AccountNameRequiredError
+    if _find_account_by_key(
         session,
         workspace_id=workspace_id,
         account_key=account_key,
@@ -152,20 +158,26 @@ def update_account(
     if new_name is not None:
         cleaned_name = new_name.strip()
         new_account_key = generate_account_key(cleaned_name)
+        if not new_account_key:
+            raise AccountNameRequiredError
         existing = _find_account_by_key(
             session,
             workspace_id=workspace_id,
             account_key=new_account_key,
         )
-        if not new_account_key or (existing is not None and existing.id != account.id):
+        if existing is not None and existing.id != account.id:
             raise AccountAlreadyExistsError
         account.name = cleaned_name
         account.account_key = new_account_key
 
-    if "tags" in update_data:
+    if update_data.get("tags") is not None:
         account.tags_json = _clean_tags(update_data.pop("tags"))
+    else:
+        update_data.pop("tags", None)
 
     for field_name, value in update_data.items():
+        if value is None and field_name in {"website_url", "industry", "status", "summary"}:
+            continue
         if isinstance(value, str) and field_name in {"industry", "status"}:
             value = value.strip()
         setattr(account, field_name, value)

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import uuid
+
+import pytest
+from pydantic import ValidationError
 from pytest import MonkeyPatch
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -8,7 +12,11 @@ from app.domain.accounts.service import (
     find_or_create_account_for_company,
     generate_account_key,
 )
-from app.domain_models import Account
+from app.domain_models import (
+    Account,
+    AccountContactAssignment,
+    AccountContactAssignmentPublic,
+)
 
 
 def _session() -> Session:
@@ -120,3 +128,17 @@ def test_account_to_public_maps_fields() -> None:
     assert public.name == "Analytical Health"
     assert public.website_url == "https://analytical.example"
     assert public.tags == ["pricing", "voice-ready"]
+
+
+def test_account_contact_assignment_schema_matches_plan() -> None:
+    contact_id = uuid.uuid4()
+
+    assignment = AccountContactAssignment(contact_ids=[contact_id])
+    public = AccountContactAssignmentPublic(account_id=uuid.uuid4())
+
+    assert assignment.contact_ids == [contact_id]
+    assert public.assigned_count == 0
+    assert public.unassigned_count == 0
+    assert public.contact_ids == []
+    with pytest.raises(ValidationError):
+        AccountContactAssignment(contact_ids=[])
