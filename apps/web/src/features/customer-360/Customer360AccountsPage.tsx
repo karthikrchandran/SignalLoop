@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router"
 import {
   Building2,
   ExternalLink,
@@ -245,13 +246,14 @@ export default function Customer360AccountsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild variant="outline" size="sm">
-                        <a
-                          href={`/customer-360/${account.id}`}
+                        <Link
+                          to="/customer-360/$accountId"
+                          params={{ accountId: account.id }}
                           aria-label={`Open ${account.name}`}
                         >
                           <ExternalLink className="size-4" />
                           Open
-                        </a>
+                        </Link>
                       </Button>
                     </TableCell>
                   </TableRow>

@@ -209,7 +209,9 @@ export default function Customer360AccountProfilePage({
             {account ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {account.industry && (
-                  <Badge variant="outline">{account.industry}</Badge>
+                  <Badge variant="outline" className="max-w-full truncate">
+                    {account.industry}
+                  </Badge>
                 )}
                 <Badge variant="secondary">
                   {formatStatus(account.status)}
@@ -218,7 +220,11 @@ export default function Customer360AccountProfilePage({
                   {pluralizeContacts(contactCount)}
                 </Badge>
                 {account.tags.map((tag) => (
-                  <Badge key={tag} variant="outline">
+                  <Badge
+                    key={tag}
+                    variant="outline"
+                    className="max-w-full truncate"
+                  >
                     {tag}
                   </Badge>
                 ))}
@@ -377,9 +383,13 @@ function ContactsPanel({ contacts }: { contacts: Customer360Contact[] }) {
                 </div>
                 <div className="flex flex-wrap items-center gap-2 md:justify-end">
                   {contact.phone ? (
-                    <Badge variant="outline">{contact.phone}</Badge>
+                    <Badge variant="outline" className="max-w-full truncate">
+                      {contact.phone}
+                    </Badge>
                   ) : null}
-                  <Badge variant="secondary">{contact.timezone || "-"}</Badge>
+                  <Badge variant="secondary" className="max-w-full truncate">
+                    {contact.timezone || "-"}
+                  </Badge>
                 </div>
               </div>
             ))}
