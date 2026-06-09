@@ -24,6 +24,7 @@ import { Route as LayoutProspectingRouteImport } from './routes/_layout/prospect
 import { Route as LayoutOfferPacksRouteImport } from './routes/_layout/offer-packs'
 import { Route as LayoutGovernanceRouteImport } from './routes/_layout/governance'
 import { Route as LayoutEngagehubAiRouteImport } from './routes/_layout/engagehub-ai'
+import { Route as LayoutCustomer360RouteImport } from './routes/_layout/customer-360'
 import { Route as LayoutControlsRouteImport } from './routes/_layout/controls'
 import { Route as LayoutContactsRouteImport } from './routes/_layout/contacts'
 import { Route as LayoutChatbotRouteImport } from './routes/_layout/chatbot'
@@ -113,6 +114,11 @@ const LayoutEngagehubAiRoute = LayoutEngagehubAiRouteImport.update({
   path: '/engagehub-ai',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutCustomer360Route = LayoutCustomer360RouteImport.update({
+  id: '/customer-360',
+  path: '/customer-360',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutControlsRoute = LayoutControlsRouteImport.update({
   id: '/controls',
   path: '/controls',
@@ -199,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/chatbot': typeof LayoutChatbotRouteWithChildren
   '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
+  '/customer-360': typeof LayoutCustomer360Route
   '/engagehub-ai': typeof LayoutEngagehubAiRoute
   '/governance': typeof LayoutGovernanceRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
@@ -228,6 +235,7 @@ export interface FileRoutesByTo {
   '/chatbot': typeof LayoutChatbotRouteWithChildren
   '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
+  '/customer-360': typeof LayoutCustomer360Route
   '/engagehub-ai': typeof LayoutEngagehubAiRoute
   '/governance': typeof LayoutGovernanceRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
@@ -260,6 +268,7 @@ export interface FileRoutesById {
   '/_layout/chatbot': typeof LayoutChatbotRouteWithChildren
   '/_layout/contacts': typeof LayoutContactsRoute
   '/_layout/controls': typeof LayoutControlsRoute
+  '/_layout/customer-360': typeof LayoutCustomer360Route
   '/_layout/engagehub-ai': typeof LayoutEngagehubAiRoute
   '/_layout/governance': typeof LayoutGovernanceRoute
   '/_layout/offer-packs': typeof LayoutOfferPacksRoute
@@ -293,6 +302,7 @@ export interface FileRouteTypes {
     | '/chatbot'
     | '/contacts'
     | '/controls'
+    | '/customer-360'
     | '/engagehub-ai'
     | '/governance'
     | '/offer-packs'
@@ -322,6 +332,7 @@ export interface FileRouteTypes {
     | '/chatbot'
     | '/contacts'
     | '/controls'
+    | '/customer-360'
     | '/engagehub-ai'
     | '/governance'
     | '/offer-packs'
@@ -353,6 +364,7 @@ export interface FileRouteTypes {
     | '/_layout/chatbot'
     | '/_layout/contacts'
     | '/_layout/controls'
+    | '/_layout/customer-360'
     | '/_layout/engagehub-ai'
     | '/_layout/governance'
     | '/_layout/offer-packs'
@@ -486,6 +498,13 @@ declare module '@tanstack/react-router' {
       path: '/engagehub-ai'
       fullPath: '/engagehub-ai'
       preLoaderRoute: typeof LayoutEngagehubAiRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/customer-360': {
+      id: '/_layout/customer-360'
+      path: '/customer-360'
+      fullPath: '/customer-360'
+      preLoaderRoute: typeof LayoutCustomer360RouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/controls': {
@@ -651,6 +670,7 @@ interface LayoutRouteChildren {
   LayoutChatbotRoute: typeof LayoutChatbotRouteWithChildren
   LayoutContactsRoute: typeof LayoutContactsRoute
   LayoutControlsRoute: typeof LayoutControlsRoute
+  LayoutCustomer360Route: typeof LayoutCustomer360Route
   LayoutEngagehubAiRoute: typeof LayoutEngagehubAiRoute
   LayoutGovernanceRoute: typeof LayoutGovernanceRoute
   LayoutOfferPacksRoute: typeof LayoutOfferPacksRoute
@@ -670,6 +690,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutChatbotRoute: LayoutChatbotRouteWithChildren,
   LayoutContactsRoute: LayoutContactsRoute,
   LayoutControlsRoute: LayoutControlsRoute,
+  LayoutCustomer360Route: LayoutCustomer360Route,
   LayoutEngagehubAiRoute: LayoutEngagehubAiRoute,
   LayoutGovernanceRoute: LayoutGovernanceRoute,
   LayoutOfferPacksRoute: LayoutOfferPacksRoute,
