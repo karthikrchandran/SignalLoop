@@ -6,11 +6,21 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
 from sqlmodel import Session, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep
+from app.domain.accounts.service import find_or_create_account_for_company
 from app.domain.audit.audit_events import (
     append_audit_event_to_session,
     audit_actor_role,
@@ -54,6 +64,7 @@ def _contact_public(contact: Contact) -> ContactPublic:
     return ContactPublic(
         id=contact.id,
         workspace_id=contact.workspace_id,
+        account_id=contact.account_id,
         email=contact.email,
         first_name=contact.first_name,
         last_name=contact.last_name,
@@ -238,9 +249,18 @@ def _upsert_contacts(
         else:
             updated += 1
 
+        account = find_or_create_account_for_company(
+            session,
+            workspace_id=workspace_id,
+            company_name=row.get("company"),
+        )
         contact.first_name = row.get("firstName") or contact.first_name
         contact.last_name = row.get("lastName") or contact.last_name
-        contact.company = row.get("company") or contact.company
+        if account is not None:
+            contact.account_id = account.id
+            contact.company = account.name
+        else:
+            contact.company = row.get("company") or contact.company
         contact.phone = row.get("phone") or contact.phone
         contact.timezone = row.get("timezone") or contact.timezone or "UTC"
         session.add(contact)

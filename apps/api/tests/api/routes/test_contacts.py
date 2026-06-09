@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from app.core.config import settings
-from app.domain_models import Contact, ContactProgression
+from app.domain_models import Account, Contact, ContactProgression
 
 
 def _headers(token_headers: dict[str, str], workspace_id: str, *, idempotency: bool = False) -> dict[str, str]:
@@ -20,6 +20,7 @@ def _headers(token_headers: dict[str, str], workspace_id: str, *, idempotency: b
 def test_contact_import_preview_and_commit(
     client: TestClient,
     superuser_token_headers: dict[str, str],
+    db: Session,
 ) -> None:
     workspace_id = f"ws-contact-pool-{uuid.uuid4().hex[:8]}"
     email = f"lead-{uuid.uuid4().hex[:8]}@example.com"
@@ -78,6 +79,15 @@ def test_contact_import_preview_and_commit(
     contact = next(item for item in listing["data"] if item["email"] == email)
     assert contact["first_name"] == "Ada"
     assert contact["phone"] == "+15551234567"
+
+    persisted = db.exec(select(Contact).where(Contact.email == email)).first()
+    assert persisted is not None
+    assert persisted.account_id is not None
+    account = db.get(Account, persisted.account_id)
+    assert account is not None
+    assert account.workspace_id == workspace_id
+    assert account.name == "Analytical"
+    assert account.account_key == "analytical"
 
 
 def test_campaign_audience_can_select_existing_contacts_by_filter(
