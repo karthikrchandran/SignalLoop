@@ -38,6 +38,7 @@ def _seed_account(
     session: Session,
     *,
     workspace_id: str = "ws-a",
+    account_summary: str = "Analytical Health is evaluating cross-channel outreach.",
     suggested_next_action: str = "Reply with pricing clarity, then queue a call.",
 ) -> tuple[Account, Contact, Contact]:
     owner_id = uuid.uuid4()
@@ -165,9 +166,7 @@ def _seed_account(
                 {"label": "CRM contact", "summary": "Ada at Analytical Health"}
             ],
             research_json={
-                "account_summary": (
-                    "Analytical Health is evaluating cross-channel outreach."
-                ),
+                "account_summary": account_summary,
                 "suggested_next_action": suggested_next_action,
             },
             email_draft="Subject: Analytical Health follow-up",
@@ -471,6 +470,50 @@ def test_timeline_voice_transcript_detail_is_bounded() -> None:
     assert voice_event.detail != long_transcript
     assert len(voice_event.detail) <= 180
     assert "RAW_TRANSCRIPT_END" not in voice_event.detail
+
+
+def test_prospecting_summary_and_actions_are_bounded() -> None:
+    with _session() as session:
+        long_summary = (
+            "SUMMARY_START "
+            + ("account research detail " * 25)
+            + "SUMMARY_RAW_END"
+        )
+        long_action = (
+            "ACTION_START "
+            + ("coordinate executive follow-up " * 25)
+            + "ACTION_RAW_END."
+        )
+        account, _ada, _grace = _seed_account(
+            session,
+            account_summary=long_summary,
+            suggested_next_action=long_action,
+        )
+
+        profile = get_account_profile(session, workspace_id="ws-a", account_id=account.id)
+        rows = list_customer_360_accounts(session, workspace_id="ws-a")
+
+    assert profile is not None
+    assert profile.prospecting_brief is not None
+    assert profile.next_best_action is not None
+    assert profile.prospecting_brief.account_summary != long_summary
+    assert len(profile.prospecting_brief.account_summary) <= 180
+    assert "SUMMARY_RAW_END" not in profile.prospecting_brief.account_summary
+    prospecting_event = next(
+        event
+        for event in profile.timeline
+        if event.source == "prospecting"
+    )
+    assert prospecting_event.detail != long_summary
+    assert len(prospecting_event.detail) <= 180
+    assert "SUMMARY_RAW_END" not in prospecting_event.detail
+    assert profile.next_best_action.title != long_action.rstrip(".")
+    assert len(profile.next_best_action.title) <= 180
+    assert "ACTION_RAW_END" not in profile.next_best_action.title
+    assert rows.data[0].top_next_action is not None
+    assert rows.data[0].top_next_action != long_action
+    assert len(rows.data[0].top_next_action) <= 180
+    assert "ACTION_RAW_END" not in rows.data[0].top_next_action
 
 
 def test_profile_timeline_includes_all_prospecting_snapshots() -> None:

@@ -89,19 +89,21 @@ def _latest_message(
 def _snapshot_summary(snapshot: ProspectingSnapshot) -> str:
     value = (snapshot.research_json or {}).get("account_summary")
     if isinstance(value, str) and value.strip():
-        return value
+        return _excerpt(value)
     return "Prospecting research is ready."
 
 
 def _snapshot_next_action(snapshot: ProspectingSnapshot) -> str | None:
     value = (snapshot.research_json or {}).get("suggested_next_action")
     if isinstance(value, str) and value.strip():
-        return value
+        return _excerpt(value)
     return None
 
 
 def _without_final_period(value: str) -> str:
     value = value.strip()
+    if value.endswith("..."):
+        return value
     return value[:-1] if value.endswith(".") else value
 
 
