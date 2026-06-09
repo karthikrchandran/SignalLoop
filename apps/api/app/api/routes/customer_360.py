@@ -30,6 +30,7 @@ def read_customer_360_accounts(
     search: Annotated[str | None, Query(max_length=255)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> Customer360AccountsPublic:
+    """Return account-first Customer 360 list rows for the active workspace."""
     return list_customer_360_accounts(
         session,
         workspace_id=workspace_id,
@@ -44,6 +45,7 @@ def get_customer_360_account_profile(
     session: SessionDep,
     workspace_id: WorkspaceIdDep,
 ) -> Customer360AccountProfilePublic:
+    """Return the Account Command Center profile for one workspace-scoped account."""
     profile = get_account_profile(
         session,
         workspace_id=workspace_id,
