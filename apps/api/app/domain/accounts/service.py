@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from app.domain_models import (
     Account,
+    AccountContactAssignmentPublic,
     AccountCreate,
     AccountPublic,
     AccountUpdate,
@@ -22,6 +23,10 @@ class AccountAlreadyExistsError(Exception):
 
 class AccountNameRequiredError(Exception):
     """Raised when an account display name cannot produce a usable key."""
+
+
+class AccountContactNotFoundError(Exception):
+    """Raised when a requested contact is not assignable in the workspace."""
 
 
 def generate_account_key(name: str) -> str:
@@ -207,6 +212,83 @@ def update_account(
     except IntegrityError as exc:
         raise AccountAlreadyExistsError from exc
     return account
+
+
+def assign_contacts_to_account(
+    session: Session,
+    *,
+    workspace_id: str,
+    account_id: uuid.UUID,
+    contact_ids: list[uuid.UUID],
+) -> AccountContactAssignmentPublic | None:
+    """Link workspace contacts to an account and align their company display name."""
+    account = session.exec(
+        select(Account).where(
+            Account.id == account_id,
+            Account.workspace_id == workspace_id,
+        )
+    ).first()
+    if account is None:
+        return None
+
+    contacts = list(
+        session.exec(
+            select(Contact).where(
+                Contact.workspace_id == workspace_id,
+                Contact.id.in_(contact_ids),
+            )
+        ).all()
+    )
+    found_contact_ids = {contact.id for contact in contacts}
+    if any(contact_id not in found_contact_ids for contact_id in contact_ids):
+        raise AccountContactNotFoundError
+
+    for contact in contacts:
+        contact.account_id = account.id
+        contact.company = account.name
+
+    session.flush()
+    return AccountContactAssignmentPublic(
+        account_id=account.id,
+        assigned_count=len(contact_ids),
+        contact_ids=contact_ids,
+    )
+
+
+def unassign_contact_from_account(
+    session: Session,
+    *,
+    workspace_id: str,
+    account_id: uuid.UUID,
+    contact_id: uuid.UUID,
+) -> AccountContactAssignmentPublic | None:
+    """Unlink one workspace contact from an account without changing company text."""
+    account = session.exec(
+        select(Account).where(
+            Account.id == account_id,
+            Account.workspace_id == workspace_id,
+        )
+    ).first()
+    if account is None:
+        return None
+
+    contact = session.exec(
+        select(Contact).where(
+            Contact.id == contact_id,
+            Contact.workspace_id == workspace_id,
+            Contact.account_id == account.id,
+        )
+    ).first()
+    if contact is None:
+        raise AccountContactNotFoundError
+
+    contact.account_id = None
+    session.flush()
+    return AccountContactAssignmentPublic(
+        account_id=account.id,
+        unassigned_count=1,
+        contact_ids=[contact.id],
+    )
 
 
 def account_to_public(account: Account) -> AccountPublic:

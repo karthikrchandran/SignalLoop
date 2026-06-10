@@ -274,3 +274,143 @@ def test_account_update_is_workspace_scoped(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Account not found"
+
+
+def test_account_contact_assignment_links_contacts_and_updates_customer_360_detail(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    workspace_id = f"ws-assign-{uuid.uuid4().hex[:8]}"
+    account = Account(
+        workspace_id=workspace_id,
+        name=f"Assignment Health {uuid.uuid4().hex[:8]}",
+        account_key=f"assignment-health-{uuid.uuid4().hex[:8]}",
+    )
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+
+    first_contact = Contact(
+        workspace_id=workspace_id,
+        email=f"ada-{uuid.uuid4().hex[:8]}@example.com",
+        first_name="Ada",
+        last_name="Lovelace",
+        company="Old Company",
+    )
+    second_contact = Contact(
+        workspace_id=workspace_id,
+        email=f"grace-{uuid.uuid4().hex[:8]}@example.com",
+        first_name="Grace",
+        last_name="Hopper",
+    )
+    db.add(first_contact)
+    db.add(second_contact)
+    db.commit()
+    db.refresh(first_contact)
+    db.refresh(second_contact)
+
+    response = client.post(
+        f"{settings.API_V1_STR}/accounts/{account.id}/contacts",
+        headers=_headers(superuser_token_headers, workspace_id),
+        json={"contact_ids": [str(first_contact.id), str(second_contact.id)]},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["account_id"] == str(account.id)
+    assert payload["assigned_count"] == 2
+    assert payload["unassigned_count"] == 0
+    assert payload["contact_ids"] == [str(first_contact.id), str(second_contact.id)]
+
+    db.refresh(first_contact)
+    db.refresh(second_contact)
+    assert first_contact.account_id == account.id
+    assert first_contact.company == account.name
+    assert second_contact.account_id == account.id
+    assert second_contact.company == account.name
+
+    detail_response = client.get(
+        f"{settings.API_V1_STR}/customer-360/accounts/{account.id}",
+        headers=_headers(superuser_token_headers, workspace_id),
+    )
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert {contact["id"] for contact in detail["contacts"]} == {
+        str(first_contact.id),
+        str(second_contact.id),
+    }
+
+
+def test_account_contact_assignment_rejects_contact_outside_active_workspace(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    workspace_id = f"ws-assign-{uuid.uuid4().hex[:8]}"
+    other_workspace_id = f"ws-other-{uuid.uuid4().hex[:8]}"
+    account = Account(
+        workspace_id=workspace_id,
+        name=f"Assignment Health {uuid.uuid4().hex[:8]}",
+        account_key=f"assignment-health-{uuid.uuid4().hex[:8]}",
+    )
+    other_contact = Contact(
+        workspace_id=other_workspace_id,
+        email=f"ada-{uuid.uuid4().hex[:8]}@example.com",
+    )
+    db.add(account)
+    db.add(other_contact)
+    db.commit()
+    db.refresh(account)
+    db.refresh(other_contact)
+
+    response = client.post(
+        f"{settings.API_V1_STR}/accounts/{account.id}/contacts",
+        headers=_headers(superuser_token_headers, workspace_id),
+        json={"contact_ids": [str(other_contact.id)]},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Contact not found"
+
+
+def test_account_contact_unassignment_unlinks_contact_and_keeps_company(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    workspace_id = f"ws-unassign-{uuid.uuid4().hex[:8]}"
+    account = Account(
+        workspace_id=workspace_id,
+        name=f"Assignment Health {uuid.uuid4().hex[:8]}",
+        account_key=f"assignment-health-{uuid.uuid4().hex[:8]}",
+    )
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+
+    contact = Contact(
+        workspace_id=workspace_id,
+        account_id=account.id,
+        email=f"ada-{uuid.uuid4().hex[:8]}@example.com",
+        company="Keep Existing Company",
+    )
+    db.add(contact)
+    db.commit()
+    db.refresh(contact)
+
+    response = client.delete(
+        f"{settings.API_V1_STR}/accounts/{account.id}/contacts/{contact.id}",
+        headers=_headers(superuser_token_headers, workspace_id),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["account_id"] == str(account.id)
+    assert payload["assigned_count"] == 0
+    assert payload["unassigned_count"] == 1
+    assert payload["contact_ids"] == [str(contact.id)]
+
+    db.refresh(contact)
+    assert contact.account_id is None
+    assert contact.company == "Keep Existing Company"

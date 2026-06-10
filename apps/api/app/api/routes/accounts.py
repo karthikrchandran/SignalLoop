@@ -8,12 +8,21 @@ from app.api.deps import SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep
 from app.domain.accounts.service import (
     AccountAlreadyExistsError,
+    AccountContactNotFoundError,
     AccountNameRequiredError,
     account_to_public,
+    assign_contacts_to_account,
     create_account,
+    unassign_contact_from_account,
     update_account,
 )
-from app.domain_models import AccountCreate, AccountPublic, AccountUpdate
+from app.domain_models import (
+    AccountContactAssignment,
+    AccountContactAssignmentPublic,
+    AccountCreate,
+    AccountPublic,
+    AccountUpdate,
+)
 
 router = APIRouter(
     prefix="/accounts",
@@ -66,3 +75,54 @@ def update_workspace_account(
     session.commit()
     session.refresh(account)
     return account_to_public(account)
+
+
+@router.post("/{account_id}/contacts", response_model=AccountContactAssignmentPublic)
+def assign_workspace_account_contacts(
+    *,
+    account_id: uuid.UUID,
+    session: SessionDep,
+    workspace_id: WorkspaceIdDep,
+    body: AccountContactAssignment,
+) -> AccountContactAssignmentPublic:
+    """Assign contacts to an account in the active workspace."""
+    try:
+        result = assign_contacts_to_account(
+            session,
+            workspace_id=workspace_id,
+            account_id=account_id,
+            contact_ids=body.contact_ids,
+        )
+    except AccountContactNotFoundError:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    if result is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    session.commit()
+    return result
+
+
+@router.delete(
+    "/{account_id}/contacts/{contact_id}",
+    response_model=AccountContactAssignmentPublic,
+)
+def unassign_workspace_account_contact(
+    *,
+    account_id: uuid.UUID,
+    contact_id: uuid.UUID,
+    session: SessionDep,
+    workspace_id: WorkspaceIdDep,
+) -> AccountContactAssignmentPublic:
+    """Unassign a contact from an account in the active workspace."""
+    try:
+        result = unassign_contact_from_account(
+            session,
+            workspace_id=workspace_id,
+            account_id=account_id,
+            contact_id=contact_id,
+        )
+    except AccountContactNotFoundError:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    if result is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    session.commit()
+    return result
