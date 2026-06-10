@@ -3,11 +3,14 @@ import {
   ArrowLeft,
   Bot,
   Clock3,
+  Link2Off,
   Loader2,
   Mail,
+  Pencil,
   PhoneCall,
   RefreshCw,
   Target,
+  UserPlus,
   Users,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -23,12 +26,23 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import AccountFormDialog from "./AccountFormDialog"
+import AssignContactsDialog from "./AssignContactsDialog"
+import {
+  type AccountWriteInput,
+  assignContactsToAccount,
   type Customer360AccountProfile,
   type Customer360ChannelSummary,
   type Customer360Contact,
   type Customer360OpenWork,
   type Customer360TimelineEvent,
   getCustomer360AccountProfile,
+  unassignContactFromAccount,
+  updateAccount,
 } from "./api"
 
 type Customer360AccountProfilePageProps = {
@@ -89,8 +103,8 @@ function formatDate(value?: string | null) {
   return date.toLocaleString()
 }
 
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Could not load account"
+function errorMessage(error: unknown, fallback = "Could not load account") {
+  return error instanceof Error ? error.message : fallback
 }
 
 function contactName(contact: Customer360Contact) {
@@ -134,6 +148,10 @@ export default function Customer360AccountProfilePage({
   const [refreshing, setRefreshing] = useState(false)
   const [loadError, setLoadError] = useState("")
   const [refreshError, setRefreshError] = useState("")
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false)
+  const [mutationError, setMutationError] = useState("")
+  const [unlinkingContactId, setUnlinkingContactId] = useState("")
   const latestRequestId = useRef(0)
   const profileRef = useRef<Customer360AccountProfile | null>(null)
 
@@ -179,6 +197,7 @@ export default function Customer360AccountProfilePage({
     setProfile(null)
     setLoadError("")
     setRefreshError("")
+    setMutationError("")
     setLoading(true)
     setRefreshing(false)
     void loadProfile()
@@ -187,6 +206,29 @@ export default function Customer360AccountProfilePage({
   const account = profile?.account
   const accountName = account?.name || "Customer 360 account"
   const contactCount = profile?.contacts.length ?? 0
+  const handleUpdateAccount = async (input: AccountWriteInput) => {
+    await updateAccount(accountId, input)
+    await loadProfile()
+  }
+
+  const handleAssignContacts = async (contactIds: string[]) => {
+    setMutationError("")
+    await assignContactsToAccount(accountId, contactIds)
+    await loadProfile()
+  }
+
+  const handleUnassignContact = async (contact: Customer360Contact) => {
+    setUnlinkingContactId(contact.id)
+    setMutationError("")
+    try {
+      await unassignContactFromAccount(accountId, contact.id)
+      await loadProfile()
+    } catch (unlinkError) {
+      setMutationError(errorMessage(unlinkError, "Could not unlink contact"))
+    } finally {
+      setUnlinkingContactId("")
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -236,19 +278,29 @@ export default function Customer360AccountProfilePage({
             )}
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void loadProfile()}
-            disabled={loading || refreshing}
-          >
-            {loading || refreshing ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <RefreshCw className="size-4" />
-            )}
-            Refresh
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              onClick={() => setEditDialogOpen(true)}
+              disabled={!account}
+            >
+              <Pencil className="size-4" />
+              Edit account
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void loadProfile()}
+              disabled={loading || refreshing}
+            >
+              {loading || refreshing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -289,6 +341,13 @@ export default function Customer360AccountProfilePage({
               <AlertDescription>
                 Showing the last loaded profile. {refreshError}
               </AlertDescription>
+            </Alert>
+          ) : null}
+
+          {mutationError ? (
+            <Alert variant="destructive">
+              <AlertTitle>Contact update failed</AlertTitle>
+              <AlertDescription>{mutationError}</AlertDescription>
             </Alert>
           ) : null}
 
@@ -333,7 +392,12 @@ export default function Customer360AccountProfilePage({
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3">
-            <ContactsPanel contacts={profile.contacts} />
+            <ContactsPanel
+              contacts={profile.contacts}
+              unlinkingContactId={unlinkingContactId}
+              onAssignClick={() => setAssignDialogOpen(true)}
+              onUnassign={(contact) => void handleUnassignContact(contact)}
+            />
             <NextBestActionPanel profile={profile} />
           </div>
 
@@ -345,18 +409,55 @@ export default function Customer360AccountProfilePage({
           <TimelinePanel timeline={profile.timeline} />
         </>
       ) : null}
+
+      <AccountFormDialog
+        open={editDialogOpen}
+        mode="edit"
+        account={account}
+        onOpenChange={setEditDialogOpen}
+        onSubmit={handleUpdateAccount}
+      />
+      <AssignContactsDialog
+        open={assignDialogOpen}
+        existingContactIds={
+          profile?.contacts.map((contact) => contact.id) ?? []
+        }
+        onOpenChange={setAssignDialogOpen}
+        onAssign={handleAssignContacts}
+      />
     </div>
   )
 }
 
-function ContactsPanel({ contacts }: { contacts: Customer360Contact[] }) {
+function ContactsPanel({
+  contacts,
+  unlinkingContactId,
+  onAssignClick,
+  onUnassign,
+}: {
+  contacts: Customer360Contact[]
+  unlinkingContactId: string
+  onAssignClick: () => void
+  onUnassign: (contact: Customer360Contact) => void
+}) {
   return (
     <Card className="lg:col-span-2">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="size-4" />
-          Contacts
-        </CardTitle>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <CardTitle className="flex items-center gap-2">
+            <Users className="size-4" />
+            Contacts
+          </CardTitle>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onAssignClick}
+          >
+            <UserPlus className="size-4" />
+            Assign contacts
+          </Button>
+        </div>
         <CardDescription>
           {pluralizeContacts(contacts.length)} linked to this account.
         </CardDescription>
@@ -390,6 +491,25 @@ function ContactsPanel({ contacts }: { contacts: Customer360Contact[] }) {
                   <Badge variant="secondary" className="max-w-full truncate">
                     {contact.timezone || "-"}
                   </Badge>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Unlink ${contactName(contact)}`}
+                        onClick={() => onUnassign(contact)}
+                        disabled={Boolean(unlinkingContactId)}
+                      >
+                        {unlinkingContactId === contact.id ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Link2Off className="size-4" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Unlink contact</TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
             ))}
