@@ -26,6 +26,15 @@ export type Customer360AccountsResponse = {
   count: number
 }
 
+export type AccountWriteInput = {
+  name: string
+  website_url?: string | null
+  industry?: string | null
+  status: string
+  summary?: string | null
+  tags: string[]
+}
+
 export type Customer360Contact = {
   id: string
   workspace_id: string
@@ -109,4 +118,19 @@ export function getCustomer360AccountProfile(accountId: string) {
   return engagehubRequest<Customer360AccountProfile>(
     `/api/v1/customer-360/accounts/${accountId}`,
   )
+}
+
+export function createAccount(input: AccountWriteInput) {
+  return engagehubRequest<Customer360Account>("/api/v1/accounts", {
+    method: "POST",
+    idempotent: true,
+    body: input,
+  })
+}
+
+export function updateAccount(accountId: string, input: AccountWriteInput) {
+  return engagehubRequest<Customer360Account>(`/api/v1/accounts/${accountId}`, {
+    method: "PATCH",
+    body: input,
+  })
 }

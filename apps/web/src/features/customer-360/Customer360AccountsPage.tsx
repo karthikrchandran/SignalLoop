@@ -1,8 +1,9 @@
-import { Link } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router"
 import {
   Building2,
   ExternalLink,
   Loader2,
+  Plus,
   RefreshCw,
   Search,
 } from "lucide-react"
@@ -27,7 +28,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { type Customer360AccountRow, listCustomer360Accounts } from "./api"
+import AccountFormDialog from "./AccountFormDialog"
+import {
+  type AccountWriteInput,
+  type Customer360AccountRow,
+  createAccount,
+  listCustomer360Accounts,
+} from "./api"
 
 const channelLabels: Record<string, string> = {
   chatbot: "Chatbot",
@@ -69,11 +76,13 @@ function formatLastActivity(value?: string | null) {
 }
 
 export default function Customer360AccountsPage() {
+  const navigate = useNavigate()
   const [accounts, setAccounts] = useState<Customer360AccountRow[]>([])
   const [count, setCount] = useState(0)
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const latestRequestId = useRef(0)
 
   const loadAccounts = useCallback(async (nextSearch = "") => {
@@ -107,6 +116,15 @@ export default function Customer360AccountsPage() {
     void loadAccounts("")
   }, [loadAccounts])
 
+  const handleCreateAccount = async (input: AccountWriteInput) => {
+    const account = await createAccount(input)
+    await loadAccounts(search)
+    await navigate({
+      to: "/customer-360/$accountId",
+      params: { accountId: account.id },
+    })
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -122,18 +140,24 @@ export default function Customer360AccountsPage() {
             {count} account{count === 1 ? "" : "s"} in the active workspace
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => void loadAccounts(search)}
-          disabled={loading}
-        >
-          {loading ? (
-            <Loader2 className="mr-2 size-4 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-2 size-4" />
-          )}
-          Refresh
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="size-4" />
+            New account
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => void loadAccounts(search)}
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="size-4" />
+            )}
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -263,6 +287,13 @@ export default function Customer360AccountsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <AccountFormDialog
+        open={createDialogOpen}
+        mode="create"
+        onOpenChange={setCreateDialogOpen}
+        onSubmit={handleCreateAccount}
+      />
     </div>
   )
 }

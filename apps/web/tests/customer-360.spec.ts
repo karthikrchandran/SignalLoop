@@ -2,6 +2,7 @@ import { expect, type Route, test } from "@playwright/test"
 
 const ACCOUNT_ID = "11111111-1111-4111-8111-111111111111"
 const ACME_ACCOUNT_ID = "22222222-2222-4222-8222-222222222222"
+const NEW_ACCOUNT_ID = "33333333-3333-4333-8333-333333333333"
 
 function accountRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -36,7 +37,7 @@ function accountsResponse(account: Record<string, unknown>) {
   }
 }
 
-function accountProfile() {
+function accountProfile(overrides: Record<string, unknown> = {}) {
   return {
     account: {
       id: ACCOUNT_ID,
@@ -50,6 +51,7 @@ function accountProfile() {
       tags: ["pricing", "voice-ready"],
       created_at: "2026-06-08T10:00:00Z",
       updated_at: "2026-06-08T10:00:00Z",
+      ...(overrides.account as Record<string, unknown> | undefined),
     },
     contacts: [
       {
@@ -148,6 +150,9 @@ function accountProfile() {
         timestamp: "2026-06-08T12:00:00Z",
       },
     ],
+    ...Object.fromEntries(
+      Object.entries(overrides).filter(([key]) => key !== "account"),
+    ),
   }
 }
 
@@ -327,4 +332,169 @@ test("keeps searched accounts when the initial list response finishes later", as
 
   await expect(page.getByText("Acme Ventures")).toBeVisible()
   await expect(page.getByText("Analytical Health")).not.toBeVisible()
+})
+
+test("creates a new Customer 360 account and opens the new profile", async ({
+  page,
+}) => {
+  let createPayload: Record<string, unknown> | undefined
+
+  await page.route("**/api/v1/customer-360/accounts**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [], count: 0 }),
+    })
+  })
+
+  await page.route("**/api/v1/accounts", async (route) => {
+    expect(route.request().method()).toBe("POST")
+    createPayload = route.request().postDataJSON() as Record<string, unknown>
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify(
+        accountRow({
+          id: NEW_ACCOUNT_ID,
+          name: "Analytical Health",
+          account_key: "analytical-health",
+          website_url: "https://analytical.health",
+          industry: "Healthcare",
+          status: "active",
+          summary: "Buyer needs cross-channel outreach.",
+          tags: ["healthcare", "priority"],
+        }),
+      ),
+    })
+  })
+
+  await page.goto("/customer-360")
+  await page.getByRole("button", { name: "New account" }).click()
+  await page.getByLabel("Name").fill("Analytical Health")
+  await page.getByLabel("Website").fill("https://analytical.health")
+  await page.getByLabel("Industry").fill("Healthcare")
+  await page.getByLabel("Status").fill("active")
+  await page.getByLabel("Summary").fill("Buyer needs cross-channel outreach.")
+  await page.getByLabel("Tags").fill("healthcare, priority")
+  await page.getByRole("button", { name: "Create account" }).click()
+
+  await expect(page).toHaveURL(new RegExp(`/customer-360/${NEW_ACCOUNT_ID}$`))
+  expect(createPayload).toEqual({
+    name: "Analytical Health",
+    website_url: "https://analytical.health",
+    industry: "Healthcare",
+    status: "active",
+    summary: "Buyer needs cross-channel outreach.",
+    tags: ["healthcare", "priority"],
+  })
+})
+
+test("edits an account profile and reloads updated metadata", async ({
+  page,
+}) => {
+  let patchPayload: Record<string, unknown> | undefined
+  let profileLoadCount = 0
+  const updatedProfile = accountProfile({
+    account: {
+      industry: "Healthcare Analytics",
+      tags: ["analytics", "priority"],
+      updated_at: "2026-06-08T13:00:00Z",
+    },
+  })
+
+  await page.route(
+    `**/api/v1/customer-360/accounts/${ACCOUNT_ID}`,
+    async (route) => {
+      profileLoadCount += 1
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          profileLoadCount > 1 ? updatedProfile : accountProfile(),
+        ),
+      })
+    },
+  )
+
+  await page.route(`**/api/v1/accounts/${ACCOUNT_ID}`, async (route) => {
+    expect(route.request().method()).toBe("PATCH")
+    patchPayload = route.request().postDataJSON() as Record<string, unknown>
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(updatedProfile.account),
+    })
+  })
+
+  await page.goto(`/customer-360/${ACCOUNT_ID}`)
+  await page.getByRole("button", { name: "Edit account" }).click()
+  await page.getByLabel("Industry").fill("Healthcare Analytics")
+  await page.getByLabel("Tags").fill("analytics, priority")
+  await page.getByRole("button", { name: "Save changes" }).click()
+
+  await expect(page.getByText("Healthcare Analytics")).toBeVisible()
+  await expect(
+    page.locator("[data-slot='badge']").filter({ hasText: /^analytics$/ }),
+  ).toBeVisible()
+  await expect(
+    page.locator("[data-slot='badge']").filter({ hasText: /^priority$/ }),
+  ).toBeVisible()
+  expect(profileLoadCount).toBeGreaterThanOrEqual(2)
+  expect(patchPayload).toMatchObject({
+    name: "Analytical Health",
+    website_url: null,
+    industry: "Healthcare Analytics",
+    status: "active",
+    summary: "Multi-location healthcare buyer.",
+    tags: ["analytics", "priority"],
+  })
+})
+
+test("shows duplicate account errors for create and edit", async ({ page }) => {
+  await page.route("**/api/v1/customer-360/accounts**", async (route) => {
+    const url = new URL(route.request().url())
+
+    if (url.pathname.endsWith(`/customer-360/accounts/${ACCOUNT_ID}`)) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(accountProfile()),
+      })
+      return
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(accountsResponse(accountRow())),
+    })
+  })
+
+  await page.route("**/api/v1/accounts", async (route) => {
+    await route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "Account already exists" }),
+    })
+  })
+
+  await page.route(`**/api/v1/accounts/${ACCOUNT_ID}`, async (route) => {
+    await route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "Account already exists" }),
+    })
+  })
+
+  await page.goto("/customer-360")
+  await page.getByRole("button", { name: "New account" }).click()
+  await page.getByLabel("Name").fill("Analytical Health")
+  await page.getByRole("button", { name: "Create account" }).click()
+  await expect(page.getByText("Account already exists")).toBeVisible()
+
+  await page.goto(`/customer-360/${ACCOUNT_ID}`)
+  await page.getByRole("button", { name: "Edit account" }).click()
+  await page.getByLabel("Name").fill("Analytical Health")
+  await page.getByRole("button", { name: "Save changes" }).click()
+  await expect(page.getByText("Account already exists")).toBeVisible()
 })

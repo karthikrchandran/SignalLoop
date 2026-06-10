@@ -5,6 +5,7 @@ import {
   Clock3,
   Loader2,
   Mail,
+  Pencil,
   PhoneCall,
   RefreshCw,
   Target,
@@ -23,13 +24,16 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
+  type AccountWriteInput,
   type Customer360AccountProfile,
   type Customer360ChannelSummary,
   type Customer360Contact,
   type Customer360OpenWork,
   type Customer360TimelineEvent,
   getCustomer360AccountProfile,
+  updateAccount,
 } from "./api"
+import AccountFormDialog from "./AccountFormDialog"
 
 type Customer360AccountProfilePageProps = {
   accountId: string
@@ -134,6 +138,7 @@ export default function Customer360AccountProfilePage({
   const [refreshing, setRefreshing] = useState(false)
   const [loadError, setLoadError] = useState("")
   const [refreshError, setRefreshError] = useState("")
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
   const latestRequestId = useRef(0)
   const profileRef = useRef<Customer360AccountProfile | null>(null)
 
@@ -187,6 +192,10 @@ export default function Customer360AccountProfilePage({
   const account = profile?.account
   const accountName = account?.name || "Customer 360 account"
   const contactCount = profile?.contacts.length ?? 0
+  const handleUpdateAccount = async (input: AccountWriteInput) => {
+    await updateAccount(accountId, input)
+    await loadProfile()
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -236,19 +245,29 @@ export default function Customer360AccountProfilePage({
             )}
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void loadProfile()}
-            disabled={loading || refreshing}
-          >
-            {loading || refreshing ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <RefreshCw className="size-4" />
-            )}
-            Refresh
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              onClick={() => setEditDialogOpen(true)}
+              disabled={!account}
+            >
+              <Pencil className="size-4" />
+              Edit account
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void loadProfile()}
+              disabled={loading || refreshing}
+            >
+              {loading || refreshing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -345,6 +364,14 @@ export default function Customer360AccountProfilePage({
           <TimelinePanel timeline={profile.timeline} />
         </>
       ) : null}
+
+      <AccountFormDialog
+        open={editDialogOpen}
+        mode="edit"
+        account={account}
+        onOpenChange={setEditDialogOpen}
+        onSubmit={handleUpdateAccount}
+      />
     </div>
   )
 }
