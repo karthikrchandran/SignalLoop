@@ -374,6 +374,56 @@ def test_account_contact_assignment_rejects_contact_outside_active_workspace(
     assert response.json()["detail"] == "Contact not found"
 
 
+def test_account_contact_assignment_deduplicates_requested_contact_ids(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    workspace_id = f"ws-assign-{uuid.uuid4().hex[:8]}"
+    account = Account(
+        workspace_id=workspace_id,
+        name=f"Assignment Health {uuid.uuid4().hex[:8]}",
+        account_key=f"assignment-health-{uuid.uuid4().hex[:8]}",
+    )
+    contact = Contact(
+        workspace_id=workspace_id,
+        email=f"ada-{uuid.uuid4().hex[:8]}@example.com",
+    )
+    db.add(account)
+    db.add(contact)
+    db.commit()
+    db.refresh(account)
+    db.refresh(contact)
+
+    response = client.post(
+        f"{settings.API_V1_STR}/accounts/{account.id}/contacts",
+        headers=_headers(superuser_token_headers, workspace_id),
+        json={"contact_ids": [str(contact.id), str(contact.id)]},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["account_id"] == str(account.id)
+    assert payload["assigned_count"] == 1
+    assert payload["contact_ids"] == [str(contact.id)]
+
+
+def test_account_contact_assignment_rejects_missing_account(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    workspace_id = f"ws-assign-{uuid.uuid4().hex[:8]}"
+
+    response = client.post(
+        f"{settings.API_V1_STR}/accounts/{uuid.uuid4()}/contacts",
+        headers=_headers(superuser_token_headers, workspace_id),
+        json={"contact_ids": [str(uuid.uuid4())]},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Account not found"
+
+
 def test_account_contact_unassignment_unlinks_contact_and_keeps_company(
     client: TestClient,
     superuser_token_headers: dict[str, str],
@@ -414,3 +464,58 @@ def test_account_contact_unassignment_unlinks_contact_and_keeps_company(
     db.refresh(contact)
     assert contact.account_id is None
     assert contact.company == "Keep Existing Company"
+
+
+def test_account_contact_unassignment_rejects_missing_account(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    workspace_id = f"ws-unassign-{uuid.uuid4().hex[:8]}"
+
+    response = client.delete(
+        f"{settings.API_V1_STR}/accounts/{uuid.uuid4()}/contacts/{uuid.uuid4()}",
+        headers=_headers(superuser_token_headers, workspace_id),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Account not found"
+
+
+def test_account_contact_unassignment_rejects_contact_on_different_account(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    workspace_id = f"ws-unassign-{uuid.uuid4().hex[:8]}"
+    target_account = Account(
+        workspace_id=workspace_id,
+        name=f"Target Health {uuid.uuid4().hex[:8]}",
+        account_key=f"target-health-{uuid.uuid4().hex[:8]}",
+    )
+    other_account = Account(
+        workspace_id=workspace_id,
+        name=f"Other Health {uuid.uuid4().hex[:8]}",
+        account_key=f"other-health-{uuid.uuid4().hex[:8]}",
+    )
+    db.add(target_account)
+    db.add(other_account)
+    db.commit()
+    db.refresh(target_account)
+    db.refresh(other_account)
+
+    contact = Contact(
+        workspace_id=workspace_id,
+        account_id=other_account.id,
+        email=f"ada-{uuid.uuid4().hex[:8]}@example.com",
+    )
+    db.add(contact)
+    db.commit()
+    db.refresh(contact)
+
+    response = client.delete(
+        f"{settings.API_V1_STR}/accounts/{target_account.id}/contacts/{contact.id}",
+        headers=_headers(superuser_token_headers, workspace_id),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Contact not found"

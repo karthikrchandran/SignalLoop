@@ -231,16 +231,17 @@ def assign_contacts_to_account(
     if account is None:
         return None
 
+    unique_contact_ids = list(dict.fromkeys(contact_ids))
     contacts = list(
         session.exec(
             select(Contact).where(
                 Contact.workspace_id == workspace_id,
-                Contact.id.in_(contact_ids),
+                Contact.id.in_(unique_contact_ids),
             )
         ).all()
     )
     found_contact_ids = {contact.id for contact in contacts}
-    if any(contact_id not in found_contact_ids for contact_id in contact_ids):
+    if any(contact_id not in found_contact_ids for contact_id in unique_contact_ids):
         raise AccountContactNotFoundError
 
     for contact in contacts:
@@ -250,8 +251,8 @@ def assign_contacts_to_account(
     session.flush()
     return AccountContactAssignmentPublic(
         account_id=account.id,
-        assigned_count=len(contact_ids),
-        contact_ids=contact_ids,
+        assigned_count=len(unique_contact_ids),
+        contact_ids=unique_contact_ids,
     )
 
 
