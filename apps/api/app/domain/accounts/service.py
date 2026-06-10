@@ -176,7 +176,12 @@ def update_account(
         update_data.pop("tags", None)
 
     for field_name, value in update_data.items():
-        if value is None and field_name in {"website_url", "industry", "status", "summary"}:
+        if value is None and field_name in {
+            "website_url",
+            "industry",
+            "status",
+            "summary",
+        }:
             continue
         if isinstance(value, str) and field_name in {"industry", "status"}:
             value = value.strip()

@@ -26,7 +26,9 @@ def _session() -> Session:
 
 
 def test_generate_account_key_normalizes_company_name() -> None:
-    assert generate_account_key("  Analytical Health, Inc.  ") == "analytical-health-inc"
+    assert (
+        generate_account_key("  Analytical Health, Inc.  ") == "analytical-health-inc"
+    )
     assert generate_account_key("ACME___Clinic!!!") == "acme-clinic"
 
 
