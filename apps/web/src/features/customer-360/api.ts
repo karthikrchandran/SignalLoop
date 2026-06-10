@@ -49,6 +49,22 @@ export type Customer360Contact = {
   display_name: string
 }
 
+export type AssignableContact = Omit<Customer360Contact, "display_name"> & {
+  display_name?: string
+}
+
+export type ContactsResponse = {
+  data: AssignableContact[]
+  count: number
+}
+
+export type AccountContactAssignmentResponse = {
+  account_id: string
+  assigned_count: number
+  unassigned_count: number
+  contact_ids: string[]
+}
+
 export type Customer360ChannelSummary = {
   channel: string
   label: string
@@ -114,6 +130,15 @@ export function listCustomer360Accounts(search = "") {
   )
 }
 
+export function listContacts(search = "") {
+  const params = new URLSearchParams({ limit: "50" })
+  if (search.trim()) params.set("search", search.trim())
+
+  return engagehubRequest<ContactsResponse>(
+    `/api/v1/contacts/?${params.toString()}`,
+  )
+}
+
 export function getCustomer360AccountProfile(accountId: string) {
   return engagehubRequest<Customer360AccountProfile>(
     `/api/v1/customer-360/accounts/${accountId}`,
@@ -133,4 +158,29 @@ export function updateAccount(accountId: string, input: AccountWriteInput) {
     method: "PATCH",
     body: input,
   })
+}
+
+export function assignContactsToAccount(
+  accountId: string,
+  contactIds: string[],
+) {
+  return engagehubRequest<AccountContactAssignmentResponse>(
+    `/api/v1/accounts/${accountId}/contacts`,
+    {
+      method: "POST",
+      body: { contact_ids: contactIds },
+    },
+  )
+}
+
+export function unassignContactFromAccount(
+  accountId: string,
+  contactId: string,
+) {
+  return engagehubRequest<AccountContactAssignmentResponse>(
+    `/api/v1/accounts/${accountId}/contacts/${contactId}`,
+    {
+      method: "DELETE",
+    },
+  )
 }

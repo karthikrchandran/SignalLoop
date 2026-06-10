@@ -3,6 +3,7 @@ import { expect, type Route, test } from "@playwright/test"
 const ACCOUNT_ID = "11111111-1111-4111-8111-111111111111"
 const ACME_ACCOUNT_ID = "22222222-2222-4222-8222-222222222222"
 const NEW_ACCOUNT_ID = "33333333-3333-4333-8333-333333333333"
+const TURING_CONTACT_ID = "44444444-4444-4444-8444-444444444444"
 
 function accountRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -153,6 +154,22 @@ function accountProfile(overrides: Record<string, unknown> = {}) {
     ...Object.fromEntries(
       Object.entries(overrides).filter(([key]) => key !== "account"),
     ),
+  }
+}
+
+function contactResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    id: TURING_CONTACT_ID,
+    workspace_id: "default",
+    account_id: null,
+    email: "alan@analytical.health",
+    first_name: "Alan",
+    last_name: "Turing",
+    company: "Analytical Health",
+    phone: "+1555010103",
+    timezone: "Europe/London",
+    created_at: "2026-06-08T10:40:00Z",
+    ...overrides,
   }
 }
 
@@ -448,6 +465,155 @@ test("edits an account profile and reloads updated metadata", async ({
     summary: "Multi-location healthcare buyer.",
     tags: ["analytics", "priority"],
   })
+})
+
+test("assigns an available contact to an account profile", async ({ page }) => {
+  let profileLoadCount = 0
+  let assignPayload: Record<string, unknown> | undefined
+  let assigned = false
+  const assignedProfile = accountProfile({
+    contacts: [
+      ...accountProfile().contacts,
+      {
+        ...contactResponse({ account_id: ACCOUNT_ID }),
+        display_name: "Alan Turing",
+      },
+    ],
+  })
+
+  await page.route(
+    `**/api/v1/customer-360/accounts/${ACCOUNT_ID}`,
+    async (route) => {
+      profileLoadCount += 1
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(assigned ? assignedProfile : accountProfile()),
+      })
+    },
+  )
+
+  await page.route("**/api/v1/contacts/**", async (route) => {
+    const url = new URL(route.request().url())
+    expect(route.request().method()).toBe("GET")
+    expect(url.searchParams.get("limit")).toBe("50")
+    expect(url.searchParams.get("search")).toBe("Alan")
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: [
+          contactResponse(),
+          contactResponse({
+            id: "55555555-5555-4555-8555-555555555555",
+            account_id: ACME_ACCOUNT_ID,
+            email: "linked@analytical.health",
+            first_name: "Linked",
+            last_name: "Contact",
+          }),
+        ],
+        count: 2,
+      }),
+    })
+  })
+
+  await page.route(
+    `**/api/v1/accounts/${ACCOUNT_ID}/contacts`,
+    async (route) => {
+      expect(route.request().method()).toBe("POST")
+      assignPayload = route.request().postDataJSON() as Record<string, unknown>
+      assigned = true
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          account_id: ACCOUNT_ID,
+          assigned_count: 1,
+          unassigned_count: 0,
+          contact_ids: [TURING_CONTACT_ID],
+        }),
+      })
+    },
+  )
+
+  await page.goto(`/customer-360/${ACCOUNT_ID}`)
+  await page.getByRole("button", { name: "Assign contacts" }).click()
+  await expect(
+    page.getByRole("button", { name: "Assign selected" }),
+  ).toBeDisabled()
+  await expect(
+    page.getByText("Search contacts to find people available for this account."),
+  ).toBeVisible()
+
+  await page.getByLabel("Search contacts").fill("Alan")
+  await page.getByRole("button", { name: "Search contacts" }).click()
+  await expect(page.getByText("Linked Contact")).not.toBeVisible()
+  await page.getByLabel("Select Alan Turing").click()
+
+  await expect(page.getByText("1 selected")).toBeVisible()
+  await page.getByRole("button", { name: "Assign selected" }).click()
+
+  await expect(page.getByText("Alan Turing", { exact: true })).toBeVisible()
+  expect(profileLoadCount).toBeGreaterThanOrEqual(2)
+  expect(assignPayload).toEqual({ contact_ids: [TURING_CONTACT_ID] })
+})
+
+test("unlinks an existing contact from an account profile", async ({
+  page,
+}) => {
+  let profileLoadCount = 0
+  let unlinked = false
+
+  await page.route(
+    `**/api/v1/customer-360/accounts/${ACCOUNT_ID}`,
+    async (route) => {
+      profileLoadCount += 1
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          unlinked
+            ? accountProfile({
+                contacts: accountProfile().contacts.filter(
+                  (contact) => contact.id !== "contact-ada",
+                ),
+              })
+            : accountProfile(),
+        ),
+      })
+    },
+  )
+
+  await page.route(
+    `**/api/v1/accounts/${ACCOUNT_ID}/contacts/contact-ada`,
+    async (route) => {
+      expect(route.request().method()).toBe("DELETE")
+      unlinked = true
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          account_id: ACCOUNT_ID,
+          assigned_count: 0,
+          unassigned_count: 1,
+          contact_ids: ["contact-ada"],
+        }),
+      })
+    },
+  )
+
+  await page.goto(`/customer-360/${ACCOUNT_ID}`)
+  await expect(
+    page.getByRole("button", { name: "Unlink Ada Lovelace" }),
+  ).toBeVisible()
+
+  await page.getByRole("button", { name: "Unlink Ada Lovelace" }).click()
+
+  await expect(
+    page.getByRole("button", { name: "Unlink Ada Lovelace" }),
+  ).not.toBeVisible()
+  await expect(page.getByText("Grace Hopper", { exact: true })).toBeVisible()
+  expect(profileLoadCount).toBeGreaterThanOrEqual(2)
 })
 
 test("shows duplicate account errors for create and edit", async ({ page }) => {
