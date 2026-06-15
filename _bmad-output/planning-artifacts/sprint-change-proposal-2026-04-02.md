@@ -1,7 +1,7 @@
 # Sprint Change Proposal: MVP Redefinition — Email Sequences + AI Voice Calling
 
 **Date**: 2026-04-02
-**Project**: EngageHub
+**Project**: SignalLoop
 **Triggered by**: Product owner strategic pivot
 **Scope classification**: Major — fundamental replan required
 **Mode**: MVP Redefinition + selective rollback
@@ -12,7 +12,7 @@
 
 ### Problem Statement
 
-The current EngageHub plan builds a **human-operated outreach management platform** — admins configure campaigns, a queue dispatches actions, and humans interpret results. After 9 days of development, the system can configure campaigns but cannot send a single email or make a single call.
+The current SignalLoop plan builds a **human-operated outreach management platform** — admins configure campaigns, a queue dispatches actions, and humans interpret results. After 9 days of development, the system can configure campaigns but cannot send a single email or make a single call.
 
 The product owner's actual need is an **automated outreach execution system** with two functional channels:
 
@@ -198,12 +198,12 @@ The product owner's actual need is an **automated outreach execution system** wi
 ### 5.1 Product Brief Changes
 
 **OLD** (Product Promise):
-> EngageHub gives a small business team a reliable operating loop:
+> SignalLoop gives a small business team a reliable operating loop:
 > `lead intake -> outreach execution -> signal detection -> routing -> booking -> handoff`
 > The product should feel like a calm control tower, not a complicated workflow builder.
 
 **NEW**:
-> EngageHub automates B2B outreach through two channels: multi-step email sequences and AI-powered cold calling. Marketing users set up campaigns and content. The system executes automatically — sending email followups on schedule, making voice calls using a reference script, detecting positive signals, and triggering appropriate followup actions.
+> SignalLoop automates B2B outreach through two channels: multi-step email sequences and AI-powered cold calling. Marketing users set up campaigns and content. The system executes automatically — sending email followups on schedule, making voice calls using a reference script, detecting positive signals, and triggering appropriate followup actions.
 > Phase 1: Email sequences + AI voice calling in English.
 > Phase 2+: Additional languages, advanced analytics, CRM integration.
 

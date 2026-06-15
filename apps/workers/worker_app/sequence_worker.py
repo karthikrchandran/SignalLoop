@@ -1,4 +1,4 @@
-"""Standalone sequence-execution worker for EngageHub.
+"""Standalone sequence-execution worker for SignalLoop.
 
 Polls ``contact_sequence_state`` every 60 s for rows that are ACTIVE and
 past their ``next_send_at`` timestamp, then merges templates, calls SendGrid,

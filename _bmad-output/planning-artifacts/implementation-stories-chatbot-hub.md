@@ -1,7 +1,7 @@
 ---
 workflowType: bmad-implementation-stories
 date: "2026-06-05"
-project: "EngageHub - ChatBot Hub"
+project: "SignalLoop - ChatBot Hub"
 sourceDocuments:
   - _bmad-output/planning-artifacts/prd-chatbot-hub.md
   - _bmad-output/planning-artifacts/architecture-chatbot-hub.md
@@ -24,7 +24,7 @@ It complements the existing `_bmad-output/planning-artifacts/epics.md`, which al
 ## Delivery Principles
 
 1. Deliver vertical slices that users can see, not isolated technical layers.
-2. Keep ChatBot Hub inside the existing EngageHub portal and role model.
+2. Keep ChatBot Hub inside the existing SignalLoop portal and role model.
 3. Enforce workspace isolation in every API, worker, repository, and vector query.
 4. Expose async state visibly in the UI: indexing, channel health, inbox events, delivery failures.
 5. Treat compliance constraints as product behavior: AI disclosure, opt-out, WhatsApp window, privacy consent.
@@ -62,7 +62,7 @@ It complements the existing `_bmad-output/planning-artifacts/epics.md`, which al
 
 ### Outcome
 
-Admins and agents can see ChatBot Hub as a first-class section in the existing EngageHub portal, and the backend has the persistent structures required by later vertical slices.
+Admins and agents can see ChatBot Hub as a first-class section in the existing SignalLoop portal, and the backend has the persistent structures required by later vertical slices.
 
 ### Story CBH-E1-S1: Create ChatBot Hub Database Foundation
 
@@ -108,7 +108,7 @@ Acceptance criteria:
 
 1. Chatbot router package mounts under `/api/v1/chatbot`.
 2. Repository functions accept `workspace_id` as the first argument.
-3. Shared response envelope follows existing EngageHub conventions.
+3. Shared response envelope follows existing SignalLoop conventions.
 4. Role checks exist for admin-only, agent/admin, and operator-only paths.
 5. Tests fail if a repository query omits workspace filtering where feasible.
 
@@ -446,7 +446,7 @@ Acceptance criteria:
 
 ### Story CBH-E4-S5: Implement Lead Capture State Machine and Contact Write-Back
 
-As an admin, I want qualified chat visitors to become EngageHub contacts so that inbound interest can enter existing follow-up workflows.
+As an admin, I want qualified chat visitors to become SignalLoop contacts so that inbound interest can enter existing follow-up workflows.
 
 Screens: indirectly visible in Inbox and Contacts.
 
@@ -679,7 +679,7 @@ Backend touchpoints:
 Acceptance criteria:
 
 1. A scheduled purge job runs nightly and evaluates each workspace's `retention_days` setting.
-2. Records older than `retention_days` are soft-deleted or anonymized according to the existing EngageHub deletion pattern.
+2. Records older than `retention_days` are soft-deleted or anonymized according to the existing SignalLoop deletion pattern.
 3. Retention cannot be configured below 30 days and defaults to 90 days.
 4. Purged conversations no longer appear in Inbox, Analytics drill-downs, or export results.
 5. Aggregated analytics snapshots may remain only if they no longer expose message text or captured PII.

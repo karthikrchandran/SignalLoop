@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { engagehubRequest } from "@/lib/engagehub-api"
+import { signalloopRequest } from "@/lib/signalloop-api"
 
 type CampaignSummary = {
   id: string
@@ -112,8 +112,8 @@ export default function SequencesPage() {
     setError(null)
     try {
       const [campaignResponse, sequenceResponse] = await Promise.all([
-        engagehubRequest<CampaignsResponse>("/api/v1/campaigns/"),
-        engagehubRequest<SequencesResponse>("/api/v1/sequences/"),
+        signalloopRequest<CampaignsResponse>("/api/v1/campaigns/"),
+        signalloopRequest<SequencesResponse>("/api/v1/sequences/"),
       ])
       setCampaigns(campaignResponse.data)
       setSequences(sequenceResponse.data)
@@ -136,8 +136,8 @@ export default function SequencesPage() {
   const loadSelectedSequence = async (sequenceId: string) => {
     try {
       const [detail, progress] = await Promise.all([
-        engagehubRequest<SequenceDetail>(`/api/v1/sequences/${sequenceId}`),
-        engagehubRequest<SequenceProgress>(`/api/v1/sequences/${sequenceId}/progress`),
+        signalloopRequest<SequenceDetail>(`/api/v1/sequences/${sequenceId}`),
+        signalloopRequest<SequenceProgress>(`/api/v1/sequences/${sequenceId}/progress`),
       ])
       setSelectedSequence(detail)
       setSelectedProgress(progress)
@@ -222,7 +222,7 @@ export default function SequencesPage() {
     try {
       let sequenceId = selectedSequence?.id
       if (editorMode === "create") {
-        const created = await engagehubRequest<SequenceSummary>("/api/v1/sequences/", {
+        const created = await signalloopRequest<SequenceSummary>("/api/v1/sequences/", {
           method: "POST",
           idempotent: true,
           body: {
@@ -232,7 +232,7 @@ export default function SequencesPage() {
         })
         sequenceId = created.id
       } else if (sequenceId) {
-        await engagehubRequest<SequenceSummary>(`/api/v1/sequences/${sequenceId}`, {
+        await signalloopRequest<SequenceSummary>(`/api/v1/sequences/${sequenceId}`, {
           method: "PUT",
           body: {
             name: sequenceName.trim(),
@@ -245,7 +245,7 @@ export default function SequencesPage() {
         throw new Error("Sequence id was not returned by the API.")
       }
 
-      await engagehubRequest<SequenceDetail>(`/api/v1/sequences/${sequenceId}/steps`, {
+      await signalloopRequest<SequenceDetail>(`/api/v1/sequences/${sequenceId}/steps`, {
         method: "PUT",
         body: { steps: normalizedSteps },
       })
@@ -269,7 +269,7 @@ export default function SequencesPage() {
     setError(null)
     setFeedback(null)
     try {
-      await engagehubRequest(`/api/v1/sequences/${selectedSequence.id}`, {
+      await signalloopRequest(`/api/v1/sequences/${selectedSequence.id}`, {
         method: "DELETE",
       })
       const deletedId = selectedSequence.id
@@ -293,7 +293,7 @@ export default function SequencesPage() {
     setError(null)
     setFeedback(null)
     try {
-      const result = await engagehubRequest<{ enrolled: number; message: string }>(
+      const result = await signalloopRequest<{ enrolled: number; message: string }>(
         `/api/v1/sequences/${selectedSequence.id}/enroll/${selectedSequence.campaign_id}`,
         {
           method: "POST",

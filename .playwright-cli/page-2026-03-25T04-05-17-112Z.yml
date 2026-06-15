@@ -1,7 +1,7 @@
 - generic [active] [ref=e1]:
   - generic [ref=e2]:
     - generic [ref=e3]:
-      - heading "EngageHub Screen Home" [level=1] [ref=e4]
+      - heading "SignalLoop Screen Home" [level=1] [ref=e4]
       - paragraph [ref=e5]: Navigate all application screens by journey
     - link "Open Combined View" [ref=e6] [cursor=pointer]:
       - /url: ../ux-all-screens.html

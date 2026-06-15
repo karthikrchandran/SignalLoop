@@ -5,7 +5,7 @@ Status: done
 ## Story
 
 As a platform engineer,
-I want to bootstrap the EngageHub product from the approved FastAPI full-stack starter template,
+I want to bootstrap the SignalLoop product from the approved FastAPI full-stack starter template,
 so that implementation starts from a production-ready, architecture-aligned baseline with all core infrastructure wired up.
 
 ## Acceptance Criteria
@@ -18,7 +18,7 @@ so that implementation starts from a production-ready, architecture-aligned base
 
 2. **Given** the starter template is bootstrapped  
    **When** project-specific naming and structure customization is applied  
-   **Then** the project is named `EngageHub`, package identifiers updated, default placeholder-content removed  
+   **Then** the project is named `SignalLoop`, package identifiers updated, default placeholder-content removed  
    **And** the hybrid monorepo structure (`apps/api`, `apps/workers`, `apps/web`, `apps/mobile`, `packages/`) is scaffolded per architecture decision  
    **And** MongoDB connection wiring is added alongside the template's existing PostgreSQL config
 
@@ -37,7 +37,7 @@ so that implementation starts from a production-ready, architecture-aligned base
 
 - [x] **Task 1 – Clone and rename starter template** (AC: 1, 2)
   - [x] Clone `github.com/fastapi/full-stack-fastapi-template` into project root
-  - [x] Rename project identifiers from template defaults to `EngageHub` / `engagehub` throughout `pyproject.toml`, `package.json`, and config files
+  - [x] Rename project identifiers from template defaults to `SignalLoop` / `signalloop` throughout `pyproject.toml`, `package.json`, and config files
   - [x] Remove built-in example domain code (items, etc.) while keeping auth, user, and infra scaffolding
   - [x] Verify `StartServer.ps1` and `StartApp.ps1` start cleanly (API at :8001, web at :5173, Postgres reachable)
 

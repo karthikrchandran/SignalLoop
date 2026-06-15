@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { engagehubRequest } from "@/lib/engagehub-api"
+import { signalloopRequest } from "@/lib/signalloop-api"
 
 type TemplateVersion = {
   id: string
@@ -91,7 +91,7 @@ export default function TemplateLibraryPage() {
   const [busy, setBusy] = useState(false)
 
   const loadTemplates = async () => {
-    const response = await engagehubRequest<TemplatesResponse>("/api/v1/templates/")
+    const response = await signalloopRequest<TemplatesResponse>("/api/v1/templates/")
     setTemplates(response.data)
     if (!selectedTemplateId && response.data.length > 0) {
       setSelectedTemplateId(response.data[0].id)
@@ -119,7 +119,7 @@ export default function TemplateLibraryPage() {
 
   const createTemplate = async () => {
     await run(async () => {
-      await engagehubRequest("/api/v1/templates/", {
+      await signalloopRequest("/api/v1/templates/", {
         method: "POST",
         idempotent: true,
         body: {
@@ -152,7 +152,7 @@ export default function TemplateLibraryPage() {
     if (!selectedTemplateId) return
 
     await run(async () => {
-      const response = await engagehubRequest<PreviewResponse>(
+      const response = await signalloopRequest<PreviewResponse>(
         `/api/v1/templates/${selectedTemplateId}/preview`,
         {
           method: "POST",
@@ -177,7 +177,7 @@ export default function TemplateLibraryPage() {
     if (!selectedTemplateId || !versionId) return
 
     await run(async () => {
-      await engagehubRequest(
+      await signalloopRequest(
         `/api/v1/templates/${selectedTemplateId}/versions/${versionId}/publish`,
         {
           method: "POST",

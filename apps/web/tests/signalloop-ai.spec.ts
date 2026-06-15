@@ -224,13 +224,13 @@ test.beforeEach(async ({ page }) => {
   )
 })
 
-test("EngageHub AI shows actions, unified inbox, journey canvas, and recommendations", async ({
+test("SignalLoop AI shows actions, unified inbox, journey canvas, and recommendations", async ({
   page,
 }) => {
-  await page.goto("/engagehub-ai")
+  await page.goto("/signalloop-ai")
 
   await expect(
-    page.getByRole("heading", { name: "EngageHub AI" }),
+    page.getByRole("heading", { name: "SignalLoop AI" }),
   ).toBeVisible()
   await expect(page.getByText("Next Best Actions")).toBeVisible()
   await expect(page.getByText("Book meeting from voice call")).toBeVisible()

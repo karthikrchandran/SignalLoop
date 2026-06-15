@@ -1,6 +1,6 @@
-# Final Sprint Summary — EngageHub (v2 Pivot)
+# Final Sprint Summary — SignalLoop (v2 Pivot)
 
-- **Project**: EngageHub
+- **Project**: SignalLoop
 - **Phase**: 4 — Implementation
 - **Phase status**: Closed
 - **Closed on**: 2026-05-06

@@ -1,12 +1,12 @@
 ---
 title: Codebase Tour
-description: A guided walk through the EngageHub monorepo so a new engineer knows where things live before they start changing code.
+description: A guided walk through the SignalLoop monorepo so a new engineer knows where things live before they start changing code.
 date: 2026-05-28
 ---
 
 # Codebase Tour
 
-EngageHub is a hybrid monorepo: Python backend + workers in `apps/api` and `apps/workers`, a React/Vite frontend in `apps/web`, and a few shared TypeScript packages. There is no Lerna/Nx orchestration — each app is independently runnable, with PowerShell scripts at the repo root tying them together for local dev.
+SignalLoop is a hybrid monorepo: Python backend + workers in `apps/api` and `apps/workers`, a React/Vite frontend in `apps/web`, and a few shared TypeScript packages. There is no Lerna/Nx orchestration — each app is independently runnable, with PowerShell scripts at the repo root tying them together for local dev.
 
 ## Top-level layout
 

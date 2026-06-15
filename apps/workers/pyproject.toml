@@ -1,7 +1,7 @@
 [project]
-name = "engagehub-workers"
+name = "signalloop-workers"
 version = "0.1.0"
-description = "Background workers for EngageHub"
+description = "Background workers for SignalLoop"
 requires-python = ">=3.10,<4.0"
 dependencies = [
     "redis[hiredis]>=6.4.0,<7.0.0",

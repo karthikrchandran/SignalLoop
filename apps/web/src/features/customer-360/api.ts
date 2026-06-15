@@ -1,4 +1,4 @@
-import { engagehubRequest } from "@/lib/engagehub-api"
+import { signalloopRequest } from "@/lib/signalloop-api"
 
 export type Customer360Account = {
   id: string
@@ -125,7 +125,7 @@ export function listCustomer360Accounts(search = "") {
   const params = new URLSearchParams({ limit: "50" })
   if (search.trim()) params.set("search", search.trim())
 
-  return engagehubRequest<Customer360AccountsResponse>(
+  return signalloopRequest<Customer360AccountsResponse>(
     `/api/v1/customer-360/accounts?${params.toString()}`,
   )
 }
@@ -134,19 +134,19 @@ export function listContacts(search = "") {
   const params = new URLSearchParams({ limit: "50" })
   if (search.trim()) params.set("search", search.trim())
 
-  return engagehubRequest<ContactsResponse>(
+  return signalloopRequest<ContactsResponse>(
     `/api/v1/contacts/?${params.toString()}`,
   )
 }
 
 export function getCustomer360AccountProfile(accountId: string) {
-  return engagehubRequest<Customer360AccountProfile>(
+  return signalloopRequest<Customer360AccountProfile>(
     `/api/v1/customer-360/accounts/${accountId}`,
   )
 }
 
 export function createAccount(input: AccountWriteInput) {
-  return engagehubRequest<Customer360Account>("/api/v1/accounts", {
+  return signalloopRequest<Customer360Account>("/api/v1/accounts", {
     method: "POST",
     idempotent: true,
     body: input,
@@ -154,7 +154,7 @@ export function createAccount(input: AccountWriteInput) {
 }
 
 export function updateAccount(accountId: string, input: AccountWriteInput) {
-  return engagehubRequest<Customer360Account>(`/api/v1/accounts/${accountId}`, {
+  return signalloopRequest<Customer360Account>(`/api/v1/accounts/${accountId}`, {
     method: "PATCH",
     body: input,
   })
@@ -164,7 +164,7 @@ export function assignContactsToAccount(
   accountId: string,
   contactIds: string[],
 ) {
-  return engagehubRequest<AccountContactAssignmentResponse>(
+  return signalloopRequest<AccountContactAssignmentResponse>(
     `/api/v1/accounts/${accountId}/contacts`,
     {
       method: "POST",
@@ -177,7 +177,7 @@ export function unassignContactFromAccount(
   accountId: string,
   contactId: string,
 ) {
-  return engagehubRequest<AccountContactAssignmentResponse>(
+  return signalloopRequest<AccountContactAssignmentResponse>(
     `/api/v1/accounts/${accountId}/contacts/${contactId}`,
     {
       method: "DELETE",

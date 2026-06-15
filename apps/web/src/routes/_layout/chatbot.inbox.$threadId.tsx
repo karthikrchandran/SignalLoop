@@ -5,7 +5,7 @@ import { InboxPage } from "@/features/chatbot"
 export const Route = createFileRoute("/_layout/chatbot/inbox/$threadId")({
   component: ThreadDetailRoute,
   head: () => ({
-    meta: [{ title: "Chatbot Thread - EngageHub" }],
+    meta: [{ title: "Chatbot Thread - SignalLoop" }],
   }),
 })
 

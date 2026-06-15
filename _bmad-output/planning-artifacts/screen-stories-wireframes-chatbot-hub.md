@@ -1,14 +1,14 @@
 ---
 workflowType: bmad-screen-stories-wireframes
 date: "2026-06-05"
-project: "EngageHub - ChatBot Hub"
+project: "SignalLoop - ChatBot Hub"
 sourceDocuments:
   - _bmad-output/planning-artifacts/prd-chatbot-hub.md
   - _bmad-output/planning-artifacts/architecture-chatbot-hub.md
   - _bmad-output/planning-artifacts/ux-design-chatbot-hub.md
   - _bmad-output/planning-artifacts/epics.md
 status: draft-ready-for-review
-integrationModel: "Same EngageHub portal; Chatbot section in existing sidebar"
+integrationModel: "Same SignalLoop portal; Chatbot section in existing sidebar"
 designSystem: "shadcn/ui New York + Tailwind CSS + Lucide React"
 ---
 
@@ -22,13 +22,13 @@ This artifact turns the approved ChatBot Hub UX specification into screen-level 
 - Engineering can derive frontend routes, components, API needs, and state handling.
 - QA can build screen acceptance tests from visible states and transitions.
 
-ChatBot Hub is not a separate portal. All screens below live inside the existing EngageHub shell with the current auth, workspace, sidebar, role, and theme model.
+ChatBot Hub is not a separate portal. All screens below live inside the existing SignalLoop shell with the current auth, workspace, sidebar, role, and theme model.
 
 ## Screen Map
 
 | Screen ID | Route | Primary user | Main outcome | Required role |
 |---|---|---|---|---|
-| CBH-S00 | Global shell | Admin, Agent | Access Chatbot navigation inside EngageHub | Admin, Agent |
+| CBH-S00 | Global shell | Admin, Agent | Access Chatbot navigation inside SignalLoop | Admin, Agent |
 | CBH-S01 | /chatbot/channels | Admin | Connect and monitor official channels | Admin |
 | CBH-S02 | Channel connection sheet | Admin | Save and verify channel credentials | Admin |
 | CBH-S03 | /chatbot/knowledge-base | Admin | Add, index, and monitor knowledge sources | Admin |
@@ -88,7 +88,7 @@ Do not hand-edit `routeTree.gen.ts` unless project routing codegen is unavailabl
 
 ### Screen Story
 
-As a workspace admin or support agent, I want a Chatbot section in the existing EngageHub sidebar so that I can move between setup, inbox, analytics, and settings without leaving the portal.
+As a workspace admin or support agent, I want a Chatbot section in the existing SignalLoop sidebar so that I can move between setup, inbox, analytics, and settings without leaving the portal.
 
 ### Requirements Trace
 
@@ -100,7 +100,7 @@ As a workspace admin or support agent, I want a Chatbot section in the existing 
 
 ```text
 +---------------------------+-----------------------------------------------+
-| EngageHub                 | Existing route content                         |
+| SignalLoop                 | Existing route content                         |
 |---------------------------|                                               |
 | Dashboard                 |                                               |
 | Campaigns                 |                                               |
@@ -820,7 +820,7 @@ Acceptance path:
 
 ## Completion Checklist
 
-- [ ] All route files exist and render inside existing EngageHub layout.
+- [ ] All route files exist and render inside existing SignalLoop layout.
 - [ ] All screen components use shadcn/ui components and Lucide icons.
 - [ ] Role guards match admin/agent access rules.
 - [ ] Screens have loading, empty, success, and error states.

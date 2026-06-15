@@ -47,7 +47,7 @@ def generate_summary(
     if call_session.scheduling_interest:
         subject = f"[SCHEDULING] {contact_name} — interested"
     else:
-        subject = f"[EngageHub] Call Summary — {contact_name}"
+        subject = f"[SignalLoop] Call Summary — {contact_name}"
 
     # Build HTML body
     html = _build_html(

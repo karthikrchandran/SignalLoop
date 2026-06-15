@@ -1,5 +1,5 @@
 ---
-title: "EngageHub Design System Brief"
+title: "SignalLoop Design System Brief"
 version: "1.1"
 date: "2026-04-02"
 status: "Aligned to revised MVP"
@@ -9,7 +9,7 @@ primaryAudience:
   - qa_lead
 ---
 
-# EngageHub Design System Brief
+# SignalLoop Design System Brief
 
 ## Purpose
 
@@ -21,7 +21,7 @@ This document gives design and frontend teams a shared MVP-ready design system b
 
 ## Design Direction
 
-EngageHub should look trustworthy, operational, and calm. The visual system should help users supervise automation, not feel overwhelmed by it.
+SignalLoop should look trustworthy, operational, and calm. The visual system should help users supervise automation, not feel overwhelmed by it.
 
 ### Core qualities
 

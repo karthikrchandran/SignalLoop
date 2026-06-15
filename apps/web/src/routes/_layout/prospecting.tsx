@@ -4,7 +4,7 @@ import ProspectingPage from "@/features/prospecting/ProspectingPage"
 
 export const Route = createFileRoute("/_layout/prospecting")({
   head: () => ({
-    meta: [{ title: "Prospecting - EngageHub" }],
+    meta: [{ title: "Prospecting - SignalLoop" }],
   }),
   component: ProspectingPage,
 })

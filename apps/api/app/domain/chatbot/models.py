@@ -112,7 +112,7 @@ class ChatbotConversationOutcome(str, Enum):
 
 
 class ChatbotMessageDirection(str, Enum):
-    """Message direction relative to EngageHub."""
+    """Message direction relative to SignalLoop."""
 
     inbound = "inbound"
     outbound = "outbound"
@@ -160,7 +160,7 @@ class ChatbotBotConfig(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
-    bot_name: str = Field(default="EngageHub Assistant", max_length=120)
+    bot_name: str = Field(default="SignalLoop Assistant", max_length=120)
     persona: str | None = Field(default=None, sa_type=Text)
     greeting_message: str | None = Field(default=None, sa_type=Text)
     escalation_message: str | None = Field(default=None, sa_type=Text)

@@ -47,7 +47,7 @@ function LogoFull({
           tone === "inverse" ? "text-white" : "text-foreground",
         )}
       >
-        EngageHub
+        SignalLoop
       </span>
     </div>
   )

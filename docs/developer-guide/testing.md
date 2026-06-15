@@ -1,12 +1,12 @@
 ---
 title: Testing Guide
-description: How to run backend pytest, frontend Playwright, and live smoke tests on EngageHub.
+description: How to run backend pytest, frontend Playwright, and live smoke tests on SignalLoop.
 date: 2026-05-28
 ---
 
 # Testing Guide
 
-EngageHub has three test layers. Run the right layer for the change you made.
+SignalLoop has three test layers. Run the right layer for the change you made.
 
 | Layer | Tool | Where | Use when |
 | --- | --- | --- | --- |

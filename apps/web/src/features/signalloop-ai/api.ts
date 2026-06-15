@@ -1,4 +1,4 @@
-import { engagehubRequest } from "@/lib/engagehub-api"
+import { signalloopRequest } from "@/lib/signalloop-api"
 
 export type NextBestAction = {
   id: string
@@ -123,7 +123,7 @@ export type EngagementOverview = {
 }
 
 export function getEngagementOverview() {
-  return engagehubRequest<EngagementOverview>(
+  return signalloopRequest<EngagementOverview>(
     "/api/v1/engagement-intelligence/overview",
   )
 }

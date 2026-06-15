@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This note is the Scrum Master handoff for the approved EngageHub Correct Course increment.
+This note is the Scrum Master handoff for the approved SignalLoop Correct Course increment.
 
 Primary source artifacts:
 
@@ -11,7 +11,7 @@ Primary source artifacts:
 
 ## What Was Approved
 
-An approved moderate corrective increment to close the gap between the planned EngageHub MVP and the currently operable product surface.
+An approved moderate corrective increment to close the gap between the planned SignalLoop MVP and the currently operable product surface.
 
 This is not a new product pivot and not a rollback. It is a corrective execution slice across already-claimed MVP capability areas.
 
@@ -42,7 +42,7 @@ Queue in this order unless architecture review changes the dependency chain:
 ## Tracking Guidance
 
 - Do not renumber epics in this handoff.
-- Treat this as a corrective increment against the active EngageHub MVP artifacts.
+- Treat this as a corrective increment against the active SignalLoop MVP artifacts.
 - Use the PRD, architecture, UX spec, sprint tracker, final sprint summary, and approved corrective story set as the active references.
 
 ## Immediate Next Step

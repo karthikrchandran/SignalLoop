@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { engagehubRequest } from "@/lib/engagehub-api"
+import { signalloopRequest } from "@/lib/signalloop-api"
 
 export default function GovernanceControlPage() {
   // Emergency controls
@@ -30,7 +30,7 @@ export default function GovernanceControlPage() {
 
   const pauseAll = () =>
     run(async () => {
-      await engagehubRequest("/api/v1/controls/pause", {
+      await signalloopRequest("/api/v1/controls/pause", {
         method: "POST",
         idempotent: true,
         body: { paused_reason: pauseReason || "Paused by admin" },
@@ -41,7 +41,7 @@ export default function GovernanceControlPage() {
 
   const resumeAll = () =>
     run(async () => {
-      await engagehubRequest("/api/v1/controls/resume", {
+      await signalloopRequest("/api/v1/controls/resume", {
         method: "POST",
         idempotent: true,
       })

@@ -13,7 +13,7 @@ const contactsSearchSchema = z.object({
 export const Route = createFileRoute("/_layout/contacts")({
   validateSearch: contactsSearchSchema,
   head: () => ({
-    meta: [{ title: "Contacts - EngageHub" }],
+    meta: [{ title: "Contacts - SignalLoop" }],
   }),
   component: ContactsPage,
 })

@@ -58,8 +58,8 @@ uv run seed_db.py                    # optional sample data
 If `initial_data` reports the user already exists but you still can't log in, your `FIRST_SUPERUSER_PASSWORD` was changed *after* the first seed. The seeding step only inserts; it doesn't update. Either change the password via the API/UI or drop the database and re-seed:
 
 ```powershell
-dropdb -U postgres engagehub
-createdb -U postgres engagehub
+dropdb -U postgres signalloop
+createdb -U postgres signalloop
 cd apps\api
 uv run alembic upgrade head
 uv run python -m app.initial_data

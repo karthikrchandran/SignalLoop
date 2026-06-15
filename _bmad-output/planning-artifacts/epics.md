@@ -5,17 +5,17 @@ inputDocuments:
   - _bmad-output/planning-artifacts/architecture-chatbot-hub.md
   - _bmad-output/planning-artifacts/ux-design-chatbot-hub.md
   - _bmad-output/planning-artifacts/validation-report-chatbot-hub.md
-project: EngageHub — ChatBot Hub
+project: SignalLoop — ChatBot Hub
 date: "2026-05-13"
 totalEpics: 9
 totalStories: 30
 ---
 
-# EngageHub ChatBot Hub — Epic & Story Breakdown
+# SignalLoop ChatBot Hub — Epic & Story Breakdown
 
 ## Overview
 
-This document provides the complete epic and story breakdown for the **ChatBot Hub** extension of EngageHub, decomposing all PRD functional requirements, architecture decisions, and UX design specifications into implementable, independently-deliverable stories.
+This document provides the complete epic and story breakdown for the **ChatBot Hub** extension of SignalLoop, decomposing all PRD functional requirements, architecture decisions, and UX design specifications into implementable, independently-deliverable stories.
 
 **Coverage:** 63 FRs (CH1–9, KB1–12, BOT1–13, LC1–7, HH1–9, OC1–4, AN1–4, WS1–5) · 16 NFRs · 9 Architecture requirements · 6 UX Design requirements
 
@@ -195,7 +195,7 @@ The chat worker processes inbound messages end-to-end: RAG retrieval, prompt con
 **FRs covered:** BOT1–BOT8, BOT10–BOT11, NFR-CB1, NFR-CB7, NFR-CB16, ARCH4
 
 ### Epic 5: Lead Capture & Contact Integration
-The bot detects visitor intent, presents a privacy-compliant consent notice, collects contact details (name + email/phone), deduplicates against existing contacts, and creates a Contact record in the EngageHub contact pool with the chatbot-lead tag and intent field. All consent events are logged.
+The bot detects visitor intent, presents a privacy-compliant consent notice, collects contact details (name + email/phone), deduplicates against existing contacts, and creates a Contact record in the SignalLoop contact pool with the chatbot-lead tag and intent field. All consent events are logged.
 **FRs covered:** LC1–LC7
 
 ### Epic 6: Admin Inbox & Human Handoff
@@ -749,14 +749,14 @@ So that costs are controlled and every visitor receives a consistent onboarding 
 
 ## Epic 5: Lead Capture & Contact Integration
 
-**Goal:** The bot detects visitor purchase intent, presents a PDPA/GDPR-compliant privacy consent notice, collects name and contact details (email/phone), deduplicates against existing contacts, and creates a Contact record in the EngageHub contact pool with the chatbot-lead tag and intent field. All consent events are logged.
+**Goal:** The bot detects visitor purchase intent, presents a PDPA/GDPR-compliant privacy consent notice, collects name and contact details (email/phone), deduplicates against existing contacts, and creates a Contact record in the SignalLoop contact pool with the chatbot-lead tag and intent field. All consent events are logged.
 
 ---
 
 ### Story 5.1: Lead Capture State Machine and Contact Write-Back
 
 As the system,
-I want the chat worker to detect lead intent, present a privacy consent notice, collect contact details, and write a Contact record to the EngageHub contact pool,
+I want the chat worker to detect lead intent, present a privacy consent notice, collect contact details, and write a Contact record to the SignalLoop contact pool,
 So that captured leads flow into the existing pipeline for sequence and call follow-up.
 
 **Acceptance Criteria:**
@@ -786,7 +786,7 @@ So that captured leads flow into the existing pipeline for sequence and call fol
 ### Story 5.2: Lead Capture Configuration and Contact Pool Integration Test
 
 As a workspace admin,
-I want to configure the lead capture trigger settings and verify that captured leads appear correctly in the EngageHub contacts pool,
+I want to configure the lead capture trigger settings and verify that captured leads appear correctly in the SignalLoop contacts pool,
 So that I can tune the lead capture behaviour and confirm end-to-end integration.
 
 **Acceptance Criteria:**

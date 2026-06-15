@@ -1,13 +1,13 @@
 ---
-title: EngageHub Data Model
-description: Operational and event data model for the current EngageHub implementation.
+title: SignalLoop Data Model
+description: Operational and event data model for the current SignalLoop implementation.
 author: Codex
 date: 2026-04-02
 ---
 
-# EngageHub Data Model
+# SignalLoop Data Model
 
-EngageHub uses a polyglot persistence model:
+SignalLoop uses a polyglot persistence model:
 
 - PostgreSQL stores mutable business state, transactional relationships, and append-oriented audit history (the `audit_events` table with a JSONB payload column).
 - Redis is reserved for coordination, rate limiting, and short-lived operational state.

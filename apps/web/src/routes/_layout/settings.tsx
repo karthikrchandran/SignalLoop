@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { OptOutsTab } from "@/features/chatbot/OptOutsTab"
 import useAuth from "@/hooks/useAuth"
-import { engagehubRequest, getWorkspaceId } from "@/lib/engagehub-api"
+import { signalloopRequest, getWorkspaceId } from "@/lib/signalloop-api"
 
 type SetupIntegration = {
   key: string
@@ -200,7 +200,7 @@ function WorkspaceSetupTab() {
 
   const overviewQuery = useQuery({
     queryKey: ["workspace-setup", workspaceId],
-    queryFn: () => engagehubRequest<SetupOverview>("/api/v1/utils/setup-overview/"),
+    queryFn: () => signalloopRequest<SetupOverview>("/api/v1/utils/setup-overview/"),
   })
 
   const upsertCredential = useMutation({
@@ -211,7 +211,7 @@ function WorkspaceSetupTab() {
       apiSecret: string
       config: Record<string, string>
     }) => {
-      await engagehubRequest(`/api/v1/workspaces/${workspaceId}/provider-credentials`, {
+      await signalloopRequest(`/api/v1/workspaces/${workspaceId}/provider-credentials`, {
         method: "POST",
         body: {
           provider: input.provider,
@@ -252,7 +252,7 @@ function WorkspaceSetupTab() {
         throw new Error("Enter at least one runtime setting to save.")
       }
 
-      await engagehubRequest(`/api/v1/workspaces/${workspaceId}/runtime-config`, {
+      await signalloopRequest(`/api/v1/workspaces/${workspaceId}/runtime-config`, {
         method: "POST",
         body,
       })

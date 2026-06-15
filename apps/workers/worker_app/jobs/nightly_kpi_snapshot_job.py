@@ -1,4 +1,4 @@
-"""Nightly KPI snapshot job for EngageHub.
+"""Nightly KPI snapshot job for SignalLoop.
 
 Runs once per day (scheduled externally at 02:00 UTC) and materialises
 yesterday's KPI counters from the operational tables (action_queue,

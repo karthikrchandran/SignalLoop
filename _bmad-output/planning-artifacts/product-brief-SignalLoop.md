@@ -1,5 +1,5 @@
 ---
-title: "Product Brief: EngageHub"
+title: "Product Brief: SignalLoop"
 status: "revised"
 created: "2026-03-24"
 updated: "2026-04-02"
@@ -14,11 +14,11 @@ secondaryAudience:
   - sre
 ---
 
-# EngageHub Product Brief
+# SignalLoop Product Brief
 
 ## One-Sentence Product Intent
 
-EngageHub automates B2B outreach through multi-step email sequences and AI-powered cold calling, letting a marketing team set up campaigns and content while the system executes — sending emails on schedule, making voice calls using a reference script, and triggering followup actions when positive signals are detected.
+SignalLoop automates B2B outreach through multi-step email sequences and AI-powered cold calling, letting a marketing team set up campaigns and content while the system executes — sending emails on schedule, making voice calls using a reference script, and triggering followup actions when positive signals are detected.
 
 ## Who We Are Building For
 
@@ -50,7 +50,7 @@ The result: leads go cold because followup is manual, and calling capacity is li
 
 ## Product Promise
 
-EngageHub automates the two highest-volume outreach activities:
+SignalLoop automates the two highest-volume outreach activities:
 
 `contact intake → email sequence execution → AI voice calling → signal detection → followup actions`
 

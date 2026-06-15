@@ -1,7 +1,7 @@
 ---
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7]
 workflowType: architecture
-project_name: EngageHub — ChatBot Hub
+project_name: SignalLoop — ChatBot Hub
 user_name: K.Ramachandran
 date: "2026-05-13"
 inputDocuments:
@@ -13,24 +13,24 @@ inputDocuments:
 
 # Architecture Decision Document: ChatBot Hub — Shared Business Chatbot Brain
 
-_This document builds the ChatBot Hub extension architecture on top of the existing EngageHub system. All decisions are grounded in the finalised ChatBot Hub PRD (v2026-05-13) and the existing EngageHub MVP architecture._
+_This document builds the ChatBot Hub extension architecture on top of the existing SignalLoop system. All decisions are grounded in the finalised ChatBot Hub PRD (v2026-05-13) and the existing SignalLoop MVP architecture._
 
 ---
 
 ## 1. Architecture Goal
 
-ChatBot Hub extends EngageHub Phase 1 (email sequences + AI voice calling) with a shared inbound AI chatbot brain deployable across multiple messaging channels simultaneously. A single workspace configures its knowledge base once; all channel-facing bots answer consistently from that shared source of truth.
+ChatBot Hub extends SignalLoop Phase 1 (email sequences + AI voice calling) with a shared inbound AI chatbot brain deployable across multiple messaging channels simultaneously. A single workspace configures its knowledge base once; all channel-facing bots answer consistently from that shared source of truth.
 
 The architecture must:
 
-1. Extend — not replace — the existing EngageHub stack (FastAPI, PostgreSQL, Redis, Groq, React+TypeScript).
+1. Extend — not replace — the existing SignalLoop stack (FastAPI, PostgreSQL, Redis, Groq, React+TypeScript).
 2. Add a RAG pipeline (crawl → chunk → embed → store → retrieve → generate) that is workspace-isolated and cost-controlled.
 3. Support at least three real-time channel adapters (Facebook Messenger, WhatsApp Business, Telegram) through a common interface.
 4. Integrate with the existing `ProviderCredential` model, notification system, and contact pool.
 5. Deliver ≤5 s p95 end-to-end bot response latency.
 6. Be runnable in the existing `compose.yml`-based development environment with a single additional service change (pgvector image swap).
 
-### Architecture Principles (inherited from EngageHub + ChatBot Hub additions)
+### Architecture Principles (inherited from SignalLoop + ChatBot Hub additions)
 
 1. **Extend existing patterns, don't reinvent.** Channel adapters follow the existing `NotificationProviderAdapter` pattern. Workers follow the existing `call_worker.py` / `sequence_worker.py` pattern. Credentials follow the existing `ProviderCredential` model.
 2. **Workspace isolation is non-negotiable.** Every vector query, conversation session, and lead write is scoped to `workspace_id`. There is no shared index, no cross-tenant reads.
@@ -44,7 +44,7 @@ The architecture must:
 
 ## 2. Technology Stack Decisions
 
-> All decisions below were made collaboratively in the PRD party mode and open question resolution sessions. The stack is additive — all new components integrate with the existing EngageHub stack.
+> All decisions below were made collaboratively in the PRD party mode and open question resolution sessions. The stack is additive — all new components integrate with the existing SignalLoop stack.
 
 ### Existing Stack (unchanged)
 
@@ -57,7 +57,7 @@ The architecture must:
 | Frontend | React + TypeScript + Vite | existing |
 | Worker pattern | Background async workers (arq/custom) | existing |
 | Credentials store | `ProviderCredential` (encrypted at rest) | existing |
-| Notification system | Existing EngageHub notification system | existing |
+| Notification system | Existing SignalLoop notification system | existing |
 
 ### New Components (ChatBot Hub)
 
@@ -565,7 +565,7 @@ These rules ensure multiple AI agents write compatible code across all ChatBot H
 
 ### 6.2 API Response Conventions
 
-All API responses follow the existing EngageHub response envelope (no change):
+All API responses follow the existing SignalLoop response envelope (no change):
 
 ```json
 { "data": { ... }, "meta": { ... } }          // success
@@ -666,7 +666,7 @@ The inbox UI checks this via a dedicated field in the thread API response (`is_w
 
 ## 7. Project Structure Additions
 
-The following additions are made to the existing EngageHub monorepo structure. No existing directories are deleted or renamed.
+The following additions are made to the existing SignalLoop monorepo structure. No existing directories are deleted or renamed.
 
 ```
 apps/
@@ -855,7 +855,7 @@ Add new worker processes to the worker service or as a separate `chat_worker` se
 
 ### 9.2 Production
 
-Follows the existing EngageHub production topology (container orchestration, managed Postgres, Redis). Additional production notes:
+Follows the existing SignalLoop production topology (container orchestration, managed Postgres, Redis). Additional production notes:
 
 - `pgvector/pgvector:pg17` is a drop-in replacement for `postgres:17` — same upgrade path, managed DB support available on RDS, Cloud SQL, Supabase, Neon.
 - Ollama in production: deploy on a GPU-enabled instance or use a hosted embedding API. The `embedder.py` abstraction supports swapping to OpenAI/Cohere embeddings via config change without code changes.
@@ -886,7 +886,7 @@ Follows the existing EngageHub production topology (container orchestration, man
 | NFR-CB15 (WhatsApp 24h window) | §6.9, `chat_conversations.customer_last_message_at` |
 | NFR-CB16 (token cap) | §3.5 TokenBudgetTracker, §6.8 |
 
-### 10.2 Integration Points with Existing EngageHub
+### 10.2 Integration Points with Existing SignalLoop
 
 | Integration | Method | Notes |
 |---|---|---|

@@ -1,6 +1,6 @@
-# EngageHub API
+# SignalLoop API
 
-FastAPI backend for EngageHub campaign orchestration, authentication, governance, provider adapters, and background workers.
+FastAPI backend for SignalLoop campaign orchestration, authentication, governance, provider adapters, and background workers.
 
 ## Requirements
 

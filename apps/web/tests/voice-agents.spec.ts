@@ -58,7 +58,7 @@ const CALL_PREP = {
   contact_id: "contact-1",
   company_url: "https://analytical.example",
   account_summary:
-    "Ada Lovelace is evaluating EngageHub after a website pricing chat.",
+    "Ada Lovelace is evaluating SignalLoop after a website pricing chat.",
   pain_points: ["Keep the voice follow-up aligned to chat and CRM history."],
   objections: ["May need pricing clarity before booking a demo."],
   personalization_bullets: ["Reference the website pricing chat."],
@@ -379,7 +379,7 @@ test("Voice Agents page shows profiles, language support, and scripts when fully
   await expect(page.getByRole("button", { name: /Pitch v2/i })).toBeVisible()
   await expect(page.getByText("Prospecting call prep")).toBeVisible()
   await expect(
-    page.getByText("Ada Lovelace is evaluating EngageHub"),
+    page.getByText("Ada Lovelace is evaluating SignalLoop"),
   ).toBeVisible()
   await expect(
     page.getByText("Hi Ada, I am calling about your pricing question"),

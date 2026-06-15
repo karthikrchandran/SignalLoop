@@ -23,7 +23,7 @@ def get_datetime_utc() -> datetime:
 
 
 class Workspace(SQLModel, table=True):
-    """A tenant/workspace boundary for EngageHub data."""
+    """A tenant/workspace boundary for SignalLoop data."""
 
     __tablename__ = "workspaces"
 

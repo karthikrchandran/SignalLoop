@@ -9,7 +9,7 @@
 
 ## Context
 
-EngageHub is a FastAPI + SQLModel + PostgreSQL application that does automated
+SignalLoop is a FastAPI + SQLModel + PostgreSQL application that does automated
 email sequences and AI-powered outbound calling.  The provider layer has been
 partially abstracted (registry, capability ABCs, encrypted credentials table)
 but several settings fields are missing from `config.py`, the local STT
@@ -155,7 +155,7 @@ to the api service's `environment` block so both old and new names resolve:
       SMTP_USE_TLS: "false"
       SMTP_USE_STARTTLS: "false"
       SMTP_FROM_EMAIL: noreply@example.com
-      SMTP_FROM_NAME: EngageHub Demo
+      SMTP_FROM_NAME: SignalLoop Demo
 ```
 
 ### 2.2  `apps/api/app/infrastructure/providers/registry.py`

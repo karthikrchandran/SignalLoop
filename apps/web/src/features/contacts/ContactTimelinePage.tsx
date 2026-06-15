@@ -15,7 +15,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { engagehubRequest } from "@/lib/engagehub-api"
+import { signalloopRequest } from "@/lib/signalloop-api"
 
 interface TimelineEventDetail extends TimelineEvent {
   reason_code_explanation?: string | null
@@ -104,7 +104,7 @@ export default function ContactTimelinePage({
       if (filters.fromDate) params.set("from", startOfDayIso(filters.fromDate))
       if (filters.toDate) params.set("to", endOfDayIso(filters.toDate))
 
-      const result = await engagehubRequest<TimelinePage>(
+      const result = await signalloopRequest<TimelinePage>(
         `/api/v1/contacts/${contactId}/timeline?${params.toString()}`,
       )
       if (reset || !cursor) {
@@ -141,7 +141,7 @@ export default function ContactTimelinePage({
 
     setDetailLoading(true)
     try {
-      const result = await engagehubRequest<TimelineEventDetail>(
+      const result = await signalloopRequest<TimelineEventDetail>(
         `/api/v1/contacts/${contactId}/timeline/${event.id}`,
       )
       setDetail(result)

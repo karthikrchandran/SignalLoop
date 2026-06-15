@@ -161,5 +161,5 @@ Infrastructure (Postgres, Redis, Mailpit) is **not** affected — use `StopServe
 | Mailpit inbox   | http://localhost:8025       |
 | Ollama          | http://localhost:11434      |
 | STT service     | http://localhost:9000/health |
-| Postgres        | localhost:5432 / DB: `engagehub` / User: `postgres` |
+| Postgres        | localhost:5432 / DB: `signalloop` / User: `postgres` |
 | Redis           | localhost:6379              |

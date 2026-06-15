@@ -81,7 +81,7 @@ async function importContact(
   const email = `ui-smoke+${timestamp}@example.com`
   const csv = [
     "email,firstName,lastName,company,phone,timezone",
-    `${email},UI,Smoke,EngageHub,+15555550124,UTC`,
+    `${email},UI,Smoke,SignalLoop,+15555550124,UTC`,
     "",
   ].join("\n")
 
@@ -193,7 +193,7 @@ test("live corrective smoke covers Sequences and Voice Setup UI", async ({ page,
 
   await expect(page.getByText(/script created/i)).toBeVisible()
   await expect(page.getByRole("textbox", { name: /script content/i })).toHaveValue(
-    /Hi \{\{first_name\}\}, this is EngageHub calling about your campaign\./,
+    /Hi \{\{first_name\}\}, this is SignalLoop calling about your campaign\./,
   )
 
   await page.getByRole("button", { name: /^edit$/i }).click()

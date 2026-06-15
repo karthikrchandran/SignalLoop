@@ -68,7 +68,7 @@ let demoChannels: ChatbotChannel[] = [
     id: "demo-channel-fb",
     workspace_id: DEMO_WORKSPACE_ID,
     channel_type: "facebook_messenger",
-    display_name: "EngageHub Facebook Page",
+    display_name: "SignalLoop Facebook Page",
     status: "connected",
     is_active: true,
     has_credential: true,
@@ -91,7 +91,7 @@ let demoChannels: ChatbotChannel[] = [
     status: "pending_approval",
     is_active: false,
     has_credential: true,
-    config_json: { bot_username: "engagehub_demo_bot" },
+    config_json: { bot_username: "signalloop_demo_bot" },
     readiness: {
       ready: false,
       status: "needs_webhook",
@@ -154,9 +154,9 @@ let demoKnowledgeSources: ChatbotKnowledgeSource[] = [
 
 let demoConfig: ChatbotConfig = {
   workspace_id: DEMO_WORKSPACE_ID,
-  bot_name: "EngageHub Assistant",
+  bot_name: "SignalLoop Assistant",
   persona: "Concise, helpful sales assistant. Qualify fit, answer from approved knowledge, escalate when unsure.",
-  greeting_message: "Hi, I am the EngageHub AI assistant. How can I help?",
+  greeting_message: "Hi, I am the SignalLoop AI assistant. How can I help?",
   escalation_message: "I do not have enough confidence to answer that. A teammate can help from here.",
   out_of_hours_message: "Our team is offline right now, but I can collect details for follow-up.",
   ai_disclosure: "AI assistant",
@@ -269,7 +269,7 @@ let demoThreads: ChatbotThreadDetail[] = [
     visitor_id: "fb-88210",
     status: "open",
     outcome: null,
-    preview: "Does EngageHub support Telegram handoff?",
+    preview: "Does SignalLoop support Telegram handoff?",
     last_message_at: iso(-14),
     customer_last_message_at: iso(-14),
     is_whatsapp_window_open: false,
@@ -277,7 +277,7 @@ let demoThreads: ChatbotThreadDetail[] = [
     escalation_reason: null,
     lead: null,
     messages: [
-      message("m5", "inbound", "visitor", "Does EngageHub support Telegram handoff?", -14),
+      message("m5", "inbound", "visitor", "Does SignalLoop support Telegram handoff?", -14),
       message("m6", "outbound", "bot", "AI assistant: Telegram can be connected as an optional channel in the MVP.", -13, 0.76),
     ],
   },

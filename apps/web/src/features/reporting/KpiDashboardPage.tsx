@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { TrendingUp, TrendingDown, Users, Calendar, AlertTriangle, Activity } from "lucide-react"
-import { engagehubRequest, getWorkspaceId } from "@/lib/engagehub-api"
+import { signalloopRequest, getWorkspaceId } from "@/lib/signalloop-api"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -122,7 +122,7 @@ export default function KpiDashboardPage() {
   const summaryQuery = useQuery<KpiSummaryResponse>({
     queryKey: ["kpi-summary", wsId, start, end, granularity, campaignId],
     queryFn: () =>
-      engagehubRequest<KpiSummaryResponse>(
+      signalloopRequest<KpiSummaryResponse>(
         `/api/v1/workspaces/${wsId}/kpis/summary?${buildParams()}`,
       ),
   })
@@ -130,7 +130,7 @@ export default function KpiDashboardPage() {
   const trendQuery = useQuery<KpiTrendBucket[]>({
     queryKey: ["kpi-trend", wsId, start, end, granularity, campaignId],
     queryFn: () =>
-      engagehubRequest<KpiTrendBucket[]>(
+      signalloopRequest<KpiTrendBucket[]>(
         `/api/v1/workspaces/${wsId}/kpis/trend?${buildParams()}`,
       ),
   })

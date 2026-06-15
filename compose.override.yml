@@ -45,7 +45,7 @@ services:
       SMTP_USE_STARTTLS: "false"
       EMAILS_FROM_EMAIL: noreply@example.com
       SMTP_FROM_EMAIL: noreply@example.com
-      SMTP_FROM_NAME: EngageHub Demo
+      SMTP_FROM_NAME: SignalLoop Demo
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: llama3.2:1b
       FASTER_WHISPER_BASE_URL: http://stt:9000

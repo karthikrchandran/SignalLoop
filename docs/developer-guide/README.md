@@ -1,12 +1,12 @@
 ---
-title: EngageHub Developer Guide
+title: SignalLoop Developer Guide
 description: Entry point for engineer handovers — onboarding, codebase tour, local setup, testing, and troubleshooting.
 date: 2026-05-28
 ---
 
-# EngageHub Developer Guide
+# SignalLoop Developer Guide
 
-This is the starter pack for any engineer joining or taking over the EngageHub codebase. Read it in order on day one; come back to individual pages later as reference.
+This is the starter pack for any engineer joining or taking over the SignalLoop codebase. Read it in order on day one; come back to individual pages later as reference.
 
 ## Read in this order
 

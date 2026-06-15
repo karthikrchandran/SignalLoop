@@ -3,7 +3,7 @@
 # Version: 6.2.1
 # Date: 2026-03-24T18:30:36.217Z
 
-project_name: EngageHub
+project_name: SignalLoop
 user_skill_level: intermediate
 planning_artifacts: "{project-root}/_bmad-output/planning-artifacts"
 implementation_artifacts: "{project-root}/_bmad-output/implementation-artifacts"

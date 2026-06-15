@@ -1,6 +1,6 @@
 - generic [active] [ref=e1]:
   - generic [ref=e2]:
-    - strong [ref=e3]: "EngageHub — UX Direction 3: Activity Feed First"
+    - strong [ref=e3]: "SignalLoop — UX Direction 3: Activity Feed First"
     - generic [ref=e4]: "|"
     - generic [ref=e5]: "Design System: Chakra UI + Corporate Blue/Gray"
     - generic [ref=e6]: "|"
@@ -13,7 +13,7 @@
       - generic [ref=e14]:
         - generic [ref=e15]: eV
         - generic [ref=e16]:
-          - generic [ref=e17]: EngageHub
+          - generic [ref=e17]: SignalLoop
           - generic [ref=e18]: Automation Platform
       - navigation [ref=e19]:
         - generic [ref=e20]: Operate

@@ -57,7 +57,7 @@ Primary code evidence:
 Primary code evidence:
 
 - `apps/web/src/features/sequences/SequencesPage.tsx`
-- `apps/web/src/lib/engagehub-api.ts`
+- `apps/web/src/lib/signalloop-api.ts`
 
 ### CC-4 Voice Setup Integration
 

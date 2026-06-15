@@ -1,13 +1,13 @@
 ---
-title: EngageHub Architecture Overview
+title: SignalLoop Architecture Overview
 description: Entry point for architecture stories, data model, and process-flow documentation.
 author: Codex
 date: 2026-04-02
 ---
 
-# EngageHub Architecture Overview
+# SignalLoop Architecture Overview
 
-This section documents the current EngageHub architecture as it exists in the repository on 2026-04-02, with BMAD planning context called out where the implementation is still forming.
+This section documents the current SignalLoop architecture as it exists in the repository on 2026-04-02, with BMAD planning context called out where the implementation is still forming.
 
 Use these documents together:
 

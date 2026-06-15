@@ -1,11 +1,11 @@
 ---
-title: EngageHub Process Flows
+title: SignalLoop Process Flows
 description: Operational flows for API requests, campaign intake, policy approval, and future delivery processing.
 author: Codex
 date: 2026-04-02
 ---
 
-# EngageHub Process Flows
+# SignalLoop Process Flows
 
 This document captures the main runtime flows that matter for operators and developers. The goal is to show where context is enforced, where state changes happen, and where asynchronous processing is expected to take over.
 

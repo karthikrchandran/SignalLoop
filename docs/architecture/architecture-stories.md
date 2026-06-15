@@ -1,11 +1,11 @@
 ---
-title: EngageHub Architecture Stories
-description: Narrative architecture documentation for the current EngageHub platform.
+title: SignalLoop Architecture Stories
+description: Narrative architecture documentation for the current SignalLoop platform.
 author: Codex
 date: 2026-04-02
 ---
 
-# EngageHub Architecture Stories
+# SignalLoop Architecture Stories
 
 This document explains the architecture as a set of stories. Each story ties business intent to code structure so the repo remains understandable as it grows.
 
@@ -29,7 +29,7 @@ The API also establishes the platform-wide request contract:
 
 ## Story 2: Governance is built into the normal path
 
-EngageHub does not bolt governance on later. It makes governance part of the happy path.
+SignalLoop does not bolt governance on later. It makes governance part of the happy path.
 
 Examples:
 

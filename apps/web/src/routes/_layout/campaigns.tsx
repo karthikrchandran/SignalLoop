@@ -7,7 +7,7 @@ export const Route = createFileRoute("/_layout/campaigns")({
   head: () => ({
     meta: [
       {
-        title: "Campaigns - EngageHub",
+        title: "Campaigns - SignalLoop",
       },
     ],
   }),

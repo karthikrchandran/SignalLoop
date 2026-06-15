@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { engagehubRequest } from "@/lib/engagehub-api"
+import { signalloopRequest } from "@/lib/signalloop-api"
 
 type Contact = {
   id: string
@@ -93,7 +93,7 @@ export default function ContactManagementPage() {
     try {
       const params = new URLSearchParams()
       if (nextSearch.trim()) params.set("search", nextSearch.trim())
-      const response = await engagehubRequest<ContactsResponse>(`/api/v1/contacts/?${params.toString()}`)
+      const response = await signalloopRequest<ContactsResponse>(`/api/v1/contacts/?${params.toString()}`)
       setContacts(response.data)
       setCount(response.count)
     } catch (error) {
@@ -125,7 +125,7 @@ export default function ContactManagementPage() {
     await run(async () => {
       const formData = new FormData()
       formData.append("file", file)
-      const result = await engagehubRequest<ContactImportResponse>("/api/v1/contacts/import", {
+      const result = await signalloopRequest<ContactImportResponse>("/api/v1/contacts/import", {
         method: "POST",
         formData,
       })
@@ -142,7 +142,7 @@ export default function ContactManagementPage() {
       formData.append("file", file)
       formData.append("mapping_json", JSON.stringify(mapping))
       formData.append("commit", "true")
-      const result = await engagehubRequest<ContactImportResponse>("/api/v1/contacts/import", {
+      const result = await signalloopRequest<ContactImportResponse>("/api/v1/contacts/import", {
         method: "POST",
         formData,
       })
@@ -161,7 +161,7 @@ export default function ContactManagementPage() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = "engagehub-contacts-template.csv"
+    link.download = "signalloop-contacts-template.csv"
     link.click()
     URL.revokeObjectURL(url)
   }

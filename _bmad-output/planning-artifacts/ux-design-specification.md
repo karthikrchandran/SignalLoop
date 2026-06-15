@@ -1,6 +1,6 @@
 ---
 date: "2026-04-02"
-documentPurpose: "UX specification for the EngageHub MVP — automated email sequences and AI voice calling"
+documentPurpose: "UX specification for the SignalLoop MVP — automated email sequences and AI voice calling"
 primaryAudience:
   - product_designer
   - frontend_developer
@@ -11,11 +11,11 @@ secondaryAudience:
   - revenue_leader
 ---
 
-# EngageHub UX Design Specification
+# SignalLoop UX Design Specification
 
 ## 1. UX Goal
 
-The EngageHub MVP should feel like a calm control tower for automated outreach execution. The user should always understand:
+The SignalLoop MVP should feel like a calm control tower for automated outreach execution. The user should always understand:
 
 - what the system is doing right now
 - why it is executing this action (which sequence step, which campaign)
@@ -213,7 +213,7 @@ Opening Pitch:
 Hi [first_name], this is [agent_name] from [company]. I'm calling about [campaign_offer]. Do you have 30 seconds?
 
 Q: What is your product?
-A: EngageHub automates B2B outreach with email sequences and AI voice calls.
+A: SignalLoop automates B2B outreach with email sequences and AI voice calls.
 
 Q: How much does it cost?
 A: Pricing starts at [price]. I can connect you with our team for a detailed quote.

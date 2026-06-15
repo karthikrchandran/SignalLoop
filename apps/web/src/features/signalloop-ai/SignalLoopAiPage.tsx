@@ -39,7 +39,7 @@ import {
   type PipelineRisk,
   type ProviderHealth,
   type UnifiedInboxItem,
-} from "@/features/engagehub-ai/api"
+} from "@/features/signalloop-ai/api"
 
 const priorityVariant = (
   priority: string,
@@ -60,7 +60,7 @@ const statusVariant = (
 
 const formatDate = (value: string) => new Date(value).toLocaleString()
 
-export default function EngageHubAiPage() {
+export default function SignalLoopAiPage() {
   const [overview, setOverview] = useState<EngagementOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -75,7 +75,7 @@ export default function EngageHubAiPage() {
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "Failed to load EngageHub AI",
+          : "Failed to load SignalLoop AI",
       )
     } finally {
       setLoading(false)
@@ -101,7 +101,7 @@ export default function EngageHubAiPage() {
         <div>
           <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
             <BrainCircuit className="h-7 w-7 text-primary" />
-            EngageHub AI
+            SignalLoop AI
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Prioritize actions, unify channel work, inspect journey movement,
@@ -150,7 +150,7 @@ export default function EngageHubAiPage() {
       {loading && !overview ? (
         <div className="flex items-center gap-2 rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading EngageHub AI...
+          Loading SignalLoop AI...
         </div>
       ) : (
         <>

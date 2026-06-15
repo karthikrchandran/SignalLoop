@@ -50,7 +50,7 @@ so that the application uses only PostgreSQL for all persistent storage, reducin
 ### Debug Log References
 ### Completion Notes List
 - Added a base Alembic migration for `audit_events`, rewired the audit/dead-letter migration chain to a single head, and enforced append-only audit rows with a PostgreSQL trigger.
-- Verified the repaired migration chain on a fresh local database and reconciled the active local `engagehub` database: `audit_events.payload` is JSONB, `actor_role` and `correlation_id` exist, and `trg_audit_events_append_only` is installed.
-- Cleaned the active local Alembic stamp to the merge head `h3c4d5e6f7a8`; `uv run alembic -c alembic.ini upgrade head` now completes against `engagehub`.
+- Verified the repaired migration chain on a fresh local database and reconciled the active local `signalloop` database: `audit_events.payload` is JSONB, `actor_role` and `correlation_id` exist, and `trg_audit_events_append_only` is installed.
+- Cleaned the active local Alembic stamp to the merge head `h3c4d5e6f7a8`; `uv run alembic -c alembic.ini upgrade head` now completes against `signalloop`.
 - Focused audit route tests now pass against the active local database: `tests/api/routes/test_audit_log.py` reports 6 passed.
 ### File List

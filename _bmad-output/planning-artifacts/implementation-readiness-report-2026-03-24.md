@@ -1,7 +1,7 @@
 ---
 reportDate: "2026-03-24"
 reportType: "baseline readiness assessment"
-project: "EngageHub"
+project: "SignalLoop"
 primaryAudience:
   - product_manager
   - engineering_lead
@@ -13,7 +13,7 @@ primaryAudience:
 
 ## Baseline Assessment
 
-This report captures the original implementation-readiness view for EngageHub. It is preserved as a baseline reference, but its conclusions should now be read in the context of the revised planning set completed on 2026-04-02.
+This report captures the original implementation-readiness view for SignalLoop. It is preserved as a baseline reference, but its conclusions should now be read in the context of the revised planning set completed on 2026-04-02.
 
 ## What Was Strong at Baseline
 

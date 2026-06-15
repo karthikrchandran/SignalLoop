@@ -1,7 +1,7 @@
 ---
 reportDate: "2026-03-30"
 reportType: "follow-up readiness assessment"
-project: "EngageHub"
+project: "SignalLoop"
 primaryAudience:
   - product_manager
   - engineering_lead

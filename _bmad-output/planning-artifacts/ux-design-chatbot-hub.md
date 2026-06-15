@@ -6,11 +6,11 @@ inputDocuments:
   - _bmad-output/planning-artifacts/validation-report-chatbot-hub.md
 designSystem: shadcn/ui (New York style) + Tailwind CSS + Lucide Icons
 platform: Web (desktop-primary, tablet-responsive)
-integrationModel: Chatbot section added to existing EngageHub sidebar — no new portal
+integrationModel: Chatbot section added to existing SignalLoop sidebar — no new portal
 status: complete
 ---
 
-# UX Design Specification EngageHub — ChatBot Hub
+# UX Design Specification SignalLoop — ChatBot Hub
 
 **Author:** K.Ramachandran
 **Date:** 2026-05-13
@@ -21,7 +21,7 @@ status: complete
 
 ### Project Vision
 
-ChatBot Hub extends the existing EngageHub workspace with a unified AI chatbot engine. It is not a new product — it is a new section inside the existing admin portal, sharing the same login, sidebar shell, design system, and role model. Admins configure channels and a knowledge base; agents monitor and reply to escalated conversations in the inbox; the bot handles routine visitor Q&A autonomously.
+ChatBot Hub extends the existing SignalLoop workspace with a unified AI chatbot engine. It is not a new product — it is a new section inside the existing admin portal, sharing the same login, sidebar shell, design system, and role model. Admins configure channels and a knowledge base; agents monitor and reply to escalated conversations in the inbox; the bot handles routine visitor Q&A autonomously.
 
 ### Target Users
 
@@ -84,7 +84,7 @@ This is the make-or-break moment. If this succeeds, everything else (channels, i
 2. **Defaults are production-ready** — bot config default values (5s timeout, 90-day retention, 4000 token cap, "I'm an AI assistant." disclosure) are immediately safe to ship.
 3. **Escalation must never be missed** — visual + in-app notification on every new escalation; badge count on Inbox nav item.
 4. **Platform rules are enforced in UI, not just API** — WhatsApp window, opt-out status, and workspace isolation are surfaced visually before an error occurs.
-5. **Extend, don't replace** — every ChatBot Hub screen uses the same layout shell, same component library, and same interaction patterns as existing EngageHub screens.
+5. **Extend, don't replace** — every ChatBot Hub screen uses the same layout shell, same component library, and same interaction patterns as existing SignalLoop screens.
 
 ---
 
@@ -129,11 +129,11 @@ This is the make-or-break moment. If this succeeds, everything else (channels, i
 
 | Product | Pattern to adopt | Adaptation needed |
 |---|---|---|
-| **Intercom** | Split-panel inbox (thread list left, detail right) | Use existing EngageHub layout constraints; no new shell |
+| **Intercom** | Split-panel inbox (thread list left, detail right) | Use existing SignalLoop layout constraints; no new shell |
 | **Crisp** | Colour-coded status dots per conversation | Extend with left-border accent rather than dot-only |
 | **Linear** | Keyboard-navigable lists with shortcut hints | Add `J/K` arrow nav on inbox thread list |
 | **Notion** | Inline progress for background jobs | Surface as a dismissable banner below page header |
-| **Slack** | Unread badge on navigation item | Existing EngageHub sidebar `<Badge>` component already supports this |
+| **Slack** | Unread badge on navigation item | Existing SignalLoop sidebar `<Badge>` component already supports this |
 
 ### Anti-Patterns to Avoid
 
@@ -147,7 +147,7 @@ This is the make-or-break moment. If this succeeds, everything else (channels, i
 
 ### Foundation: shadcn/ui New York + Tailwind CSS
 
-The design system is **already established** by the existing EngageHub web app:
+The design system is **already established** by the existing SignalLoop web app:
 
 - **Component library:** shadcn/ui (New York style, `components.json` confirmed)
 - **CSS framework:** Tailwind CSS with CSS variables (`--background`, `--foreground`, `--primary`, etc.)
@@ -268,7 +268,7 @@ Every ChatBot Hub page follows the existing pattern from `campaigns.tsx` and `an
 
 ### Direction: "Operational Admin" — Quiet Efficiency
 
-The aesthetic continues EngageHub's existing neutral tone:
+The aesthetic continues SignalLoop's existing neutral tone:
 - White/light grey surfaces (`bg-background`, `bg-card`)
 - Slate text scale for hierarchy
 - Accent colour (existing primary) used sparingly — only for primary CTAs and active nav state
@@ -276,7 +276,7 @@ The aesthetic continues EngageHub's existing neutral tone:
 - No illustrations, no gradients, no hero imagery — this is an operator tool
 - Compact information density — agents scan lists, not read prose
 
-This matches the existing EngageHub aesthetic and requires zero new design tokens.
+This matches the existing SignalLoop aesthetic and requires zero new design tokens.
 
 ---
 

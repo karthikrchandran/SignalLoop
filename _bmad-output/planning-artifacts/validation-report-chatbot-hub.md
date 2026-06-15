@@ -1,6 +1,6 @@
 ---
 validationType: prd-and-architecture
-project: EngageHub — ChatBot Hub
+project: SignalLoop — ChatBot Hub
 date: "2026-05-13"
 validator: BMAD Validation QA (bmad-validate-prd + architecture coherence)
 documentsValidated:

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { engagehubRequest } from "@/lib/engagehub-api"
+import { signalloopRequest } from "@/lib/signalloop-api"
 
 type OfferPackVersion = {
   id: string
@@ -40,8 +40,8 @@ export default function OfferPackLibraryPage() {
 
   const loadData = async () => {
     const [offerPackResult, templateResult] = await Promise.all([
-      engagehubRequest<OfferPackResponse>("/api/v1/offer-packs/"),
-      engagehubRequest<TemplateResponse>("/api/v1/templates/?status=published"),
+      signalloopRequest<OfferPackResponse>("/api/v1/offer-packs/"),
+      signalloopRequest<TemplateResponse>("/api/v1/templates/?status=published"),
     ])
     setOfferPacks(offerPackResult.data)
     setTemplates(templateResult.data)
@@ -66,7 +66,7 @@ export default function OfferPackLibraryPage() {
     setBusy(true)
     setFeedback("")
     try {
-      await engagehubRequest("/api/v1/offer-packs/", {
+      await signalloopRequest("/api/v1/offer-packs/", {
         method: "POST",
         idempotent: true,
         body: {

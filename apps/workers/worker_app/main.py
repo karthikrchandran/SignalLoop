@@ -56,7 +56,7 @@ async def _run_postcall_job() -> None:
 
 def main() -> None:
     gate = EnforcementGate()
-    logger.info("EngageHub worker initializing (paused=%s)", gate.is_paused())
+    logger.info("SignalLoop worker initializing (paused=%s)", gate.is_paused())
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(

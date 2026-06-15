@@ -182,7 +182,7 @@ const quickAccess = [
 export const Route = createFileRoute("/_layout/")({
   component: Dashboard,
   head: () => ({
-    meta: [{ title: "Dashboard - EngageHub" }],
+    meta: [{ title: "Dashboard - SignalLoop" }],
   }),
 })
 

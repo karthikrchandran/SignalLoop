@@ -2,7 +2,7 @@
 
 ## Summary
 
-Release-gate validation passed for the EngageHub corrective/release slice after
+Release-gate validation passed for the SignalLoop corrective/release slice after
 repairing one fresh-database migration blocker, stale frontend E2E harness
 failures, and the Vite production-build chunk warning.
 
@@ -19,10 +19,10 @@ the `notificationprovider` enum already existed.
 - Added `apps/api/tests/unit/test_provider_selection_migration.py` to keep the
   migration provider/capability constants aligned with `NotificationProvider`
   and `ProviderCapability`.
-- Started local Postgres under `.tmp/local-postgres`, created the `engagehub`
+- Started local Postgres under `.tmp/local-postgres`, created the `signalloop`
   database, and migrated it to head.
 - Removed the retired starter-template `/items` Playwright suite.
-- Updated auth E2E helpers/tests to match the current EngageHub dashboard copy,
+- Updated auth E2E helpers/tests to match the current SignalLoop dashboard copy,
   wait for sign-up network completion, and cover invalid-token redirect.
 - Added local-environment rate-limit disabling while keeping rate limiting on
   by default for staging/production.

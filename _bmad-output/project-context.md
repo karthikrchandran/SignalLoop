@@ -1,5 +1,5 @@
 ---
-project_name: 'EngageHub'
+project_name: 'SignalLoop'
 user_name: 'K.Ramachandran'
 date: '2026-05-28'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules', 'anti_patterns']
@@ -11,7 +11,7 @@ optimized_for_llm: true
 
 # Project Context for AI Agents
 
-_Critical rules and patterns AI agents MUST follow when implementing code in EngageHub. Focus on unobvious details — assume agents already know general best practices._
+_Critical rules and patterns AI agents MUST follow when implementing code in SignalLoop. Focus on unobvious details — assume agents already know general best practices._
 
 ---
 
@@ -126,7 +126,7 @@ _Critical rules and patterns AI agents MUST follow when implementing code in Eng
 ### Testing Rules
 
 - Run tests with `uv run pytest` from `apps/api` or `apps/workers` (NOT bare `pytest`).
-- Tests use the **persistent local Postgres** (`engagehub` DB), not an ephemeral one. Always run `uv run alembic upgrade head` after model changes before focused pytest.
+- Tests use the **persistent local Postgres** (`signalloop` DB), not an ephemeral one. Always run `uv run alembic upgrade head` after model changes before focused pytest.
 - Set `PYTHONDONTWRITEBYTECODE=1` for any Python run to avoid noisy tracked `__pycache__` changes.
 - Coverage config lives in `apps/api/pyproject.toml`; use `uv run coverage run -m pytest && uv run coverage report`. The `_runcov.ps1` helper at repo root is the canonical entry.
 - E2E web tests: Playwright (`npm run test` / `test:ui` in `apps/web`). Pinned to `1.58.2` — do NOT bump casually; browser binaries must match.
@@ -193,7 +193,7 @@ _Critical rules and patterns AI agents MUST follow when implementing code in Eng
 
 **For AI Agents:**
 
-- Read this file before implementing any code in EngageHub.
+- Read this file before implementing any code in SignalLoop.
 - Follow ALL rules exactly as documented. When in doubt, prefer the more restrictive option.
 - If a rule conflicts with a user instruction, surface the conflict before acting.
 - Update this file when new non-obvious patterns emerge (PR a change, do not edit silently).

@@ -34,7 +34,7 @@ import { User } from "./User"
 const baseItems: Item[] = [
   { icon: Home, title: "Dashboard", path: "/" },
   { icon: Briefcase, title: "Campaigns", path: "/campaigns" },
-  { icon: BrainCircuit, title: "EngageHub AI", path: "/engagehub-ai" },
+  { icon: BrainCircuit, title: "SignalLoop AI", path: "/signalloop-ai" },
   { icon: Building2, title: "Customer 360", path: "/customer-360" },
   { icon: ListOrdered, title: "Sequences", path: "/sequences" },
   { icon: Mic2, title: "Voice Agents", path: "/voice-agents" },

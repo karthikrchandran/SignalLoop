@@ -1,12 +1,12 @@
 ---
 title: Environment Variables Reference
-description: Every environment variable EngageHub reads, what it does, and whether it is required for local development.
+description: Every environment variable SignalLoop reads, what it does, and whether it is required for local development.
 date: 2026-05-28
 ---
 
 # Environment Variables Reference
 
-EngageHub reads its configuration from two `.env` files:
+SignalLoop reads its configuration from two `.env` files:
 
 - `./.env` — backend, workers, infrastructure. Loaded by `apps/api/app/core/config.py` via Pydantic Settings.
 - `apps/web/.env` — frontend (Vite). Only variables prefixed `VITE_` are exposed to the browser bundle.
@@ -19,7 +19,7 @@ Copy `./.env.example` to `./.env` to start. Frontend defaults in `apps/web/.env`
 
 | Variable | Default in example | What it does |
 | --- | --- | --- |
-| `PROJECT_NAME` | `EngageHub` | Shown in OpenAPI title and outbound email "from" name fallback. |
+| `PROJECT_NAME` | `SignalLoop` | Shown in OpenAPI title and outbound email "from" name fallback. |
 | `ENVIRONMENT` | `local` | One of `local`, `staging`, `production`. Outside `local`, default secrets like `changethis` cause hard failures. |
 | `SECRET_KEY` | `changethis` | JWT signing key. **Must** be changed for any non-local use; warned in local. |
 | `FIRST_SUPERUSER` | `admin@example.com` | Email of the seed superuser created by `app.initial_data`. |
@@ -33,7 +33,7 @@ Copy `./.env.example` to `./.env` to start. Frontend defaults in `apps/web/.env`
 | --- | --- | --- |
 | `POSTGRES_SERVER` | `localhost` | Postgres host. |
 | `POSTGRES_PORT` | `5432` | Postgres port. |
-| `POSTGRES_DB` | `engagehub` | Database name. Must exist (`createdb -U postgres engagehub`). |
+| `POSTGRES_DB` | `signalloop` | Database name. Must exist (`createdb -U postgres signalloop`). |
 | `POSTGRES_USER` | `postgres` | Postgres user. |
 | `POSTGRES_PASSWORD` | `changethis` | Postgres password. Must be changed in non-local environments. |
 | `REDIS_URL` | `redis://localhost:6379/0` | Full Redis URL. Override DB index with `/1`, `/2`, etc. |
@@ -124,7 +124,7 @@ SMTP_USER=
 SMTP_PASSWORD=
 EMAILS_FROM_EMAIL=dev@localhost
 SMTP_FROM_EMAIL=dev@localhost
-SMTP_FROM_NAME=EngageHub Demo
+SMTP_FROM_NAME=SignalLoop Demo
 ```
 
 Mailpit must be running (it is, if you ran `.\StartServer.ps1`). View captured email at <http://localhost:8025>.
@@ -141,7 +141,7 @@ SMTP_USE_TLS=false
 SMTP_USE_STARTTLS=false
 EMAILS_FROM_EMAIL=dev@localhost
 SMTP_FROM_EMAIL=dev@localhost
-SMTP_FROM_NAME=EngageHub Demo
+SMTP_FROM_NAME=SignalLoop Demo
 
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.2:1b

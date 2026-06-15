@@ -16,7 +16,7 @@ export const Route = createFileRoute("/_layout/settings/providers")({
   head: () => ({
     meta: [
       {
-        title: "Provider Setup - EngageHub",
+        title: "Provider Setup - SignalLoop",
       },
     ],
   }),

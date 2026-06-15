@@ -1,7 +1,7 @@
 - generic [active] [ref=e1]:
   - generic [ref=e2]:
     - generic [ref=e3]:
-      - heading "EngageHub Screen 2.3" [level=1] [ref=e4]
+      - heading "SignalLoop Screen 2.3" [level=1] [ref=e4]
       - paragraph [ref=e5]: Journey 2 - Sensitivity Preference Modal
     - link "Back to Home" [ref=e6] [cursor=pointer]:
       - /url: index.html

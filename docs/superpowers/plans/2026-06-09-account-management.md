@@ -656,7 +656,7 @@ Extend `customer-360.spec.ts` with mocked routes for `POST /api/v1/accounts` and
 
 - [ ] **Step 2: Add API client functions**
 
-Add `createAccount(input)` and `updateAccount(accountId, input)` to `api.ts`, using `engagehubRequest` with JSON bodies.
+Add `createAccount(input)` and `updateAccount(accountId, input)` to `api.ts`, using `signalloopRequest` with JSON bodies.
 
 - [ ] **Step 3: Add `AccountFormDialog`**
 

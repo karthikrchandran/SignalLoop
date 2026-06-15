@@ -1,17 +1,17 @@
-# EngageHub User Guide and Getting Started
+# SignalLoop User Guide and Getting Started
 
 Version: May 28, 2026
-Audience: EngageHub operators, campaign managers, administrators, and new users
+Audience: SignalLoop operators, campaign managers, administrators, and new users
 
-EngageHub is an intelligent outreach platform for planning, launching, and monitoring multi-channel campaigns across email and voice. This guide walks you through the main screens, explains what each feature is for, and gives step-by-step instructions a new user can follow without knowing the product beforehand.
+SignalLoop is an intelligent outreach platform for planning, launching, and monitoring multi-channel campaigns across email and voice. This guide walks you through the main screens, explains what each feature is for, and gives step-by-step instructions a new user can follow without knowing the product beforehand.
 
 > Note: The screenshots in this guide were captured from the local development app at `http://127.0.0.1:5173`. Your environment may use a different URL, theme, sample data, or account name.
 
 ## Quick Start Checklist
 
-Use this checklist the first time you open EngageHub.
+Use this checklist the first time you open SignalLoop.
 
-1. Open the EngageHub web app.
+1. Open the SignalLoop web app.
 2. Create an account or log in with your email and password.
 3. Confirm you can see the left navigation menu.
 4. Visit the Dashboard to understand the main areas of the product.
@@ -24,7 +24,7 @@ Use this checklist the first time you open EngageHub.
 11. Define the offer and channel strategy.
 12. Review Analytics and Controls before sending at scale.
 
-## 1. Accessing EngageHub
+## 1. Accessing SignalLoop
 
 ### Log In
 
@@ -34,13 +34,13 @@ Use the Log In page when you already have an account.
 
 Steps:
 
-1. Open the EngageHub URL in your browser.
+1. Open the SignalLoop URL in your browser.
 2. If you are not already signed in, the app shows the Log In page.
 3. Enter your email address in the Email field.
 4. Enter your password in the Password field.
 5. Select the eye icon if you need to briefly reveal or verify the password.
 6. Select Log In.
-7. After a successful login, EngageHub opens the Dashboard.
+7. After a successful login, SignalLoop opens the Dashboard.
 
 Helpful notes:
 
@@ -50,7 +50,7 @@ Helpful notes:
 
 ### Create an Account
 
-Use Sign Up if you do not yet have an EngageHub account.
+Use Sign Up if you do not yet have an SignalLoop account.
 
 ![Sign up screen](screenshots/02-sign-up.png)
 
@@ -78,7 +78,7 @@ Use Password Recovery if you forgot your password.
 Steps:
 
 1. From the Log In screen, select Forgot your password?.
-2. Enter the email address for your EngageHub account.
+2. Enter the email address for your SignalLoop account.
 3. Select Continue.
 4. Check your inbox for the password recovery email.
 5. Open the reset link in the email.
@@ -167,7 +167,7 @@ Steps:
 2. Enter a campaign name, such as `Q2 Product Outreach`.
 3. Use a name that a teammate can understand later.
 4. Select Continue.
-5. EngageHub creates a draft campaign and moves you to audience selection.
+5. SignalLoop creates a draft campaign and moves you to audience selection.
 
 Tips for campaign names:
 
@@ -194,7 +194,7 @@ Steps:
    - `in-list`
 8. Enter the value, such as `Technology`.
 9. Select Continue.
-10. EngageHub assigns the matching contacts to the campaign and moves to strategy setup.
+10. SignalLoop assigns the matching contacts to the campaign and moves to strategy setup.
 
 Examples:
 
@@ -274,7 +274,7 @@ Voice Agents lets you choose, configure, and test AI voice outreach behavior.
 
 ![Voice agents screen](screenshots/07-voice-agents.png)
 
-EngageHub includes four voice agents with English and Hindi preview/script starter support:
+SignalLoop includes four voice agents with English and Hindi preview/script starter support:
 
 | Agent | Best For | Tone |
 | --- | --- | --- |
@@ -547,7 +547,7 @@ Use emergency pause when:
 
 ## 10. Contacts and Timeline
 
-Contacts is the shared lead pool for EngageHub. Add leads here before creating campaigns so the same contacts can be reused across outreach efforts.
+Contacts is the shared lead pool for SignalLoop. Add leads here before creating campaigns so the same contacts can be reused across outreach efforts.
 
 ![Contacts screen](screenshots/11-contacts.png)
 
@@ -557,7 +557,7 @@ What you can do here:
 
 - Download the CSV template.
 - Analyze a CSV before saving it.
-- Map incoming columns to EngageHub fields.
+- Map incoming columns to SignalLoop fields.
 - Preview valid rows.
 - Review row-level validation issues.
 - Import valid contacts into the shared lead pool.
@@ -573,7 +573,7 @@ Steps:
 3. Choose a `.csv` file.
 4. Select Analyze.
 5. Review the analysis summary, including total rows, valid rows, and invalid rows.
-6. Map source columns to EngageHub fields such as `email`, `firstName`, `lastName`, `company`, `phone`, and `timezone`.
+6. Map source columns to SignalLoop fields such as `email`, `firstName`, `lastName`, `company`, `phone`, and `timezone`.
 7. Review the Preview panel for valid rows.
 8. Review the Validation panel for row-level issues.
 9. Select Import contacts when email is mapped and validation is acceptable.
@@ -736,7 +736,7 @@ If something does not behave as described in this guide:
 1. Confirm the app version and the URL you are using.
 2. Re-check the relevant step in this guide.
 3. Note any error message exactly as displayed.
-4. Contact your EngageHub administrator or platform owner with the campaign name, contact involved (if any), and the time of the issue.
+4. Contact your SignalLoop administrator or platform owner with the campaign name, contact involved (if any), and the time of the issue.
 5. For development-environment issues, point your engineer at the runbooks under `docs/runbooks/` and the developer onboarding material under `docs/developer-guide/`.
 
 ## Glossary
@@ -982,7 +982,7 @@ Use Controls:
 | Segment | A subset of the audience selected by rules. |
 | Channel strategy | Configuration that defines whether outreach uses email, voice, or another supported channel pattern. |
 | Offer pack | A reusable bundle of approved offer and template assets. |
-| Quiet hours | A time window when EngageHub should not send emails or make calls. |
+| Quiet hours | A time window when SignalLoop should not send emails or make calls. |
 | Emergency pause | A control that stops all outreach until resumed. |
 | Contact timeline | A chronological record of events for one contact. |
 | Guardrail validation | A safety check before publishing templates or outreach assets. |
@@ -993,7 +993,7 @@ This guide is available in three forms in this folder:
 
 - `getting-started.md` for editing in Markdown.
 - `getting-started.html` for browser viewing and printing.
-- `EngageHub-Getting-Started-User-Guide.pdf` for sharing as a printable document.
+- `SignalLoop-Getting-Started-User-Guide.pdf` for sharing as a printable document.
 
 When printing from the HTML version:
 

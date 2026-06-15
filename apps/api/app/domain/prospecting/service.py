@@ -263,7 +263,7 @@ def build_prospecting_brief(*, contact: Contact, sources: list[ProspectingSource
     source_labels = ", ".join(source.label for source in sources[:3]) or "CRM context"
 
     account_summary = (
-        f"{name} is a prospect at {company}. EngageHub has CRM context from {source_labels}. "
+        f"{name} is a prospect at {company}. SignalLoop has CRM context from {source_labels}. "
         "Use this brief as sales research, not as verified live-news intelligence."
     )
 
@@ -304,14 +304,14 @@ def build_prospecting_brief(*, contact: Contact, sources: list[ProspectingSource
     email_draft = (
         f"Subject: Idea for {company}'s outreach follow-up\n\n"
         f"Hi {first_name},\n\n"
-        f"I noticed {primary_signal}. EngageHub can help your team turn CRM and conversation history into "
+        f"I noticed {primary_signal}. SignalLoop can help your team turn CRM and conversation history into "
         "more relevant email and voice follow-up without adding manual research work.\n\n"
         "Would it be worth a short conversation to compare where your current outreach process is losing context?\n\n"
         "Best,\n"
-        "EngageHub"
+        "SignalLoop"
     )
     voice_opener = (
-        f"Hi {first_name}, this is EngageHub calling about {company}. "
+        f"Hi {first_name}, this is SignalLoop calling about {company}. "
         "I am following up with one specific idea for turning your existing CRM activity into more personalized outreach."
     )
 

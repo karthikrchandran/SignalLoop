@@ -12,7 +12,7 @@
 
 ## Preflight
 
-The worktree may contain unrelated user changes. At the time this plan was written, `tooling/engagehub-release-check.ps1` was modified and unrelated to Customer 360. Do not stage or commit that file unless the user explicitly asks.
+The worktree may contain unrelated user changes. At the time this plan was written, `tooling/signalloop-release-check.ps1` was modified and unrelated to Customer 360. Do not stage or commit that file unless the user explicitly asks.
 
 Run before Task 1:
 
@@ -1611,7 +1611,7 @@ Expected: FAIL because `/customer-360` route does not exist.
 Create `apps/web/src/features/customer-360/api.ts`:
 
 ```typescript
-import { engagehubRequest } from "@/lib/engagehub-api"
+import { signalloopRequest } from "@/lib/signalloop-api"
 
 export type Customer360Account = {
   id: string
@@ -1642,7 +1642,7 @@ export type Customer360AccountsResponse = {
 export function listCustomer360Accounts(search = "") {
   const params = new URLSearchParams({ limit: "50" })
   if (search.trim()) params.set("search", search.trim())
-  return engagehubRequest<Customer360AccountsResponse>(
+  return signalloopRequest<Customer360AccountsResponse>(
     `/api/v1/customer-360/accounts?${params.toString()}`,
   )
 }
@@ -1793,13 +1793,13 @@ import Customer360AccountsPage from "@/features/customer-360/Customer360Accounts
 
 export const Route = createFileRoute("/_layout/customer-360")({
   head: () => ({
-    meta: [{ title: "Customer 360 - EngageHub" }],
+    meta: [{ title: "Customer 360 - SignalLoop" }],
   }),
   component: Customer360AccountsPage,
 })
 ```
 
-In `apps/web/src/components/Sidebar/AppSidebar.tsx`, add `Building2` to the `lucide-react` imports and add this item after EngageHub AI:
+In `apps/web/src/components/Sidebar/AppSidebar.tsx`, add `Building2` to the `lucide-react` imports and add this item after SignalLoop AI:
 
 ```tsx
   { icon: Building2, title: "Customer 360", path: "/customer-360" },
@@ -2047,7 +2047,7 @@ export type Customer360AccountProfile = {
 }
 
 export function getCustomer360AccountProfile(accountId: string) {
-  return engagehubRequest<Customer360AccountProfile>(`/api/v1/customer-360/accounts/${accountId}`)
+  return signalloopRequest<Customer360AccountProfile>(`/api/v1/customer-360/accounts/${accountId}`)
 }
 ```
 

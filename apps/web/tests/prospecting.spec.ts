@@ -123,7 +123,7 @@ test("runs prospecting research and shows outreach drafts", async ({ page }) => 
         ],
         suggested_next_action: "Send the email draft, then call with the voice opener.",
         email_draft: "Subject: Idea for Analytical outreach follow-up\n\nHi Ada,",
-        voice_opener: "Hi Ada, this is EngageHub calling about Analytical.",
+        voice_opener: "Hi Ada, this is SignalLoop calling about Analytical.",
         sources: [{ label: "CRM contact", summary: "Ada at Analytical" }],
         created_at: "2026-06-08T10:01:00Z",
       }),
@@ -144,7 +144,7 @@ test("runs prospecting research and shows outreach drafts", async ({ page }) => 
 
   await expect(page.getByText("Ada Lovelace is a prospect at Analytical").first()).toBeVisible()
   await expect(page.getByText("Subject: Idea for Analytical outreach follow-up")).toBeVisible()
-  await expect(page.getByText("Hi Ada, this is EngageHub calling about Analytical.")).toBeVisible()
+  await expect(page.getByText("Hi Ada, this is SignalLoop calling about Analytical.")).toBeVisible()
   await expect(page.getByRole("button", { name: "Copy email draft" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Copy voice opener" })).toBeVisible()
 })

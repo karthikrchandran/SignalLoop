@@ -158,7 +158,7 @@ def seeded_timeline(db: Session, campaign_and_contact: tuple[uuid.UUID, uuid.UUI
     script = VoiceScript(
         campaign_id=campaign_id,
         name="Timeline Script",
-        content="Hello from EngageHub",
+        content="Hello from SignalLoop",
         created_by=uuid.uuid4(),
         created_at=now - timedelta(minutes=1),
         updated_at=now - timedelta(minutes=1),

@@ -47,7 +47,7 @@ def test_rate_limiting_defaults_off_for_local_environment() -> None:
 
 def test_rate_limiting_defaults_on_for_production_environment() -> None:
     settings = _make_settings(
-        frontend_host="https://engagehub.example",
+        frontend_host="https://signalloop.example",
         environment="production",
     )
 

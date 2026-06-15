@@ -37,7 +37,7 @@ so that I can follow up on interested prospects without listening to recordings.
     - Link to full recording
 - [ ] Task 3: Send summary email via SendGrid adapter (AC: 2,5)
   - [ ] To: configured team email address(es)
-  - [ ] Subject: "[EngageHub] Call Summary — {contact_name}" or "[SCHEDULING] {contact_name} — interested"
+  - [ ] Subject: "[SignalLoop] Call Summary — {contact_name}" or "[SCHEDULING] {contact_name} — interested"
   - [ ] HTML body from summary generator
   - [ ] Log audit event for send
 - [ ] Task 4: Handle scheduling interest specially (AC: 3)

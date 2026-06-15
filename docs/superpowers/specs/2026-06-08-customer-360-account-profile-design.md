@@ -218,7 +218,7 @@ Keep the first implementation cohesive but bounded. The durable boundary is the
 account model and account profile read service. Deep editing workflows can stay
 on existing pages until Customer 360 has proven its read model.
 
-The current uncommitted EngageHub AI work already uses useful vocabulary such as
+The current uncommitted SignalLoop AI work already uses useful vocabulary such as
 next-best actions, unified work, and journey signals. Customer 360 should reuse
 that vocabulary at account scope, not duplicate a second workspace-level
 dashboard.

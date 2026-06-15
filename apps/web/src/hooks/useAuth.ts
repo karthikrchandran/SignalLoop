@@ -19,7 +19,7 @@ const isLoggedIn = () => {
 
 const demoUser = {
   id: "demo-user",
-  email: "demo@engagehub.local",
+  email: "demo@signalloop.local",
   full_name: "Demo Admin",
   is_active: true,
   is_superuser: true,

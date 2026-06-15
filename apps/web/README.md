@@ -1,11 +1,11 @@
-# EngageHub Web
+# SignalLoop Web
 
-React/Vite operator console for EngageHub.
+React/Vite operator console for SignalLoop.
 
 ## Requirements
 
 - Node.js 20+ and npm for frontend package management
-- EngageHub API running at `http://localhost:8001`
+- SignalLoop API running at `http://localhost:8001`
 
 The backend is managed separately with `uv`; see `apps/api/README.md`.
 

@@ -162,7 +162,7 @@ async def _process_session(
     summary = _build_summary(req, sess, contact, campaign)
     body_text, body_html = _render_email(summary)
     subject = (
-        f"[EngageHub] Post-call: {summary['contact_name']} — {summary['outcome']}"
+        f"[SignalLoop] Post-call: {summary['contact_name']} — {summary['outcome']}"
     )
 
     email_sent = False

@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { engagehubRequest } from "@/lib/engagehub-api"
+import { signalloopRequest } from "@/lib/signalloop-api"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,10 +88,10 @@ export default function CampaignHealthPage({ campaignId }: CampaignHealthPagePro
     setError(null)
     try {
       const [h, dl] = await Promise.all([
-        engagehubRequest<CampaignHealth>(
+        signalloopRequest<CampaignHealth>(
           `/api/v1/campaigns/${campaignId}/health`,
         ),
-        engagehubRequest<DeadLetterList>(
+        signalloopRequest<DeadLetterList>(
           `/api/v1/campaigns/${campaignId}/dead-letters?page=${dlPage}`,
         ),
       ])
@@ -117,7 +117,7 @@ export default function CampaignHealthPage({ campaignId }: CampaignHealthPagePro
   async function handleRetry(itemId: string) {
     setActionLoading((prev) => ({ ...prev, [itemId]: true }))
     try {
-      await engagehubRequest(
+      await signalloopRequest(
         `/api/v1/campaigns/${campaignId}/dead-letters/${itemId}/retry`,
         { method: "POST" },
       )
@@ -132,7 +132,7 @@ export default function CampaignHealthPage({ campaignId }: CampaignHealthPagePro
   async function handleDismiss(itemId: string) {
     setActionLoading((prev) => ({ ...prev, [itemId]: true }))
     try {
-      await engagehubRequest(
+      await signalloopRequest(
         `/api/v1/campaigns/${campaignId}/dead-letters/${itemId}/dismiss`,
         { method: "POST" },
       )

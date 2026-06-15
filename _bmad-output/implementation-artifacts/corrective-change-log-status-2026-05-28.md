@@ -43,7 +43,7 @@ All approved corrective stories are now implemented or closed through evidence r
 - Added support for `PUT` and `DELETE` in the shared frontend request helper to support sequence CRUD.
 - Focused evidence lives in:
   - `apps/web/src/features/sequences/SequencesPage.tsx`
-  - `apps/web/src/lib/engagehub-api.ts`
+  - `apps/web/src/lib/signalloop-api.ts`
 
 ### CC-4
 

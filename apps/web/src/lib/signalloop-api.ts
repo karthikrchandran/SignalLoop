@@ -81,7 +81,7 @@ const parseError = async (response: Response) => {
   return semanticMessage || `Request failed with status ${response.status}`
 }
 
-export async function engagehubRequest<T>(
+export async function signalloopRequest<T>(
   path: string,
   options?: RequestOptions,
 ): Promise<T> {
@@ -123,14 +123,14 @@ export async function engagehubRequest<T>(
 }
 
 export function getProviderOptions(workspaceId = getWorkspaceId()) {
-  return engagehubRequest<ProviderCatalogPublic>(
+  return signalloopRequest<ProviderCatalogPublic>(
     `/api/v1/workspaces/${workspaceId}/provider-options`,
     { workspaceId },
   )
 }
 
 export function getProviderSelections(workspaceId = getWorkspaceId()) {
-  return engagehubRequest<ProviderSelectionsPublic>(
+  return signalloopRequest<ProviderSelectionsPublic>(
     `/api/v1/workspaces/${workspaceId}/provider-selection`,
     { workspaceId },
   )
@@ -143,7 +143,7 @@ export function updateProviderSelection(
   },
   workspaceId = getWorkspaceId(),
 ) {
-  return engagehubRequest<ProviderSelection>(
+  return signalloopRequest<ProviderSelection>(
     `/api/v1/workspaces/${workspaceId}/provider-selection`,
     {
       method: "PUT",

@@ -22,6 +22,6 @@ export const Route = createFileRoute("/_layout/admin/chatbot/dead-letters")({
     }
   },
   head: () => ({
-    meta: [{ title: "Messaging Dead Letters - EngageHub" }],
+    meta: [{ title: "Messaging Dead Letters - SignalLoop" }],
   }),
 })

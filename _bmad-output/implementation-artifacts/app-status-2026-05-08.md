@@ -1,8 +1,8 @@
-# EngageHub App Status — 2026-05-08
+# SignalLoop App Status — 2026-05-08
 
 ## Executive Status
 
-EngageHub's BMAD implementation phase is marked closed. The authoritative sprint tracker reports all v2 pivot MVP epics and stories as done, and the final sprint summary reports 5 epics and 23 stories delivered.
+SignalLoop's BMAD implementation phase is marked closed. The authoritative sprint tracker reports all v2 pivot MVP epics and stories as done, and the final sprint summary reports 5 epics and 23 stories delivered.
 
 Current working status from this review: backend domain and worker coverage is passing, and the frontend production build passes. This file is now partially superseded by the corrective increment closure artifacts from 2026-05-28:
 

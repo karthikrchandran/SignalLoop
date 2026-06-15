@@ -1,7 +1,7 @@
 ---
 workflowType: flow-guide
 date: "2026-06-05"
-project: "EngageHub - ChatBot Hub"
+project: "SignalLoop - ChatBot Hub"
 sourceDocuments:
   - _bmad-output/planning-artifacts/prd-chatbot-hub.md
   - _bmad-output/planning-artifacts/architecture-chatbot-hub.md

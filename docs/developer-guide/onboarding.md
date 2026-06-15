@@ -1,12 +1,12 @@
 ---
 title: Developer Onboarding & Handover
-description: Day-one setup for a new EngageHub engineer.
+description: Day-one setup for a new SignalLoop engineer.
 date: 2026-05-28
 ---
 
 # Developer Onboarding & Handover
 
-This guide takes a new engineer from a fresh Windows laptop to a fully running EngageHub stack with passing tests. It is written for the actual repository on disk — no assumed cloud accounts and no production credentials.
+This guide takes a new engineer from a fresh Windows laptop to a fully running SignalLoop stack with passing tests. It is written for the actual repository on disk — no assumed cloud accounts and no production credentials.
 
 ## 1. Prerequisites
 

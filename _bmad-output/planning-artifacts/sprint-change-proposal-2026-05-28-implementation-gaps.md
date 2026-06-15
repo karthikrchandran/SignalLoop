@@ -1,7 +1,7 @@
 ---
 workflowType: sprint-change-proposal
 date: "2026-05-28"
-project: EngageHub
+project: SignalLoop
 module: bmm
 trigger: "Post-sprint implementation gap review found missing setup UX and incomplete end-to-end automation wiring"
 mode: batch
@@ -9,7 +9,7 @@ recommendedWorkflow: bmad-bmm-correct-course
 recommendedAgent: Bob
 ---
 
-# Sprint Change Proposal: EngageHub Implementation Gaps
+# Sprint Change Proposal: SignalLoop Implementation Gaps
 
 ## 1. Issue Summary
 
@@ -59,8 +59,8 @@ The current gaps affect these MVP commitments in `_bmad-output/planning-artifact
 
 ### Planning Artifact Conflict
 
-- The active EngageHub PRD, architecture, UX specification, and sprint tracker describe the email-sequence plus AI-voice MVP.
-- The current `_bmad-output/planning-artifacts/epics.md` now describes the later ChatBot Hub track instead of the active EngageHub MVP implementation slices.
+- The active SignalLoop PRD, architecture, UX specification, and sprint tracker describe the email-sequence plus AI-voice MVP.
+- The current `_bmad-output/planning-artifacts/epics.md` now describes the later ChatBot Hub track instead of the active SignalLoop MVP implementation slices.
 - As a result, this corrective increment cannot safely rely on the current epic document as the authoritative source for reopening story work.
 - For this change-control pass, the authoritative references are:
    - `_bmad-output/planning-artifacts/prd.md`
@@ -102,7 +102,7 @@ This is a planning hygiene issue in addition to the implementation gaps.
 - [x] 2.3 Remaining epic dependency review completed
    - The gaps cut across formerly closed Epic 2 through Epic 5 capability areas
 - [x] 2.4 Future-epic invalidation checked
-   - No future EngageHub MVP epic is invalidated; the issue is corrective completion, not direction change
+   - No future SignalLoop MVP epic is invalidated; the issue is corrective completion, not direction change
 - [x] 2.5 Order/priority checked
    - Priority should be: signal wiring, setup console, real sequence/voice UI, governance alignment, release-readiness validation
 
@@ -112,7 +112,7 @@ This is a planning hygiene issue in addition to the implementation gaps.
 - [x] 3.2 Architecture conflict review completed
 - [x] 3.3 UX conflict review completed
 - [!] 3.4 Secondary artifact impact remains action-needed
-   - The current `epics.md` does not match the active EngageHub MVP track and should be reconciled as part of change tracking hygiene
+   - The current `epics.md` does not match the active SignalLoop MVP track and should be reconciled as part of change tracking hygiene
 
 #### Section 4 - Path Forward Evaluation
 

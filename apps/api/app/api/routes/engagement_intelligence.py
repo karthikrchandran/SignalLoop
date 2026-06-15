@@ -1,4 +1,4 @@
-"""EngageHub AI intelligence overview endpoints."""
+"""SignalLoop AI intelligence overview endpoints."""
 
 from __future__ import annotations
 

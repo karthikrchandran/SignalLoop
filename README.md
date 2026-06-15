@@ -1,6 +1,6 @@
-# EngageHub
+# SignalLoop
 
-EngageHub is a hybrid monorepo for governed campaign orchestration across email and voice channels. The implementation baseline follows the FastAPI full-stack starter structure under `apps/api` and `apps/web`, with additional workspace stubs for workers, mobile, and shared packages.
+SignalLoop is a hybrid monorepo for governed campaign orchestration across email and voice channels. The implementation baseline follows the FastAPI full-stack starter structure under `apps/api` and `apps/web`, with additional workspace stubs for workers, mobile, and shared packages.
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ Postgres and Redis must be reachable on `localhost`. On Windows with scoop:
 # Postgres (already installed in this workspace via scoop)
 scoop install postgresql           # if not yet installed
 pg_ctl -D "$env:USERPROFILE\scoop\apps\postgresql\current\data" -l postgres.log start
-createdb -U postgres engagehub
+createdb -U postgres signalloop
 
 # Redis — scoop ships a Windows port; or use Memurai
 scoop install redis
@@ -167,5 +167,5 @@ Architecture documentation lives under `docs/architecture`:
 
 ## Notes
 
-- The frontend starter is present in `apps/web`, but the EngageHub-specific screens still need to be layered on top of the starter routes.
+- The frontend starter is present in `apps/web`, but the SignalLoop-specific screens still need to be layered on top of the starter routes.
 - The backend domain models have been added alongside the starter auth/user flows; Alembic migrations and runtime validation are still required before calling the stack production-ready.

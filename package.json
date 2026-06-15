@@ -1,5 +1,5 @@
 {
-  "name": "engagehub-monorepo",
+  "name": "signalloop-monorepo",
   "private": true,
   "workspaces": [
     "apps/web",

@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { engagehubRequest } from "@/lib/engagehub-api"
+import { signalloopRequest } from "@/lib/signalloop-api"
 
 type CampaignPublic = { id: string; name: string; status: string }
 
@@ -113,7 +113,7 @@ export default function CampaignIntakeWizardPage() {
     try {
       const params = new URLSearchParams()
       if (nextSearch.trim()) params.set("search", nextSearch.trim())
-      const response = await engagehubRequest<ContactsResponse>(`/api/v1/contacts/?${params.toString()}`)
+      const response = await signalloopRequest<ContactsResponse>(`/api/v1/contacts/?${params.toString()}`)
       setContacts(response.data)
       setContactCount(response.count)
     } catch (error) {
@@ -138,7 +138,7 @@ export default function CampaignIntakeWizardPage() {
     let cancelled = false
     const loadAssignableOfferPacks = async () => {
       try {
-        const response = await engagehubRequest<OfferPacksPublic>("/api/v1/offer-packs/assignable")
+        const response = await signalloopRequest<OfferPacksPublic>("/api/v1/offer-packs/assignable")
         if (!cancelled) {
           setAssignableOfferPacks(response.data)
           if (!offerPackVersionId) {
@@ -175,7 +175,7 @@ export default function CampaignIntakeWizardPage() {
 
   const createCampaign = async () => {
     await runWithFeedback(async () => {
-      const campaign = await engagehubRequest<CampaignPublic>("/api/v1/campaigns/", {
+      const campaign = await signalloopRequest<CampaignPublic>("/api/v1/campaigns/", {
         method: "POST",
         body: { name: campaignName.trim() },
       })
@@ -192,7 +192,7 @@ export default function CampaignIntakeWizardPage() {
       const rules = audienceMode === "filtered"
         ? [{ field_name: segmentField, operator: segmentOperator, value: segmentValue }]
         : []
-      const result = await engagehubRequest<CampaignAudiencePublic>(
+      const result = await signalloopRequest<CampaignAudiencePublic>(
         `/api/v1/campaigns/${campaignId}/audience`,
         {
           method: "POST",
@@ -214,7 +214,7 @@ export default function CampaignIntakeWizardPage() {
     if (!campaignId) return
 
     await runWithFeedback(async () => {
-      await engagehubRequest(`/api/v1/campaigns/${campaignId}/strategy`, {
+      await signalloopRequest(`/api/v1/campaigns/${campaignId}/strategy`, {
         method: "POST",
         body: {
           offer_pack_version_id: offerPackVersionId || null,

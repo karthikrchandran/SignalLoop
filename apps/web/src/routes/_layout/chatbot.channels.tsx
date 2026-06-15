@@ -22,6 +22,6 @@ export const Route = createFileRoute("/_layout/chatbot/channels")({
     }
   },
   head: () => ({
-    meta: [{ title: "Messaging Hub Channels - EngageHub" }],
+    meta: [{ title: "Messaging Hub Channels - SignalLoop" }],
   }),
 })

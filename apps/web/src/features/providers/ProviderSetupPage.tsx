@@ -27,7 +27,7 @@ import {
   getProviderSelections,
   getWorkspaceId,
   updateProviderSelection,
-} from "@/lib/engagehub-api"
+} from "@/lib/signalloop-api"
 
 const capabilityOrder: ProviderCapability[] = [
   "email",

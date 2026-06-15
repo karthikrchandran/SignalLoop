@@ -1,16 +1,16 @@
-# EngageHub Phase 1 Open Review Fix Plan
+# SignalLoop Phase 1 Open Review Fix Plan
 
 Date: 2026-06-07
 
 Type: Explanation and implementation plan
 
-Audience: Project owner and developers preparing the remaining EngageHub Phase 1 hardening work
+Audience: Project owner and developers preparing the remaining SignalLoop Phase 1 hardening work
 
-Scope: This document summarizes the open items from the EngageHub Phase 1 code review after the first fix pass, and reconciles the provider inventory with the later near-zero demo stack / open-source provider work.
+Scope: This document summarizes the open items from the SignalLoop Phase 1 code review after the first fix pass, and reconciles the provider inventory with the later near-zero demo stack / open-source provider work.
 
 ## Current Status After First Fix Pass
 
-The first fix pass closed several high-risk EngageHub Phase 1 findings:
+The first fix pass closed several high-risk SignalLoop Phase 1 findings:
 
 - Launched sequence and post-call workers now enforce global pause, campaign pause, and campaign caps before provider side effects.
 - Worker provider calls now persist outbound intent before calling SendGrid or Twilio, with in-flight protection to reduce duplicate sends on retries.
@@ -19,17 +19,17 @@ The first fix pass closed several high-risk EngageHub Phase 1 findings:
 - Provider credential `config_json` now rejects or redacts secret-like keys instead of returning raw sensitive configuration.
 - Focused worker/provider tests were added and passed in the local environment.
 
-The remaining work is not a repeat of those fixed items. The backlog below is focused on places where the same design principles still need to be applied across the broader EngageHub surface.
+The remaining work is not a repeat of those fixed items. The backlog below is focused on places where the same design principles still need to be applied across the broader SignalLoop surface.
 
 ## Provider Inventory Correction
 
-The earlier review language called out SendGrid, Twilio, Deepgram, and Groq because those are the historical/default EngageHub providers and they are still hard-coded in parts of setup/readiness UX. That wording was incomplete if read as the full current provider inventory.
+The earlier review language called out SendGrid, Twilio, Deepgram, and Groq because those are the historical/default SignalLoop providers and they are still hard-coded in parts of setup/readiness UX. That wording was incomplete if read as the full current provider inventory.
 
 There are three different levels of provider support in the codebase:
 
 1. Historical/default providers
 
-   These are the original production-oriented defaults used by the EngageHub setup overview and default credential resolver:
+   These are the original production-oriented defaults used by the SignalLoop setup overview and default credential resolver:
 
    - Email: SendGrid
    - Voice/SMS: Twilio
@@ -62,7 +62,7 @@ There are three different levels of provider support in the codebase:
 
 ### Why The Confusion Happened
 
-The near-zero demo stack added provider abstraction and local/open-source options, but some EngageHub readiness and settings screens still reflect the older provider set.
+The near-zero demo stack added provider abstraction and local/open-source options, but some SignalLoop readiness and settings screens still reflect the older provider set.
 
 Important examples:
 
@@ -73,7 +73,7 @@ Important examples:
 
 So the accurate review statement is:
 
-> EngageHub still has historical/default-provider assumptions in setup/readiness UX and some direct provider-call paths, even though the provider registry now includes additional open-source/local and multi-vendor options.
+> SignalLoop still has historical/default-provider assumptions in setup/readiness UX and some direct provider-call paths, even though the provider registry now includes additional open-source/local and multi-vendor options.
 
 ## Open Review Backlog
 
@@ -105,7 +105,7 @@ Fix approach:
 
 Acceptance criteria:
 
-- No EngageHub business/domain route path directly constructs provider-specific adapters when a capability resolver exists.
+- No SignalLoop business/domain route path directly constructs provider-specific adapters when a capability resolver exists.
 - Retrying a signal action or call request does not duplicate provider sends.
 - Tests cover retry behavior and active provider selection.
 
@@ -132,7 +132,7 @@ Fix approach:
 
 Initial endpoint coverage:
 
-- EngageHub control mutations
+- SignalLoop control mutations
 - Campaign create/update/import/audience/strategy/segment mutations
 - Template/script/sequence mutations
 - Provider credential mutations
@@ -148,7 +148,7 @@ Acceptance criteria:
 
 ### P1: Enforce Workspace Authorization / BOLA Protection
 
-Several EngageHub routes depend on `X-Workspace-Id` plus an admin role. That is not enough if users can belong to different workspaces, because a caller could potentially switch the header to access another workspace.
+Several SignalLoop routes depend on `X-Workspace-Id` plus an admin role. That is not enough if users can belong to different workspaces, because a caller could potentially switch the header to access another workspace.
 
 Fix approach:
 
@@ -162,7 +162,7 @@ Acceptance criteria:
 
 - Admin user from workspace A cannot access or mutate workspace B by changing `X-Workspace-Id`.
 - Super-admin behavior is explicit and tested.
-- All EngageHub route dependencies use the validated workspace context.
+- All SignalLoop route dependencies use the validated workspace context.
 - Tests cover read, write, and provider credential access across workspaces.
 
 If the intended product model is single-tenant only, the alternative is to document that explicitly and remove or lock down user-controlled workspace switching.
@@ -227,11 +227,11 @@ Acceptance criteria:
 
 ### P2: Clean Up Generated Client Discipline
 
-The project context says normal frontend API calls should use the generated client. EngageHub frontend code still uses raw wrapper calls in several areas.
+The project context says normal frontend API calls should use the generated client. SignalLoop frontend code still uses raw wrapper calls in several areas.
 
 Fix approach:
 
-- Audit EngageHub frontend API calls.
+- Audit SignalLoop frontend API calls.
 - Confirm all backend endpoints are represented in OpenAPI.
 - Update OpenAPI where endpoint contracts are missing or stale.
 - Regenerate the frontend client.
@@ -240,7 +240,7 @@ Fix approach:
 
 Acceptance criteria:
 
-- EngageHub normal JSON calls use generated client methods.
+- SignalLoop normal JSON calls use generated client methods.
 - Raw wrapper exceptions are documented and limited.
 - OpenAPI remains aligned with route behavior.
 
@@ -252,18 +252,18 @@ Observed issue:
 
 - Chatbot models include `embedding vector(768)`.
 - Test setup using `SQLModel.metadata.create_all(...)` reaches that type before the `vector` extension is available.
-- On a machine without Docker/native pgvector, EngageHub route tests can fail before reaching the routes under test.
+- On a machine without Docker/native pgvector, SignalLoop route tests can fail before reaching the routes under test.
 
 Options without Docker:
 
 - Install pgvector into the native local PostgreSQL instance and run `CREATE EXTENSION IF NOT EXISTS vector;`.
 - Change test setup so migrations create the extension before vector columns are created.
 - Avoid global metadata creation for route slices that do not need chatbot vector models.
-- Split EngageHub route tests from chatbot vector-model setup where practical.
+- Split SignalLoop route tests from chatbot vector-model setup where practical.
 
 Acceptance criteria:
 
-- EngageHub route tests can run locally without Docker.
+- SignalLoop route tests can run locally without Docker.
 - If native pgvector is required, setup instructions are explicit.
 - Route tests for provider credentials, webhooks, controls, and idempotency are no longer blocked by unrelated chatbot vector schema setup.
 
@@ -292,7 +292,7 @@ Acceptance criteria:
 | STT | Deepgram, Faster Whisper Local | Deepgram | Faster Whisper Local | Faster Whisper is suitable for local/batch transcription, not a drop-in real-time media-stream replacement |
 | TTS | Deepgram | Deepgram | Enum includes local TTS names | Piper/Coqui/etc. are schema/planned until adapters, runtime config, and tests exist |
 | LLM | Groq, OpenAI, OpenRouter, Together, Ollama Local | Groq | Ollama Local | Setup overview still centers Groq instead of active workspace selection |
-| Chatbot channels | Separate chatbot channel provider registry | N/A for EngageHub Phase 1 outbound readiness | Some redirect/local dev flows | Keep separate from EngageHub email/voice/SMS provider readiness unless a shared provider contract is intentionally introduced |
+| Chatbot channels | Separate chatbot channel provider registry | N/A for SignalLoop Phase 1 outbound readiness | Some redirect/local dev flows | Keep separate from SignalLoop email/voice/SMS provider readiness unless a shared provider contract is intentionally introduced |
 
 ## Suggested Fix Order
 
@@ -335,5 +335,5 @@ Acceptance criteria:
 - Generic mutating routes enforce idempotency replay/conflict behavior.
 - Workspace access validates membership, not just the caller-supplied workspace header.
 - SendGrid and Twilio webhook replay behavior is persisted and tested.
-- EngageHub route tests run locally without Docker, or native pgvector setup is documented and verified.
+- SignalLoop route tests run locally without Docker, or native pgvector setup is documented and verified.
 - Worker/provider tests remain green after the broader changes.

@@ -1,4 +1,4 @@
-import { engagehubRequest } from "@/lib/engagehub-api"
+import { signalloopRequest } from "@/lib/signalloop-api"
 
 export type ProspectingContact = {
   id: string
@@ -113,7 +113,7 @@ export function listContacts(search = "") {
   if (search.trim()) {
     params.set("search", search.trim())
   }
-  return engagehubRequest<ContactListResponse>(`/api/v1/contacts/?${params.toString()}`)
+  return signalloopRequest<ContactListResponse>(`/api/v1/contacts/?${params.toString()}`)
 }
 
 export function listReadyContacts(search = "") {
@@ -121,13 +121,13 @@ export function listReadyContacts(search = "") {
   if (search.trim()) {
     params.set("search", search.trim())
   }
-  return engagehubRequest<ProspectingReadyContactsResponse>(
+  return signalloopRequest<ProspectingReadyContactsResponse>(
     `/api/v1/prospecting/ready-contacts?${params.toString()}`,
   )
 }
 
 export function runProspectingResearch(input: ProspectingResearchRequest) {
-  return engagehubRequest<ProspectingResearchResult>("/api/v1/prospecting/research", {
+  return signalloopRequest<ProspectingResearchResult>("/api/v1/prospecting/research", {
     method: "POST",
     idempotent: true,
     body: input,
@@ -135,7 +135,7 @@ export function runProspectingResearch(input: ProspectingResearchRequest) {
 }
 
 export function runBulkProspectingResearch(input: ProspectingBulkResearchRequest) {
-  return engagehubRequest<ProspectingResearchListResponse>("/api/v1/prospecting/research/bulk", {
+  return signalloopRequest<ProspectingResearchListResponse>("/api/v1/prospecting/research/bulk", {
     method: "POST",
     idempotent: true,
     body: input,
@@ -148,21 +148,21 @@ export function listProspectingResearch(contactId?: string) {
     params.set("contact_id", contactId)
   }
   const query = params.toString()
-  return engagehubRequest<ProspectingResearchListResponse>(
+  return signalloopRequest<ProspectingResearchListResponse>(
     `/api/v1/prospecting/research${query ? `?${query}` : ""}`,
   )
 }
 
 export function listProspectingCampaigns() {
-  return engagehubRequest<ProspectingCampaignListResponse>("/api/v1/campaigns/")
+  return signalloopRequest<ProspectingCampaignListResponse>("/api/v1/campaigns/")
 }
 
 export function listProspectingSequences() {
-  return engagehubRequest<ProspectingSequenceListResponse>("/api/v1/sequences/")
+  return signalloopRequest<ProspectingSequenceListResponse>("/api/v1/sequences/")
 }
 
 export function enrollProspects(input: ProspectingEnrollmentRequest) {
-  return engagehubRequest<ProspectingEnrollmentResult>("/api/v1/prospecting/enroll", {
+  return signalloopRequest<ProspectingEnrollmentResult>("/api/v1/prospecting/enroll", {
     method: "POST",
     idempotent: true,
     body: input,

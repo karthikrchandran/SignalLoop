@@ -1,4 +1,4 @@
-import { engagehubRequest, getWorkspaceId } from "@/lib/engagehub-api"
+import { signalloopRequest, getWorkspaceId } from "@/lib/signalloop-api"
 import {
   demoCreateChatbotChannel,
   demoCreateKnowledgeSource,
@@ -97,12 +97,12 @@ const channelPath = (workspaceId = getWorkspaceId()) => ({
 
 export function listChatbotChannels(workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoListChatbotChannels()
-  return engagehubRequest<ChatbotChannelsResponse>(channelPath(workspaceId).path, { workspaceId })
+  return signalloopRequest<ChatbotChannelsResponse>(channelPath(workspaceId).path, { workspaceId })
 }
 
 export function createChatbotChannel(input: ChatbotChannelInput, workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoCreateChatbotChannel(input)
-  return engagehubRequest<ChatbotChannel>(channelPath(workspaceId).path, {
+  return signalloopRequest<ChatbotChannel>(channelPath(workspaceId).path, {
     method: "POST",
     body: input,
     workspaceId,
@@ -115,7 +115,7 @@ export function updateChatbotChannel(
   workspaceId = getWorkspaceId(),
 ) {
   if (isChatbotDemoMode()) return demoUpdateChatbotChannel(channelId, input)
-  return engagehubRequest<ChatbotChannel>(`${channelPath(workspaceId).path}/${channelId}`, {
+  return signalloopRequest<ChatbotChannel>(`${channelPath(workspaceId).path}/${channelId}`, {
     method: "PUT",
     body: input,
     workspaceId,
@@ -128,7 +128,7 @@ export function toggleChatbotChannel(
   workspaceId = getWorkspaceId(),
 ) {
   if (isChatbotDemoMode()) return demoToggleChatbotChannel(channelId, isActive)
-  return engagehubRequest<ChatbotChannel>(`${channelPath(workspaceId).path}/${channelId}/toggle`, {
+  return signalloopRequest<ChatbotChannel>(`${channelPath(workspaceId).path}/${channelId}/toggle`, {
     method: "PATCH",
     body: { is_active: isActive },
     workspaceId,
@@ -239,7 +239,7 @@ export function getChatbotAnalytics(range: ChatbotAnalyticsRange = {}, workspace
   if (range.from) params.set("from", range.from)
   if (range.to) params.set("to", range.to)
   const query = params.toString()
-  return engagehubRequest<ChatbotAnalytics>(`/api/v1/chatbot/analytics${query ? `?${query}` : ""}`, { workspaceId })
+  return signalloopRequest<ChatbotAnalytics>(`/api/v1/chatbot/analytics${query ? `?${query}` : ""}`, { workspaceId })
 }
 
 export type ChatbotTestBotSource = {
@@ -261,12 +261,12 @@ const knowledgePath = "/api/v1/chatbot/knowledge-sources"
 
 export function listKnowledgeSources(workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoListKnowledgeSources()
-  return engagehubRequest<ChatbotKnowledgeSourcesResponse>(knowledgePath, { workspaceId })
+  return signalloopRequest<ChatbotKnowledgeSourcesResponse>(knowledgePath, { workspaceId })
 }
 
 export function createKnowledgeSource(input: ChatbotKnowledgeSourceInput, workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoCreateKnowledgeSource(input)
-  return engagehubRequest<ChatbotKnowledgeSource>(knowledgePath, {
+  return signalloopRequest<ChatbotKnowledgeSource>(knowledgePath, {
     method: "POST",
     body: input,
     workspaceId,
@@ -277,7 +277,7 @@ export function uploadKnowledgeDocument(file: File, workspaceId = getWorkspaceId
   if (isChatbotDemoMode()) return demoUploadKnowledgeDocument(file)
   const formData = new FormData()
   formData.append("file", file)
-  return engagehubRequest<ChatbotKnowledgeSource>(`${knowledgePath}/documents`, {
+  return signalloopRequest<ChatbotKnowledgeSource>(`${knowledgePath}/documents`, {
     method: "POST",
     formData,
     workspaceId,
@@ -286,7 +286,7 @@ export function uploadKnowledgeDocument(file: File, workspaceId = getWorkspaceId
 
 export function deleteKnowledgeSource(sourceId: string, workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoDeleteKnowledgeSource(sourceId)
-  return engagehubRequest<void>(`${knowledgePath}/${sourceId}`, {
+  return signalloopRequest<void>(`${knowledgePath}/${sourceId}`, {
     method: "DELETE",
     workspaceId,
   })
@@ -294,7 +294,7 @@ export function deleteKnowledgeSource(sourceId: string, workspaceId = getWorkspa
 
 export function reindexKnowledgeSource(sourceId: string, workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoReindexKnowledgeSource(sourceId)
-  return engagehubRequest<ChatbotReindexResponse>(`${knowledgePath}/${sourceId}/reindex`, {
+  return signalloopRequest<ChatbotReindexResponse>(`${knowledgePath}/${sourceId}/reindex`, {
     method: "POST",
     workspaceId,
   })
@@ -302,7 +302,7 @@ export function reindexKnowledgeSource(sourceId: string, workspaceId = getWorksp
 
 export function reindexAllKnowledgeSources(workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoReindexAllKnowledgeSources()
-  return engagehubRequest<ChatbotReindexResponse>(`${knowledgePath}/reindex`, {
+  return signalloopRequest<ChatbotReindexResponse>(`${knowledgePath}/reindex`, {
     method: "POST",
     body: {},
     workspaceId,
@@ -311,7 +311,7 @@ export function reindexAllKnowledgeSources(workspaceId = getWorkspaceId()) {
 
 export function testChatbotQuestion(question: string, workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoTestChatbotQuestion(question)
-  return engagehubRequest<ChatbotTestBotResponse>("/api/v1/chatbot/test-bot", {
+  return signalloopRequest<ChatbotTestBotResponse>("/api/v1/chatbot/test-bot", {
     method: "POST",
     body: { question },
     workspaceId,
@@ -413,17 +413,17 @@ export function listChatbotThreads(filters: ChatbotThreadFilters = {}, workspace
   if (filters.status && filters.status !== "all") params.set("status", filters.status)
   if (filters.cursor) params.set("cursor", filters.cursor)
   const query = params.toString()
-  return engagehubRequest<ChatbotThreadsResponse>(`${inboxPath}/threads${query ? `?${query}` : ""}`, { workspaceId })
+  return signalloopRequest<ChatbotThreadsResponse>(`${inboxPath}/threads${query ? `?${query}` : ""}`, { workspaceId })
 }
 
 export function getChatbotThread(threadId: string, workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoGetChatbotThread(threadId)
-  return engagehubRequest<ChatbotThreadDetail>(`${inboxPath}/threads/${threadId}`, { workspaceId })
+  return signalloopRequest<ChatbotThreadDetail>(`${inboxPath}/threads/${threadId}`, { workspaceId })
 }
 
 export function replyToChatbotThread(threadId: string, message: string, workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoReplyToChatbotThread(threadId, message)
-  return engagehubRequest<{ thread: ChatbotThreadDetail }>(`${inboxPath}/threads/${threadId}/reply`, {
+  return signalloopRequest<{ thread: ChatbotThreadDetail }>(`${inboxPath}/threads/${threadId}/reply`, {
     method: "POST",
     body: { message },
     workspaceId,
@@ -432,7 +432,7 @@ export function replyToChatbotThread(threadId: string, message: string, workspac
 
 export function resolveChatbotThread(threadId: string, workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoResolveChatbotThread(threadId)
-  return engagehubRequest<{ thread: ChatbotThreadDetail }>(`${inboxPath}/threads/${threadId}/resolve`, {
+  return signalloopRequest<{ thread: ChatbotThreadDetail }>(`${inboxPath}/threads/${threadId}/resolve`, {
     method: "PATCH",
     workspaceId,
   })
@@ -440,7 +440,7 @@ export function resolveChatbotThread(threadId: string, workspaceId = getWorkspac
 
 export function reopenChatbotThread(threadId: string, workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoReopenChatbotThread(threadId)
-  return engagehubRequest<{ thread: ChatbotThreadDetail }>(`${inboxPath}/threads/${threadId}/reopen`, {
+  return signalloopRequest<{ thread: ChatbotThreadDetail }>(`${inboxPath}/threads/${threadId}/reopen`, {
     method: "PATCH",
     workspaceId,
   })
@@ -552,12 +552,12 @@ export type ChatbotConfigUpdate = Partial<Omit<ChatbotConfig, "workspace_id" | "
 
 export function getChatbotConfig(workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoGetChatbotConfig()
-  return engagehubRequest<ChatbotConfig>("/api/v1/chatbot/config", { workspaceId })
+  return signalloopRequest<ChatbotConfig>("/api/v1/chatbot/config", { workspaceId })
 }
 
 export function updateChatbotConfig(input: ChatbotConfigUpdate, workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoUpdateChatbotConfig(input)
-  return engagehubRequest<ChatbotConfig>("/api/v1/chatbot/config", {
+  return signalloopRequest<ChatbotConfig>("/api/v1/chatbot/config", {
     method: "PUT",
     body: input,
     workspaceId,
@@ -583,12 +583,12 @@ export type ChatbotOptOutsResponse = {
 
 export function listChatbotOptOuts(workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoListChatbotOptOuts()
-  return engagehubRequest<ChatbotOptOutsResponse>("/api/v1/chatbot/opt-outs", { workspaceId })
+  return signalloopRequest<ChatbotOptOutsResponse>("/api/v1/chatbot/opt-outs", { workspaceId })
 }
 
 export function removeChatbotOptOut(optOutId: string, workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoRemoveChatbotOptOut(optOutId)
-  return engagehubRequest<{ id: string; removed: boolean }>(`/api/v1/chatbot/opt-outs/${optOutId}`, {
+  return signalloopRequest<{ id: string; removed: boolean }>(`/api/v1/chatbot/opt-outs/${optOutId}`, {
     method: "DELETE",
     workspaceId,
   })
@@ -613,12 +613,12 @@ export type ChatbotDeadLettersResponse = {
 
 export function listChatbotDeadLetters(workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoListChatbotDeadLetters()
-  return engagehubRequest<ChatbotDeadLettersResponse>("/api/v1/chatbot/dead-letters", { workspaceId })
+  return signalloopRequest<ChatbotDeadLettersResponse>("/api/v1/chatbot/dead-letters", { workspaceId })
 }
 
 export function retryChatbotDeadLetter(deadLetterId: string, workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoRetryChatbotDeadLetter(deadLetterId)
-  return engagehubRequest<{ id: string; requeued: boolean; inbound_queue_key: string }>(
+  return signalloopRequest<{ id: string; requeued: boolean; inbound_queue_key: string }>(
     `/api/v1/chatbot/dead-letters/${deadLetterId}/retry`,
     { method: "POST", workspaceId },
   )

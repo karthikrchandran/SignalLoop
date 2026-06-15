@@ -1,7 +1,7 @@
 - generic [active] [ref=e1]:
   - generic [ref=e2]:
     - generic [ref=e3]:
-      - heading "EngageHub Complete Screen Set" [level=1] [ref=e4]
+      - heading "SignalLoop Complete Screen Set" [level=1] [ref=e4]
       - paragraph [ref=e5]: All required screens across Journeys 1-5 for implementation and handoff
     - generic [ref=e6]: 23 Screens Total
   - generic [ref=e7]:

@@ -46,7 +46,7 @@ def test_config_api_validates_compliance_fields_and_audits_update() -> None:
 
         updated = update_config(
             ChatbotConfigUpdate(
-                ai_disclosure="I am an AI assistant for EngageHub.",
+                ai_disclosure="I am an AI assistant for SignalLoop.",
                 retention_days=45,
                 token_cap_per_session=5000,
             ),

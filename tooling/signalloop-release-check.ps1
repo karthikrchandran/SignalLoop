@@ -85,14 +85,14 @@ Invoke-CheckedStep `
   -Name "Web biome check" `
   -WorkingDirectory $WebDir `
   -Command "npx" `
-  biome check --no-errors-on-unmatched --files-ignore-unknown=true src/features/engagehub-ai/api.ts src/features/engagehub-ai/EngageHubAiPage.tsx tests/engagehub-ai.spec.ts
+  biome check --no-errors-on-unmatched --files-ignore-unknown=true src/features/signalloop-ai/api.ts src/features/signalloop-ai/SignalLoopAiPage.tsx tests/signalloop-ai.spec.ts
 
 if (-not $SkipPlaywright) {
   Invoke-CheckedStep `
-    -Name "Web EngageHub AI Playwright smoke" `
+    -Name "Web SignalLoop AI Playwright smoke" `
     -WorkingDirectory $WebDir `
     -Command "npx" `
-    playwright test tests/engagehub-ai.spec.ts --project=chromium --workers=1 --no-deps
+    playwright test tests/signalloop-ai.spec.ts --project=chromium --workers=1 --no-deps
 }
 
 if (-not $SkipWebBuild) {
@@ -110,4 +110,4 @@ Invoke-CheckedStep `
   diff --check
 
 Write-Host ""
-Write-Host "EngageHub release check completed."
+Write-Host "SignalLoop release check completed."

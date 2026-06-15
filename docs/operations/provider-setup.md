@@ -36,7 +36,7 @@ SMTP_USER=
 SMTP_PASSWORD=
 EMAILS_FROM_EMAIL=noreply@example.com
 SMTP_FROM_EMAIL=noreply@example.com
-SMTP_FROM_NAME=EngageHub Demo
+SMTP_FROM_NAME=SignalLoop Demo
 ```
 
 ---
@@ -96,7 +96,7 @@ Do this only after you have a SendGrid account and sender identity.
 
 ### Get API Key
 1. Dashboard → **Settings** → **API Keys** → **Create API Key**
-2. Name it `engagehub-local`
+2. Name it `signalloop-local`
 3. Permission: **Restricted Access** → enable **Mail Send** only
 4. Copy the key (shown only once)
 
@@ -146,7 +146,7 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx
 ## 6. Vapi - Managed AI Voice Calls
 
 Used by the `call_worker` when a workspace selects `vapi` as the `voice` provider.
-Vapi owns the AI voice session; EngageHub stores the returned Vapi call ID in the existing call-session provider ID field.
+Vapi owns the AI voice session; SignalLoop stores the returned Vapi call ID in the existing call-session provider ID field.
 
 ### Configure Vapi
 1. Create or choose a Vapi assistant.
@@ -185,7 +185,7 @@ Do this only after you have a Deepgram account.
 
 ### Get API Key
 1. Console → **API Keys** → **Create a New API Key**
-2. Name it `engagehub-local`
+2. Name it `signalloop-local`
 3. Role: **Member** is sufficient
 4. Copy the key
 
@@ -210,7 +210,7 @@ Do this only after you have a Groq account.
 
 ### Get API Key
 1. Console → **API Keys** → **Create API Key**
-2. Name it `engagehub-local`
+2. Name it `signalloop-local`
 3. Copy the key
 
 ### Update `.env`

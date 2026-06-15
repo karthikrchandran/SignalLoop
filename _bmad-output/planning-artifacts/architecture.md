@@ -1,7 +1,7 @@
 ---
 workflowType: architecture
 date: "2026-04-02"
-projectName: "EngageHub"
+projectName: "SignalLoop"
 documentPurpose: "Reference architecture for automated email sequences and AI voice calling MVP"
 primaryAudience:
   - solution_architect
@@ -13,11 +13,11 @@ secondaryAudience:
   - product_manager
 ---
 
-# EngageHub MVP Architecture
+# SignalLoop MVP Architecture
 
 ## 1. Architecture Goal
 
-This document describes the EngageHub MVP architecture: an automated outreach system that executes multi-step email sequences and AI-powered voice cold calls.
+This document describes the SignalLoop MVP architecture: an automated outreach system that executes multi-step email sequences and AI-powered voice cold calls.
 
 The MVP delivers:
 
@@ -915,17 +915,17 @@ For dev/test environments, use docker-compose with:
 ```yaml
 services:
   api:
-    image: myregistry/engagehub-api:latest
+    image: myregistry/signalloop-api:latest
     ports: ["8001:8001"]
     environment:
-      DATABASE_URL: postgresql://user:pass@postgres:5432/engagehub
+      DATABASE_URL: postgresql://user:pass@postgres:5432/signalloop
   
   sequence_worker:
-    image: myregistry/engagehub-workers:latest
+    image: myregistry/signalloop-workers:latest
     command: python -m workers.sequence_worker
     
   call_worker:
-    image: myregistry/engagehub-workers:latest
+    image: myregistry/signalloop-workers:latest
     command: python -m workers.call_worker
     
   postgres:
@@ -939,7 +939,7 @@ services:
     image: redis:7
   
   web:
-    image: myregistry/engagehub-web:latest
+    image: myregistry/signalloop-web:latest
     ports: ["5173:80"]
 ```
 

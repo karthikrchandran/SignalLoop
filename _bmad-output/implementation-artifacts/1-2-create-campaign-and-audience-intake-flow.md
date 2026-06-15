@@ -161,10 +161,10 @@ GPT-5.3-Codex (GitHub Copilot)
 - 2026-03-30: Local Docker CLI unavailable (`docker` command not found), so required DB dependency could not be started from this workspace session.
 - 2026-03-30: Added and ran domain test suite with `pytest tests/domain/test_campaign_intake_services.py --confcutdir=tests/domain -q` -> `3 passed`.
 - 2026-03-30: Added campaign route integration/contract tests; execution remains blocked without reachable PostgreSQL service.
-- 2026-04-02: Found local PostgreSQL (Scoop install), started server with `pg_ctl`, verified `engagehub` DB connectivity, and reran campaign/domain tests.
+- 2026-04-02: Found local PostgreSQL (Scoop install), started server with `pg_ctl`, verified `signalloop` DB connectivity, and reran campaign/domain tests.
 - 2026-04-02: Fixed duplicate enum creation failures in Alembic migrations by switching enum definitions to `postgresql.ENUM(..., create_type=False)` in campaign and template migrations.
-- 2026-04-02: Recreated `engagehub` DB, successfully upgraded to both Alembic heads (`a1b2c3d4e5f6`, `c3d9f4a8e271`), and reran Story 1.2 tests.
-- 2026-04-02: Installed local MongoDB via Scoop, started `mongod` on `127.0.0.1:27017`, reran API tests with `MONGODB_URL=mongodb://127.0.0.1:27017/engagehub` override, and confirmed `tests/api/routes/test_campaigns.py` passes.
+- 2026-04-02: Recreated `signalloop` DB, successfully upgraded to both Alembic heads (`a1b2c3d4e5f6`, `c3d9f4a8e271`), and reran Story 1.2 tests.
+- 2026-04-02: Installed local MongoDB via Scoop, started `mongod` on `127.0.0.1:27017`, reran API tests with `MONGODB_URL=mongodb://127.0.0.1:27017/signalloop` override, and confirmed `tests/api/routes/test_campaigns.py` passes.
 - 2026-04-02: Reran Story 1.2 focused test set with local Mongo override: `pytest tests/api/routes/test_campaigns.py tests/domain/test_campaign_intake_services.py -v` -> `5 passed`.
 
 ### Completion Notes List
@@ -177,7 +177,7 @@ GPT-5.3-Codex (GitHub Copilot)
 - Local Postgres test environment is now operational; previous DB-connectivity blocker has been removed.
 - Alembic migration enum handling was hardened to support clean database bootstrap without duplicate-type failures.
 - Remaining for full story closure: frontend mapping preview test and campaign e2e test.
-- Local MongoDB is now available for test runs when `MONGODB_URL` is overridden to `mongodb://127.0.0.1:27017/engagehub` in non-Docker sessions.
+- Local MongoDB is now available for test runs when `MONGODB_URL` is overridden to `mongodb://127.0.0.1:27017/signalloop` in non-Docker sessions.
 
 ### File List
 

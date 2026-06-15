@@ -2,7 +2,7 @@
 workflowType: prd
 date: "2026-04-02"
 inputDocuments:
-  - _bmad-output/planning-artifacts/product-brief-EngageHub.md
+  - _bmad-output/planning-artifacts/product-brief-SignalLoop.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-04-02.md
 documentPurpose: "MVP requirements baseline for product, engineering, QA, and operations"
 primaryAudience:
@@ -13,11 +13,11 @@ primaryAudience:
   - sre
 ---
 
-# Product Requirements Document: EngageHub
+# Product Requirements Document: SignalLoop
 
 ## 1. Product Summary
 
-EngageHub automates B2B outreach for lean teams through two integrated channels: multi-step email sequences and AI-powered voice cold calling. 
+SignalLoop automates B2B outreach for lean teams through two integrated channels: multi-step email sequences and AI-powered voice cold calling. 
 
 The product enables marketing operations admins to:
 1. Define multi-step email sequences with different content per step and configurable delays

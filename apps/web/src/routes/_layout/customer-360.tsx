@@ -4,7 +4,7 @@ import Customer360AccountsPage from "@/features/customer-360/Customer360Accounts
 
 export const Route = createFileRoute("/_layout/customer-360")({
   head: () => ({
-    meta: [{ title: "Customer 360 - EngageHub" }],
+    meta: [{ title: "Customer 360 - SignalLoop" }],
   }),
   component: Customer360Route,
 })

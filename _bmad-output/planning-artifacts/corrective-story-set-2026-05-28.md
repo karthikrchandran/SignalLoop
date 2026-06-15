@@ -1,18 +1,18 @@
 ---
 workflowType: corrective-story-set
 date: "2026-05-28"
-project: EngageHub
+project: SignalLoop
 sourceProposal: "_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-28-implementation-gaps.md"
 status: approved
 ---
 
-# Corrective Story Set: EngageHub Implementation Gaps
+# Corrective Story Set: SignalLoop Implementation Gaps
 
 ## Purpose
 
-This corrective story set captures the approved change-control increment for the post-sprint implementation gaps discovered during the EngageHub end-to-end review.
+This corrective story set captures the approved change-control increment for the post-sprint implementation gaps discovered during the SignalLoop end-to-end review.
 
-These stories do not replace the original EngageHub MVP direction. They close the remaining gap between the planned MVP behavior and the currently operable admin and automation surface.
+These stories do not replace the original SignalLoop MVP direction. They close the remaining gap between the planned MVP behavior and the currently operable admin and automation surface.
 
 ## Scope Classification
 

@@ -5,7 +5,7 @@ revisedDate: "2026-05-13"
 revisionNote: "Analyst review (Mary / bmad-agent-analyst): added AI disclosure requirement, WhatsApp 24-hour window constraint, privacy consent in lead capture, non-text message handling, business hours awareness, bot test/preview capability, opt-out/STOP handling, success metrics section, KB in-flight consistency, and conversation export."
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
-  - _bmad-output/planning-artifacts/product-brief-EngageHub.md
+  - _bmad-output/planning-artifacts/product-brief-SignalLoop.md
 documentPurpose: "Phase 2 PRD — Shared Business Chatbot Brain for multi-channel inbound engagement"
 primaryAudience:
   - product_manager
@@ -18,11 +18,11 @@ primaryAudience:
 
 ## 1. Product Summary
 
-ChatBot Hub extends EngageHub with a shared AI-powered chatbot engine that can be deployed simultaneously across multiple official business messaging channels — Facebook Page Messenger, WhatsApp Business, Telegram Bot, and LinkedIn (as an intent capture entry point). Every channel adapter shares the same knowledge brain, meaning a business configures their knowledge base once and all channel-facing bots answer consistently from that single source of truth.
+ChatBot Hub extends SignalLoop with a shared AI-powered chatbot engine that can be deployed simultaneously across multiple official business messaging channels — Facebook Page Messenger, WhatsApp Business, Telegram Bot, and LinkedIn (as an intent capture entry point). Every channel adapter shares the same knowledge brain, meaning a business configures their knowledge base once and all channel-facing bots answer consistently from that single source of truth.
 
 Admins feed the brain by providing one or more of: a website URL to crawl, documents (PDF, DOCX, TXT) to ingest, free-form FAQ text entries, or structured Q&A pairs. The brain indexes this content and uses Retrieval-Augmented Generation (RAG) to answer inbound visitor questions accurately and grounded in the business's own content.
 
-When the bot cannot answer, it gracefully escalates to a human agent and passes the conversation context. Captured leads (name, contact, intent) flow into the existing EngageHub contact pool for downstream sequence and call follow-up.
+When the bot cannot answer, it gracefully escalates to a human agent and passes the conversation context. Captured leads (name, contact, intent) flow into the existing SignalLoop contact pool for downstream sequence and call follow-up.
 
 ---
 
@@ -41,7 +41,7 @@ When the bot cannot answer, it gracefully escalates to a human agent and passes 
 1. Enable a business to connect at least two official inbound messaging channels (Facebook Page Messenger and WhatsApp Business) behind a single shared AI brain.
 2. Allow admins to build the bot's knowledge base from website URLs, uploaded documents, and manual FAQ entries — without writing code.
 3. Answer inbound visitor questions accurately, citing the business's own content through RAG, with no hallucinated claims.
-4. Capture visitor contact details (name, email or phone) and intent as a qualified lead record in the EngageHub contact pool.
+4. Capture visitor contact details (name, email or phone) and intent as a qualified lead record in the SignalLoop contact pool.
 5. Escalate gracefully to a human agent when the bot cannot answer or when the visitor explicitly requests a human.
 6. Provide admins with a unified conversation inbox showing all inbound chat threads across all channels.
 7. Allow Telegram as an optional third channel at MVP launch.
@@ -65,7 +65,7 @@ When the bot cannot answer, it gracefully escalates to a human agent and passes 
   - Manual Q&A entry: structured question + answer pairs
 - **RAG pipeline**: chunk, embed, and index all knowledge sources; retrieve relevant chunks at query time; generate grounded answers via LLM
 - **Bot conversation engine**: greeting, knowledge-grounded answers, follow-up clarification questions, lead capture flow, escalation to human
-- **Lead capture**: structured collection of visitor name + contact (email or phone) + intent during conversation; writes to EngageHub contact pool
+- **Lead capture**: structured collection of visitor name + contact (email or phone) + intent during conversation; writes to SignalLoop contact pool
 - **Human handoff**: when bot confidence is low or visitor requests human, the thread is flagged and appears in admin inbox with full context
 - **Admin conversation inbox**: view all inbound threads across channels, see full message history, reply as human, resolve or re-open
 - **Workspace channel credentials**: per-workspace storage of Facebook App credentials, WhatsApp Business phone number ID + token, Telegram Bot token — using existing `ProviderCredential` model
@@ -90,7 +90,7 @@ When the bot cannot answer, it gracefully escalates to a human agent and passes 
 - Multi-workspace / multi-tenant knowledge base isolation beyond workspace-level row separation
 - Proactive outbound messaging via chat channels (this product is inbound-first; WhatsApp template broadcast messages are Phase 2)
 - Native mobile app for admin inbox
-- CRM sync beyond the existing EngageHub contact pool
+- CRM sync beyond the existing SignalLoop contact pool
 - A/B testing of bot responses
 - Custom ML fine-tuning of bot models
 - Automated appointment booking within chat
@@ -131,7 +131,7 @@ A visitor on the business's Facebook Page sends: "Hi, do you have a plan that co
 
 ### Journey 4: Lead capture during a WhatsApp chat
 
-A visitor sends a WhatsApp message: "I want to get a demo." The bot responds with its greeting, then initiates the lead capture flow: "I'd love to help arrange that! Could I get your name and email address so our team can follow up?" The visitor provides details. The bot creates a contact record in EngageHub with tag `chatbot-lead` and intent `demo-request`, then confirms: "Thanks, you're all set. Someone from our team will reach out shortly!"
+A visitor sends a WhatsApp message: "I want to get a demo." The bot responds with its greeting, then initiates the lead capture flow: "I'd love to help arrange that! Could I get your name and email address so our team can follow up?" The visitor provides details. The bot creates a contact record in SignalLoop with tag `chatbot-lead` and intent `demo-request`, then confirms: "Thanks, you're all set. Someone from our team will reach out shortly!"
 
 ### Journey 5: Agent handles an escalation
 
@@ -205,7 +205,7 @@ A visitor on WhatsApp replies "STOP". The system immediately marks the visitor a
 - **LC1**: The bot must initiate a lead capture flow when the visitor expresses purchase intent, requests a demo, asks for pricing, or completes a successful Q&A exchange beyond a configurable minimum turn threshold (default: 3 turns).
 - **LC2**: The lead capture flow must collect at minimum: visitor's name and one contact channel (email address or phone number).
 - **LC3**: Before collecting PII, the bot must present a brief privacy notice and obtain explicit consent (e.g., "To follow up, I'll need to store your contact details. Is that OK?"). If the visitor declines, LC5 applies. This is required for PDPA, GDPR, and PDPC compliance.
-- **LC4**: Upon successful lead capture with consent, the system must create a Contact record in the EngageHub contact pool with: channel source (e.g., `whatsapp`), tag `chatbot-lead`, and an intent field populated from the detected intent category.
+- **LC4**: Upon successful lead capture with consent, the system must create a Contact record in the SignalLoop contact pool with: channel source (e.g., `whatsapp`), tag `chatbot-lead`, and an intent field populated from the detected intent category.
 - **LC5**: The system must not create duplicate contact records for the same phone number or email within a workspace; if the contact already exists, the system must update the contact's last-seen timestamp and append the new intent tag.
 - **LC6**: Lead capture must be optional for the visitor; if the visitor declines to provide details or declines consent, the conversation continues normally and the bot does not re-prompt more than once per session.
 - **LC7**: The consent event and the visitor's response (accepted/declined) must be recorded in the audit log per Contact record for compliance evidence.
@@ -263,7 +263,7 @@ A visitor on WhatsApp replies "STOP". The system immediately marks the visitor a
 
 ### Security
 
-- **NFR-CB8**: All channel API tokens, webhook secrets, and LLM API keys must be encrypted at rest using the same `ProviderCredential` encryption mechanism used by EngageHub today.
+- **NFR-CB8**: All channel API tokens, webhook secrets, and LLM API keys must be encrypted at rest using the same `ProviderCredential` encryption mechanism used by SignalLoop today.
 - **NFR-CB9**: Vector index data and conversation history must be partitioned by workspace; no cross-workspace query is permitted at any layer.
 - **NFR-CB10**: All inbound webhook requests must be verified using the channel provider's official signature scheme before any payload content is processed.
 - **NFR-CB11**: Admin inbox access and knowledge base management must be restricted to users with the workspace admin or agent role.
@@ -351,7 +351,7 @@ The following conditions must all be met before production release of ChatBot Hu
 2. **Knowledge base functional**: Website URL crawl, document upload, and FAQ text entry all produce indexed and queryable knowledge with RAG answers grounded in the provided content.
 3. **No hallucination contract**: 50 manual test queries against a reference knowledge base produce zero responses that assert facts not present in the knowledge sources.
 4. **Escalation reliable**: 100% of conversations meeting escalation trigger criteria surface in admin inbox within 30 seconds.
-5. **Lead capture reliable**: 100% of completed lead capture flows (with consent) produce a Contact record in the EngageHub contact pool within 60 seconds.
+5. **Lead capture reliable**: 100% of completed lead capture flows (with consent) produce a Contact record in the SignalLoop contact pool within 60 seconds.
 6. **Privacy consent enforced**: 100% of lead capture flows present the privacy notice before collecting PII; consent/decline events are recorded in the audit log.
 7. **AI disclosure present**: 100% of bot messages include the configured AI disclosure text — verified in regression testing across all channels.
 8. **Opt-out enforced**: Sending "STOP" immediately halts all bot responses for that visitor within 1 message turn — verified on WhatsApp and Facebook channels.
@@ -391,7 +391,7 @@ These metrics define what "success" looks like at 30, 60, and 90 days post-launc
 | OQ2 | `pgvector` available on Postgres? | ✅ **Resolved: switch `db` service image in `compose.yml` from `postgres:17` to `pgvector/pgvector:pg17`** as part of Epic 1 setup. This is a one-line change. `CREATE EXTENSION vector;` in the first Alembic migration activates it. No Chroma fallback needed. | Architect / SRE | ✅ Resolved — Epic 1 task |
 | OQ3 | Verified Meta Business account + approved WhatsApp Business number? | ⚠️ **Owner action required.** Business owner to complete Meta Business Verification and obtain an approved WhatsApp Business phone number before Epic 2 kickoff. Template approval takes 2–7 business days. | Product / Admin | ⚠️ Owner to action before Epic 2 kickoff |
 | OQ4 | Conversation retention period — 90 days OK for PDPA/GDPR? | ✅ **90 days default, configurable down to 30 days per workspace.** Applied to NFR-CB12. | Product / Legal | — |
-| OQ5 | Escalation notification — which email, or use existing system? | ✅ **Use existing EngageHub notification system.** Workspace admin email receives alert. Epic 3 story to include last message + trigger reason in notification. | Product | — |
+| OQ5 | Escalation notification — which email, or use existing system? | ✅ **Use existing SignalLoop notification system.** Workspace admin email receives alert. Epic 3 story to include last message + trigger reason in notification. | Product | — |
 | OQ6 | LinkedIn MVP CTA — WhatsApp deep link or web form? | ✅ **WhatsApp deep link** (`wa.me/<number>?text=Hi`). Zero build cost; drives volume to already-built WhatsApp channel. | Product | — |
 | OQ7 | Headless Chromium available for Crawl4AI/Playwright? | ✅ **`httpx` + `BeautifulSoup4` for MVP** (no Chromium dependency). Playwright/Crawl4AI post-MVP behind feature flag. Applied to Technical Design Notes. | Architect | — |
 | OQ8 | WhatsApp message templates approved for re-engagement? | ⚠️ **Owner action required.** System surfaces window-expired state only (NFR-CB15); no template send in MVP. Business owner must register with Meta and submit at least one re-engagement template before launch. | Product / Admin | ⚠️ Owner to action before launch |

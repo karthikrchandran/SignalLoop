@@ -45,7 +45,7 @@ class FakeLLM:
 
 def _script() -> ScriptParsed:
     return ScriptParsed(
-        opening_pitch="Hi, this is Alex calling from EngageHub.",
+        opening_pitch="Hi, this is Alex calling from SignalLoop.",
         qa_pairs=[QAPair(question="What does it cost?", answer="Plans start at 99 dollars per month.")],
         fallback_response="I'll have a specialist follow up with the right details.",
         scheduling_question="Would you be open to a 15-minute demo this week?",

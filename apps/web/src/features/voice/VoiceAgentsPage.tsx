@@ -47,7 +47,7 @@ import {
   listProspectingResearch,
   type ProspectingResearchResult,
 } from "@/features/prospecting/api"
-import { engagehubRequest } from "@/lib/engagehub-api"
+import { signalloopRequest } from "@/lib/signalloop-api"
 
 type CampaignSummary = {
   id: string
@@ -267,7 +267,7 @@ const scriptForProfile = (
   if (language.id === "hi-IN") {
     return [
       "## Opening Pitch",
-      `Namaste {{first_name}}, main ${profile.name} hoon EngageHub se aapke campaign ke baare mein call kar raha/rahi hoon.`,
+      `Namaste {{first_name}}, main ${profile.name} hoon SignalLoop se aapke campaign ke baare mein call kar raha/rahi hoon.`,
       "",
       "## Q&A",
       "Q: Yeh call kis baare mein hai?",
@@ -283,7 +283,7 @@ const scriptForProfile = (
 
   return [
     "## Opening Pitch",
-    `Hi {{first_name}}, this is ${profile.name} from EngageHub calling about your campaign.`,
+    `Hi {{first_name}}, this is ${profile.name} from SignalLoop calling about your campaign.`,
     "",
     "## Q&A",
     "Q: What does this cover?",
@@ -489,7 +489,7 @@ export default function VoiceAgentsPage() {
         data: [],
         count: 0,
       }))
-      const callsRequest = engagehubRequest<CallsResponse>(
+      const callsRequest = signalloopRequest<CallsResponse>(
         "/api/v1/calls/?limit=5",
       ).catch(() => ({
         data: [],
@@ -502,9 +502,9 @@ export default function VoiceAgentsPage() {
         callPrepResponse,
         callsResponse,
       ] = await Promise.all([
-        engagehubRequest<CampaignsResponse>("/api/v1/campaigns/"),
-        engagehubRequest<ScriptsResponse>("/api/v1/scripts/"),
-        engagehubRequest<SetupOverview>("/api/v1/utils/setup-overview/"),
+        signalloopRequest<CampaignsResponse>("/api/v1/campaigns/"),
+        signalloopRequest<ScriptsResponse>("/api/v1/scripts/"),
+        signalloopRequest<SetupOverview>("/api/v1/utils/setup-overview/"),
         callPrepRequest,
         callsRequest,
       ])
@@ -535,7 +535,7 @@ export default function VoiceAgentsPage() {
       const latestCall = callsResponse.data[0]
       if (latestCall) {
         try {
-          const detail = await engagehubRequest<CallDetail>(
+          const detail = await signalloopRequest<CallDetail>(
             `/api/v1/calls/${latestCall.call_request_id}`,
           )
           setLatestCallDetail(detail)
@@ -558,7 +558,7 @@ export default function VoiceAgentsPage() {
 
   const loadScriptDetail = useCallback(async (scriptId: string) => {
     try {
-      const detail = await engagehubRequest<ScriptDetail>(
+      const detail = await signalloopRequest<ScriptDetail>(
         `/api/v1/scripts/${scriptId}`,
       )
       setSelectedScript(detail)
@@ -667,7 +667,7 @@ export default function VoiceAgentsPage() {
     try {
       let scriptId = selectedScript?.id
       if (editorMode === "create") {
-        const created = await engagehubRequest<ScriptSummary>(
+        const created = await signalloopRequest<ScriptSummary>(
           "/api/v1/scripts/",
           {
             method: "POST",
@@ -681,7 +681,7 @@ export default function VoiceAgentsPage() {
         )
         scriptId = created.id
       } else if (scriptId) {
-        await engagehubRequest<ScriptDetail>(`/api/v1/scripts/${scriptId}`, {
+        await signalloopRequest<ScriptDetail>(`/api/v1/scripts/${scriptId}`, {
           method: "PUT",
           body: {
             name: scriptName.trim(),
@@ -721,7 +721,7 @@ export default function VoiceAgentsPage() {
     setError(null)
     setFeedback(null)
     try {
-      await engagehubRequest(`/api/v1/scripts/${selectedScript.id}`, {
+      await signalloopRequest(`/api/v1/scripts/${selectedScript.id}`, {
         method: "DELETE",
       })
       const deletedId = selectedScript.id
@@ -752,7 +752,7 @@ export default function VoiceAgentsPage() {
     setError(null)
     setFeedback(null)
     try {
-      const response = await engagehubRequest<TestCallResponse>(
+      const response = await signalloopRequest<TestCallResponse>(
         "/api/v1/calls/test-call",
         {
           method: "POST",
