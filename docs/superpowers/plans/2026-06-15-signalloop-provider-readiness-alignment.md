@@ -25,6 +25,18 @@
 3. Task 3: Replace the stale Workspace setup tab content with a redirect-style handoff to Provider Setup plus health/callback summary.
 4. Task 4: Run targeted gates and update the open review status note.
 
+## Execution Result
+
+Completed in local commit `f4a87c6 feat: align provider readiness setup`.
+
+Verification recorded for the implementation slice:
+
+- `npx tsc -p tsconfig.build.json --noEmit` in `apps/web`: passed.
+- `npx playwright test tests/provider-setup.spec.ts --project=chromium --reporter=line --workers=1` in `apps/web`: 7 passed.
+- `uv run pytest tests/api/routes/test_utils.py tests/unit/test_setup_overview_provider_readiness.py tests/api/routes/test_provider_credentials.py tests/infrastructure/providers/test_registry.py -q` in `apps/api`: 42 passed.
+- `git diff --check`: passed.
+- Full `npx tsc --noEmit --pretty false` still fails only on existing `tests/corrective-live-smoke.spec.ts` type errors outside this slice.
+
 ## File Structure
 
 - Modify `apps/web/src/lib/signalloop-api.ts`: add setup overview TypeScript types and `getSetupOverview()`.
@@ -41,7 +53,7 @@
 - Modify: `apps/web/src/lib/signalloop-api.ts`
 - Modify: `apps/web/tests/provider-setup.spec.ts`
 
-- [ ] **Step 1: Add failing Playwright coverage for setup overview fetch**
+- [x] **Step 1: Add failing Playwright coverage for setup overview fetch**
 
 Append this helper and test data to `apps/web/tests/provider-setup.spec.ts` after `providerOptions`:
 
@@ -179,7 +191,7 @@ test("renders setup overview readiness from capability-aware endpoint", async ({
 })
 ```
 
-- [ ] **Step 2: Run the failing frontend test**
+- [x] **Step 2: Run the failing frontend test**
 
 Run:
 
@@ -190,7 +202,7 @@ npx playwright test tests/provider-setup.spec.ts --project=chromium --reporter=l
 
 Expected: the new test fails because `ProviderSetupPage` does not call setup overview or render `provider-worker-readiness` / `provider-callback-status`.
 
-- [ ] **Step 3: Add setup overview types and client function**
+- [x] **Step 3: Add setup overview types and client function**
 
 In `apps/web/src/lib/signalloop-api.ts`, add these exports after `ProviderSelectionsPublic`:
 
@@ -254,7 +266,7 @@ export function getSetupOverview(workspaceId = getWorkspaceId()) {
 }
 ```
 
-- [ ] **Step 4: Run TypeScript check for the API client**
+- [x] **Step 4: Run TypeScript check for the API client**
 
 Run:
 
@@ -275,7 +287,7 @@ Do not commit yet. Task 2 consumes this API function.
 - Modify: `apps/web/src/features/providers/ProviderSetupPage.tsx`
 - Modify: `apps/web/tests/provider-setup.spec.ts`
 
-- [ ] **Step 1: Import overview API and status icons**
+- [x] **Step 1: Import overview API and status icons**
 
 In `apps/web/src/features/providers/ProviderSetupPage.tsx`, change the imports:
 
@@ -291,7 +303,7 @@ Extend the API imports:
   getSetupOverview,
 ```
 
-- [ ] **Step 2: Fetch setup overview and invalidate it after provider selection**
+- [x] **Step 2: Fetch setup overview and invalidate it after provider selection**
 
 Inside `ProviderSetupPage()`, add:
 
@@ -326,7 +338,7 @@ Extend the disabled state:
             }
 ```
 
-- [ ] **Step 3: Build an overview map by capability**
+- [x] **Step 3: Build an overview map by capability**
 
 After `selectionsByCapability`, add:
 
@@ -347,7 +359,7 @@ When rendering `CapabilityCard`, pass:
               integration={integrationsByCapability.get(entry.capability)}
 ```
 
-- [ ] **Step 4: Render health, workers, and callback summary**
+- [x] **Step 4: Render health, workers, and callback summary**
 
 Before the provider card grid, add:
 
@@ -462,7 +474,7 @@ function formatMissing(missing: string[]) {
 }
 ```
 
-- [ ] **Step 5: Render per-capability integration details**
+- [x] **Step 5: Render per-capability integration details**
 
 Update `CapabilityCard` props:
 
@@ -498,7 +510,7 @@ Inside `CapabilityCard`, after `selectedOption?.free_tier`, add:
           )}
 ```
 
-- [ ] **Step 6: Run the focused Playwright test**
+- [x] **Step 6: Run the focused Playwright test**
 
 Run:
 
@@ -509,7 +521,7 @@ npx playwright test tests/provider-setup.spec.ts --project=chromium --reporter=l
 
 Expected: all provider setup tests pass, including the new setup overview readiness test.
 
-- [ ] **Step 7: Commit Task 2**
+- [x] **Step 7: Commit Task 2**
 
 Run:
 
@@ -526,7 +538,7 @@ git commit -m "feat: show provider readiness overview"
 - Modify: `apps/web/src/routes/_layout/settings.tsx`
 - Modify: `apps/web/tests/provider-setup.spec.ts`
 
-- [ ] **Step 1: Add route assertion for Provider Setup as the canonical provider surface**
+- [x] **Step 1: Add route assertion for Provider Setup as the canonical provider surface**
 
 Append this test to `apps/web/tests/provider-setup.spec.ts`:
 
@@ -542,7 +554,7 @@ test("provider setup remains the canonical provider readiness route", async ({ p
 })
 ```
 
-- [ ] **Step 2: Remove stale fixed-provider integration lookups**
+- [x] **Step 2: Remove stale fixed-provider integration lookups**
 
 In `apps/web/src/routes/_layout/settings.tsx`, remove these constants:
 
@@ -563,7 +575,7 @@ Replace them with:
   const llm = integrationMap.get("llm")
 ```
 
-- [ ] **Step 3: Replace fixed credential cards with a provider setup handoff**
+- [x] **Step 3: Replace fixed credential cards with a provider setup handoff**
 
 In `WorkspaceSetupTab`, replace the two-card grid containing `CredentialEditorCard` for SendGrid and Twilio Voice with:
 
@@ -601,7 +613,7 @@ In `WorkspaceSetupTab`, replace the two-card grid containing `CredentialEditorCa
 
 Do not remove `CredentialEditorCard` yet if other parts of this file still reference it; after the replacement, run TypeScript and remove unused functions/imports only when the compiler reports them.
 
-- [ ] **Step 4: Update runtime services labels**
+- [x] **Step 4: Update runtime services labels**
 
 In the runtime services card, replace `[deepgram, groq, teamNotifications]` with:
 
@@ -611,7 +623,7 @@ In the runtime services card, replace `[deepgram, groq, teamNotifications]` with
 
 Keep the runtime form fields for `deepgram_api_key`, `groq_api_key`, and `team_notification_email`; they still map to current backend runtime config. The visible readiness labels should now come from active `stt` and `llm` integrations instead of hard-coded provider keys.
 
-- [ ] **Step 5: Run TypeScript and provider setup Playwright tests**
+- [x] **Step 5: Run TypeScript and provider setup Playwright tests**
 
 Run:
 
@@ -623,7 +635,7 @@ npx playwright test tests/provider-setup.spec.ts --project=chromium --reporter=l
 
 Expected: TypeScript passes and provider setup tests pass.
 
-- [ ] **Step 6: Commit Task 3**
+- [x] **Step 6: Commit Task 3**
 
 Run:
 
@@ -639,7 +651,7 @@ git commit -m "fix: make provider setup the readiness source"
 **Files:**
 - Modify: `_bmad-output/implementation-artifacts/signalloop-phase1-open-review-fix-plan-2026-06-07.md`
 
-- [ ] **Step 1: Run targeted backend provider readiness tests**
+- [x] **Step 1: Run targeted backend provider readiness tests**
 
 Run:
 
@@ -650,7 +662,7 @@ uv run pytest tests/api/routes/test_utils.py tests/unit/test_setup_overview_prov
 
 Expected: all selected backend tests pass.
 
-- [ ] **Step 2: Run targeted frontend checks**
+- [x] **Step 2: Run targeted frontend checks**
 
 Run:
 
@@ -662,7 +674,7 @@ npx playwright test tests/provider-setup.spec.ts --project=chromium --reporter=l
 
 Expected: TypeScript and provider setup Playwright tests pass.
 
-- [ ] **Step 3: Update the open review fix plan**
+- [x] **Step 3: Update the open review fix plan**
 
 In `_bmad-output/implementation-artifacts/signalloop-phase1-open-review-fix-plan-2026-06-07.md`, under `### P1: Align Setup/Readiness UX With Provider Selection`, add this note immediately after the heading:
 
@@ -670,7 +682,7 @@ In `_bmad-output/implementation-artifacts/signalloop-phase1-open-review-fix-plan
 Status update 2026-06-15: Backend setup overview was already capability-aware at the start of this slice. This pass completed the frontend Provider Setup alignment by rendering setup-overview integrations, worker readiness, and callback host status from `/api/v1/utils/setup-overview/`, while keeping provider selection on the catalog-backed `/settings/providers` route.
 ```
 
-- [ ] **Step 4: Check diff and commit status note**
+- [x] **Step 4: Check diff and commit status note**
 
 Run:
 
@@ -683,7 +695,7 @@ git commit -m "docs: record provider readiness alignment"
 
 Expected: no whitespace errors and only intended files are committed.
 
-- [ ] **Step 5: Final status report**
+- [x] **Step 5: Final status report**
 
 Report:
 
