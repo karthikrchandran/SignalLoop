@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   BookOpen,
   Briefcase,
+  Building2,
   FileText,
   Home,
   Inbox,
@@ -31,6 +32,7 @@ import { User } from "./User"
 const baseItems: Item[] = [
   { icon: Home, title: "Dashboard", path: "/" },
   { icon: Briefcase, title: "Campaigns", path: "/campaigns" },
+  { icon: Building2, title: "Customer 360", path: "/customer-360" },
   { icon: ListOrdered, title: "Sequences", path: "/sequences" },
   { icon: Mic2, title: "Voice Agents", path: "/voice-agents" },
   { icon: Users, title: "Contacts", path: "/contacts" },

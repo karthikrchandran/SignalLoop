@@ -3,12 +3,14 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    accounts,
     audit_log,
     calls,
     campaign_health,
     campaigns,
     contacts,
     controls,
+    customer_360,
     dashboard,
     kpis,
     login,
@@ -44,6 +46,8 @@ api_router.include_router(signals.router)
 api_router.include_router(triggers.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(calls.router)
+api_router.include_router(customer_360.router)
+api_router.include_router(accounts.router)
 api_router.include_router(contacts.router)
 api_router.include_router(provider_credentials.router)
 api_router.include_router(workspace_runtime_config.router)

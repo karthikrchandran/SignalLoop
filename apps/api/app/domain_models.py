@@ -27,6 +27,7 @@ def get_datetime_utc() -> datetime:
 
 class CampaignStatus(str, Enum):
     """Enumeration of campaign states."""
+
     draft = "draft"
     active = "active"
     paused = "paused"
@@ -34,6 +35,7 @@ class CampaignStatus(str, Enum):
 
 class TemplateStatus(str, Enum):
     """Enumeration of template states."""
+
     draft = "draft"
     published = "published"
     archived = "archived"
@@ -41,12 +43,14 @@ class TemplateStatus(str, Enum):
 
 class PolicyStatus(str, Enum):
     """Enumeration of policy states."""
+
     active = "active"
     inactive = "inactive"
 
 
 class PolicyType(str, Enum):
     """Enumeration of policy variants."""
+
     daily_caps = "daily_caps"
     quiet_hours = "quiet_hours"
     suppression = "suppression"
@@ -54,6 +58,7 @@ class PolicyType(str, Enum):
 
 class ContactProgressionState(str, Enum):
     """Enumeration of contact progression states."""
+
     inbox = "inbox"
     nurturing = "nurturing"
     engaged = "engaged"
@@ -69,6 +74,7 @@ class NotificationProvider(str, Enum):
     New values must also be appended to the Postgres enum type
     via an Alembic migration using ``ALTER TYPE notificationprovider ADD VALUE``.
     """
+
     # --- email ---
     sendgrid = "sendgrid"
     smtp = "smtp"
@@ -111,6 +117,7 @@ class NotificationProvider(str, Enum):
 
 class ProviderCapability(str, Enum):
     """Enumeration of provider capabilities a workspace can configure independently."""
+
     email = "email"
     sms = "sms"
     voice = "voice"
@@ -121,6 +128,7 @@ class ProviderCapability(str, Enum):
 
 class SegmentOperator(str, Enum):
     """Enumeration of segment comparison operators."""
+
     equals = "equals"
     contains = "contains"
     in_list = "in-list"
@@ -129,6 +137,7 @@ class SegmentOperator(str, Enum):
 
 class SemanticError(str, Enum):
     """Enumeration of semantic categories."""
+
     recipient_invalid = "RECIPIENT_INVALID"
     policy_violation = "POLICY_VIOLATION"
     auth_error = "AUTH_ERROR"
@@ -138,6 +147,7 @@ class SemanticError(str, Enum):
 
 class Campaign(SQLModel, table=True):
     """Campaign."""
+
     __tablename__ = "campaigns"
     __table_args__ = (
         Index("idx_campaign_workspace_status", "workspace_id", "status"),
@@ -149,12 +159,17 @@ class Campaign(SQLModel, table=True):
     status: CampaignStatus = Field(default=CampaignStatus.draft)
     created_by: uuid.UUID
     workspace_id: str = Field(sa_type=String(64), index=True)
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
-    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class CampaignContactImport(SQLModel, table=True):
     """Campaign contact import."""
+
     __tablename__ = "campaign_contact_imports"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -165,11 +180,14 @@ class CampaignContactImport(SQLModel, table=True):
     invalid_rows: int = 0
     mapping_json: dict[str, str] = Field(default_factory=dict, sa_column=Column(JSON))
     headers_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class CampaignContactStage(SQLModel, table=True):
     """Staging row: campaign contact."""
+
     __tablename__ = "campaign_contact_staging"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -178,13 +196,20 @@ class CampaignContactStage(SQLModel, table=True):
     workspace_id: str = Field(sa_type=String(64), index=True)
     row_number: int
     is_valid: bool = False
-    mapped_data_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    error_json: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    mapped_data_json: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON)
+    )
+    error_json: list[dict[str, Any]] = Field(
+        default_factory=list, sa_column=Column(JSON)
+    )
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class CampaignSegment(SQLModel, table=True):
     """Campaign segment."""
+
     __tablename__ = "campaign_segments"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -192,11 +217,14 @@ class CampaignSegment(SQLModel, table=True):
     workspace_id: str = Field(sa_type=String(64), index=True)
     name: str = Field(max_length=255)
     estimated_count: int = 0
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class CampaignSegmentRule(SQLModel, table=True):
     """Rule row: campaign segment."""
+
     __tablename__ = "campaign_segment_rules"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -204,25 +232,35 @@ class CampaignSegmentRule(SQLModel, table=True):
     field_name: str = Field(max_length=100)
     operator: SegmentOperator
     value: str = Field(sa_type=Text)
-    expression_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    expression_json: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON)
+    )
 
 
 class CampaignChannelStrategy(SQLModel, table=True):
     """Strategy row: campaign channel."""
+
     __tablename__ = "campaign_channel_strategy"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
     offer_pack_id: uuid.UUID | None = Field(default=None, foreign_key="offer_packs.id")
-    offer_pack_version_id: uuid.UUID | None = Field(default=None, foreign_key="offer_pack_versions.id")
+    offer_pack_version_id: uuid.UUID | None = Field(
+        default=None, foreign_key="offer_pack_versions.id"
+    )
     strategy_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
-    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class Template(SQLModel, table=True):
     """Template."""
+
     __tablename__ = "templates"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -230,14 +268,19 @@ class Template(SQLModel, table=True):
     name: str = Field(max_length=255)
     channel: str = Field(max_length=32)
     created_by: uuid.UUID
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class TemplateVersion(SQLModel, table=True):
     """Version row: template."""
+
     __tablename__ = "template_versions"
     __table_args__ = (
-        UniqueConstraint("template_id", "version_number", name="uq_template_version_number"),
+        UniqueConstraint(
+            "template_id", "version_number", name="uq_template_version_number"
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -248,13 +291,18 @@ class TemplateVersion(SQLModel, table=True):
     subject: str | None = Field(default=None, max_length=255)
     content: str = Field(sa_type=Text)
     guardrail_compliant: bool = False
-    guardrail_report_json: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    guardrail_report_json: list[dict[str, Any]] = Field(
+        default_factory=list, sa_column=Column(JSON)
+    )
     published_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class TemplateToken(SQLModel, table=True):
     """Token row: template."""
+
     __tablename__ = "template_tokens"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -267,20 +315,26 @@ class TemplateToken(SQLModel, table=True):
 
 class OfferPack(SQLModel, table=True):
     """Offer pack."""
+
     __tablename__ = "offer_packs"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
     name: str = Field(max_length=255)
     created_by: uuid.UUID
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class OfferPackVersion(SQLModel, table=True):
     """Version row: offer pack."""
+
     __tablename__ = "offer_pack_versions"
     __table_args__ = (
-        UniqueConstraint("offer_pack_id", "version_number", name="uq_offer_pack_version_number"),
+        UniqueConstraint(
+            "offer_pack_id", "version_number", name="uq_offer_pack_version_number"
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -291,37 +345,52 @@ class OfferPackVersion(SQLModel, table=True):
     is_default: bool = False
     guardrail_compliant: bool = False
     published_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class OfferPackTemplateBinding(SQLModel, table=True):
     """Binding row: offer pack template."""
+
     __tablename__ = "offer_pack_template_bindings"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    offer_pack_version_id: uuid.UUID = Field(foreign_key="offer_pack_versions.id", index=True)
-    template_version_id: uuid.UUID = Field(foreign_key="template_versions.id", index=True)
+    offer_pack_version_id: uuid.UUID = Field(
+        foreign_key="offer_pack_versions.id", index=True
+    )
+    template_version_id: uuid.UUID = Field(
+        foreign_key="template_versions.id", index=True
+    )
     channel: str = Field(max_length=32)
     script_variant: str | None = Field(default=None, max_length=255)
 
 
 class GovernancePolicy(SQLModel, table=True):
     """Policy row: governance."""
+
     __tablename__ = "governance_policies"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
-    campaign_id: uuid.UUID | None = Field(default=None, foreign_key="campaigns.id", index=True)
+    campaign_id: uuid.UUID | None = Field(
+        default=None, foreign_key="campaigns.id", index=True
+    )
     scope: str = Field(max_length=32)
     policy_type: PolicyType
     payload_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     status: PolicyStatus = Field(default=PolicyStatus.active)
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
-    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class CampaignPolicyBinding(SQLModel, table=True):
     """Binding row: campaign policy."""
+
     __tablename__ = "campaign_policy_bindings"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -331,6 +400,7 @@ class CampaignPolicyBinding(SQLModel, table=True):
 
 class GlobalControlState(SQLModel, table=True):
     """Enumeration of global control states."""
+
     __tablename__ = "global_control_state"
     __table_args__ = (
         Index(
@@ -350,7 +420,9 @@ class GlobalControlState(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
-    campaign_id: uuid.UUID | None = Field(default=None, foreign_key="campaigns.id", index=True)
+    campaign_id: uuid.UUID | None = Field(
+        default=None, foreign_key="campaigns.id", index=True
+    )
     paused: bool = False
     paused_by: uuid.UUID | None = None
     paused_reason: str | None = Field(default=None, max_length=255)
@@ -362,12 +434,44 @@ class GlobalControlState(SQLModel, table=True):
 # ---------------------------------------------------------------------------
 
 
+class Account(SQLModel, table=True):
+    """First-class customer account."""
+
+    __tablename__ = "accounts"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "account_key", name="uq_account_workspace_key"
+        ),
+        Index("idx_accounts_workspace_name", "workspace_id", "name"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(sa_type=String(64), index=True)
+    name: str = Field(sa_type=String(255))
+    account_key: str = Field(sa_type=String(255), index=True)
+    website_url: str | None = Field(default=None, sa_type=Text)
+    industry: str | None = Field(default=None, max_length=255)
+    status: str = Field(default="active", max_length=64)
+    summary: str | None = Field(default=None, sa_type=Text)
+    tags_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
+
+
 class Contact(SQLModel, table=True):
     """Contact."""
+
     __tablename__ = "contacts"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
+    account_id: uuid.UUID | None = Field(
+        default=None, foreign_key="accounts.id", index=True
+    )
     email: str = Field(sa_type=String(255), index=True)
     first_name: str | None = Field(default=None, max_length=255)
     last_name: str | None = Field(default=None, max_length=255)
@@ -378,7 +482,29 @@ class Contact(SQLModel, table=True):
     tags_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     intent_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     last_seen_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
+
+class ProspectingSnapshot(SQLModel, table=True):
+    """Persisted prospecting research result for one contact."""
+
+    __tablename__ = "prospecting_snapshots"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(sa_type=String(64), index=True)
+    contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
+    created_by: uuid.UUID | None = Field(default=None, index=True)
+    company_url: str | None = Field(default=None, sa_type=Text)
+    sources_json: list[dict[str, Any]] = Field(
+        default_factory=list, sa_column=Column(JSON)
+    )
+    research_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    email_draft: str = Field(sa_type=Text)
+    voice_opener: str = Field(sa_type=Text)
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True), index=True
+    )
 
 
 class ContactProgression(SQLModel, table=True):
@@ -387,7 +513,8 @@ class ContactProgression(SQLModel, table=True):
     __tablename__ = "contact_progression"
     __table_args__ = (
         UniqueConstraint(
-            "contact_id", "campaign_id",
+            "contact_id",
+            "campaign_id",
             name="uq_contact_progression_contact_campaign",
         ),
     )
@@ -396,8 +523,12 @@ class ContactProgression(SQLModel, table=True):
     contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     current_state: ContactProgressionState
-    last_action_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    last_action_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class ContactStateHistory(SQLModel, table=True):
@@ -412,7 +543,9 @@ class ContactStateHistory(SQLModel, table=True):
     from_state: ContactProgressionState
     to_state: ContactProgressionState
     reason: str | None = Field(default=None, max_length=255)
-    triggered_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    triggered_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class OutboxEvent(SQLModel, table=True):
@@ -426,7 +559,9 @@ class OutboxEvent(SQLModel, table=True):
     event_type: str = Field(max_length=128)  # "contact.progressed" | "action.queued"
     event_data: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     idempotency_key: str = Field(unique=True, max_length=255, index=True)
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
     published_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
 
 
@@ -439,15 +574,21 @@ class ActionQueue(SQLModel, table=True):
     contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     action_type: str = Field(max_length=64)  # "send_email" | "make_call" | "send_sms"
-    channel: str = Field(max_length=32)      # "email" | "phone" | "sms"
+    channel: str = Field(max_length=32)  # "email" | "phone" | "sms"
     payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     status: str = Field(default="pending", max_length=32, index=True)
     retry_count: int = Field(default=0)
     failure_reason: str | None = Field(default=None, sa_type=Text)
-    next_retry_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True), index=True)
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    next_retry_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True), index=True
+    )
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
     executed_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    dead_lettered_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    dead_lettered_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True)
+    )
 
 
 class ProviderCredential(SQLModel, table=True):
@@ -458,12 +599,14 @@ class ProviderCredential(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
     provider: NotificationProvider
-    channel: str = Field(max_length=32)   # "email" | "sms" | "voice" | "scheduling"
+    channel: str = Field(max_length=32)  # "email" | "sms" | "voice" | "scheduling"
     encrypted_api_key: str = Field(sa_type=Text)
     encrypted_api_secret: str | None = Field(default=None, sa_type=Text)
     config_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class WorkspaceRuntimeConfig(SQLModel, table=True):
@@ -475,8 +618,12 @@ class WorkspaceRuntimeConfig(SQLModel, table=True):
     encrypted_deepgram_api_key: str | None = Field(default=None, sa_type=Text)
     encrypted_groq_api_key: str | None = Field(default=None, sa_type=Text)
     team_notification_email: str | None = Field(default=None, max_length=255)
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
-    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class WorkspaceProviderSelection(SQLModel, table=True):
@@ -502,8 +649,12 @@ class WorkspaceProviderSelection(SQLModel, table=True):
     capability: ProviderCapability
     provider: NotificationProvider
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
-    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class WorkerHeartbeat(SQLModel, table=True):
@@ -514,12 +665,20 @@ class WorkerHeartbeat(SQLModel, table=True):
     worker_key: str = Field(primary_key=True, max_length=64)
     status: str = Field(default="starting", max_length=32)
     poll_interval_seconds: int = Field(default=30)
-    last_seen_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True), index=True)
-    last_success_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    last_error_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    last_seen_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True), index=True
+    )
+    last_success_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True)
+    )
+    last_error_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True)
+    )
     last_error_message: str | None = Field(default=None, sa_type=Text)
     last_processed_count: int = Field(default=0)
-    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class ProviderEventLog(SQLModel, table=True):
@@ -538,10 +697,14 @@ class ProviderEventLog(SQLModel, table=True):
     workspace_id: str = Field(sa_type=String(64), index=True)
     provider: NotificationProvider
     provider_event_id: str = Field(max_length=255, index=True)
-    event_type: str = Field(max_length=128)   # "bounce" | "delivered" | "opened"
+    event_type: str = Field(max_length=128)  # "bounce" | "delivered" | "opened"
     raw_payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    normalized_event: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    received_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    normalized_event: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON)
+    )
+    received_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -571,8 +734,12 @@ class ContactEvent(SQLModel, table=True):
     rule_ref: str | None = Field(default=None, max_length=255)
     template_ref: str | None = Field(default=None, max_length=255)
     confidence_tier: str | None = Field(default=None, max_length=32)
-    event_metadata: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON, name="metadata"))
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    event_metadata: dict[str, Any] | None = Field(
+        default=None, sa_column=Column(JSON, name="metadata")
+    )
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class RoutingDecision(SQLModel, table=True):
@@ -596,7 +763,9 @@ class RoutingDecision(SQLModel, table=True):
     rule_condition: str | None = Field(default=None, sa_type=Text)
     signal_summary: str | None = Field(default=None, sa_type=Text)
     confidence_tier: str | None = Field(default=None, max_length=32)
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -610,13 +779,22 @@ class KpiDailySnapshot(SQLModel, table=True):
     __tablename__ = "kpi_daily_snapshots"
     __table_args__ = (
         Index("idx_kpi_snapshots_workspace_date", "workspace_id", "date"),
-        Index("idx_kpi_snapshots_workspace_campaign_date", "workspace_id", "campaign_id", "date"),
+        Index(
+            "idx_kpi_snapshots_workspace_campaign_date",
+            "workspace_id",
+            "campaign_id",
+            "date",
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    date: datetime = Field(sa_type=DateTime(timezone=False))  # DATE stored as datetime at midnight UTC
+    date: datetime = Field(
+        sa_type=DateTime(timezone=False)
+    )  # DATE stored as datetime at midnight UTC
     workspace_id: str = Field(sa_type=String(64), index=True)
-    campaign_id: uuid.UUID | None = Field(default=None, foreign_key="campaigns.id", index=True)
+    campaign_id: uuid.UUID | None = Field(
+        default=None, foreign_key="campaigns.id", index=True
+    )
     contacts_processed: int = Field(default=0)
     intent_signals: int = Field(default=0)
     qualified_contacts: int = Field(default=0)
@@ -624,11 +802,14 @@ class KpiDailySnapshot(SQLModel, table=True):
     provider_errors: int = Field(default=0)
     booking_sla_met: int = Field(default=0)
     booking_sla_breached: int = Field(default=0)
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class ImportRowError(SQLModel):
     """Enumeration of import row categories."""
+
     row_number: int
     column: str
     semantic_error: SemanticError
@@ -637,12 +818,14 @@ class ImportRowError(SQLModel):
 
 class PreviewRow(SQLModel):
     """Preview row."""
+
     row_number: int
     data: dict[str, Any]
 
 
 class HealthStatus(SQLModel):
     """Enumeration of health states."""
+
     api: bool
     postgres: bool
     redis: bool
@@ -650,11 +833,13 @@ class HealthStatus(SQLModel):
 
 class CampaignCreate(SQLModel):
     """Request payload for creating campaign."""
+
     name: str
 
 
 class CampaignPublic(SQLModel):
     """API response model: campaign."""
+
     id: uuid.UUID
     name: str
     status: CampaignStatus
@@ -664,14 +849,17 @@ class CampaignPublic(SQLModel):
 
 class CampaignsPublic(SQLModel):
     """API response model: campaigns."""
+
     data: list[CampaignPublic]
     count: int
 
 
 class ContactPublic(SQLModel):
     """API response model: contact."""
+
     id: uuid.UUID
     workspace_id: str
+    account_id: uuid.UUID | None = None
     email: str
     first_name: str | None = None
     last_name: str | None = None
@@ -681,14 +869,161 @@ class ContactPublic(SQLModel):
     created_at: datetime
 
 
+class AccountPublic(SQLModel):
+    """API response model: account."""
+
+    id: uuid.UUID
+    workspace_id: str
+    name: str
+    account_key: str
+    website_url: str | None = None
+    industry: str | None = None
+    status: str
+    summary: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class AccountCreate(SQLModel):
+    """Request payload for creating an account."""
+
+    name: str = Field(min_length=1, max_length=255)
+    website_url: str | None = None
+    industry: str | None = Field(default=None, max_length=255)
+    status: str = Field(default="active", max_length=64)
+    summary: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
+
+class AccountUpdate(SQLModel):
+    """Request payload for updating account metadata."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    website_url: str | None = None
+    industry: str | None = Field(default=None, max_length=255)
+    status: str | None = Field(default=None, max_length=64)
+    summary: str | None = None
+    tags: list[str] | None = None
+
+
+class AccountContactAssignment(SQLModel):
+    """Request payload for assigning contacts to an account."""
+
+    contact_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
+
+
+class AccountContactAssignmentPublic(SQLModel):
+    """API response model: account contact assignment result."""
+
+    account_id: uuid.UUID
+    assigned_count: int = 0
+    unassigned_count: int = 0
+    contact_ids: list[uuid.UUID] = Field(default_factory=list)
+
+
+class Customer360AccountRowPublic(AccountPublic):
+    """Customer 360 account list row."""
+
+    contact_count: int
+    last_activity_at: datetime | None = None
+    channel_counts: dict[str, int] = Field(default_factory=dict)
+    top_next_action: str | None = None
+
+
+class Customer360AccountsPublic(SQLModel):
+    """Customer 360 account list response."""
+
+    data: list[Customer360AccountRowPublic] = Field(default_factory=list)
+    count: int
+
+
+class Customer360ContactPublic(ContactPublic):
+    """Contact shown inside a Customer 360 account."""
+
+    display_name: str
+
+
+class Customer360ChannelSummaryPublic(SQLModel):
+    """One channel summary card."""
+
+    channel: str
+    label: str
+    count: int
+    status: str
+    detail: str
+
+
+class Customer360NextActionPublic(SQLModel):
+    """Recommended account-level follow-up."""
+
+    title: str
+    reason: str
+    source: str
+    priority: str
+
+
+class Customer360OpenWorkPublic(SQLModel):
+    """Open work item for an account."""
+
+    id: str
+    source: str
+    title: str
+    contact_id: uuid.UUID | None = None
+    contact_name: str | None = None
+    status: str
+    created_at: datetime
+
+
+class Customer360ProspectingBriefPublic(SQLModel):
+    """Latest prospecting brief for an account."""
+
+    snapshot_id: uuid.UUID
+    contact_id: uuid.UUID
+    account_summary: str
+    suggested_next_action: str | None = None
+    email_draft_available: bool
+    voice_opener_available: bool
+    created_at: datetime
+
+
+class Customer360TimelineEventPublic(SQLModel):
+    """Account-level timeline event."""
+
+    id: str
+    source: str
+    event_type: str
+    title: str
+    detail: str
+    contact_id: uuid.UUID | None = None
+    contact_name: str | None = None
+    timestamp: datetime
+
+
+class Customer360AccountProfilePublic(SQLModel):
+    """Full Account Command Center payload."""
+
+    account: AccountPublic
+    contacts: list[Customer360ContactPublic] = Field(default_factory=list)
+    channel_summaries: dict[str, Customer360ChannelSummaryPublic] = Field(
+        default_factory=dict,
+    )
+    next_best_action: Customer360NextActionPublic | None = None
+    open_work: list[Customer360OpenWorkPublic] = Field(default_factory=list)
+    prospecting_brief: Customer360ProspectingBriefPublic | None = None
+    timeline: list[Customer360TimelineEventPublic] = Field(default_factory=list)
+
+
 class ContactsPublic(SQLModel):
     """API response model: contacts."""
+
     data: list[ContactPublic]
     count: int
 
 
 class ContactImportPublic(SQLModel):
     """API response model: canonical contact import."""
+
     total_rows: int
     valid_rows: int
     invalid_rows: int
@@ -704,6 +1039,7 @@ class ContactImportPublic(SQLModel):
 
 class CampaignAudiencePublic(SQLModel):
     """API response model: campaign audience assignment."""
+
     campaign_id: uuid.UUID
     selected_count: int
     added_count: int
@@ -714,6 +1050,7 @@ class CampaignAudiencePublic(SQLModel):
 
 class CampaignImportPublic(SQLModel):
     """API response model: campaign import."""
+
     import_id: uuid.UUID
     total_rows: int
     valid_rows: int
@@ -725,11 +1062,13 @@ class CampaignImportPublic(SQLModel):
 
 class CampaignMappingRequest(SQLModel):
     """Request payload: campaign mapping."""
+
     mapping: dict[str, str]
 
 
 class ImportPreviewPublic(SQLModel):
     """API response model: import preview."""
+
     import_id: uuid.UUID
     preview_rows: list[PreviewRow]
     errors: list[ImportRowError]
@@ -737,6 +1076,7 @@ class ImportPreviewPublic(SQLModel):
 
 class SegmentRuleInput(SQLModel):
     """Input payload: segment rule."""
+
     field_name: str
     operator: SegmentOperator
     value: str
@@ -744,6 +1084,7 @@ class SegmentRuleInput(SQLModel):
 
 class CampaignAudienceRequest(SQLModel):
     """Request payload for assigning existing contacts to a campaign."""
+
     include_all_contacts: bool = False
     contact_ids: list[uuid.UUID] = Field(default_factory=list)
     segment_name: str | None = None
@@ -752,12 +1093,14 @@ class CampaignAudienceRequest(SQLModel):
 
 class CampaignSegmentCreate(SQLModel):
     """Request payload for creating campaign segment."""
+
     name: str
     rules: list[SegmentRuleInput]
 
 
 class CampaignSegmentPublic(SQLModel):
     """API response model: campaign segment."""
+
     id: uuid.UUID
     name: str
     estimated_count: int
@@ -765,6 +1108,7 @@ class CampaignSegmentPublic(SQLModel):
 
 class StrategyRequest(SQLModel):
     """Request payload: strategy."""
+
     offer_pack_id: uuid.UUID | None = None
     offer_pack_version_id: uuid.UUID | None = None
     channel_strategy: dict[str, Any] = Field(default_factory=dict)
@@ -772,6 +1116,7 @@ class StrategyRequest(SQLModel):
 
 class StrategyPublic(SQLModel):
     """API response model: strategy."""
+
     id: uuid.UUID
     campaign_id: uuid.UUID
     strategy_json: dict[str, Any]
@@ -779,6 +1124,7 @@ class StrategyPublic(SQLModel):
 
 class TokenDefinition(SQLModel):
     """Definition: token."""
+
     name: str
     source_field: str
     default_value: str | None = None
@@ -787,6 +1133,7 @@ class TokenDefinition(SQLModel):
 
 class TemplateCreate(SQLModel):
     """Request payload for creating template."""
+
     name: str
     channel: str
     subject: str | None = None
@@ -796,6 +1143,7 @@ class TemplateCreate(SQLModel):
 
 class TemplateUpdate(SQLModel):
     """Request payload for updating template."""
+
     name: str | None = None
     subject: str | None = None
     content: str | None = None
@@ -804,6 +1152,7 @@ class TemplateUpdate(SQLModel):
 
 class GuardrailViolation(SQLModel):
     """Guardrail violation."""
+
     semantic_error: SemanticError
     reason_code: str
     message: str
@@ -811,6 +1160,7 @@ class GuardrailViolation(SQLModel):
 
 class TemplateVersionPublic(SQLModel):
     """API response model: template version."""
+
     id: uuid.UUID
     version_number: int
     status: TemplateStatus
@@ -821,6 +1171,7 @@ class TemplateVersionPublic(SQLModel):
 
 class TemplatePublic(SQLModel):
     """API response model: template."""
+
     id: uuid.UUID
     name: str
     channel: str
@@ -830,23 +1181,27 @@ class TemplatePublic(SQLModel):
 
 class TemplatesPublic(SQLModel):
     """API response model: templates."""
+
     data: list[TemplatePublic]
     count: int
 
 
 class TemplatePreviewRequest(SQLModel):
     """Request payload: template preview."""
+
     sample_payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class TemplatePreviewPublic(SQLModel):
     """API response model: template preview."""
+
     rendered_content: str
     unresolved_tokens: list[str]
 
 
 class OfferPackBindingInput(SQLModel):
     """Input payload: offer pack binding."""
+
     template_version_id: uuid.UUID
     channel: str
     script_variant: str | None = None
@@ -854,6 +1209,7 @@ class OfferPackBindingInput(SQLModel):
 
 class OfferPackCreate(SQLModel):
     """Request payload for creating offer pack."""
+
     name: str
     bindings: list[OfferPackBindingInput] = Field(default_factory=list)
     is_default: bool = False
@@ -861,12 +1217,14 @@ class OfferPackCreate(SQLModel):
 
 class OfferPackVersionCreate(SQLModel):
     """Request payload for creating offer pack version."""
+
     bindings: list[OfferPackBindingInput] = Field(default_factory=list)
     is_default: bool = False
 
 
 class OfferPackVersionPublic(SQLModel):
     """API response model: offer pack version."""
+
     id: uuid.UUID
     version_number: int
     status: TemplateStatus
@@ -876,6 +1234,7 @@ class OfferPackVersionPublic(SQLModel):
 
 class OfferPackPublic(SQLModel):
     """API response model: offer pack."""
+
     id: uuid.UUID
     name: str
     workspace_id: str
@@ -884,12 +1243,14 @@ class OfferPackPublic(SQLModel):
 
 class OfferPacksPublic(SQLModel):
     """API response model: offer packs."""
+
     data: list[OfferPackPublic]
     count: int
 
 
 class GovernancePolicyCreate(SQLModel):
     """Request payload for creating governance policy."""
+
     scope: str
     policy_type: PolicyType
     campaign_id: uuid.UUID | None = None
@@ -898,6 +1259,7 @@ class GovernancePolicyCreate(SQLModel):
 
 class GovernancePolicyPublic(SQLModel):
     """API response model: governance policy."""
+
     id: uuid.UUID
     scope: str
     policy_type: PolicyType
@@ -907,12 +1269,14 @@ class GovernancePolicyPublic(SQLModel):
 
 class GovernancePoliciesPublic(SQLModel):
     """API response model: governance policies."""
+
     data: list[GovernancePolicyPublic]
     count: int
 
 
 class PolicyDecision(SQLModel):
     """Decision row: policy."""
+
     allowed: bool
     semantic_error: SemanticError | None = None
     reason_code: str | None = None
@@ -921,6 +1285,7 @@ class PolicyDecision(SQLModel):
 
 class PolicyEvaluationRequest(SQLModel):
     """Request payload: policy evaluation."""
+
     campaign_id: uuid.UUID | None = None
     contact: dict[str, Any] = Field(default_factory=dict)
     campaign_daily_count: int = 0
@@ -930,11 +1295,13 @@ class PolicyEvaluationRequest(SQLModel):
 
 class PauseRequest(SQLModel):
     """Request payload: pause."""
+
     paused_reason: str
 
 
 class ControlStatePublic(SQLModel):
     """API response model: control state."""
+
     id: uuid.UUID
     paused: bool
     paused_reason: str | None = None
@@ -954,7 +1321,9 @@ class TimelineEventPublic(SQLModel):
     """Unified timeline entry returned by the aggregation API."""
 
     id: str  # prefixed: "csh_<uuid>", "ce_<uuid>", "rd_<uuid>"
-    source_system: str  # "contact_state_history" | "contact_events" | "routing_decisions"
+    source_system: (
+        str  # "contact_state_history" | "contact_events" | "routing_decisions"
+    )
     event_type: str
     channel: str | None = None
     timestamp: datetime
@@ -979,6 +1348,7 @@ class TimelineEventDetailPublic(TimelineEventPublic):
 
 class TimelinePagePublic(SQLModel):
     """API response model: timeline page."""
+
     data: list[TimelineEventPublic]
     count: int
     next_cursor: str | None = None
@@ -991,6 +1361,7 @@ class TimelinePagePublic(SQLModel):
 
 class AuditEventPublic(SQLModel):
     """API response model: audit event."""
+
     id: uuid.UUID
     event_name: str
     workspace_id: str
@@ -1005,6 +1376,7 @@ class AuditEventPublic(SQLModel):
 
 class AuditEventsPage(SQLModel):
     """Audit events page."""
+
     total: int
     page: int
     limit: int
@@ -1013,6 +1385,7 @@ class AuditEventsPage(SQLModel):
 
 class AuditExportJobStatus(SQLModel):
     """Enumeration of audit export job states."""
+
     job_id: str
     status: str  # "pending" | "complete" | "failed"
 
@@ -1038,9 +1411,13 @@ class DeadLetterEvent(SQLModel, table=True):
     workspace_id: str = Field(sa_type=String(64), index=True)
     action_type: str = Field(max_length=64)
     failure_reason: str | None = Field(default=None, sa_type=Text)
-    event_type: str = Field(default="dead_lettered", max_length=32)  # dead_lettered|retried|dismissed
+    event_type: str = Field(
+        default="dead_lettered", max_length=32
+    )  # dead_lettered|retried|dismissed
     operator_id: uuid.UUID | None = Field(default=None)
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 # --- Public schemas ---
@@ -1060,6 +1437,7 @@ class DeadLetterItemPublic(SQLModel):
 
 class DeadLetterListPublic(SQLModel):
     """API response model: dead letter list."""
+
     data: list[DeadLetterItemPublic]
     count: int
     page: int
@@ -1074,5 +1452,3 @@ class CampaignHealthPublic(SQLModel):
     failure_count_24h: int
     dead_letter_count: int
     provider_errors_by_type: dict[str, int]
-
-
