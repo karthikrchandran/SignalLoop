@@ -486,7 +486,6 @@ class Contact(SQLModel, table=True):
         default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
     )
 
-
 class ProspectingSnapshot(SQLModel, table=True):
     """Persisted prospecting research result for one contact."""
 

@@ -4,15 +4,25 @@ import { cn } from "@/lib/utils"
 
 interface LogoProps {
   variant?: "full" | "icon" | "responsive"
+  tone?: "default" | "inverse"
   className?: string
   asLink?: boolean
 }
 
-function LogoMark({ className }: { className?: string }) {
+function LogoMark({
+  className,
+  tone = "default",
+}: {
+  className?: string
+  tone?: LogoProps["tone"]
+}) {
   return (
     <div
       className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-sm",
+        "flex h-7 w-7 items-center justify-center rounded-md font-bold text-sm",
+        tone === "inverse"
+          ? "bg-white/14 text-white ring-1 ring-white/20"
+          : "bg-primary text-primary-foreground",
         className,
       )}
     >
@@ -21,30 +31,50 @@ function LogoMark({ className }: { className?: string }) {
   )
 }
 
-function LogoFull({ className }: { className?: string }) {
+function LogoFull({
+  className,
+  tone = "default",
+}: {
+  className?: string
+  tone?: LogoProps["tone"]
+}) {
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <LogoMark />
-      <span className="font-semibold text-base tracking-tight">EngageHub</span>
+      <LogoMark tone={tone} />
+      <span
+        className={cn(
+          "font-semibold text-base",
+          tone === "inverse" ? "text-white" : "text-foreground",
+        )}
+      >
+        EngageHub
+      </span>
     </div>
   )
 }
 
 export function Logo({
   variant = "full",
+  tone = "default",
   className,
   asLink = true,
 }: LogoProps) {
   const content =
     variant === "responsive" ? (
       <>
-        <LogoFull className={cn("group-data-[collapsible=icon]:hidden", className)} />
-        <LogoMark className={cn("hidden group-data-[collapsible=icon]:flex", className)} />
+        <LogoFull
+          tone={tone}
+          className={cn("group-data-[collapsible=icon]:hidden", className)}
+        />
+        <LogoMark
+          tone={tone}
+          className={cn("hidden group-data-[collapsible=icon]:flex", className)}
+        />
       </>
     ) : variant === "full" ? (
-      <LogoFull className={className} />
+      <LogoFull tone={tone} className={className} />
     ) : (
-      <LogoMark className={className} />
+      <LogoMark tone={tone} className={className} />
     )
 
   if (!asLink) {

@@ -32,15 +32,43 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["contact_id"], ["contacts.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_prospecting_snapshots_workspace_id", "prospecting_snapshots", ["workspace_id"])
-    op.create_index("ix_prospecting_snapshots_contact_id", "prospecting_snapshots", ["contact_id"])
-    op.create_index("ix_prospecting_snapshots_created_by", "prospecting_snapshots", ["created_by"])
-    op.create_index("ix_prospecting_snapshots_created_at", "prospecting_snapshots", ["created_at"])
+    op.create_index(
+        "ix_prospecting_snapshots_workspace_id",
+        "prospecting_snapshots",
+        ["workspace_id"],
+    )
+    op.create_index(
+        "ix_prospecting_snapshots_contact_id",
+        "prospecting_snapshots",
+        ["contact_id"],
+    )
+    op.create_index(
+        "ix_prospecting_snapshots_created_by",
+        "prospecting_snapshots",
+        ["created_by"],
+    )
+    op.create_index(
+        "ix_prospecting_snapshots_created_at",
+        "prospecting_snapshots",
+        ["created_at"],
+    )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_prospecting_snapshots_created_at", table_name="prospecting_snapshots")
-    op.drop_index("ix_prospecting_snapshots_created_by", table_name="prospecting_snapshots")
-    op.drop_index("ix_prospecting_snapshots_contact_id", table_name="prospecting_snapshots")
-    op.drop_index("ix_prospecting_snapshots_workspace_id", table_name="prospecting_snapshots")
+    op.drop_index(
+        "ix_prospecting_snapshots_created_at",
+        table_name="prospecting_snapshots",
+    )
+    op.drop_index(
+        "ix_prospecting_snapshots_created_by",
+        table_name="prospecting_snapshots",
+    )
+    op.drop_index(
+        "ix_prospecting_snapshots_contact_id",
+        table_name="prospecting_snapshots",
+    )
+    op.drop_index(
+        "ix_prospecting_snapshots_workspace_id",
+        table_name="prospecting_snapshots",
+    )
     op.drop_table("prospecting_snapshots")
