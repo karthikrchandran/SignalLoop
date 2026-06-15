@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test"
 import { firstSuperuser, firstSuperuserPassword } from "./config.ts"
 import { createUser } from "./utils/privateApi"
 import { randomEmail, randomPassword } from "./utils/random"
-import { logInUser } from "./utils/user"
+import { logInUser, logOutUser } from "./utils/user"
 
 test("Admin page is accessible and shows correct title", async ({ page }) => {
   await page.goto("/admin")
@@ -40,6 +40,13 @@ test.describe("Admin user management", () => {
 
     const userRow = page.getByRole("row").filter({ hasText: email })
     await expect(userRow).toBeVisible()
+
+    await logOutUser(page)
+    await page.getByTestId("email-input").fill(email)
+    await page.getByTestId("password-input").fill(password)
+    await page.getByRole("button", { name: "Log In" }).click()
+    await page.waitForURL("/")
+    await expect(page.getByTestId("user-menu")).toContainText(email)
   })
 
   test("Create a superuser", async ({ page }) => {
