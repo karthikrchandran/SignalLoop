@@ -82,14 +82,19 @@ export function AppSidebar() {
   ]
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="px-4 py-6 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:items-center">
-        <Logo variant="responsive" />
+    <Sidebar
+      collapsible="icon"
+      role="navigation"
+      aria-label="Primary"
+      className="border-r border-sidebar-border"
+    >
+      <SidebarHeader className="px-4 py-5 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
+        <Logo variant="responsive" tone="inverse" />
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="gap-1 px-1">
         <Main groups={groups} />
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="border-t border-sidebar-border/70 px-3 py-3">
         <SidebarAppearance />
         <User user={currentUser} />
       </SidebarFooter>
