@@ -10,7 +10,13 @@ type ApiErrorPayload = {
   detail?: string | { error?: { message?: string } }
 }
 
-export type ProviderCapability = "email" | "sms" | "voice" | "stt" | "tts" | "llm"
+export type ProviderCapability =
+  | "email"
+  | "sms"
+  | "voice"
+  | "stt"
+  | "tts"
+  | "llm"
 
 export type ProviderOption = {
   provider: string
@@ -42,6 +48,54 @@ export type ProviderSelectionsPublic = {
   count: number
 }
 
+export type SetupIntegration = {
+  key: string
+  label: string
+  configured: boolean
+  source: string
+  editable: boolean
+  has_secret: boolean
+  config: Record<string, string>
+  note?: string | null
+  capability?: ProviderCapability | null
+  provider?: string | null
+  provider_label?: string | null
+  requires_creds?: boolean | null
+  local?: boolean | null
+}
+
+export type SetupWorkerReadiness = {
+  key: string
+  label: string
+  ready: boolean
+  running: boolean
+  status: string
+  last_seen_at?: string | null
+  last_error_message?: string | null
+  missing: string[]
+}
+
+export type SetupOverview = {
+  workspace_id: string
+  health: {
+    api: boolean
+    postgres: boolean
+    redis: boolean
+  }
+  integrations: SetupIntegration[]
+  worker_readiness: SetupWorkerReadiness[]
+  callbacks: {
+    server_host: string
+    public_base_url: string
+    public_host: boolean
+    sendgrid_webhook_url: string
+    twilio_twiml_url: string
+    twilio_status_url: string
+    twilio_recording_url: string
+    twilio_media_stream_url: string
+  }
+}
+
 const getApiBase = () => {
   const base = import.meta.env.VITE_API_URL || ""
   return base.endsWith("/") ? base.slice(0, -1) : base
@@ -49,7 +103,8 @@ const getApiBase = () => {
 
 const getAuthToken = () => localStorage.getItem("access_token") || ""
 
-export const getWorkspaceId = () => localStorage.getItem("workspace_id") || "default"
+export const getWorkspaceId = () =>
+  localStorage.getItem("workspace_id") || "default"
 
 const isAuthFailure = (status: number, message: string) => {
   return status === 401 || (status === 404 && message === "User not found")
@@ -74,9 +129,10 @@ const parseError = async (response: Response) => {
     return payload.detail
   }
 
-  const semanticMessage = payload?.detail && typeof payload.detail !== "string"
-    ? payload.detail.error?.message
-    : undefined
+  const semanticMessage =
+    payload?.detail && typeof payload.detail !== "string"
+      ? payload.detail.error?.message
+      : undefined
 
   return semanticMessage || `Request failed with status ${response.status}`
 }
@@ -134,6 +190,12 @@ export function getProviderSelections(workspaceId = getWorkspaceId()) {
     `/api/v1/workspaces/${workspaceId}/provider-selection`,
     { workspaceId },
   )
+}
+
+export function getSetupOverview(workspaceId = getWorkspaceId()) {
+  return signalloopRequest<SetupOverview>("/api/v1/utils/setup-overview/", {
+    workspaceId,
+  })
 }
 
 export function updateProviderSelection(

@@ -169,6 +169,12 @@ If the intended product model is single-tenant only, the alternative is to docum
 
 ### P1: Align Setup/Readiness UX With Provider Selection
 
+Status update 2026-06-15: Backend setup overview was already capability-aware
+at the start of this slice. This pass completed the frontend Provider Setup
+alignment by rendering setup-overview integrations, worker readiness, callback
+host status, and readiness errors from `/api/v1/utils/setup-overview/`, while
+keeping provider selection on the catalog-backed `/settings/providers` route.
+
 This is the direct fix for the provider confusion.
 
 Current state:

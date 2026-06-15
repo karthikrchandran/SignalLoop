@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Loader2, RefreshCw, ServerCog } from "lucide-react"
+import {
+  CheckCircle2,
+  Loader2,
+  RefreshCw,
+  ServerCog,
+  TriangleAlert,
+} from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { Alert } from "@/components/ui/alert"
@@ -21,11 +27,15 @@ import {
 } from "@/components/ui/select"
 import {
   type CapabilityOptions,
-  type ProviderCapability,
-  type ProviderOption,
   getProviderOptions,
   getProviderSelections,
+  getSetupOverview,
   getWorkspaceId,
+  type ProviderCapability,
+  type ProviderOption,
+  type SetupIntegration,
+  type SetupOverview,
+  type SetupWorkerReadiness,
   updateProviderSelection,
 } from "@/lib/signalloop-api"
 
@@ -62,6 +72,12 @@ export default function ProviderSetupPage() {
     queryFn: () => getProviderSelections(workspaceId),
   })
 
+  const overviewQuery = useQuery({
+    queryKey: ["setup-overview", workspaceId],
+    queryFn: () => getSetupOverview(workspaceId),
+    retry: false,
+  })
+
   const updateSelection = useMutation({
     mutationFn: (input: { capability: ProviderCapability; provider: string }) =>
       updateProviderSelection(input, workspaceId),
@@ -69,6 +85,9 @@ export default function ProviderSetupPage() {
       setFeedback(`${capabilityLabels[selection.capability]} provider saved.`)
       await queryClient.invalidateQueries({
         queryKey: ["provider-selections", workspaceId],
+      })
+      await queryClient.invalidateQueries({
+        queryKey: ["setup-overview", workspaceId],
       })
     },
     onError: (error) => {
@@ -89,6 +108,15 @@ export default function ProviderSetupPage() {
     const entries = selectionsQuery.data?.data ?? []
     return new Map(entries.map((entry) => [entry.capability, entry.provider]))
   }, [selectionsQuery.data?.data])
+
+  const integrationsByCapability = useMemo(() => {
+    const entries = overviewQuery.data?.integrations ?? []
+    return new Map(
+      entries
+        .filter((entry) => entry.capability)
+        .map((entry) => [entry.capability as ProviderCapability, entry]),
+    )
+  }, [overviewQuery.data?.integrations])
 
   const visibleCapabilities = capabilityOrder
     .map((capability) => optionsByCapability.get(capability))
@@ -117,10 +145,17 @@ export default function ProviderSetupPage() {
               setFeedback(null)
               optionsQuery.refetch()
               selectionsQuery.refetch()
+              overviewQuery.refetch()
             }}
-            disabled={optionsQuery.isFetching || selectionsQuery.isFetching}
+            disabled={
+              optionsQuery.isFetching ||
+              selectionsQuery.isFetching ||
+              overviewQuery.isFetching
+            }
           >
-            {optionsQuery.isFetching || selectionsQuery.isFetching ? (
+            {optionsQuery.isFetching ||
+            selectionsQuery.isFetching ||
+            overviewQuery.isFetching ? (
               <Loader2 className="mr-2 size-4 animate-spin" />
             ) : (
               <RefreshCw className="mr-2 size-4" />
@@ -132,7 +167,7 @@ export default function ProviderSetupPage() {
 
       {feedback && <Alert>{feedback}</Alert>}
 
-      {isLoading && (
+      {(isLoading || overviewQuery.isLoading) && (
         <Card>
           <CardContent className="flex items-center gap-3 py-8 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
@@ -141,47 +176,83 @@ export default function ProviderSetupPage() {
         </Card>
       )}
 
-      {isError && (
+      {(isError || overviewQuery.isError) && (
         <Alert variant="destructive">
-          {error instanceof Error ? error.message : "Could not load providers."}
+          {error instanceof Error
+            ? error.message
+            : overviewQuery.error instanceof Error
+              ? overviewQuery.error.message
+              : "Could not load provider readiness."}
         </Alert>
       )}
 
-      {!isLoading && !isError && (
-        <div className="grid gap-4 lg:grid-cols-3">
-          {visibleCapabilities.map((entry) => (
-            <CapabilityCard
-              key={entry.capability}
-              entry={entry}
-              selectedProvider={selectionsByCapability.get(entry.capability)}
-              isSaving={
-                updateSelection.isPending &&
-                updateSelection.variables?.capability === entry.capability
-              }
-              isTesting={optionsQuery.isFetching}
-              workspaceId={workspaceId}
-              onSelect={(provider) => {
-                setFeedback(null)
-                updateSelection.mutate({
-                  capability: entry.capability,
-                  provider,
-                })
-              }}
-              onTest={async () => {
-                setFeedback(null)
-                await optionsQuery.refetch()
-                setFeedback(`${capabilityLabels[entry.capability]} API responded.`)
-              }}
-            />
-          ))}
-        </div>
-      )}
+      {!isLoading &&
+        !overviewQuery.isLoading &&
+        !isError &&
+        !overviewQuery.isError && (
+          <>
+            {overviewQuery.data && (
+              <div className="grid gap-4 lg:grid-cols-3">
+                <ReadinessSummaryCard
+                  title="Core services"
+                  items={[
+                    { label: "API", ready: overviewQuery.data.health.api },
+                    {
+                      label: "Postgres",
+                      ready: overviewQuery.data.health.postgres,
+                    },
+                    { label: "Redis", ready: overviewQuery.data.health.redis },
+                  ]}
+                />
+                <WorkerReadinessCard
+                  workers={overviewQuery.data.worker_readiness}
+                />
+                <CallbackStatusCard overview={overviewQuery.data} />
+              </div>
+            )}
+
+            <div className="grid gap-4 lg:grid-cols-3">
+              {visibleCapabilities.map((entry) => (
+                <CapabilityCard
+                  key={entry.capability}
+                  entry={entry}
+                  integration={integrationsByCapability.get(entry.capability)}
+                  selectedProvider={selectionsByCapability.get(
+                    entry.capability,
+                  )}
+                  isSaving={
+                    updateSelection.isPending &&
+                    updateSelection.variables?.capability === entry.capability
+                  }
+                  isTesting={optionsQuery.isFetching}
+                  workspaceId={workspaceId}
+                  onSelect={(provider) => {
+                    setFeedback(null)
+                    updateSelection.mutate({
+                      capability: entry.capability,
+                      provider,
+                    })
+                  }}
+                  onTest={async () => {
+                    setFeedback(null)
+                    await optionsQuery.refetch()
+                    await overviewQuery.refetch()
+                    setFeedback(
+                      `${capabilityLabels[entry.capability]} API responded.`,
+                    )
+                  }}
+                />
+              ))}
+            </div>
+          </>
+        )}
     </div>
   )
 }
 
 function CapabilityCard({
   entry,
+  integration,
   selectedProvider,
   isSaving,
   isTesting,
@@ -190,6 +261,7 @@ function CapabilityCard({
   onTest,
 }: {
   entry: CapabilityOptions
+  integration?: SetupIntegration
   selectedProvider?: string
   isSaving: boolean
   isTesting: boolean
@@ -215,7 +287,10 @@ function CapabilityCard({
               Current: {providerLabel(selectedProvider, selectedOption)}
             </CardDescription>
           </div>
-          <ProviderStatusBadge selected={selectedProvider} option={selectedOption} />
+          <ProviderStatusBadge
+            selected={selectedProvider}
+            option={selectedOption}
+          />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -247,6 +322,36 @@ function CapabilityCard({
             <p className="text-xs text-muted-foreground">
               {selectedOption.free_tier}
             </p>
+          )}
+          {integration && (
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium">
+                  {integration.provider_label ?? integration.label}
+                </span>
+                <ReadinessBadge ready={integration.configured} />
+              </div>
+              {Object.entries(integration.config).length > 0 && (
+                <dl className="mt-3 space-y-1 text-xs text-muted-foreground">
+                  {Object.entries(integration.config).map(([key, value]) => (
+                    <div
+                      key={key}
+                      className="flex items-start justify-between gap-3"
+                    >
+                      <dt className="font-medium text-foreground">
+                        {key.split("_").join(" ")}
+                      </dt>
+                      <dd className="break-all text-right">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              {integration.note && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {integration.note}
+                </p>
+              )}
+            </div>
           )}
         </div>
 
@@ -302,6 +407,131 @@ function ProviderStatusBadge({
   return (
     <Badge className="bg-sky-100 text-sky-900 hover:bg-sky-100">Managed</Badge>
   )
+}
+
+function ReadinessSummaryCard({
+  title,
+  items,
+}: {
+  title: string
+  items: Array<{ label: string; ready: boolean }>
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+        <CardDescription>Live readiness reported by the API.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {items.map((item) => (
+          <div
+            key={item.label}
+            className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm"
+          >
+            <span className="font-medium">{item.label}</span>
+            <ReadinessBadge ready={item.ready} />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
+function WorkerReadinessCard({ workers }: { workers: SetupWorkerReadiness[] }) {
+  return (
+    <Card data-testid="provider-worker-readiness">
+      <CardHeader>
+        <CardTitle className="text-base">Workers</CardTitle>
+        <CardDescription>
+          Background worker readiness for selected providers.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {workers.map((worker) => (
+          <div key={worker.key} className="rounded-md border p-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-medium">{worker.label}</span>
+              <ReadinessBadge ready={worker.ready} />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatWorkerDetail(worker)}
+            </p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
+function CallbackStatusCard({ overview }: { overview: SetupOverview }) {
+  return (
+    <Card data-testid="provider-callback-status">
+      <CardHeader>
+        <CardTitle className="text-base">Callback host</CardTitle>
+        <CardDescription>
+          Provider webhooks use this external base URL.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+          <span className="font-medium">Base URL</span>
+          <Badge
+            className={
+              overview.callbacks.public_host
+                ? "bg-emerald-100 text-emerald-900 hover:bg-emerald-100"
+                : "bg-amber-100 text-amber-900 hover:bg-amber-100"
+            }
+          >
+            {overview.callbacks.public_host ? "Public" : "Local only"}
+          </Badge>
+        </div>
+        <p className="break-all text-muted-foreground">
+          {overview.callbacks.public_base_url}
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ReadinessBadge({ ready }: { ready: boolean }) {
+  return ready ? (
+    <Badge className="gap-1 bg-emerald-100 text-emerald-900 hover:bg-emerald-100">
+      <CheckCircle2 className="size-3" />
+      Ready
+    </Badge>
+  ) : (
+    <Badge className="gap-1 bg-amber-100 text-amber-900 hover:bg-amber-100">
+      <TriangleAlert className="size-3" />
+      Missing setup
+    </Badge>
+  )
+}
+
+function formatWorkerDetail(worker: SetupWorkerReadiness) {
+  const parts: string[] = []
+  if (worker.last_error_message) {
+    parts.push(`Error: ${worker.last_error_message}`)
+  }
+  if (!worker.running) {
+    parts.push(
+      worker.last_seen_at ? "Heartbeat stale" : "Waiting for worker heartbeat",
+    )
+  }
+  if (worker.status && worker.status !== "healthy") {
+    parts.push(`Status: ${worker.status}`)
+  }
+  if (worker.last_seen_at) {
+    parts.push(`Last seen: ${new Date(worker.last_seen_at).toLocaleString()}`)
+  }
+  if (worker.missing.length > 0) {
+    parts.push(
+      `Missing: ${worker.missing.map((item) => item.split("_").join(" ")).join(", ")}`,
+    )
+  }
+  if (parts.length === 0) {
+    return "Running with required providers."
+  }
+  return `${parts.join(" | ")}.`
 }
 
 function providerLabel(provider?: string, option?: ProviderOption) {
