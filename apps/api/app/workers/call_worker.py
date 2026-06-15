@@ -311,9 +311,16 @@ async def _initiate_call(
     if call_session and call_session.twilio_status == "initiating":
         updated_at = call_session.twilio_status_updated_at or call_session.created_at
         stale_at = _normalize_utc(updated_at) + INITIATING_CALL_STALE_AFTER
-        if datetime.now(timezone.utc) < stale_at:
+        if datetime.now(timezone.utc) >= stale_at:
+            logger.warning(
+                "CallSession %s is stale initiating; skipping automatic redial because provider outcome is unknown",
+                call_session.id,
+            )
+        else:
             logger.info("CallSession %s already initiating; skipping duplicate dial", call_session.id)
-            return None
+        call_req.status = CallRequestStatus.in_progress
+        session.add(call_req)
+        return None
 
     account_sid = getattr(adapter, "_account_sid", "") or None
     if call_session is None:

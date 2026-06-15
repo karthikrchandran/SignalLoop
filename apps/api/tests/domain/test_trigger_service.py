@@ -20,7 +20,7 @@ from app.domain.signals.trigger_service import (
     set_trigger_enabled,
 )
 from app.domain.voice.models import CallRequest, VoiceScript
-from app.domain_models import Campaign, Contact
+from app.domain_models import Campaign, Contact, OutboxEvent
 
 
 def _run(coro):
@@ -112,6 +112,22 @@ def _make_voice_script(
     session.commit()
     session.refresh(vs)
     return vs
+
+
+class _CapturingEmailAdapter:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+        self.sent: list[dict] = []
+
+    async def send_email(self, **kwargs):
+        key = kwargs["idempotency_key"]
+        intent = self.session.exec(
+            select(OutboxEvent).where(OutboxEvent.idempotency_key == key)
+        ).first()
+        assert intent is not None
+        assert intent.published_at is None
+        self.sent.append(kwargs)
+        return {"status_code": 202, "message_id": "msg-1"}
 
 
 # ---------- process_signal: routing ----------
@@ -248,6 +264,128 @@ def test_process_signal_resolves_workspace_email_adapter(session: Session) -> No
         default_factory=trigger_service.SendGridAdapter,
     )
     adapter.send_email.assert_awaited_once()
+
+
+def test_process_signal_demo_email_uses_outbox_intent_and_skips_duplicate(
+    session: Session,
+) -> None:
+    contact = _make_contact(session)
+    sig = _make_signal(session, contact.id, signal_type="email_positive_reply")
+    adapter = _CapturingEmailAdapter(session)
+
+    with patch.object(trigger_service, "resolve_email_adapter", return_value=adapter):
+        first = _run(process_signal(session, sig))
+        second = _run(process_signal(session, sig))
+
+    expected_key = f"signal:{sig.id}:action:send_demo_email"
+    outbox = session.exec(select(OutboxEvent)).all()
+    assert "send_demo_email" in first
+    assert "send_demo_email" in second
+    assert len(adapter.sent) == 1
+    assert adapter.sent[0]["idempotency_key"] == expected_key
+    assert [event.idempotency_key for event in outbox] == [expected_key]
+    assert outbox[0].published_at is not None
+
+
+def test_process_signal_sales_email_uses_outbox_intent_and_skips_duplicate(
+    session: Session,
+) -> None:
+    contact = _make_contact(session)
+    sig = _make_signal(session, contact.id, signal_type="scheduling_requested")
+    adapter = _CapturingEmailAdapter(session)
+
+    with (
+        patch.object(trigger_service, "resolve_email_adapter", return_value=adapter),
+        patch.object(
+            trigger_service,
+            "resolve_team_notification_email",
+            return_value="team@example.com",
+        ),
+    ):
+        first = _run(process_signal(session, sig))
+        second = _run(process_signal(session, sig))
+
+    expected_key = f"signal:{sig.id}:action:email_sales_team"
+    outbox = session.exec(select(OutboxEvent)).all()
+    assert "email_sales_team" in first
+    assert "email_sales_team" in second
+    assert len(adapter.sent) == 1
+    assert adapter.sent[0]["to"] == "team@example.com"
+    assert adapter.sent[0]["idempotency_key"] == expected_key
+    assert [event.idempotency_key for event in outbox] == [expected_key]
+    assert outbox[0].published_at is not None
+
+
+def test_process_signal_resource_email_uses_outbox_intent_and_skips_duplicate(
+    session: Session,
+) -> None:
+    contact = _make_contact(session)
+    sig = _make_signal(
+        session, contact.id, signal_type="voice_positive_interest", channel="voice"
+    )
+    adapter = _CapturingEmailAdapter(session)
+
+    with patch.object(trigger_service, "resolve_email_adapter", return_value=adapter):
+        first = _run(process_signal(session, sig))
+        second = _run(process_signal(session, sig))
+
+    expected_key = f"signal:{sig.id}:action:send_resource_email"
+    outbox = session.exec(select(OutboxEvent)).all()
+    assert first == ["send_resource_email"]
+    assert second == ["send_resource_email"]
+    assert len(adapter.sent) == 1
+    assert adapter.sent[0]["idempotency_key"] == expected_key
+    assert [event.idempotency_key for event in outbox] == [expected_key]
+    assert outbox[0].published_at is not None
+
+
+def test_process_signal_resource_email_does_not_retry_unpublished_intent(
+    session: Session,
+) -> None:
+    contact = _make_contact(session)
+    sig = _make_signal(
+        session, contact.id, signal_type="voice_positive_interest", channel="voice"
+    )
+    session.add(
+        OutboxEvent(
+            aggregate_id=sig.id,
+            aggregate_type="signal",
+            event_type="trigger.resource_email_send_requested",
+            event_data={"to": contact.email},
+            idempotency_key=f"signal:{sig.id}:action:send_resource_email",
+        )
+    )
+    session.commit()
+    adapter = _CapturingEmailAdapter(session)
+
+    with patch.object(trigger_service, "resolve_email_adapter", return_value=adapter):
+        executed = _run(process_signal(session, sig))
+
+    outbox = session.exec(select(OutboxEvent)).all()
+    assert executed == []
+    assert adapter.sent == []
+    assert len(outbox) == 1
+    assert outbox[0].published_at is None
+
+
+def test_process_signal_resource_email_rejection_leaves_intent_unpublished(
+    session: Session,
+) -> None:
+    contact = _make_contact(session)
+    sig = _make_signal(
+        session, contact.id, signal_type="voice_positive_interest", channel="voice"
+    )
+    adapter = AsyncMock()
+    adapter.send_email = AsyncMock(return_value={"status_code": 500, "message_id": ""})
+
+    with patch.object(trigger_service, "resolve_email_adapter", return_value=adapter):
+        executed = _run(process_signal(session, sig))
+
+    outbox = session.exec(select(OutboxEvent)).all()
+    assert executed == []
+    adapter.send_email.assert_awaited_once()
+    assert len(outbox) == 1
+    assert outbox[0].published_at is None
 
 
 def test_process_signal_send_resource_missing_contact(session: Session) -> None:

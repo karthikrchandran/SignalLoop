@@ -286,6 +286,13 @@ async def _process_single(
         _advance_step(session, state, step)
         return
 
+    if existing and existing.status == SendRequestStatus.pending:
+        logger.warning(
+            "SendRequest %s is pending; skipping automatic resend because provider outcome is unknown",
+            existing.id,
+        )
+        return
+
     # -- Max-retries guard ----------------------------------------------------
     if existing and existing.retry_count >= MAX_RETRIES:
         logger.error(

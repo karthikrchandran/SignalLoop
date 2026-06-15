@@ -7,10 +7,14 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.domain.audit.audit_events import append_audit_event
+from app.domain.outreach.outbox_service import (
+    enqueue_outbox_event,
+    mark_outbox_published,
+)
 from app.domain.runtime_settings import resolve_team_notification_email
 from app.domain.signals.models import SignalEvent
 from app.domain.signals.scheduling import SchedulingRequest
@@ -19,7 +23,7 @@ from app.domain.timeline.timeline_service import (
     invalidate_timeline_cache_from_url,
 )
 from app.domain.voice.models import CallRequest
-from app.domain_models import Campaign
+from app.domain_models import Campaign, OutboxEvent
 from app.infrastructure.providers.base import EmailAdapter
 from app.infrastructure.providers.registry import resolve_email_adapter
 from app.infrastructure.providers.sendgrid import SendGridAdapter
@@ -127,6 +131,59 @@ def _workspace_for_campaign(session: Session, campaign_id: uuid.UUID) -> str:
     return campaign.workspace_id if campaign else "system"
 
 
+def _signal_action_intent_key(signal_id: uuid.UUID, action: str) -> str:
+    return f"signal:{signal_id}:action:{action}"
+
+
+def _prepare_signal_action_intent(
+    session: Session,
+    *,
+    signal: SignalEvent,
+    action: str,
+    event_type: str,
+    event_data: dict[str, Any],
+) -> OutboxEvent | None:
+    intent_key = _signal_action_intent_key(signal.id, action)
+    existing = session.exec(
+        select(OutboxEvent).where(OutboxEvent.idempotency_key == intent_key)
+    ).first()
+    if existing is not None:
+        if existing.published_at is None:
+            raise RuntimeError(
+                f"Trigger action {action} for signal {signal.id} is already in progress"
+            )
+        logger.info(
+            "Skipping duplicate trigger action %s for signal %s", action, signal.id
+        )
+        return None
+
+    return enqueue_outbox_event(
+        session,
+        aggregate_id=signal.id,
+        aggregate_type="signal",
+        event_type=event_type,
+        event_data={
+            "signal_id": str(signal.id),
+            "contact_id": str(signal.contact_id),
+            "campaign_id": str(signal.campaign_id),
+            "signal_type": signal.signal_type,
+            **event_data,
+        },
+        idempotency_key=intent_key,
+    )
+
+
+def _provider_send_accepted(result: dict[str, Any]) -> bool:
+    status_code = int(result.get("status_code") or 0)
+    return 200 <= status_code < 300
+
+
+def _raise_provider_rejected(action: str, result: dict[str, Any]) -> None:
+    raise RuntimeError(
+        f"Provider rejected trigger action {action}: {result.get('error', 'unknown')}"
+    )
+
+
 def _queue_followup_call(session: Session, signal: SignalEvent) -> bool:
     """Queue a followup call for a positive email signal."""
     from sqlmodel import select
@@ -166,14 +223,28 @@ async def _send_demo_email(adapter: EmailAdapter, session: Session, signal: Sign
     if not contact:
         return
 
-    await adapter.send_email(
+    intent = _prepare_signal_action_intent(
+        session,
+        signal=signal,
+        action="send_demo_email",
+        event_type="trigger.demo_email_send_requested",
+        event_data={"to": contact.email},
+    )
+    if intent is None:
+        return
+
+    result = await adapter.send_email(
         to=contact.email,
         subject="Thanks for your interest — here's your demo access",
         body_html="<p>Hi {name},</p><p>Thanks for your interest! Here are some resources to get started:</p><ul><li><a href='#'>Product Demo</a></li><li><a href='#'>Book a Call</a></li></ul>".format(
             name=contact.first_name or "there"
         ),
         body_text=f"Hi {contact.first_name or 'there'}, thanks for your interest! Check out our product demo and book a call.",
+        idempotency_key=intent.idempotency_key,
     )
+    if not _provider_send_accepted(result):
+        _raise_provider_rejected("send_demo_email", result)
+    mark_outbox_published(session, event_id=intent.id)
 
 
 def _create_scheduling_request(session: Session, signal: SignalEvent) -> bool:
@@ -198,12 +269,26 @@ async def _email_sales_team(adapter: EmailAdapter, session: Session, signal: Sig
         return
 
     name = f"{contact.first_name or ''} {contact.last_name or ''}".strip()
-    await adapter.send_email(
+    intent = _prepare_signal_action_intent(
+        session,
+        signal=signal,
+        action="email_sales_team",
+        event_type="trigger.sales_team_email_requested",
+        event_data={"to": team_email},
+    )
+    if intent is None:
+        return
+
+    result = await adapter.send_email(
         to=team_email,
         subject=f"[SCHEDULING] {name} from {contact.company or 'Unknown'} wants to schedule",
         body_html=f"<p><strong>{html_mod.escape(name)}</strong> ({html_mod.escape(contact.email)}) from <strong>{html_mod.escape(contact.company or 'Unknown')}</strong> expressed scheduling interest.</p><p>Please reach out to book a meeting.</p>",
         body_text=f"{name} ({contact.email}) from {contact.company or 'Unknown'} wants to schedule a meeting.",
+        idempotency_key=intent.idempotency_key,
     )
+    if not _provider_send_accepted(result):
+        _raise_provider_rejected("email_sales_team", result)
+    mark_outbox_published(session, event_id=intent.id)
 
 
 async def _send_resource_email(adapter: EmailAdapter, session: Session, signal: SignalEvent) -> None:
@@ -213,14 +298,28 @@ async def _send_resource_email(adapter: EmailAdapter, session: Session, signal: 
     if not contact:
         return
 
-    await adapter.send_email(
+    intent = _prepare_signal_action_intent(
+        session,
+        signal=signal,
+        action="send_resource_email",
+        event_type="trigger.resource_email_send_requested",
+        event_data={"to": contact.email},
+    )
+    if intent is None:
+        return
+
+    result = await adapter.send_email(
         to=contact.email,
         subject="Great speaking with you — here are some resources",
         body_html="<p>Hi {name},</p><p>Thanks for the conversation! Here are some resources that might be helpful:</p><ul><li><a href='#'>Product Overview</a></li><li><a href='#'>Case Studies</a></li></ul><p>Feel free to reach out if you have any questions.</p>".format(
             name=contact.first_name or "there"
         ),
         body_text=f"Hi {contact.first_name or 'there'}, thanks for the conversation! Check out our product overview and case studies.",
+        idempotency_key=intent.idempotency_key,
     )
+    if not _provider_send_accepted(result):
+        _raise_provider_rejected("send_resource_email", result)
+    mark_outbox_published(session, event_id=intent.id)
 
 
 def get_trigger_rules() -> list[dict]:

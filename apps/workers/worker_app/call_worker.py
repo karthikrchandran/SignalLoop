@@ -228,6 +228,15 @@ async def _initiate_one(
         session.add(call_req)
         return False
 
+    if call_session and call_session.twilio_status == "initiating":
+        logger.warning(
+            "CallSession %s is initiating; skipping automatic redial because provider outcome is unknown",
+            call_session.id,
+        )
+        call_req.status = CallRequestStatus.in_progress
+        session.add(call_req)
+        return False
+
     account_sid = getattr(adapter, "_account_sid", "") or None
     if call_session is None:
         call_session = CallSession(

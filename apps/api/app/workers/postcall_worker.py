@@ -11,10 +11,14 @@ from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.db import engine
+from app.domain.outreach.outbox_service import (
+    enqueue_outbox_event,
+    mark_outbox_published,
+)
 from app.domain.runtime_settings import resolve_team_notification_email
 from app.domain.voice.models import CallOutcome, CallRequest, CallSession
 from app.domain.voice.summary_generator import generate_summary
-from app.domain_models import Contact
+from app.domain_models import Contact, OutboxEvent
 from app.infrastructure.providers.base import EmailAdapter
 from app.infrastructure.providers.registry import resolve_email_adapter
 from app.infrastructure.providers.sendgrid import SendGridAdapter
@@ -23,6 +27,53 @@ from app.workers.heartbeat import record_worker_heartbeat
 logger = logging.getLogger(__name__)
 
 POLL_INTERVAL = 30  # seconds
+
+
+def _postcall_summary_intent_key(call_session_id: object) -> str:
+    return f"postcall:{call_session_id}:summary_email"
+
+
+def _prepare_postcall_summary_intent(
+    session: Session,
+    *,
+    call_session: CallSession,
+    call_request: CallRequest,
+    team_email: str,
+) -> OutboxEvent | None:
+    intent_key = _postcall_summary_intent_key(call_session.id)
+    existing = session.exec(
+        select(OutboxEvent).where(OutboxEvent.idempotency_key == intent_key)
+    ).first()
+    if existing is not None:
+        if existing.published_at is None:
+            raise RuntimeError(
+                f"Post-call summary for call session {call_session.id} is already in progress"
+            )
+        logger.info(
+            "Skipping duplicate post-call summary for call session %s",
+            call_session.id,
+        )
+        return None
+
+    return enqueue_outbox_event(
+        session,
+        aggregate_id=call_session.id,
+        aggregate_type="call_session",
+        event_type="postcall.summary_email_requested",
+        event_data={
+            "call_session_id": str(call_session.id),
+            "call_request_id": str(call_request.id),
+            "contact_id": str(call_request.contact_id),
+            "campaign_id": str(call_request.campaign_id),
+            "to": team_email,
+        },
+        idempotency_key=intent_key,
+    )
+
+
+def _provider_send_accepted(result: dict[str, object]) -> bool:
+    status_code = int(result.get("status_code") or 0)
+    return 200 <= status_code < 300
 
 
 async def _process_completed_calls() -> int:
@@ -92,6 +143,15 @@ async def _send_summary(
         logger.warning("TEAM_NOTIFICATION_EMAIL not configured, skipping send")
         return
 
+    intent = _prepare_postcall_summary_intent(
+        session,
+        call_session=call_session,
+        call_request=call_request,
+        team_email=team_email,
+    )
+    if intent is None:
+        return
+
     # Resolve adapter for this workspace; falls back to SendGridAdapter() so
     # tests can still `patch('app.workers.postcall_worker.SendGridAdapter')`.
     adapter: EmailAdapter = resolve_email_adapter(
@@ -100,12 +160,18 @@ async def _send_summary(
         default_factory=SendGridAdapter,
     )
 
-    await adapter.send_email(
+    result = await adapter.send_email(
         to=team_email,
         subject=summary.subject,
         body_html=summary.html_body,
         body_text=summary.transcript_preview,
+        idempotency_key=intent.idempotency_key,
     )
+    if not _provider_send_accepted(result):
+        raise RuntimeError(
+            f"Post-call summary provider rejected send for call session {call_session.id}"
+        )
+    mark_outbox_published(session, event_id=intent.id)
     logger.info("Summary email sent for call session %s → %s", call_session.id, team_email)
 
 

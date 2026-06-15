@@ -14,11 +14,16 @@ Covers all branches of the polling worker:
 from __future__ import annotations
 
 import asyncio
+import uuid
+from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlmodel import Session, SQLModel, create_engine, select
 
-from app.domain.voice.models import CallOutcome
+from app.domain.voice.models import CallOutcome, CallRequest, CallSession, VoiceScript
+from app.domain_models import Campaign, Contact, OutboxEvent
 from app.workers import postcall_worker
 
 
@@ -45,6 +50,80 @@ def _build_call_session(outcome=CallOutcome.answered, sid=1, request_id=10):
     cs.call_request_id = request_id
     cs.postcall_status = None
     return cs
+
+
+def _session() -> Session:
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    return Session(engine)
+
+
+def _seed_answered_call(session: Session, *, workspace_id: str = "ws") -> CallSession:
+    owner_id = uuid.uuid4()
+    campaign = Campaign(
+        name="Campaign",
+        workspace_id=workspace_id,
+        created_by=owner_id,
+    )
+    session.add(campaign)
+    session.flush()
+
+    contact = Contact(
+        workspace_id=workspace_id,
+        email="caller@example.com",
+        first_name="Casey",
+        last_name="Call",
+        company="ExampleCo",
+        phone="+15551234567",
+    )
+    session.add(contact)
+    session.flush()
+
+    script = VoiceScript(
+        campaign_id=campaign.id,
+        name="Script",
+        content="Say hello.",
+        created_by=owner_id,
+    )
+    session.add(script)
+    session.flush()
+
+    call_request = CallRequest(
+        contact_id=contact.id,
+        campaign_id=campaign.id,
+        voice_script_id=script.id,
+        trigger_reason="manual",
+        scheduled_at=datetime.now(timezone.utc),
+    )
+    session.add(call_request)
+    session.flush()
+
+    call_session = CallSession(
+        call_request_id=call_request.id,
+        twilio_call_sid="CA123",
+        outcome=CallOutcome.answered,
+        transcript="Interested in a follow-up.",
+    )
+    session.add(call_session)
+    session.commit()
+    session.refresh(call_session)
+    return call_session
+
+
+class _CapturingSummaryAdapter:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+        self.sent: list[dict] = []
+
+    async def send_email(self, **kwargs):
+        key = kwargs["idempotency_key"]
+        intent = self.session.exec(
+            select(OutboxEvent).where(OutboxEvent.idempotency_key == key)
+        ).first()
+        assert intent is not None
+        assert intent.published_at is None
+        self.sent.append(kwargs)
+        return {"status_code": 202, "message_id": "summary-1"}
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +228,7 @@ def test_send_summary_returns_early_when_call_request_missing() -> None:
     session = MagicMock()
     session.get.return_value = None  # CallRequest not found
     adapter = MagicMock()
-    adapter.send_email = AsyncMock()
+    adapter.send_email = AsyncMock(return_value={"status_code": 202, "message_id": "summary-1"})
     cs = _build_call_session()
 
     with patch("app.workers.postcall_worker.generate_summary") as gen, \
@@ -168,7 +247,7 @@ def test_send_summary_uses_contact_defaults_when_contact_missing() -> None:
     session.get.side_effect = [call_request, None]
 
     adapter = MagicMock()
-    adapter.send_email = AsyncMock()
+    adapter.send_email = AsyncMock(return_value={"status_code": 202, "message_id": "summary-1"})
     cs = _build_call_session()
 
     summary = MagicMock(subject="s", html_body="<p/>", transcript_preview="t")
@@ -179,6 +258,12 @@ def test_send_summary_uses_contact_defaults_when_contact_missing() -> None:
         ) as gen,
         patch.object(postcall_worker.settings, "TEAM_NOTIFICATION_EMAIL", "ops@x.io"),
         patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
+        patch.object(
+            postcall_worker,
+            "_prepare_postcall_summary_intent",
+            return_value=SimpleNamespace(id=uuid.uuid4(), idempotency_key="postcall:1:summary_email"),
+        ),
+        patch.object(postcall_worker, "mark_outbox_published"),
     ):
         _run(postcall_worker._send_summary(session, cs))
 
@@ -187,7 +272,11 @@ def test_send_summary_uses_contact_defaults_when_contact_missing() -> None:
     assert kwargs["contact_company"] == ""
     assert kwargs["contact_email"] == ""
     adapter.send_email.assert_awaited_once_with(
-        to="ops@x.io", subject="s", body_html="<p/>", body_text="t"
+        to="ops@x.io",
+        subject="s",
+        body_html="<p/>",
+        body_text="t",
+        idempotency_key="postcall:1:summary_email",
     )
 
 
@@ -201,7 +290,7 @@ def test_send_summary_uses_contact_fields_when_present() -> None:
     session.get.side_effect = [call_request, contact]
 
     adapter = MagicMock()
-    adapter.send_email = AsyncMock()
+    adapter.send_email = AsyncMock(return_value={"status_code": 202, "message_id": "summary-1"})
     cs = _build_call_session()
     summary = MagicMock(subject="s", html_body="<p/>", transcript_preview="t")
 
@@ -211,6 +300,12 @@ def test_send_summary_uses_contact_fields_when_present() -> None:
         ) as gen,
         patch.object(postcall_worker.settings, "TEAM_NOTIFICATION_EMAIL", "ops@x.io"),
         patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
+        patch.object(
+            postcall_worker,
+            "_prepare_postcall_summary_intent",
+            return_value=SimpleNamespace(id=uuid.uuid4(), idempotency_key="postcall:1:summary_email"),
+        ),
+        patch.object(postcall_worker, "mark_outbox_published"),
     ):
         _run(postcall_worker._send_summary(session, cs))
 
@@ -218,6 +313,100 @@ def test_send_summary_uses_contact_fields_when_present() -> None:
     assert kwargs["contact_name"] == "Ada Lovelace"
     assert kwargs["contact_company"] == "Analytical"
     assert kwargs["contact_email"] == "a@l.io"
+    adapter.send_email.assert_awaited_once_with(
+        to="ops@x.io",
+        subject="s",
+        body_html="<p/>",
+        body_text="t",
+        idempotency_key="postcall:1:summary_email",
+    )
+
+
+def test_send_summary_uses_outbox_intent_and_skips_duplicate() -> None:
+    with _session() as session:
+        call_session = _seed_answered_call(session)
+        adapter = _CapturingSummaryAdapter(session)
+        summary = MagicMock(subject="s", html_body="<p/>", transcript_preview="t")
+
+        with (
+            patch("app.workers.postcall_worker.generate_summary", return_value=summary),
+            patch.object(
+                postcall_worker,
+                "resolve_team_notification_email",
+                return_value="ops@example.com",
+            ),
+            patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
+        ):
+            _run(postcall_worker._send_summary(session, call_session))
+            _run(postcall_worker._send_summary(session, call_session))
+
+        outbox = session.exec(select(OutboxEvent)).all()
+
+    expected_key = f"postcall:{call_session.id}:summary_email"
+    assert len(adapter.sent) == 1
+    assert adapter.sent[0]["to"] == "ops@example.com"
+    assert adapter.sent[0]["idempotency_key"] == expected_key
+    assert [event.idempotency_key for event in outbox] == [expected_key]
+    assert outbox[0].published_at is not None
+
+
+def test_send_summary_rejects_unpublished_intent_without_resend() -> None:
+    with _session() as session:
+        call_session = _seed_answered_call(session)
+        session.add(
+            OutboxEvent(
+                aggregate_id=call_session.id,
+                aggregate_type="call_session",
+                event_type="postcall.summary_email_requested",
+                event_data={"to": "ops@example.com"},
+                idempotency_key=f"postcall:{call_session.id}:summary_email",
+            )
+        )
+        session.commit()
+        adapter = _CapturingSummaryAdapter(session)
+
+        with (
+            patch("app.workers.postcall_worker.generate_summary", return_value=MagicMock()),
+            patch.object(
+                postcall_worker,
+                "resolve_team_notification_email",
+                return_value="ops@example.com",
+            ),
+            patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
+            pytest.raises(RuntimeError, match="already in progress"),
+        ):
+            _run(postcall_worker._send_summary(session, call_session))
+
+        outbox = session.exec(select(OutboxEvent)).all()
+
+    assert adapter.sent == []
+    assert len(outbox) == 1
+    assert outbox[0].published_at is None
+
+
+def test_send_summary_rejection_leaves_intent_unpublished() -> None:
+    with _session() as session:
+        call_session = _seed_answered_call(session)
+        adapter = MagicMock()
+        adapter.send_email = AsyncMock(return_value={"status_code": 500, "message_id": ""})
+
+        with (
+            patch("app.workers.postcall_worker.generate_summary", return_value=MagicMock()),
+            patch.object(
+                postcall_worker,
+                "resolve_team_notification_email",
+                return_value="ops@example.com",
+            ),
+            patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
+            pytest.raises(RuntimeError, match="rejected"),
+        ):
+            _run(postcall_worker._send_summary(session, call_session))
+
+        outbox = session.exec(select(OutboxEvent)).all()
+
+    adapter.send_email.assert_awaited_once()
+    assert len(outbox) == 1
+    assert outbox[0].published_at is None
 
 
 def test_send_summary_skips_send_when_team_email_unset() -> None:

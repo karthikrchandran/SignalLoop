@@ -350,9 +350,14 @@ async def _process_single(
 
     if existing and existing.status == SendRequestStatus.pending:
         stale_at = _normalize_utc(existing.created_at) + PENDING_SEND_STALE_AFTER
-        if _normalize_utc(datetime.now(timezone.utc)) < stale_at:
+        if _normalize_utc(datetime.now(timezone.utc)) >= stale_at:
+            logger.warning(
+                "SendRequest %s is stale pending; skipping automatic resend because provider outcome is unknown",
+                existing.id,
+            )
+        else:
             logger.info("SendRequest %s already pending; skipping duplicate send", existing.id)
-            return
+        return
 
     if existing and existing.status == SendRequestStatus.failed:
         if existing.retry_count >= len(RETRY_DELAYS):

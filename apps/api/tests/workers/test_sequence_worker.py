@@ -457,6 +457,39 @@ def test_process_single_skips_when_retry_window_open(memory_session: Session) ->
     adapter.send_email.assert_not_called()
 
 
+def test_process_single_does_not_resend_stale_pending_unknown_outcome(
+    memory_session: Session,
+) -> None:
+    """A stale pending SendRequest may already have reached the provider."""
+    contact = _seed_contact(memory_session)
+    seq = _seed_sequence(memory_session)
+    state = _seed_state(memory_session, contact=contact, sequence=seq)
+    idem = f"{state.contact_id}:{state.sequence_id}:{state.current_step}"
+    old_sr = SendRequest(
+        contact_sequence_state_id=state.id,
+        step_order=1,
+        idempotency_key=idem,
+        status=SendRequestStatus.pending,
+        created_at=datetime.now(timezone.utc) - timedelta(hours=1),
+    )
+    memory_session.add(old_sr)
+    memory_session.commit()
+
+    adapter = MagicMock()
+    adapter.send_email = AsyncMock(return_value={"message_id": "DUP", "status_code": 202})
+    naive_dt = MagicMock(wraps=datetime)
+    naive_dt.now.return_value = datetime.now(timezone.utc).replace(tzinfo=None)
+    with patch.object(sequence_worker, "datetime", naive_dt):
+        with patch.object(sequence_worker, "resolve_email_adapter", return_value=adapter):
+            asyncio.run(sequence_worker._process_single(memory_session, state))
+    memory_session.commit()
+
+    memory_session.refresh(old_sr)
+    assert old_sr.status == SendRequestStatus.pending
+    assert state.status == SequenceStatus.active
+    adapter.send_email.assert_not_called()
+
+
 def test_process_single_sends_and_advances_on_success(memory_session: Session) -> None:
     """Successful send -> SendRequest sent, state advances to next step."""
     contact = _seed_contact(memory_session)

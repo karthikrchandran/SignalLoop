@@ -25,9 +25,12 @@ from sqlmodel import Session, select
 from app.core.config import settings
 from app.core.db import engine
 from app.domain.audit.audit_events import AuditEvent
-from app.domain.providers.credential_resolver import resolve_provider_credentials
+from app.domain.outreach.outbox_service import (
+    enqueue_outbox_event,
+    mark_outbox_published,
+)
 from app.domain.voice.models import CallOutcome, CallRequest, CallRequestStatus, CallSession
-from app.domain_models import Campaign, Contact, NotificationProvider
+from app.domain_models import Campaign, Contact, OutboxEvent
 from app.infrastructure.providers.sendgrid import SendGridAdapter
 from app.infrastructure.providers.registry import resolve_email_adapter
 
@@ -42,6 +45,50 @@ BATCH_SIZE = 20
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _postcall_summary_intent_key(call_session_id: object) -> str:
+    return f"postcall:{call_session_id}:summary_email"
+
+
+def _prepare_postcall_summary_intent(
+    session: Session,
+    *,
+    req: CallRequest,
+    sess: CallSession,
+    to_email: str,
+) -> OutboxEvent | None:
+    intent_key = _postcall_summary_intent_key(sess.id)
+    existing = session.exec(
+        select(OutboxEvent).where(OutboxEvent.idempotency_key == intent_key)
+    ).first()
+    if existing is not None:
+        if existing.published_at is None:
+            raise RuntimeError(
+                f"Post-call summary for call session {sess.id} is already in progress"
+            )
+        logger.info("Skipping duplicate post-call summary for session=%s", sess.id)
+        return None
+
+    return enqueue_outbox_event(
+        session,
+        aggregate_id=sess.id,
+        aggregate_type="call_session",
+        event_type="postcall.summary_email_requested",
+        event_data={
+            "call_session_id": str(sess.id),
+            "call_request_id": str(req.id),
+            "contact_id": str(req.contact_id),
+            "campaign_id": str(req.campaign_id),
+            "to": to_email,
+        },
+        idempotency_key=intent_key,
+    )
+
+
+def _provider_send_accepted(result: dict[str, Any]) -> bool:
+    status_code = int(result.get("status_code") or 0)
+    return 200 <= status_code < 300
 
 
 def _outcome_label(outcome: CallOutcome | None) -> str:
@@ -168,26 +215,33 @@ async def _process_session(
     email_sent = False
     to_email = settings.TEAM_NOTIFICATION_EMAIL
     if to_email:
-        # Resolve per-workspace email adapter; falls back to SendGridAdapter().
-        adapter = resolve_email_adapter(
-            db, workspace_id, default_factory=SendGridAdapter
+        intent = _prepare_postcall_summary_intent(
+            db,
+            req=req,
+            sess=sess,
+            to_email=to_email,
         )
-        idempotency_key = f"postcall:{sess.id}"
-        try:
-            await adapter.send_email(
+        if intent is None:
+            email_sent = True
+        else:
+            # Resolve per-workspace email adapter; falls back to SendGridAdapter().
+            adapter = resolve_email_adapter(
+                db, workspace_id, default_factory=SendGridAdapter
+            )
+            result = await adapter.send_email(
                 to=to_email,
                 subject=subject,
                 body_html=body_html,
                 body_text=body_text,
-                idempotency_key=idempotency_key,
+                idempotency_key=intent.idempotency_key,
             )
+            if not _provider_send_accepted(result):
+                raise RuntimeError(
+                    f"Post-call summary provider rejected send for session {sess.id}"
+                )
+            mark_outbox_published(db, event_id=intent.id)
             email_sent = True
             logger.info("Sent post-call summary for session=%s to %s", sess.id, to_email)
-        except Exception:
-            logger.exception(
-                "Failed to send post-call email for session=%s", sess.id
-            )
-            # Intentionally not re-raising: mark processed to avoid re-processing loop.
 
     # Flag scheduling follow-up directly on the CallSession
     if sess.scheduling_interest:

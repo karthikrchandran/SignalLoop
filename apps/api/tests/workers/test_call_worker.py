@@ -339,6 +339,34 @@ def test_initiate_call_skips_when_existing_session_already_dispatched(
     adapter.initiate_call.assert_not_called()
 
 
+def test_initiate_call_does_not_redial_stale_initiating_unknown_outcome(
+    memory_session: Session,
+) -> None:
+    """A stale initiating CallSession may already have reached the provider."""
+    contact = _seed_contact(memory_session)
+    cr = _seed_call_request(memory_session, contact_id=contact.id)
+    existing = CallSession(
+        call_request_id=cr.id,
+        twilio_call_sid="",
+        twilio_status="initiating",
+        twilio_status_updated_at=datetime.now(timezone.utc) - timedelta(hours=1),
+    )
+    memory_session.add(existing)
+    memory_session.commit()
+
+    adapter = _make_adapter(call_sid="CAduplicate")
+    with patch.object(call_worker, "resolve_voice_adapter", return_value=adapter):
+        asyncio.run(call_worker._initiate_call(memory_session, cr))
+    memory_session.commit()
+
+    memory_session.refresh(cr)
+    memory_session.refresh(existing)
+    assert cr.status == CallRequestStatus.in_progress
+    assert existing.twilio_status == "initiating"
+    assert existing.twilio_call_sid == ""
+    adapter.initiate_call.assert_not_awaited()
+
+
 def test_initiate_call_creates_session_and_marks_in_progress(memory_session: Session) -> None:
     """Successful Twilio response -> session created with sid, request in_progress."""
     contact = _seed_contact(memory_session)

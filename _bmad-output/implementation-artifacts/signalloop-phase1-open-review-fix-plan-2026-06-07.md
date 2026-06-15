@@ -79,7 +79,21 @@ So the accurate review statement is:
 
 ### P0: Finish Provider Side-Effect Safety Outside The Fixed Workers
 
-The worker paths have been hardened, but the broader codebase still needs an audit for direct provider side effects that bypass the newer provider-selection and durable-intent pattern.
+Status update 2026-06-15: This slice hardened the remaining automatic email
+and call side-effect paths found during the P0 audit. Signal trigger emails and
+API post-call summary emails and the scheduled `signalloop-workers`
+post-call path now persist an `OutboxEvent` intent before the provider call,
+pass the same stable key as adapter idempotency metadata, and skip only
+published duplicate sends on retry. Unpublished intents are treated as
+unknown/in-progress provider outcomes and rejected provider responses leave the
+intent unpublished. Both API-app workers and scheduled `signalloop-workers`
+sequence/call workers also no longer auto-resend `pending` sends or auto-redial
+`initiating` calls where the provider outcome is unknown.
+
+At the start of this review item, the originally fixed worker paths were not
+the whole risk surface. The broader codebase still needed an audit for direct
+provider side effects that bypassed the newer provider-selection and
+durable-intent pattern.
 
 Known paths to inspect and fix:
 
