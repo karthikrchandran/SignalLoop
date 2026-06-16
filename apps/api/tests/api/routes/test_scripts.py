@@ -1,6 +1,7 @@
 """Tests for ``app.api.routes.scripts`` endpoints (Group E coverage)."""
 from __future__ import annotations
 
+from collections.abc import Generator
 import uuid
 
 import pytest
@@ -20,6 +21,44 @@ SAMPLE_CONTENT = (
     "## Fallback\nLet me follow up.\n\n"
     "## Scheduling\nWhen are you free?\n"
 )
+
+
+class _FakeRedisClient:
+    def __init__(self) -> None:
+        self.store: dict[str, str] = {}
+
+    async def get(self, key: str) -> str | None:
+        return self.store.get(key)
+
+    async def set(self, key: str, value: str, *, ex: int, nx: bool = False) -> bool:
+        if nx and key in self.store:
+            return False
+        self.store[key] = value
+        return True
+
+    async def setex(self, key: str, ttl: int, value: str) -> None:
+        self.store[key] = value
+
+    async def delete(self, key: str) -> None:
+        self.store.pop(key, None)
+
+
+@pytest.fixture()
+def fake_idempotency_redis(client: TestClient) -> Generator[_FakeRedisClient, None, None]:
+    original = getattr(client.app.state, "redis_manager", None)
+    redis = _FakeRedisClient()
+
+    class _Manager:
+        client = redis
+
+    client.app.state.redis_manager = _Manager()
+    try:
+        yield redis
+    finally:
+        if original is None:
+            del client.app.state.redis_manager
+        else:
+            client.app.state.redis_manager = original
 
 
 def _headers(
@@ -162,6 +201,59 @@ def test_create_script_invalid_payload_422(
     assert resp.status_code == 422
 
 
+def test_create_script_replays_same_idempotency_key(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    campaign: Campaign,
+    fake_idempotency_redis: _FakeRedisClient,
+) -> None:
+    headers = {**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID, "Idempotency-Key": "scripts-replay"}
+    script_name = f"Replay script {uuid.uuid4()}"
+    payload = {
+        "name": script_name,
+        "campaign_id": str(campaign.id),
+        "content": SAMPLE_CONTENT,
+    }
+
+    first = client.post(f"{settings.API_V1_STR}/scripts/", headers=headers, json=payload)
+    second = client.post(f"{settings.API_V1_STR}/scripts/", headers=headers, json=payload)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json() == first.json()
+    listed = client.get(
+        f"{settings.API_V1_STR}/scripts/",
+        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+    )
+    matches = [row for row in listed.json()["data"] if row["name"] == script_name]
+    assert len(matches) == 1
+
+
+def test_create_script_rejects_reused_idempotency_key_with_different_payload(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    campaign: Campaign,
+    fake_idempotency_redis: _FakeRedisClient,
+) -> None:
+    headers = {**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID, "Idempotency-Key": "scripts-conflict"}
+    payload = {
+        "name": "Conflict script",
+        "campaign_id": str(campaign.id),
+        "content": SAMPLE_CONTENT,
+    }
+
+    first = client.post(f"{settings.API_V1_STR}/scripts/", headers=headers, json=payload)
+    second = client.post(
+        f"{settings.API_V1_STR}/scripts/",
+        headers=headers,
+        json={**payload, "name": "Conflict script changed"},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+    assert second.json()["detail"]["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
+
+
 # ---------------------------------------------------------------------------
 # List
 # ---------------------------------------------------------------------------
@@ -301,7 +393,7 @@ def test_update_script_admin(
     """PUT updates name and returns detail."""
     resp = client.put(
         f"{settings.API_V1_STR}/scripts/{script.id}",
-        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+        headers=_headers(superuser_token_headers),
         json={"name": "Updated"},
     )
     assert resp.status_code == 200
@@ -315,7 +407,7 @@ def test_update_script_unknown_404(
     """PUT unknown script returns 404."""
     resp = client.put(
         f"{settings.API_V1_STR}/scripts/{uuid.uuid4()}",
-        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+        headers=_headers(superuser_token_headers),
         json={"name": "Nope"},
     )
     assert resp.status_code == 404
@@ -354,7 +446,7 @@ def test_delete_script_marks_inactive(
 
     resp = client.delete(
         f"{settings.API_V1_STR}/scripts/{s.id}",
-        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+        headers=_headers(superuser_token_headers),
     )
     assert resp.status_code == 200
     assert resp.json() == {"message": "Script deactivated"}
@@ -369,7 +461,7 @@ def test_delete_script_unknown_404(
     """DELETE unknown script returns 404."""
     resp = client.delete(
         f"{settings.API_V1_STR}/scripts/{uuid.uuid4()}",
-        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+        headers=_headers(superuser_token_headers),
     )
     assert resp.status_code == 404
 

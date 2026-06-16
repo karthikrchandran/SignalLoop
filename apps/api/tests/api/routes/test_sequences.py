@@ -1,6 +1,7 @@
 """Tests for ``app.api.routes.sequences`` endpoints (Group E coverage)."""
 from __future__ import annotations
 
+from collections.abc import Generator
 import uuid
 from datetime import datetime, timezone
 
@@ -19,6 +20,44 @@ from app.domain_models import Campaign, Contact, ContactProgression, ContactProg
 
 WORKSPACE_ID = "ws-sequences-test"
 OTHER_WORKSPACE_ID = "ws-sequences-other"
+
+
+class _FakeRedisClient:
+    def __init__(self) -> None:
+        self.store: dict[str, str] = {}
+
+    async def get(self, key: str) -> str | None:
+        return self.store.get(key)
+
+    async def set(self, key: str, value: str, *, ex: int, nx: bool = False) -> bool:
+        if nx and key in self.store:
+            return False
+        self.store[key] = value
+        return True
+
+    async def setex(self, key: str, ttl: int, value: str) -> None:
+        self.store[key] = value
+
+    async def delete(self, key: str) -> None:
+        self.store.pop(key, None)
+
+
+@pytest.fixture()
+def fake_idempotency_redis(client: TestClient) -> Generator[_FakeRedisClient, None, None]:
+    original = getattr(client.app.state, "redis_manager", None)
+    redis = _FakeRedisClient()
+
+    class _Manager:
+        client = redis
+
+    client.app.state.redis_manager = _Manager()
+    try:
+        yield redis
+    finally:
+        if original is None:
+            del client.app.state.redis_manager
+        else:
+            client.app.state.redis_manager = original
 
 
 def _headers(
@@ -160,6 +199,51 @@ def test_create_sequence_invalid_payload_422(
     assert resp.status_code == 422
 
 
+def test_create_sequence_replays_same_idempotency_key(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    campaign: Campaign,
+    fake_idempotency_redis: _FakeRedisClient,
+) -> None:
+    headers = {**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID, "Idempotency-Key": "seq-replay"}
+    sequence_name = f"Replay sequence {uuid.uuid4()}"
+    payload = {"name": sequence_name, "campaign_id": str(campaign.id)}
+
+    first = client.post(f"{settings.API_V1_STR}/sequences/", headers=headers, json=payload)
+    second = client.post(f"{settings.API_V1_STR}/sequences/", headers=headers, json=payload)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json() == first.json()
+    listed = client.get(
+        f"{settings.API_V1_STR}/sequences/",
+        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+    )
+    matches = [row for row in listed.json()["data"] if row["name"] == sequence_name]
+    assert len(matches) == 1
+
+
+def test_create_sequence_rejects_reused_idempotency_key_with_different_payload(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    campaign: Campaign,
+    fake_idempotency_redis: _FakeRedisClient,
+) -> None:
+    headers = {**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID, "Idempotency-Key": "seq-conflict"}
+    payload = {"name": "Conflict sequence", "campaign_id": str(campaign.id)}
+
+    first = client.post(f"{settings.API_V1_STR}/sequences/", headers=headers, json=payload)
+    second = client.post(
+        f"{settings.API_V1_STR}/sequences/",
+        headers=headers,
+        json={**payload, "name": "Conflict sequence changed"},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+    assert second.json()["detail"]["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
+
+
 # ---------------------------------------------------------------------------
 # List / get
 # ---------------------------------------------------------------------------
@@ -262,7 +346,7 @@ def test_update_sequence_admin(
     """PUT updates name."""
     resp = client.put(
         f"{settings.API_V1_STR}/sequences/{sequence.id}",
-        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+        headers=_headers(superuser_token_headers),
         json={"name": "Renamed"},
     )
     assert resp.status_code == 200
@@ -276,7 +360,7 @@ def test_update_sequence_unknown_404(
     """PUT unknown returns 404."""
     resp = client.put(
         f"{settings.API_V1_STR}/sequences/{uuid.uuid4()}",
-        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+        headers=_headers(superuser_token_headers),
         json={"name": "Nope"},
     )
     assert resp.status_code == 404
@@ -310,7 +394,7 @@ def test_update_steps_admin(
     }
     resp = client.put(
         f"{settings.API_V1_STR}/sequences/{sequence.id}/steps",
-        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+        headers=_headers(superuser_token_headers),
         json=payload,
     )
     assert resp.status_code == 200
@@ -326,7 +410,7 @@ def test_update_steps_unknown_sequence_404(
     """PUT /steps for unknown sequence returns 404."""
     resp = client.put(
         f"{settings.API_V1_STR}/sequences/{uuid.uuid4()}/steps",
-        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+        headers=_headers(superuser_token_headers),
         json={"steps": []},
     )
     assert resp.status_code == 404
@@ -346,7 +430,7 @@ def test_delete_sequence_admin(
 
     resp = client.delete(
         f"{settings.API_V1_STR}/sequences/{s.id}",
-        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+        headers=_headers(superuser_token_headers),
     )
     assert resp.status_code == 200
     assert resp.json() == {"message": "Sequence deleted"}
@@ -359,7 +443,7 @@ def test_delete_sequence_unknown_404(
     """DELETE unknown returns 404."""
     resp = client.delete(
         f"{settings.API_V1_STR}/sequences/{uuid.uuid4()}",
-        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+        headers=_headers(superuser_token_headers),
     )
     assert resp.status_code == 404
 
@@ -393,7 +477,7 @@ def test_enroll_contacts_returns_count(
 
     resp = client.post(
         f"{settings.API_V1_STR}/sequences/{sequence.id}/enroll/{campaign.id}",
-        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+        headers=_headers(superuser_token_headers),
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -409,7 +493,7 @@ def test_enroll_unknown_sequence_404(
     """Enroll with unknown sequence id returns 404."""
     resp = client.post(
         f"{settings.API_V1_STR}/sequences/{uuid.uuid4()}/enroll/{campaign.id}",
-        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+        headers=_headers(superuser_token_headers),
     )
     assert resp.status_code == 404
 
@@ -422,7 +506,7 @@ def test_enroll_unknown_campaign_404(
     """Enroll with unknown campaign id returns 404."""
     resp = client.post(
         f"{settings.API_V1_STR}/sequences/{sequence.id}/enroll/{uuid.uuid4()}",
-        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+        headers=_headers(superuser_token_headers),
     )
     assert resp.status_code == 404
 
@@ -443,7 +527,7 @@ def test_enroll_sequence_campaign_mismatch_404(
 
     resp = client.post(
         f"{settings.API_V1_STR}/sequences/{sequence.id}/enroll/{other.id}",
-        headers={**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID},
+        headers=_headers(superuser_token_headers),
     )
     assert resp.status_code == 404
 

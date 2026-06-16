@@ -234,6 +234,7 @@ export default function SequencesPage() {
       } else if (sequenceId) {
         await signalloopRequest<SequenceSummary>(`/api/v1/sequences/${sequenceId}`, {
           method: "PUT",
+          idempotent: true,
           body: {
             name: sequenceName.trim(),
             active,
@@ -247,6 +248,7 @@ export default function SequencesPage() {
 
       await signalloopRequest<SequenceDetail>(`/api/v1/sequences/${sequenceId}/steps`, {
         method: "PUT",
+        idempotent: true,
         body: { steps: normalizedSteps },
       })
 
@@ -271,6 +273,7 @@ export default function SequencesPage() {
     try {
       await signalloopRequest(`/api/v1/sequences/${selectedSequence.id}`, {
         method: "DELETE",
+        idempotent: true,
       })
       const deletedId = selectedSequence.id
       await loadIndex()
@@ -297,6 +300,7 @@ export default function SequencesPage() {
         `/api/v1/sequences/${selectedSequence.id}/enroll/${selectedSequence.campaign_id}`,
         {
           method: "POST",
+          idempotent: true,
         },
       )
       await loadSelectedSequence(selectedSequence.id)

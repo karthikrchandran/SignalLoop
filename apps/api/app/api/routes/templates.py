@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
+from app.core.idempotency import run_idempotent_mutation
 from app.domain.audit.audit_events import (
     append_audit_event_to_session,
     audit_actor_role,
@@ -77,15 +78,38 @@ def read_templates(session: SessionDep, workspace_id: WorkspaceIdDep, status: Te
 
 
 @router.post("/", response_model=TemplatePublic, dependencies=[Depends(require_admin)])
-def create_template(
+async def create_template(
     *,
+    request: Request,
     session: SessionDep,
     current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
-    _: IdempotencyKeyDep,
+    idempotency_key: IdempotencyKeyDep,
     body: TemplateCreate,
 ) -> TemplatePublic:
     """Create template."""
+    return await run_idempotent_mutation(
+        request,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="templates.create",
+        request_payload=body.model_dump(mode="json"),
+        mutation=lambda: _create_template_once(
+            session=session,
+            current_user=current_user,
+            workspace_id=workspace_id,
+            body=body,
+        ),
+    )
+
+
+def _create_template_once(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    workspace_id: str,
+    body: TemplateCreate,
+) -> TemplatePublic:
     token_errors = validate_token_definitions([token.model_dump() for token in body.tokens])
     if token_errors:
         raise HTTPException(status_code=400, detail=token_errors)
@@ -128,16 +152,44 @@ def create_template(
 
 
 @router.patch("/{template_id}", response_model=TemplatePublic, dependencies=[Depends(require_admin)])
-def update_template(
+async def update_template(
     *,
+    request: Request,
     session: SessionDep,
     current_user: CurrentUser,
     template_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
-    _: IdempotencyKeyDep,
+    idempotency_key: IdempotencyKeyDep,
     body: TemplateUpdate,
 ) -> TemplatePublic:
     """Update template."""
+    return await run_idempotent_mutation(
+        request,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="templates.update",
+        request_payload={
+            "template_id": str(template_id),
+            "body": body.model_dump(mode="json", exclude_unset=True),
+        },
+        mutation=lambda: _update_template_once(
+            session=session,
+            current_user=current_user,
+            template_id=template_id,
+            workspace_id=workspace_id,
+            body=body,
+        ),
+    )
+
+
+def _update_template_once(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    template_id: uuid.UUID,
+    workspace_id: str,
+    body: TemplateUpdate,
+) -> TemplatePublic:
     template = session.exec(select(Template).where(Template.id == template_id, Template.workspace_id == workspace_id)).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -196,13 +248,36 @@ def update_template(
 @router.post("/{template_id}/clone", response_model=TemplatePublic, dependencies=[Depends(require_admin)])
 async def clone_template(
     *,
+    request: Request,
     session: SessionDep,
     current_user: CurrentUser,
     template_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
-    _: IdempotencyKeyDep,
+    idempotency_key: IdempotencyKeyDep,
 ) -> TemplatePublic:
     """Clone template."""
+    return await run_idempotent_mutation(
+        request,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="templates.clone",
+        request_payload={"template_id": str(template_id)},
+        mutation=lambda: _clone_template_once(
+            session=session,
+            current_user=current_user,
+            template_id=template_id,
+            workspace_id=workspace_id,
+        ),
+    )
+
+
+def _clone_template_once(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    template_id: uuid.UUID,
+    workspace_id: str,
+) -> TemplatePublic:
     template = session.exec(select(Template).where(Template.id == template_id, Template.workspace_id == workspace_id)).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -278,14 +353,42 @@ def preview_template(
 @router.post("/{template_id}/versions/{version_id}/publish", response_model=TemplatePublic, dependencies=[Depends(require_admin)])
 async def publish_template(
     *,
+    request: Request,
     session: SessionDep,
     current_user: CurrentUser,
     template_id: uuid.UUID,
     version_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
-    _: IdempotencyKeyDep,
+    idempotency_key: IdempotencyKeyDep,
 ) -> TemplatePublic:
     """Publish template."""
+    return await run_idempotent_mutation(
+        request,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="templates.publish",
+        request_payload={
+            "template_id": str(template_id),
+            "version_id": str(version_id),
+        },
+        mutation=lambda: _publish_template_once(
+            session=session,
+            current_user=current_user,
+            template_id=template_id,
+            version_id=version_id,
+            workspace_id=workspace_id,
+        ),
+    )
+
+
+def _publish_template_once(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    template_id: uuid.UUID,
+    version_id: uuid.UUID,
+    workspace_id: str,
+) -> TemplatePublic:
     template = session.exec(select(Template).where(Template.id == template_id, Template.workspace_id == workspace_id)).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")

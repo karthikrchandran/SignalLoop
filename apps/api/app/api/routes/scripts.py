@@ -5,11 +5,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
+from app.core.idempotency import run_idempotent_mutation
 from app.domain.audit.audit_events import (
     append_audit_event_to_session,
     audit_actor_role,
@@ -76,13 +77,36 @@ def _to_parsed_public(script: VoiceScript) -> ScriptParsedPublic:
 @router.post("/", response_model=ScriptPublic, dependencies=[Depends(require_admin)])
 async def create_script(
     *,
+    request: Request,
     session: SessionDep,
     current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
-    _: IdempotencyKeyDep,
+    idempotency_key: IdempotencyKeyDep,
     body: ScriptCreate,
 ) -> ScriptPublic:
     """Create script."""
+    return await run_idempotent_mutation(
+        request,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="scripts.create",
+        request_payload=body.model_dump(mode="json"),
+        mutation=lambda: _create_script_once(
+            session=session,
+            current_user=current_user,
+            workspace_id=workspace_id,
+            body=body,
+        ),
+    )
+
+
+def _create_script_once(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    workspace_id: str,
+    body: ScriptCreate,
+) -> ScriptPublic:
     _ensure_campaign_in_workspace(session, body.campaign_id, workspace_id)
     script = VoiceScript(
         campaign_id=body.campaign_id,
@@ -165,13 +189,42 @@ def preview_script(
 @router.put("/{script_id}", response_model=ScriptDetailPublic, dependencies=[Depends(require_admin)])
 async def update_script(
     *,
+    request: Request,
     session: SessionDep,
     current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
     script_id: uuid.UUID,
+    idempotency_key: IdempotencyKeyDep,
     body: ScriptUpdate,
 ) -> ScriptDetailPublic:
     """Update script."""
+    return await run_idempotent_mutation(
+        request,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="scripts.update",
+        request_payload={
+            "script_id": str(script_id),
+            "body": body.model_dump(mode="json", exclude_unset=True),
+        },
+        mutation=lambda: _update_script_once(
+            session=session,
+            current_user=current_user,
+            workspace_id=workspace_id,
+            script_id=script_id,
+            body=body,
+        ),
+    )
+
+
+def _update_script_once(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    workspace_id: str,
+    script_id: uuid.UUID,
+    body: ScriptUpdate,
+) -> ScriptDetailPublic:
     script = _get_script_or_404(session, script_id, workspace_id)
     update_data = body.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -200,12 +253,36 @@ async def update_script(
 @router.delete("/{script_id}", dependencies=[Depends(require_admin)])
 async def delete_script(
     *,
+    request: Request,
     session: SessionDep,
     current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
     script_id: uuid.UUID,
+    idempotency_key: IdempotencyKeyDep,
 ) -> dict[str, str]:
     """Delete script."""
+    return await run_idempotent_mutation(
+        request,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="scripts.delete",
+        request_payload={"script_id": str(script_id)},
+        mutation=lambda: _delete_script_once(
+            session=session,
+            current_user=current_user,
+            workspace_id=workspace_id,
+            script_id=script_id,
+        ),
+    )
+
+
+def _delete_script_once(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    workspace_id: str,
+    script_id: uuid.UUID,
+) -> dict[str, str]:
     script = _get_script_or_404(session, script_id, workspace_id)
     script.active = False
     session.add(script)

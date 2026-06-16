@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Generator
+import uuid
+
+import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
@@ -30,6 +34,82 @@ def _template_payload(content: str, subject: str | None = "Hello {{contact.first
             }
         ],
     }
+
+
+class _FakeRedisClient:
+    def __init__(self) -> None:
+        self.store: dict[str, str] = {}
+
+    async def get(self, key: str) -> str | None:
+        return self.store.get(key)
+
+    async def set(self, key: str, value: str, *, ex: int, nx: bool = False) -> bool:
+        if nx and key in self.store:
+            return False
+        self.store[key] = value
+        return True
+
+    async def setex(self, key: str, ttl: int, value: str) -> None:
+        self.store[key] = value
+
+    async def delete(self, key: str) -> None:
+        self.store.pop(key, None)
+
+
+@pytest.fixture()
+def fake_idempotency_redis(client: TestClient) -> Generator[_FakeRedisClient, None, None]:
+    original = getattr(client.app.state, "redis_manager", None)
+    redis = _FakeRedisClient()
+
+    class _Manager:
+        client = redis
+
+    client.app.state.redis_manager = _Manager()
+    try:
+        yield redis
+    finally:
+        if original is None:
+            del client.app.state.redis_manager
+        else:
+            client.app.state.redis_manager = original
+
+
+def test_create_template_replays_same_idempotency_key(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    fake_idempotency_redis: _FakeRedisClient,
+) -> None:
+    headers = _headers(superuser_token_headers, idempotency=True)
+    body = _template_payload("Hi {{contact.firstName}}. Please unsubscribe anytime.")
+    body["name"] = f"Replay template {uuid.uuid4()}"
+
+    first = client.post(f"{settings.API_V1_STR}/templates/", headers=headers, json=body)
+    second = client.post(f"{settings.API_V1_STR}/templates/", headers=headers, json=body)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json() == first.json()
+    listed = client.get(f"{settings.API_V1_STR}/templates/", headers=superuser_token_headers | {"X-Workspace-Id": WORKSPACE_ID})
+    matches = [row for row in listed.json()["data"] if row["name"] == body["name"]]
+    assert len(matches) == 1
+
+
+def test_create_template_rejects_reused_idempotency_key_with_different_payload(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    fake_idempotency_redis: _FakeRedisClient,
+) -> None:
+    headers = _headers(superuser_token_headers, idempotency=True)
+    body = _template_payload("One unsubscribe line.")
+    body["name"] = "Conflict template"
+    changed = {**body, "name": "Conflict template changed"}
+
+    first = client.post(f"{settings.API_V1_STR}/templates/", headers=headers, json=body)
+    second = client.post(f"{settings.API_V1_STR}/templates/", headers=headers, json=changed)
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+    assert second.json()["detail"]["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
 
 
 def test_template_publish_blocked_when_guardrails_fail(

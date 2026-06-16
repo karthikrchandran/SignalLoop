@@ -125,6 +125,15 @@ Acceptance criteria:
 
 ### P0: Implement Real HTTP Mutation Idempotency
 
+Status update 2026-06-15: This pass reused the existing Redis-backed
+`run_idempotent_mutation()` helper across the template, script, and sequence
+mutation route families. These routes now replay same-key/same-payload
+responses, reject same-key/different-payload requests with `409`, and require
+`Idempotency-Key` on update/delete/enroll mutations in the selected route
+families. Remaining adoption still needs a sweep across campaign
+import/audience/strategy/segment, provider credential, runtime config, and
+dead-letter mutations.
+
 The API has an `IdempotencyKeyDep` dependency that requires the `Idempotency-Key` header, and there are helper functions in `apps/api/app/core/idempotency.py`. The review gap is that this does not yet provide full request/response idempotency for generic mutations.
 
 Current risk:

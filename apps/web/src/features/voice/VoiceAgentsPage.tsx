@@ -683,6 +683,7 @@ export default function VoiceAgentsPage() {
       } else if (scriptId) {
         await signalloopRequest<ScriptDetail>(`/api/v1/scripts/${scriptId}`, {
           method: "PUT",
+          idempotent: true,
           body: {
             name: scriptName.trim(),
             content: scriptContent.trim(),
@@ -723,6 +724,7 @@ export default function VoiceAgentsPage() {
     try {
       await signalloopRequest(`/api/v1/scripts/${selectedScript.id}`, {
         method: "DELETE",
+        idempotent: true,
       })
       const deletedId = selectedScript.id
       await loadIndex()
