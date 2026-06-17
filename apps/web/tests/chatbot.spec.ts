@@ -72,3 +72,62 @@ test("Chatbot opt-outs and dead-letter recovery mockups render actions", async (
   await page.getByRole("button", { name: "Retry" }).first().click()
   await expect(page.getByText("Dead-lettered message requeued")).toBeVisible()
 })
+
+test("Messaging Hub analytics shows no-data state for empty API results", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.removeItem("chatbot_demo_mode")
+  })
+  await page.route("**/api/v1/users/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ id: "user-1", email: "admin@example.com", is_superuser: true, role: "admin" }),
+    })
+  })
+  await page.route("**/api/v1/chatbot/analytics**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        workspace_id: "default",
+        date_from: "2026-06-10",
+        date_to: "2026-06-16",
+        updated_at: "2026-06-16T12:00:00Z",
+        totals: { conversations: 0, containment_rate: 0, leads_captured: 0, escalations: 0, bot_messages: 0, opt_outs: 0 },
+        conversion_funnel: { conversations: 0, leads_captured: 0, prospecting_researched: 0, added_to_campaign: 0, sequence_enrolled: 0, voice_followups: 0 },
+        timeseries: [],
+        channel_breakdown: [],
+      }),
+    })
+  })
+
+  await page.goto("/chatbot/analytics")
+
+  await expect(page.getByText("No messaging analytics for this range").first()).toBeVisible()
+  await expect(page.getByText("No data for this range").first()).toBeVisible()
+})
+
+test("Messaging Hub analytics shows retryable error state", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.removeItem("chatbot_demo_mode")
+  })
+  await page.route("**/api/v1/users/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ id: "user-1", email: "admin@example.com", is_superuser: true, role: "admin" }),
+    })
+  })
+  await page.route("**/api/v1/chatbot/analytics**", async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "analytics unavailable" }),
+    })
+  })
+
+  await page.goto("/chatbot/analytics")
+
+  await expect(page.getByRole("alert")).toContainText("analytics unavailable")
+  await expect(page.getByRole("button", { name: "Retry" })).toBeVisible()
+})

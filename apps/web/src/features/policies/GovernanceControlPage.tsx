@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { AlertCircle, BellOff, PauseCircle, PlayCircle, Send, ShieldCheck } from "lucide-react"
+import { AlertCircle, PauseCircle, PlayCircle, ShieldCheck } from "lucide-react"
 
 import { Alert } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -54,59 +54,9 @@ export default function GovernanceControlPage() {
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Outreach Controls</h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Manage sending limits, quiet hours, and emergency controls for all outreach activities.
+          Pause or resume outbound activity across campaigns and sequences.
         </p>
       </div>
-
-      {/* Daily sending limits */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <Send className="size-5 text-primary" />
-            </div>
-            <div>
-              <CardTitle>Daily sending limits</CardTitle>
-              <CardDescription>
-                Daily caps remain enforced by the backend, but this build does not expose a supported save endpoint for editing them from the UI.
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
-            The previous workspace policy editor was removed with the simplified governance pivot. To avoid implying unsupported behavior, limit changes are not editable here until a supported controls API is added.
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Use pause and resume controls below for live operational holds. Daily-cap editing needs a follow-up implementation slice before it can return to this page.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Quiet hours */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <BellOff className="size-5 text-primary" />
-            </div>
-            <div>
-              <CardTitle>Do not disturb hours</CardTitle>
-              <CardDescription>
-                Quiet hours are still respected by backend execution paths, but this build does not support changing that schedule from the UI.
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
-            Quiet-hour scheduling is currently driven by backend worker configuration. This page no longer attempts to save to the removed policies endpoint.
-          </div>
-          <p className="text-sm text-muted-foreground">
-            If quiet-hour editing needs to be operator-managed, it should come back behind a supported API instead of the legacy policy route.
-          </p>
-        </CardContent>
-      </Card>
 
       {/* Emergency controls */}
       <Card className={systemPaused ? "border-destructive/50 bg-destructive/5" : undefined}>
@@ -116,7 +66,7 @@ export default function GovernanceControlPage() {
               <ShieldCheck className={`size-5 ${systemPaused ? "text-destructive" : "text-primary"}`} />
             </div>
             <div>
-              <CardTitle>Emergency controls</CardTitle>
+              <CardTitle>Emergency pause</CardTitle>
               <CardDescription>
                 Instantly stop or restart all outreach across every campaign and sequence. Use this during compliance holds or unexpected issues.
               </CardDescription>
@@ -151,6 +101,20 @@ export default function GovernanceControlPage() {
               Resume outreach
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Policy settings</CardTitle>
+          <CardDescription>
+            Daily limits and quiet hours are enforced by backend configuration in this build.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Editing those policies from the UI requires a supported controls API. This page exposes only the supported pause and resume controls.
+          </p>
         </CardContent>
       </Card>
 

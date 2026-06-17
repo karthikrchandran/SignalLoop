@@ -79,6 +79,14 @@ export default function AnalyticsPage() {
       { label: "Voice follow-up", value: data.conversion_funnel.voice_followups },
     ]
   }, [data])
+  const hasAnyAnalytics = Boolean(
+    data &&
+      (data.totals.conversations > 0 ||
+        data.totals.leads_captured > 0 ||
+        data.totals.escalations > 0 ||
+        data.timeseries.length > 0 ||
+        data.channel_breakdown.length > 0),
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -108,7 +116,16 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {error ? <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div> : null}
+      {error ? (
+        <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>{error}</span>
+            <Button variant="outline" onClick={() => void load()} disabled={loading}>
+              Retry
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {loading && !data ? (
         <div className="space-y-4">
@@ -125,6 +142,12 @@ export default function AnalyticsPage() {
             <MetricCard label="Leads Captured" value={String(data.totals.leads_captured)} />
             <MetricCard label="Escalations" value={String(data.totals.escalations)} />
           </div>
+
+          {data && !hasAnyAnalytics ? (
+            <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              No messaging analytics for this range.
+            </div>
+          ) : null}
 
           <Card>
             <CardHeader>

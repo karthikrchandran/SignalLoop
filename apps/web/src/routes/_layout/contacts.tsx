@@ -8,6 +8,7 @@ const contactsSearchSchema = z.object({
   contactId: z.string().optional(),
   campaignId: z.string().optional(),
   contactName: z.string().optional(),
+  leadGroupId: z.string().optional(),
 })
 
 export const Route = createFileRoute("/_layout/contacts")({
@@ -19,10 +20,10 @@ export const Route = createFileRoute("/_layout/contacts")({
 })
 
 function ContactsPage() {
-  const { contactId, campaignId, contactName } = Route.useSearch()
+  const { contactId, campaignId, contactName, leadGroupId } = Route.useSearch()
 
   if (!contactId) {
-    return <ContactManagementPage />
+    return <ContactManagementPage leadGroupId={leadGroupId} />
   }
 
   return (

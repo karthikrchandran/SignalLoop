@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import { signalloopRequest } from "@/lib/signalloop-api"
 
 type TemplateVersion = {
@@ -86,9 +93,24 @@ export default function TemplateLibraryPage() {
   const [subject, setSubject] = useState("Hi {{contact.firstName}}")
   const [content, setContent] = useState("{{contact.firstName}}, here is your offer for {{contact.company}}.")
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
+  const [templateSearch, setTemplateSearch] = useState("")
+  const [channelFilter, setChannelFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [page, setPage] = useState(1)
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
   const [feedback, setFeedback] = useState("")
   const [busy, setBusy] = useState(false)
+  const pageSize = 10
+
+  const filteredTemplates = templates.filter((template) => {
+    const searchText = `${template.name} ${template.current_version?.subject || ""} ${template.current_version?.content || ""}`.toLowerCase()
+    if (templateSearch.trim() && !searchText.includes(templateSearch.trim().toLowerCase())) return false
+    if (channelFilter !== "all" && template.channel !== channelFilter) return false
+    if (statusFilter !== "all" && template.current_version?.status !== statusFilter) return false
+    return true
+  })
+  const templatePageCount = Math.max(1, Math.ceil(filteredTemplates.length / pageSize))
+  const pagedTemplates = filteredTemplates.slice((page - 1) * pageSize, page * pageSize)
 
   const loadTemplates = async () => {
     const response = await signalloopRequest<TemplatesResponse>("/api/v1/templates/")
@@ -256,7 +278,7 @@ export default function TemplateLibraryPage() {
             <Input id="templateName" value={name} onChange={(event) => setName(event.target.value)} />
           </div>
           <div>
-            <Label htmlFor="templateChannel">Channel</Label>
+            <Label htmlFor="templateChannel">Template channel</Label>
             <Input id="templateChannel" value={channel} onChange={(event) => setChannel(event.target.value)} />
           </div>
           <div>
@@ -277,6 +299,108 @@ export default function TemplateLibraryPage() {
       </Card>
 
       {/* ── Publish readiness ─────────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Browse Templates</CardTitle>
+          <CardDescription>Search and filter reusable content before previewing or publishing.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="template-search">Search templates</Label>
+              <Input
+                id="template-search"
+                value={templateSearch}
+                onChange={(event) => {
+                  setTemplateSearch(event.target.value)
+                  setPage(1)
+                }}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="template-channel-filter">Channel</Label>
+              <select
+                id="template-channel-filter"
+                className="h-10 rounded-md border bg-background px-3 text-sm"
+                value={channelFilter}
+                onChange={(event) => {
+                  setChannelFilter(event.target.value)
+                  setPage(1)
+                }}
+              >
+                <option value="all">All channels</option>
+                <option value="email">Email</option>
+                <option value="voice">Voice</option>
+                <option value="sms">SMS</option>
+              </select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="template-status-filter">Status</Label>
+              <select
+                id="template-status-filter"
+                className="h-10 rounded-md border bg-background px-3 text-sm"
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value)
+                  setPage(1)
+                }}
+              >
+                <option value="all">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {pagedTemplates.length === 0 ? (
+              <div className="rounded-md border border-dashed px-3 py-5 text-center text-sm text-muted-foreground">
+                No templates match these filters.
+              </div>
+            ) : (
+              pagedTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  className="w-full rounded-md border p-3 text-left transition hover:bg-muted/60"
+                  onClick={() => setSelectedTemplateId(template.id)}
+                >
+                  <p className="font-medium">{template.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {template.channel} / {template.current_version?.status || "no version"}
+                  </p>
+                </button>
+              ))
+            )}
+          </div>
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    setPage((current) => Math.max(1, current - 1))
+                  }}
+                />
+              </PaginationItem>
+              <PaginationItem>
+                <span className="px-3 text-sm text-muted-foreground">Page {page} of {templatePageCount}</span>
+              </PaginationItem>
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    setPage((current) => Math.min(templatePageCount, current + 1))
+                  }}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Publish Readiness</CardTitle>

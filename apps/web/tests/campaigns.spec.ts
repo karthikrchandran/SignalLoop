@@ -53,8 +53,40 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
+test("Campaigns page opens on the campaign list", async ({ page }) => {
+  await page.route("**/api/v1/campaigns/", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: [{ id: "camp-1", name: "Q2 Outreach", status: "draft" }],
+        count: 1,
+      }),
+    })
+  })
+
+  await page.goto("/campaigns")
+
+  await expect(page.getByRole("heading", { name: "Campaigns" })).toBeVisible()
+  await expect(page.getByRole("tab", { name: "Campaign List" })).toBeVisible()
+  await expect(page.getByRole("tab", { name: "Create Campaign" })).toBeVisible()
+  await expect(page.getByText("Q2 Outreach")).toBeVisible()
+})
+
 test("Campaign wizard assigns selected contacts from the lead pool", async ({ page }) => {
   await page.route("**/api/v1/campaigns/", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [{ id: "camp-1", name: "Q2 Outreach", status: "draft" }],
+          count: 1,
+        }),
+      })
+      return
+    }
+
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -85,6 +117,7 @@ test("Campaign wizard assigns selected contacts from the lead pool", async ({ pa
 
   await page.goto("/campaigns")
 
+  await page.getByRole("tab", { name: "Create Campaign" }).click()
   await page.getByLabel("Campaign name").fill("Q2 Outreach")
   await page.getByRole("button", { name: "Continue" }).click()
 
@@ -98,6 +131,18 @@ test("Campaign wizard assigns selected contacts from the lead pool", async ({ pa
 
 test("Campaign wizard can complete with a filtered subset", async ({ page }) => {
   await page.route("**/api/v1/campaigns/", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [{ id: "camp-2", name: "Launch Wave", status: "draft" }],
+          count: 1,
+        }),
+      })
+      return
+    }
+
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -155,6 +200,7 @@ test("Campaign wizard can complete with a filtered subset", async ({ page }) => 
 
   await page.goto("/campaigns")
 
+  await page.getByRole("tab", { name: "Create Campaign" }).click()
   await page.getByLabel("Campaign name").fill("Launch Wave")
   await page.getByRole("button", { name: "Continue" }).click()
 

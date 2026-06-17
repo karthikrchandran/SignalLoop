@@ -132,15 +132,18 @@ test("runs prospecting research and shows outreach drafts", async ({ page }) => 
 
   await page.goto("/prospecting")
 
-  await expect(page.getByRole("heading", { name: "Prospecting" })).toBeVisible()
-  await expect(page.getByText("Ready for prospecting")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Lead Preparation" })).toBeVisible()
+  await expect(page.getByText("Leads needing follow-up").first()).toBeVisible()
+  await expect(page.getByRole("button", { name: "Build lead brief" })).toBeVisible()
+  await expect(page.getByText("Handoff queue")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Run research" })).toHaveCount(0)
   await expect(page.getByText("High priority").first()).toBeVisible()
   await expect(page.getByText("Score 90").first()).toBeVisible()
   await expect(page.getByText("Messaging Hub").first()).toBeVisible()
   await page.getByLabel("Contact", { exact: true }).selectOption("11111111-1111-4111-8111-111111111111")
   await expect(page.getByText("Previous research noted chatbot pricing intent").first()).toBeVisible()
   await page.getByLabel("Company website").fill("https://analytical.example")
-  await page.getByRole("button", { name: "Run research" }).click()
+  await page.getByRole("button", { name: "Build lead brief" }).click()
 
   await expect(page.getByText("Ada Lovelace is a prospect at Analytical").first()).toBeVisible()
   await expect(page.getByText("Subject: Idea for Analytical outreach follow-up")).toBeVisible()
@@ -308,7 +311,7 @@ test("bulk researches selected prospects and enrolls them into outreach", async 
 
   await page.getByRole("checkbox", { name: "Select Ada Lovelace - Analytical" }).check()
   await page.getByRole("checkbox", { name: "Select Grace Hopper - Compiler Co" }).check()
-  await page.getByRole("button", { name: "Run selected research" }).click()
+  await page.getByRole("button", { name: "Build briefs for selected" }).click()
   await expect(page.getByText("Researched 2 selected prospects.")).toBeVisible()
   expect(bulkCalled).toBe(true)
 

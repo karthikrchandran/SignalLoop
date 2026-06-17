@@ -104,6 +104,10 @@ test("Sequences page loads and shows the sequence list", async ({ page }) => {
   await page.goto("/sequences")
 
   await expect(page.getByRole("heading", { name: "Sequences" })).toBeVisible()
+  await expect(page.getByRole("tab", { name: "Sequence List" })).toBeVisible()
+  await expect(page.getByRole("tab", { name: "Builder" })).toBeVisible()
+  await expect(page.getByRole("tab", { name: "Enrollments" })).toBeVisible()
+  await expect(page.getByRole("tab", { name: "Performance" })).toBeVisible()
   await expect(page.getByRole("button", { name: /Welcome Drip/i })).toBeVisible()
   await expect(page.getByRole("button", { name: /Follow-Up/i })).toBeVisible()
 })

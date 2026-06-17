@@ -38,3 +38,27 @@ test("renders the Liquid Steel shell and dashboard layout", async ({ page }) => 
     page.getByRole("heading", { name: "Quick access" }),
   ).not.toBeVisible()
 })
+
+test("dashboard campaign and Customer 360 links navigate to working screens", async ({ page }) => {
+  await page.route("**/api/v1/campaigns/", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: [{ id: "camp-1", name: "Q2 Outreach", status: "draft" }],
+        count: 1,
+      }),
+    })
+  })
+
+  await page.goto("/")
+
+  await page.getByRole("link", { name: /Open campaigns/i }).click()
+  await expect(page).toHaveURL(/\/campaigns/)
+  await expect(page.getByRole("heading", { name: "Campaigns" })).toBeVisible()
+  await expect(page.getByRole("tab", { name: "Campaign List" })).toBeVisible()
+
+  await page.goto("/")
+  await page.getByRole("link", { name: /Customer 360/i }).first().click()
+  await expect(page).toHaveURL(/\/customer-360/)
+})

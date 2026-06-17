@@ -164,9 +164,9 @@
   <main class="page">
     <header class="cover">
       <p class="eyebrow">SignalLoop</p>
-      <h1>User Guide and Getting Started</h1>
-      <p>Step-by-step instructions for signing in, navigating the app, preparing contacts, creating campaigns, configuring templates and voice agents, monitoring analytics, and using safety controls.</p>
-      <p class="print-note">Generated May 11, 2026 from the local SignalLoop development app.</p>
+      <h1>User Guide</h1>
+      <p>Complete reference for SignalLoop: campaigns, email sequences, AI voice, ChatBot Hub, contacts, analytics, and compliance controls.</p>
+      <p class="print-note">Generated June 15, 2026.</p>
     </header>
     <article id="content"></article>
   </main>
@@ -174,7 +174,7 @@
 <script type="text/plain" id="markdown-source">
 # SignalLoop User Guide and Getting Started
 
-Version: May 28, 2026
+Version: June 15, 2026
 Audience: SignalLoop operators, campaign managers, administrators, and new users
 
 SignalLoop is an intelligent outreach platform for planning, launching, and monitoring multi-channel campaigns across email and voice. This guide walks you through the main screens, explains what each feature is for, and gives step-by-step instructions a new user can follow without knowing the product beforehand.
@@ -197,6 +197,7 @@ Use this checklist the first time you open SignalLoop.
 10. Select all contacts, chosen contacts, or a filtered subset from the existing lead pool.
 11. Define the offer and channel strategy.
 12. Review Analytics and Controls before sending at scale.
+13. **ChatBot Hub:** Connect at least one messaging channel under Messaging Hub ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Channels, add knowledge base content, and test your bot before going live. See the [ChatBot Hub User Guide](chatbot-hub.md) for full setup instructions.
 
 ## 1. Accessing SignalLoop
 
@@ -277,15 +278,20 @@ Primary navigation items:
 | Dashboard | High-level overview and quick access to major workflows. |
 | Campaigns | Guided campaign intake, audience selection from the existing Contacts lead pool, filtered subsets, offer-pack assignment, and strategy setup. |
 | Sequences | Build and manage multi-step outreach flows. |
-| Voice Agents | Configure Alex and Morgan voice agents, scripts, test calls, and shared knowledgebase files. |
+| Voice Agents | Configure Alex, Morgan, Rajesh, and Priya voice agents, scripts, test calls, and shared knowledgebase files. |
 | Contacts | Download the CSV template, analyze imports, map fields, preview rows, fix validation issues, import contacts, search the shared lead pool, and view timelines from selected contact links. |
+| Customer 360 | Review one account's summary, contacts, cross-channel activity, open work, next best action, and unified timeline before follow-up. |
 | Analytics | Review campaign performance, email rates, voice calls, and sequence funnel data. |
 | Templates | Create reusable email templates, preview tokens, publish compliant versions. |
 | Controls | Manage daily sending caps, quiet hours, and emergency pause/resume controls. |
-| Settings | Update profile, password, and account preferences. |
-| Providers | Administrator-only setup for active email, LLM, and speech-to-text providers. |
+| Settings | Update profile, password, account preferences, bot settings, and opt-out management. |
+| Providers | Administrator-only setup for active email, SMS, voice, speech-to-text, text-to-speech, and LLM providers. |
+| **Messaging Hub ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Channels** | Connect Facebook Messenger, WhatsApp Business, and Telegram; monitor live channel health. Admin only. |
+| **Messaging Hub ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Knowledge Base** | Add URL, document, FAQ, and Q&A sources; monitor indexing; test bot answers before going live. Admin only. |
+| **Messaging Hub ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Inbox** | Triage, reply to, and resolve AI-escalated visitor conversations in real time. Admin and Agent. |
+| **Messaging Hub ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Analytics** | Monitor chatbot conversation volume, resolution rate, leads captured, and channel breakdowns. Admin and Agent. |
 
-Administrators may also see Providers for workspace provider setup and Admin for user management.
+Administrators also see Providers for workspace provider setup, Admin for user management, and **Admin ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Messaging Dead Letters** for inspecting and retrying failed message deliveries.
 
 ## 3. Dashboard
 
@@ -447,22 +453,25 @@ Voice Agents lets you choose, configure, and test AI voice outreach behavior.
 
 ![Voice agents screen](screenshots/07-voice-agents.png)
 
-SignalLoop includes two voice agents:
+SignalLoop includes four voice agents with English and Hindi preview/script starter support:
 
 | Agent | Best For | Tone |
 | --- | --- | --- |
 | Alex | B2B outreach, appointment confirmations, executive communication | Professional and authoritative |
 | Morgan | Re-engagement, follow-ups, support check-ins, relationship-driven outreach | Empathetic and conversational |
+| Rajesh | Regional outreach, follow-ups, appointment calls with Hindi support | Warm and confident |
+| Priya | Hindi-aware re-engagement, customer check-ins, relationship-led follow-ups | Friendly and reassuring |
 
 ### Choose an Agent
 
 Steps:
 
 1. Select Voice Agents in the sidebar.
-2. Review the Alex and Morgan cards.
-3. Select the agent you want to configure.
-4. Use Demo to hear a sample greeting.
-5. Select Stop if you want to stop playback.
+2. Review the Alex, Morgan, Rajesh, and Priya cards.
+3. Choose English or Hindi from Voice language.
+4. Select the agent you want to configure.
+5. Use Preview to hear a sample greeting.
+6. Select Stop if you want to stop playback.
 
 ### Configure a Call Script
 
@@ -491,7 +500,7 @@ Script writing tips:
 
 ### Add Shared Knowledgebase Files
 
-Knowledgebase files give Alex and Morgan additional context when contacts ask questions outside the script.
+Knowledgebase files give Alex, Morgan, Rajesh, and Priya additional context when contacts ask questions outside the script.
 
 ![Voice knowledgebase screen](screenshots/07b-voice-knowledgebase.png)
 
@@ -795,7 +804,7 @@ Reading the timeline:
 
 | Event Type | What It Means |
 | --- | --- |
-| State transition | The contact moved between progression states (for example, Enrolled → Contacted → Engaged). |
+| State transition | The contact moved between progression states (for example, Enrolled ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Contacted ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Engaged). |
 | Email sent | An outbound email was dispatched. The entry records template, subject, and send time. |
 | Email open | A tracked open was recorded for a previously sent email. |
 | Call session | A voice call was attempted or completed. The entry records the agent, duration, and outcome. |
@@ -810,133 +819,12 @@ When to use the timeline:
 - During investigation, when a contact reports unexpected outreach or wants to opt out.
 - During analytics review, to verify a funnel drop-off is reflected at the individual level.
 
-## 11. Settings and Profile
+## Customer 360
 
-Settings is where you manage your personal account information.
+Customer 360 is the account-level workspace for a company. It shows the account summary, contacts, chatbot activity, email sequence activity, voice call activity, prospecting research, open work, next best action, and unified account timeline.
 
-What you can do here:
+Use Customer 360 before follow-up when you need to understand what has happened across every channel for one account.
 
-- Update your display name.
-- Update the email address associated with your account.
-- Change your password.
-- Adjust appearance preferences (light, dark, or system).
-
-### Update Your Profile
-
-Steps:
-
-1. Select Settings in the sidebar (or open the account menu at the bottom of the sidebar).
-2. Edit your full name.
-3. Edit your email address if it has changed.
-4. Select Save.
-5. Confirm the success message appears.
-
-### Change Your Password
-
-Steps:
-
-1. Open Settings.
-2. Open the Change password section.
-3. Enter your current password.
-4. Enter a new password of at least 8 characters.
-5. Confirm the new password.
-6. Select Update password.
-7. Sign in again on the next session.
-
-Good practice:
-
-- Use a unique password not reused on other systems.
-- Rotate the password if you suspect it has been shared.
-- Notify an administrator if you can no longer sign in and password recovery does not arrive.
-
-## 12. Provider Setup (Administrators)
-
-Provider Setup is available to superusers. It controls which providers the current workspace uses for email, LLM, and speech-to-text.
-
-What you can do here:
-
-- Review the active provider for Email, LLM, and STT.
-- Choose local providers for local demo work.
-- Choose managed providers after credentials have been added through the API.
-- Refresh or test that the provider-options API is responding.
-
-Local demo selections:
-
-| Capability | Provider |
-| --- | --- |
-| Email | SMTP / Mailpit |
-| LLM | Ollama |
-| STT | Faster Whisper Local |
-
-Steps:
-
-1. Sign in as a superuser.
-2. Select Providers in the sidebar.
-3. Review the Workspace badge to confirm you are editing the right workspace.
-4. Choose a provider from each dropdown.
-5. Confirm the status badge shows Local for local demo providers or Managed for hosted providers.
-6. Select Test to confirm the provider-options API is responding.
-
-Notes:
-
-- Provider Setup does not collect API keys or secrets.
-- If a provider requires credentials, add them through the provider credentials API before selecting it for real delivery.
-- If you do not see Providers, your account does not have superuser permissions.
-
-## 13. Sign Out
-
-Sign out when you are done for the day, when switching accounts, or when working on a shared computer.
-
-Steps:
-
-1. Open the account menu at the bottom of the sidebar.
-2. Select Sign out.
-3. The app returns to the Log In page.
-
-## 14. Where to Get Help
-
-If something does not behave as described in this guide:
-
-1. Confirm the app version and the URL you are using.
-2. Re-check the relevant step in this guide.
-3. Note any error message exactly as displayed.
-4. Contact your SignalLoop administrator or platform owner with the campaign name, contact involved (if any), and the time of the issue.
-5. For development-environment issues, point your engineer at the runbooks under `docs/runbooks/` and the developer onboarding material under `docs/developer-guide/`.
-
-## Glossary
-
-| Term | Meaning |
-| --- | --- |
-| Campaign | A named outreach effort with an audience, offer, and channel strategy. |
-| Sequence | A reusable multi-step flow combining emails, waits, and voice steps. |
-| Template | A reusable email message with personalization tokens. |
-| Token | A placeholder such as `{{contact.firstName}}` that is replaced at send time. |
-| Offer pack | A published, versioned bundle of offer content used by a campaign. |
-| Lead pool | The shared list of contacts available for selection by any campaign. |
-| Voice agent | An AI voice persona (Alex or Morgan) that places outbound calls. |
-| Knowledgebase | Files supplied to voice agents for context beyond the script. |
-| Quiet hours | A configured window where no outreach is sent. |
-| Emergency pause | An administrator action that immediately halts all outreach. |
-| Workspace | The tenant boundary that scopes campaigns, contacts, and audit events. |
-
-1. Open a contact from a drilldown link when one is available.
-2. Confirm the Contact Timeline page opens.
-3. Review the total number of recorded events.
-4. Use Event type filters to narrow the timeline.
-5. Set From and To dates if you only want a specific period.
-6. Select an event card to open event details.
-7. Review audit metadata, channel, outcome, reason codes, explanations, transcripts, or signal summaries when available.
-8. Use Load more if additional events are available.
-9. Select Reset to clear filters.
-
-Timeline filter examples:
-
-| Goal | Filter |
-| --- | --- |
-| See only calls | Select Call. |
-| Investigate booking behavior | Select Booking. |
-| Audit automation decisions | Select State, Signal, and Routing. |
-| Review recent outreach only | Set a From date for the current week. |
 
 ## 11. Settings
 
@@ -1004,6 +892,7 @@ Warning:
 - Account deletion is permanent.
 - Do not delete an account that owns active campaigns without first transferring responsibility or confirming with an administrator.
 
+
 ## 12. Admin User Management
 
 Some users may see Providers and Admin menu items. Both are available only to superusers.
@@ -1027,7 +916,544 @@ Basic steps:
 
 If you do not see Providers or Admin, your account does not have superuser permissions.
 
-## 13. Recommended First Campaign Workflow
+
+## 13. Sign Out
+
+Sign out when you are done for the day, when switching accounts, or when working on a shared computer.
+
+Steps:
+
+1. Open the account menu at the bottom of the sidebar.
+2. Select Sign out.
+3. The app returns to the Log In page.
+
+## 14. Messaging Hub â€” ChatBot Hub
+
+ChatBot Hub is the AI-powered messaging section built into SignalLoop. It lets you connect Facebook Messenger, WhatsApp Business, and Telegram to a shared bot that answers visitor questions using your own knowledge base, captures leads, escalates complex conversations to your team, and gives you a real-time inbox to manage those handoffs.
+
+There is no separate portal. ChatBot Hub lives inside the same SignalLoop sidebar you already use.
+
+---
+
+### Quick Start for New Admins
+
+1. Log in to SignalLoop.
+2. Select **Channels** under Messaging Hub in the sidebar.
+3. Connect at least one channel (Facebook Messenger or WhatsApp Business recommended for MVP).
+4. Select **Knowledge Base** and add at least one URL, document, or FAQ source.
+5. Select **Index Now** and wait for the status to turn **Ready**.
+6. Open the **Test Bot** sheet and ask the bot a question about your business.
+7. When the answer looks correct, your bot is ready for live traffic.
+8. Optionally configure bot behavior under **Settings Ã¢â€ â€™ Bot Settings**.
+9. Monitor live conversations in **Inbox**.
+
+---
+
+### 1. ChatBot Hub Navigation
+
+After logging in, expand the **Messaging Hub** group in the left sidebar.
+
+| Sidebar item | Who can see it | Purpose |
+|---|---|---|
+| Channels | Admin only | Connect and manage Facebook Messenger, WhatsApp Business, Telegram |
+| Knowledge Base | Admin only | Add content sources, monitor indexing, test bot answers |
+| Inbox | Admin and Agent | Triage escalated conversations, reply, resolve |
+| Analytics | Admin and Agent | Monitor chatbot performance and channel trends |
+| Settings Ã¢â€ â€™ Bot Settings | Admin only | Configure AI disclosure, lead capture, business hours, retention |
+| Settings Ã¢â€ â€™ Opt-outs | Admin only | Review and re-enable opted-out visitors |
+
+The Inbox badge shows a count of open escalations. The badge clears when all escalated threads are resolved.
+
+---
+
+### 2. Channels
+
+Channels is where you connect each messaging provider and check live connection health.
+
+#### Channel Status Cards
+
+The page shows one card per supported channel:
+
+| Status label | Color | Meaning |
+|---|---|---|
+| Disconnected | Grey | Not yet set up |
+| Connecting | Yellow | Webhook verification in progress |
+| Connected Ã‚Â· Active | Green | Live and accepting messages |
+| Inactive | Grey | Credentials saved but channel toggled off |
+| Error | Red | Provider API error; hover for detail |
+| Pending Approval | Blue | Provider-side review required (e.g., Meta WhatsApp) |
+
+#### Connect a Channel
+
+Steps:
+
+1. Select **Channels** in the sidebar.
+2. Find the card for the channel you want to connect.
+3. Select **Connect**.
+4. The connection sheet opens.
+
+##### Facebook Messenger
+
+1. Enter your **Page ID** (visible in your Facebook Page settings under About).
+2. Enter your **Page Access Token** (generated from Meta for Developers under your app's Messenger product).
+3. Enter a **Webhook Verify Token** Ã¢â‚¬â€ any secret string you choose; you will paste this into the Meta dashboard webhook setup.
+4. Select **Save & Verify**.
+5. Go to your Meta for Developers dashboard, open your app's Messenger Webhooks, and paste the same Verify Token plus your SignalLoop callback URL.
+6. Once Meta sends a successful challenge, the card turns **Connected Ã‚Â· Active**.
+
+##### WhatsApp Business
+
+1. Enter your **Phone Number ID** (from Meta for Developers, WhatsApp Ã¢â€ â€™ Phone Numbers).
+2. Enter your **WhatsApp Business Account ID** (WABA ID from Meta Business Manager).
+3. Enter your **Access Token** (System User or temporary token from Meta for Developers).
+4. Enter a **Webhook Verify Token** Ã¢â‚¬â€ any secret string you choose.
+5. Select **Save & Verify**.
+6. Set up the webhook in Meta for Developers Ã¢â€ â€™ WhatsApp Ã¢â€ â€™ Configuration, using the SignalLoop callback URL and your Verify Token.
+7. The card turns **Connected Ã‚Â· Active** after verification.
+
+**Important Ã¢â‚¬â€ WhatsApp 24-hour window:** WhatsApp platform rules allow businesses to reply only within 24 hours of the visitor's last message. When this window has expired, the reply composer in Inbox is automatically disabled and shows a compliance banner. This is a platform requirement, not a configurable setting.
+
+##### Telegram
+
+1. Create a Telegram bot via [@BotFather](https://t.me/BotFather) if you do not yet have one (send `/newbot` and follow the steps).
+2. Copy the **Bot Token** BotFather provides.
+3. Enter the Bot Token in the connection sheet.
+4. Enter a **Webhook Secret** Ã¢â‚¬â€ any secret string; SignalLoop will use it to verify incoming Telegram requests.
+5. Select **Save & Verify**.
+6. SignalLoop registers the webhook with Telegram automatically.
+7. The card turns **Connected Ã‚Â· Active**.
+
+#### Toggle a Channel On or Off
+
+Steps:
+
+1. On the Channels page, select **Edit** on the connected channel card.
+2. Toggle the **Active** switch off to temporarily pause the channel without losing credentials.
+3. Toggle back on to resume.
+
+Visitors who message while the channel is inactive will not receive a bot reply. Their messages are not lost Ã¢â‚¬â€ they appear in Inbox as unprocessed.
+
+#### Delete a Channel
+
+Steps:
+
+1. Select **Edit** on the channel card.
+2. Select **Delete connection**.
+3. Confirm the deletion.
+4. Credentials are permanently removed. You must reconnect and re-verify if you change your mind.
+
+---
+
+### 3. Knowledge Base
+
+The Knowledge Base is the content your bot uses to answer visitor questions. You can add websites, documents, and manually written FAQ text.
+
+#### Source Types
+
+| Type | What it indexes |
+|---|---|
+| Website URL | Crawls the URL and linked pages up to depth 5, up to 50 pages per source |
+| Document | Uploads PDF, DOCX, or TXT files up to 20 MB each |
+| FAQ / Free-form text | Paste or type content directly |
+| Q&A pairs | Structured question-and-answer pairs for precise bot responses |
+
+#### Add a URL Source
+
+Steps:
+
+1. Select **Knowledge Base** in the sidebar.
+2. Open the **Website URLs** tab.
+3. Enter one or more URLs, separated by commas or new lines.
+4. Set **Crawl depth** (1Ã¢â‚¬â€œ5, default 2). Depth 1 indexes only the page you enter; depth 2 also follows links from that page.
+5. Select **Add Source**.
+6. The source row appears with status **Pending**.
+7. Select **Index Now** (or wait for the next scheduled run) to start indexing.
+
+#### Upload a Document
+
+Steps:
+
+1. Open the **Documents** tab.
+2. Select **Upload document**.
+3. Choose a PDF, DOCX, or TXT file under 20 MB.
+4. Select **Add Source**.
+5. The document appears with status **Pending**.
+6. Select **Index Now** to start processing.
+
+#### Add FAQ or Q&A Content
+
+Steps:
+
+1. Open the **FAQ / Q&A** tab.
+2. Enter questions and answers directly into the text area, or use the structured Q&A entry form.
+3. Select **Save**.
+4. Select **Index Now** to make the content available to the bot.
+
+#### Understanding Indexing Status
+
+| Status | Meaning |
+|---|---|
+| Pending | Waiting to be indexed |
+| Indexing | Background job is crawling or parsing the source |
+| Ready | Content is indexed and the bot will use it |
+| Failed | Error occurred; expand the row to see the failure reason |
+| Stale | Re-index is recommended because the source was recently updated |
+
+The **Indexing progress banner** appears below the page header while a job is running. It disappears automatically when all sources reach Ready or Failed.
+
+#### Re-index Your Knowledge Base
+
+Re-indexing updates the bot's understanding when your content changes.
+
+Manual re-index:
+
+1. Select **Re-index All** at the top of the Knowledge Base page.
+2. A background job starts. The progress banner appears.
+3. Wait for all sources to return to **Ready**.
+
+Scheduled re-index:
+
+- By default, SignalLoop re-indexes every workspace at **02:00 local time** nightly.
+- Change the schedule time in **Settings Ã¢â€ â€™ Bot Settings Ã¢â€ â€™ Re-index Schedule**.
+
+In-flight bot conversations continue using the previous index version until they end. New conversations pick up the updated index automatically.
+
+#### Test Your Bot
+
+The Test Bot sheet lets you check answers before going live.
+
+Steps:
+
+1. Select **Test Bot** at the top of the Knowledge Base page.
+2. Enter a question in the input field.
+3. Select **Ask**.
+4. Review:
+   - The bot's answer
+   - The **AI disclosure** label (visible on every response)
+   - The **source name** and **chunk excerpt** that grounded the answer
+   - The **similarity score** (higher means more relevant; 0.4 and above is the escalation threshold)
+5. If the answer is wrong or the confidence is low, add or improve the relevant source content and re-index.
+
+Use Test Bot to build confidence before connecting a live channel. The goal is: the bot answers your 10 most common visitor questions accurately before any real visitor uses it.
+
+---
+
+### 4. Bot Runtime Behavior
+
+Understanding how the bot works helps you configure it well.
+
+#### How the Bot Responds
+
+When a visitor sends a message:
+
+1. The bot checks whether the visitor has opted out. If yes, no response is sent.
+2. The bot retrieves the most relevant chunks from your knowledge base.
+3. The bot constructs a prompt using your knowledge, conversation history, and visitor message.
+4. The LLM generates a grounded answer.
+5. Every response includes your configured **AI disclosure** text.
+6. The response is delivered to the visitor on the originating channel within 5 seconds (p95).
+
+#### Escalation
+
+The bot escalates to your Inbox when:
+
+- The visitor explicitly asks for a human (e.g., "Can I speak to someone?").
+- The bot's confidence falls below the threshold (default: 0.4 cosine similarity).
+- Three consecutive turns produce low-confidence responses.
+
+On escalation, the bot sends your configured escalation message to the visitor and the thread appears in **Inbox** in real time.
+
+**Out of hours:** If escalation happens outside your configured business hours, the bot sends your out-of-hours message and tags the thread accordingly. Your team handles it the next business day.
+
+#### Non-text Messages
+
+When a visitor sends an image, voice note, document, sticker, or location, the bot sends a graceful fallback message (configurable in Settings). No knowledge base query is performed for non-text content.
+
+#### Bot-Off Mode
+
+You can turn off the bot for a specific channel in the channel's edit sheet. All inbound messages go directly to Inbox for manual response, with no bot engagement.
+
+---
+
+### 5. Inbox
+
+Inbox is where your team handles escalated conversations and human handoffs.
+
+#### Thread List
+
+Steps:
+
+1. Select **Inbox** in the sidebar.
+2. The left panel shows a list of threads sorted by last activity.
+3. Each thread row shows:
+   - Channel icon (Messenger, WhatsApp, Telegram)
+   - Visitor name or channel ID
+   - Message preview
+   - Last activity time
+   - Status badge
+
+#### Thread Status Badges
+
+| Status | Meaning |
+|---|---|
+| Bot active | Bot is handling the conversation |
+| Escalated | Bot triggered handoff; waiting for agent |
+| Agent active | An agent has replied and owns this thread |
+| Resolved | Thread marked complete by an agent |
+| Out of hours | Escalated outside configured business hours |
+| Opted out | Visitor has sent STOP; bot is permanently blocked |
+
+#### Filter Threads
+
+Steps:
+
+1. Use the filter bar above the thread list.
+2. Filter by **Channel** (Facebook, WhatsApp, Telegram), **Status**, or **Date range**.
+3. The list updates without a full page reload.
+
+#### View a Thread
+
+Steps:
+
+1. Select a thread row.
+2. The right panel shows the full message history.
+3. Messages are labeled: **Bot**, **Visitor**, or **Agent**.
+4. Bot messages show the AI disclosure label.
+
+#### Reply to a Visitor
+
+Steps:
+
+1. Open a thread.
+2. Type your reply in the **Reply composer** at the bottom.
+3. Select **Send**.
+4. The reply is delivered to the visitor on their channel and optimistically appended to the thread view.
+5. Thread status changes to **Agent active**.
+
+**WhatsApp only:** If the visitor's last message is more than 24 hours old, the reply composer is replaced with a non-dismissable compliance banner: *"WhatsApp 24-hour reply window has expired. You cannot send a new message until the visitor contacts you again."* This is a WhatsApp platform rule.
+
+**Opted-out threads:** The reply composer is disabled for opted-out visitors. The opt-out notice is shown in the thread header. To re-enable, go to **Settings Ã¢â€ â€™ Opt-outs**.
+
+#### Resolve and Reopen a Thread
+
+Steps to resolve:
+
+1. Open the thread.
+2. Select **Resolve** in the thread header.
+3. The thread moves to **Resolved** status and drops out of the default open filter.
+
+Steps to reopen:
+
+1. Filter threads to include **Resolved** status.
+2. Open the resolved thread.
+3. Select **Reopen**.
+4. The thread returns to **Escalated** or **Agent active**.
+
+#### Real-time Updates
+
+New escalations appear at the top of the thread list automatically without refreshing the page. A toast notification appears when a new escalation arrives. The Inbox badge in the sidebar updates in real time.
+
+If your browser loses the real-time connection, the inbox falls back to polling automatically.
+
+#### Export Conversations (Admin only)
+
+Steps:
+
+1. Open the action menu in a thread's header, or use the Inbox bulk-action toolbar.
+2. Select **Export**.
+3. Choose **CSV** or **JSON**.
+4. Choose a **date range** and optionally filter by **channel**.
+5. Large exports run as a background job and download when ready.
+
+Export includes: message timestamps, sender role, text, bot confidence score, and captured lead details.
+
+---
+
+### 6. Lead Capture
+
+When a visitor expresses interest in purchasing, requesting a demo, or asking about pricing, the bot can collect contact details and create or update a SignalLoop contact automatically.
+
+#### How Lead Capture Works
+
+1. The bot detects purchase intent keywords or the conversation reaches the configured turn threshold.
+2. The bot presents your **privacy notice** and requests consent.
+3. If the visitor consents, the bot collects name and email or phone.
+4. A contact is created or updated in SignalLoop with:
+   - Source channel
+   - Tag: `chatbot-lead`
+   - Captured intent
+5. If the visitor declines, the conversation continues normally. The bot does not re-prompt during the same session.
+
+#### Configure Lead Capture
+
+Steps:
+
+1. Select **Settings Ã¢â€ â€™ Bot Settings** in the sidebar.
+2. Open the **Lead Capture** section.
+3. Toggle **Enable lead capture** on or off.
+4. Edit the **Intent keywords** that trigger the flow.
+5. Edit the **Privacy notice** text shown to visitors before PII collection.
+6. Enter your **Privacy policy URL**.
+7. Select **Save**.
+
+**Privacy and consent requirement:** Lead capture never collects a visitor's name, email, or phone before showing the privacy notice and receiving explicit consent. This is enforced by the system and cannot be bypassed. Consent accept and decline events are recorded in the audit log.
+
+---
+
+### 7. Bot Settings
+
+Bot Settings controls all configurable bot behavior in one place.
+
+Steps:
+
+1. Select **Settings** in the sidebar.
+2. Select the **Bot Settings** tab (or go to **Chatbot Ã¢â€ â€™ Settings** if your workspace shows it as a separate link).
+
+#### AI and Disclosure
+
+| Setting | Purpose | Default |
+|---|---|---|
+| Bot persona description | Up to 300 chars injected into the LLM system prompt. Describes who the bot is. | "I am a helpful assistant for [workspace name]." |
+| AI disclosure text | Appended to or included in every bot message. Cannot be left blank. | "I'm an AI assistant." |
+| Configured LLM | The language model used for responses | Groq Llama 3.1 8B |
+
+**AI disclosure is mandatory.** Clearing the field and saving returns a validation error. This protects your visitors and satisfies channel platform policies.
+
+#### Lead Capture
+
+See section 6 above for field-by-field guidance.
+
+#### Business Hours
+
+| Setting | Purpose |
+|---|---|
+| Timezone | The workspace timezone used to evaluate business hours |
+| Business days | Which days of the week are active |
+| Business hours | Start and end time for each active day |
+| Out-of-hours message | Sent to the visitor when escalation occurs outside business hours |
+
+When a visitor messages outside business hours and the bot cannot answer:
+
+- The escalation message is sent.
+- The thread is tagged **Out of hours** in Inbox.
+- Your team can reply the next business day.
+
+#### Compliance
+
+| Setting | Min | Default | Purpose |
+|---|---|---|---|
+| Conversation retention | 30 days | 90 days | How long conversation data is kept before automatic purge |
+| Token cap per session | 1 | 4000 | Maximum LLM tokens consumed per visitor session before graceful escalation |
+
+**Retention purge:** Every night the system automatically deletes or anonymises conversation records older than the configured retention period. Aggregated analytics are preserved. Purged conversations no longer appear in Inbox, Analytics, or exports.
+
+#### Re-index Schedule
+
+Set the time (workspace local) when the nightly knowledge base re-index runs. Default is 02:00.
+
+---
+
+### 8. Opt-outs
+
+When a visitor sends a **STOP**, **Unsubscribe**, **Cancel**, or **Quit** message on any channel, the system:
+
+1. Immediately blocks all further bot responses to that visitor.
+2. Creates an opt-out record visible to admins.
+3. Keeps the visitor's thread visible in Inbox with an **Opted out** badge.
+
+#### View Opt-outs
+
+Steps:
+
+1. Select **Settings** in the sidebar.
+2. Open the **Opt-outs** tab.
+3. The table lists: channel, visitor identifier, opted-out time, and the actor who recorded the opt-out (system-detected or manual).
+
+#### Re-enable a Visitor (Admin only)
+
+Use this only when a visitor has explicitly re-consented outside the system (for example, by emailing your team and asking to re-subscribe).
+
+Steps:
+
+1. Find the visitor row in the Opt-outs table.
+2. Select **Re-enable**.
+3. A confirmation dialog asks you to confirm the explicit re-consent basis.
+4. Select **Confirm**.
+5. The opt-out record is removed and the visitor can receive bot responses again.
+6. The re-enable action is recorded in the audit log.
+
+**Never re-enable without genuine visitor re-consent.** Messaging an opted-out contact can violate WhatsApp, Messenger, and applicable data-protection regulations.
+
+---
+
+### 9. Analytics
+
+Analytics lets administrators and agents monitor chatbot performance over time.
+
+Steps:
+
+1. Select **Analytics** under Messaging Hub in the sidebar.
+2. Choose a date range from the picker at the top right.
+3. The page refreshes data automatically.
+
+#### Summary Cards
+
+| Card | What it shows |
+|---|---|
+| Total conversations | Number of unique visitor sessions in the period |
+| Bot resolved | Conversations fully handled by the bot without escalation |
+| Escalations | Conversations handed off to a human agent |
+| Leads captured | Consented contact records created or updated from chatbot sessions |
+
+#### Charts
+
+- **Conversation volume over time** Ã¢â‚¬â€ daily or weekly trend line of total conversations.
+- **Outcome breakdown by channel** Ã¢â‚¬â€ bar chart showing bot-resolved vs escalated vs opted-out per channel.
+- **Resolution rate** Ã¢â‚¬â€ percentage of conversations resolved by the bot without escalation. Target: above 70% for a well-tuned knowledge base.
+
+#### Outcome Table
+
+The outcome table breaks down each channel by volume, escalation rate, opt-out count, and lead capture count. Use it to identify which channel or knowledge gap is generating the most escalations.
+
+#### Refreshed indicator
+
+A small badge on the page shows when the data was last aggregated (updated every 15 minutes). Analytics data is pre-aggregated and does not scan raw conversation records at query time.
+
+---
+
+### 10. Compliance at a Glance
+
+| Requirement | How SignalLoop enforces it |
+|---|---|
+| AI disclosure | Every bot message includes the configured disclosure text. Cannot be disabled. |
+| Opt-out enforcement | STOP keyword immediately halts bot responses on any channel. Re-enable requires explicit admin action and audit logging. |
+| WhatsApp 24-hour window | Reply composer locks once the window expires. Enforced in the UI and the delivery adapter. |
+| Privacy consent before PII | Lead capture never collects name/email/phone before the privacy notice and consent step. |
+| Non-text fallback | Images, voice notes, documents, stickers, and locations receive a configurable graceful fallback without knowledge base queries. |
+| Data retention | Conversation records are automatically purged after the configured retention period (minimum 30 days). |
+| Workspace isolation | Every knowledge source, conversation, opt-out record, analytics snapshot, and channel is scoped to your workspace. Other workspaces cannot see your data. |
+| Webhook signature verification | All incoming channel webhooks are verified using provider-issued signatures before payload processing. Unsigned payloads are rejected with HTTP 401. |
+
+---
+
+### Glossary
+
+| Term | Meaning |
+|---|---|
+| Bot-active | A conversation currently being handled by the AI bot |
+| Escalated | A conversation the bot has handed off to a human agent |
+| Knowledge source | A URL, document, or FAQ entry that the bot uses to answer questions |
+| Indexing | The background process that reads a knowledge source and stores it in the vector database |
+| Chunk | A small segment of a knowledge source (300Ã¢â‚¬â€œ500 tokens) stored for retrieval |
+| Similarity score | A number between 0 and 1 indicating how relevant a retrieved chunk is to the visitor's question. 0.4 is the escalation threshold. |
+| AI disclosure | A required label in every bot message that tells visitors they are talking to an AI |
+| Lead capture | The process of collecting a visitor's contact details with consent and creating a SignalLoop contact |
+| Opt-out | A visitor who has sent STOP and cannot receive further bot messages |
+| WhatsApp window | The 24-hour period after a visitor's last WhatsApp message during which a reply can be sent |
+| Dead letter | A message that failed processing after 3 retries; visible to operators under Admin Ã¢â€ â€™ Messaging Dead Letters |
+| Retention | How long conversation records are kept before automatic purge (minimum 30 days) |
+
+## 15. Recommended First Campaign Workflow
 
 Follow this end-to-end workflow when launching your first campaign.
 
@@ -1038,13 +1464,13 @@ Follow this end-to-end workflow when launching your first campaign.
    - Publish the selected template.
 2. Prepare voice behavior if calls are included.
    - Go to Voice Agents.
-   - Select Alex or Morgan.
+   - Select Alex, Morgan, Rajesh, or Priya.
    - Review the call script.
    - Upload relevant knowledgebase files.
    - Run a preview test call if available.
 3. Confirm provider setup if you are an administrator.
    - Go to Providers.
-   - Confirm local or managed providers are selected for Email, LLM, and STT.
+   - Confirm local or managed providers are selected for Email, SMS, Voice, STT, TTS, and LLM.
 4. Configure safety controls.
    - Go to Controls.
    - Review daily sending limits and quiet hours.
@@ -1074,7 +1500,7 @@ Follow this end-to-end workflow when launching your first campaign.
    - Enter a pause reason.
    - Select Pause all outreach.
 
-## 14. Troubleshooting
+## 16. Troubleshooting
 
 ### I cannot log in
 
@@ -1135,29 +1561,42 @@ Use Controls:
 4. Select Pause all outreach.
 5. Confirm sending is paused.
 
-## 15. Glossary
+## 17. Glossary
 
 | Term | Meaning |
 | --- | --- |
-| Campaign | A planned outreach effort for a defined audience and goal. |
-| Sequence | A reusable multi-step outreach flow. |
-| Template | A reusable message body with personalization tokens. |
-| Token | A placeholder like `{{contact.firstName}}` replaced with real contact data. |
+| Campaign | A named outreach effort with an audience, offer, and channel strategy. |
+| Sequence | A reusable multi-step flow combining emails, waits, and voice steps. |
+| Template | A reusable email message with personalization tokens. |
+| Token | A placeholder such as `{{contact.firstName}}` that is replaced at send time. |
 | Segment | A subset of the audience selected by rules. |
+| Offer pack | A published, versioned bundle of offer content used by a campaign. |
 | Channel strategy | Configuration that defines whether outreach uses email, voice, or another supported channel pattern. |
-| Offer pack | A reusable bundle of approved offer and template assets. |
-| Quiet hours | A time window when SignalLoop should not send emails or make calls. |
-| Emergency pause | A control that stops all outreach until resumed. |
+| Lead pool | The shared list of contacts available for selection by any campaign. |
+| Voice agent | An AI voice persona (Alex, Morgan, Rajesh, or Priya) that places outbound calls. |
+| Knowledgebase | Files supplied to voice agents for context beyond the script. |
+| Quiet hours | A configured window where no outreach is sent. |
+| Emergency pause | An administrator action that immediately halts all outreach. |
+| Workspace | The tenant boundary that scopes campaigns, contacts, and audit events. |
 | Contact timeline | A chronological record of events for one contact. |
 | Guardrail validation | A safety check before publishing templates or outreach assets. |
+| ChatBot Hub | The AI-powered messaging section in SignalLoop. Handles visitor Q&A, lead capture, and human handoffs via Facebook Messenger, WhatsApp Business, and Telegram. |
+| Knowledge source | A URL, document, or FAQ entry that the chatbot uses to answer visitor questions. |
+| Indexing | The background process that reads a knowledge source and stores it for vector retrieval. |
+| Escalation | A chatbot conversation transferred to a human agent because the bot could not answer confidently. |
+| AI disclosure | A required label in every bot message that tells visitors they are talking to an AI. |
+| Lead capture | The process of collecting a visitor's contact details with consent and creating a SignalLoop contact. |
+| Opt-out | A visitor who sent STOP and cannot receive further bot messages until an admin re-enables them. |
+| WhatsApp window | The 24-hour period after a visitor's last WhatsApp message during which a reply can be sent. |
+| Dead letter | A message that failed processing after 3 retries; visible to operators under Admin Ã¢â€ â€™ Messaging Dead Letters. |
+| Retention | How long conversation records are kept before automatic purge (minimum 30 days). |
 
-## 16. Print and Share
+## 18. Print and Share
 
-This guide is available in three forms in this folder:
+This guide is the single comprehensive reference for all SignalLoop features, including ChatBot Hub.
 
-- `getting-started.md` for editing in Markdown.
-- `getting-started.html` for browser viewing and printing.
-- `SignalLoop-Getting-Started-User-Guide.pdf` for sharing as a printable document.
+- `getting-started.md` Ã¢â‚¬â€ editable Markdown source.
+- `getting-started.html` Ã¢â‚¬â€ browser-viewable version for sharing and printing.
 
 When printing from the HTML version:
 

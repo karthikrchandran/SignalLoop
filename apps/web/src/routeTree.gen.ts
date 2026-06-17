@@ -17,13 +17,13 @@ import { Route as LayoutRouteImport } from './routes/_layout'
 import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
 import { Route as LayoutVoiceAgentsRouteImport } from './routes/_layout/voice-agents'
 import { Route as LayoutTemplatesRouteImport } from './routes/_layout/templates'
+import { Route as LayoutSignalloopAiRouteImport } from './routes/_layout/signalloop-ai'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
 import { Route as LayoutSequencesRouteImport } from './routes/_layout/sequences'
 import { Route as LayoutReportingRouteImport } from './routes/_layout/reporting'
 import { Route as LayoutProspectingRouteImport } from './routes/_layout/prospecting'
 import { Route as LayoutOfferPacksRouteImport } from './routes/_layout/offer-packs'
 import { Route as LayoutGovernanceRouteImport } from './routes/_layout/governance'
-import { Route as LayoutEngagehubAiRouteImport } from './routes/_layout/signalloop-ai'
 import { Route as LayoutCustomer360RouteImport } from './routes/_layout/customer-360'
 import { Route as LayoutControlsRouteImport } from './routes/_layout/controls'
 import { Route as LayoutContactsRouteImport } from './routes/_layout/contacts'
@@ -80,6 +80,11 @@ const LayoutTemplatesRoute = LayoutTemplatesRouteImport.update({
   path: '/templates',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutSignalloopAiRoute = LayoutSignalloopAiRouteImport.update({
+  id: '/signalloop-ai',
+  path: '/signalloop-ai',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutSettingsRoute = LayoutSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -108,11 +113,6 @@ const LayoutOfferPacksRoute = LayoutOfferPacksRouteImport.update({
 const LayoutGovernanceRoute = LayoutGovernanceRouteImport.update({
   id: '/governance',
   path: '/governance',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutEngagehubAiRoute = LayoutEngagehubAiRouteImport.update({
-  id: '/signalloop-ai',
-  path: '/signalloop-ai',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutCustomer360Route = LayoutCustomer360RouteImport.update({
@@ -213,13 +213,13 @@ export interface FileRoutesByFullPath {
   '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
   '/customer-360': typeof LayoutCustomer360RouteWithChildren
-  '/signalloop-ai': typeof LayoutEngagehubAiRoute
   '/governance': typeof LayoutGovernanceRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
   '/prospecting': typeof LayoutProspectingRoute
   '/reporting': typeof LayoutReportingRoute
   '/sequences': typeof LayoutSequencesRoute
   '/settings': typeof LayoutSettingsRouteWithChildren
+  '/signalloop-ai': typeof LayoutSignalloopAiRoute
   '/templates': typeof LayoutTemplatesRoute
   '/voice-agents': typeof LayoutVoiceAgentsRoute
   '/chatbot/analytics': typeof LayoutChatbotAnalyticsRoute
@@ -244,13 +244,13 @@ export interface FileRoutesByTo {
   '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
   '/customer-360': typeof LayoutCustomer360RouteWithChildren
-  '/signalloop-ai': typeof LayoutEngagehubAiRoute
   '/governance': typeof LayoutGovernanceRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
   '/prospecting': typeof LayoutProspectingRoute
   '/reporting': typeof LayoutReportingRoute
   '/sequences': typeof LayoutSequencesRoute
   '/settings': typeof LayoutSettingsRouteWithChildren
+  '/signalloop-ai': typeof LayoutSignalloopAiRoute
   '/templates': typeof LayoutTemplatesRoute
   '/voice-agents': typeof LayoutVoiceAgentsRoute
   '/': typeof LayoutIndexRoute
@@ -278,13 +278,13 @@ export interface FileRoutesById {
   '/_layout/contacts': typeof LayoutContactsRoute
   '/_layout/controls': typeof LayoutControlsRoute
   '/_layout/customer-360': typeof LayoutCustomer360RouteWithChildren
-  '/_layout/signalloop-ai': typeof LayoutEngagehubAiRoute
   '/_layout/governance': typeof LayoutGovernanceRoute
   '/_layout/offer-packs': typeof LayoutOfferPacksRoute
   '/_layout/prospecting': typeof LayoutProspectingRoute
   '/_layout/reporting': typeof LayoutReportingRoute
   '/_layout/sequences': typeof LayoutSequencesRoute
   '/_layout/settings': typeof LayoutSettingsRouteWithChildren
+  '/_layout/signalloop-ai': typeof LayoutSignalloopAiRoute
   '/_layout/templates': typeof LayoutTemplatesRoute
   '/_layout/voice-agents': typeof LayoutVoiceAgentsRoute
   '/_layout/': typeof LayoutIndexRoute
@@ -313,13 +313,13 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/controls'
     | '/customer-360'
-    | '/signalloop-ai'
     | '/governance'
     | '/offer-packs'
     | '/prospecting'
     | '/reporting'
     | '/sequences'
     | '/settings'
+    | '/signalloop-ai'
     | '/templates'
     | '/voice-agents'
     | '/chatbot/analytics'
@@ -344,13 +344,13 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/controls'
     | '/customer-360'
-    | '/signalloop-ai'
     | '/governance'
     | '/offer-packs'
     | '/prospecting'
     | '/reporting'
     | '/sequences'
     | '/settings'
+    | '/signalloop-ai'
     | '/templates'
     | '/voice-agents'
     | '/'
@@ -377,13 +377,13 @@ export interface FileRouteTypes {
     | '/_layout/contacts'
     | '/_layout/controls'
     | '/_layout/customer-360'
-    | '/_layout/signalloop-ai'
     | '/_layout/governance'
     | '/_layout/offer-packs'
     | '/_layout/prospecting'
     | '/_layout/reporting'
     | '/_layout/sequences'
     | '/_layout/settings'
+    | '/_layout/signalloop-ai'
     | '/_layout/templates'
     | '/_layout/voice-agents'
     | '/_layout/'
@@ -464,6 +464,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutTemplatesRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/signalloop-ai': {
+      id: '/_layout/signalloop-ai'
+      path: '/signalloop-ai'
+      fullPath: '/signalloop-ai'
+      preLoaderRoute: typeof LayoutSignalloopAiRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/settings': {
       id: '/_layout/settings'
       path: '/settings'
@@ -504,13 +511,6 @@ declare module '@tanstack/react-router' {
       path: '/governance'
       fullPath: '/governance'
       preLoaderRoute: typeof LayoutGovernanceRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/signalloop-ai': {
-      id: '/_layout/signalloop-ai'
-      path: '/signalloop-ai'
-      fullPath: '/signalloop-ai'
-      preLoaderRoute: typeof LayoutEngagehubAiRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/customer-360': {
@@ -702,13 +702,13 @@ interface LayoutRouteChildren {
   LayoutContactsRoute: typeof LayoutContactsRoute
   LayoutControlsRoute: typeof LayoutControlsRoute
   LayoutCustomer360Route: typeof LayoutCustomer360RouteWithChildren
-  LayoutEngagehubAiRoute: typeof LayoutEngagehubAiRoute
   LayoutGovernanceRoute: typeof LayoutGovernanceRoute
   LayoutOfferPacksRoute: typeof LayoutOfferPacksRoute
   LayoutProspectingRoute: typeof LayoutProspectingRoute
   LayoutReportingRoute: typeof LayoutReportingRoute
   LayoutSequencesRoute: typeof LayoutSequencesRoute
   LayoutSettingsRoute: typeof LayoutSettingsRouteWithChildren
+  LayoutSignalloopAiRoute: typeof LayoutSignalloopAiRoute
   LayoutTemplatesRoute: typeof LayoutTemplatesRoute
   LayoutVoiceAgentsRoute: typeof LayoutVoiceAgentsRoute
   LayoutIndexRoute: typeof LayoutIndexRoute
@@ -722,13 +722,13 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutContactsRoute: LayoutContactsRoute,
   LayoutControlsRoute: LayoutControlsRoute,
   LayoutCustomer360Route: LayoutCustomer360RouteWithChildren,
-  LayoutEngagehubAiRoute: LayoutEngagehubAiRoute,
   LayoutGovernanceRoute: LayoutGovernanceRoute,
   LayoutOfferPacksRoute: LayoutOfferPacksRoute,
   LayoutProspectingRoute: LayoutProspectingRoute,
   LayoutReportingRoute: LayoutReportingRoute,
   LayoutSequencesRoute: LayoutSequencesRoute,
   LayoutSettingsRoute: LayoutSettingsRouteWithChildren,
+  LayoutSignalloopAiRoute: LayoutSignalloopAiRoute,
   LayoutTemplatesRoute: LayoutTemplatesRoute,
   LayoutVoiceAgentsRoute: LayoutVoiceAgentsRoute,
   LayoutIndexRoute: LayoutIndexRoute,

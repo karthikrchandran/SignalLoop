@@ -276,11 +276,11 @@ export default function ProspectingPage() {
         <div>
           <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
             <SearchCheck className="size-4" />
-            Account research
+            Outreach prep
           </div>
-          <h1 className="text-3xl font-semibold tracking-tight">Prospecting</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Lead Preparation</h1>
           <p className="text-sm text-muted-foreground">
-            Enrich an existing contact with CRM context and draft personalized outreach.
+            Select leads, build lead briefs, and add prepared contacts to campaigns or sequences.
           </p>
         </div>
         <Button variant="outline" onClick={() => void loadContacts(search)} disabled={loadingContacts}>
@@ -294,8 +294,10 @@ export default function ProspectingPage() {
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <Card>
           <CardHeader>
-            <CardTitle>Ready for prospecting</CardTitle>
-            <CardDescription>Ranked by chatbot handoffs, buyer intent, contactability, and account context.</CardDescription>
+            <CardTitle>Leads needing follow-up</CardTitle>
+            <CardDescription>
+              Prioritized by buyer intent, contactability, Messaging Hub source, and account context.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-2">
@@ -316,7 +318,7 @@ export default function ProspectingPage() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2 text-sm">
-                <span className="font-medium">Handoff queue</span>
+                <span className="font-medium">Leads needing follow-up</span>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{contacts.length} contacts</Badge>
                   <Badge variant="secondary">{selectedContactIds.length} selected</Badge>
@@ -432,7 +434,7 @@ export default function ProspectingPage() {
 
             <Button className="w-full" onClick={runResearch} disabled={!selectedContactId || researching}>
               {researching ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Sparkles className="mr-2 size-4" />}
-              Run research
+              Build lead brief
             </Button>
 
             <Button
@@ -442,7 +444,7 @@ export default function ProspectingPage() {
               disabled={selectedContactIds.length === 0 || bulkResearching}
             >
               {bulkResearching ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Users className="mr-2 size-4" />}
-              Run selected research
+              Build briefs for selected
             </Button>
 
             <div className="rounded-md border bg-background p-3">
@@ -540,9 +542,9 @@ export default function ProspectingPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Research brief</CardTitle>
+              <CardTitle>Lead brief</CardTitle>
               <CardDescription>
-                {result ? `Snapshot created ${new Date(result.created_at).toLocaleString()}` : "Run research to generate a brief."}
+                {result ? `Brief created ${new Date(result.created_at).toLocaleString()}` : "Build a brief for the selected lead."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -581,7 +583,7 @@ export default function ProspectingPage() {
                 </>
               ) : (
                 <div className="flex min-h-72 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
-                  Select a contact and run research.
+                  Select a lead and build a brief.
                 </div>
               )}
             </CardContent>

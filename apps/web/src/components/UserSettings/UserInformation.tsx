@@ -1,4 +1,4 @@
-import { zodResolver } from "@hookform/resolvers/zod"
+﻿import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
@@ -6,6 +6,7 @@ import { z } from "zod"
 
 import { UsersService, type UserUpdateMe } from "@/client"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Form,
   FormControl,
@@ -18,7 +19,6 @@ import { Input } from "@/components/ui/input"
 import { LoadingButton } from "@/components/ui/loading-button"
 import useAuth from "@/hooks/useAuth"
 import useCustomToast from "@/hooks/useCustomToast"
-import { cn } from "@/lib/utils"
 import { handleError } from "@/utils"
 
 const formSchema = z.object({
@@ -44,16 +44,12 @@ const UserInformation = () => {
     },
   })
 
-  const toggleEditMode = () => {
-    setEditMode(!editMode)
-  }
-
   const mutation = useMutation({
     mutationFn: (data: UserUpdateMe) =>
       UsersService.updateUserMe({ requestBody: data }),
     onSuccess: () => {
       showSuccessToast("User updated successfully")
-      toggleEditMode()
+      setEditMode(false)
     },
     onError: handleError.bind(showErrorToast),
     onSettled: () => {
@@ -63,83 +59,83 @@ const UserInformation = () => {
 
   const onSubmit = (data: FormData) => {
     const updateData: UserUpdateMe = {}
-
-    // only include fields that have changed
-    if (data.full_name !== currentUser?.full_name) {
-      updateData.full_name = data.full_name
-    }
-    if (data.email !== currentUser?.email) {
-      updateData.email = data.email
-    }
-
+    if (data.full_name !== currentUser?.full_name) updateData.full_name = data.full_name
+    if (data.email !== currentUser?.email) updateData.email = data.email
     mutation.mutate(updateData)
   }
 
   const onCancel = () => {
     form.reset()
-    toggleEditMode()
+    setEditMode(false)
   }
 
+  const initials = currentUser?.full_name
+    ? currentUser.full_name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : currentUser?.email?.[0]?.toUpperCase() ?? "?"
+
   return (
-    <div className="max-w-md">
-      <h3 className="text-lg font-semibold py-4">User Information</h3>
-      <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-4"
-        >
-          <FormField
-            control={form.control}
-            name="full_name"
-            render={({ field }) =>
-              editMode ? (
-                <FormItem>
-                  <FormLabel>Full name</FormLabel>
-                  <FormControl>
-                    <Input type="text" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              ) : (
-                <FormItem>
-                  <FormLabel>Full name</FormLabel>
-                  <p
-                    className={cn(
-                      "py-2 truncate max-w-sm",
-                      !field.value && "text-muted-foreground",
-                    )}
-                  >
-                    {field.value || "N/A"}
-                  </p>
-                </FormItem>
-              )
-            }
-          />
+    <Card className="max-w-md">
+      <CardContent className="pt-6 space-y-6">
+        {/* Avatar + identity row */}
+        <div className="flex items-center gap-4">
+          <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xl font-semibold text-primary select-none">
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold truncate">
+              {currentUser?.full_name || <span className="text-muted-foreground">No name set</span>}
+            </p>
+            <p className="text-sm text-muted-foreground truncate">{currentUser?.email}</p>
+          </div>
+          {!editMode && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => setEditMode(true)}
+            >
+              Edit
+            </Button>
+          )}
+        </div>
 
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) =>
-              editMode ? (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input type="email" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              ) : (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <p className="py-2 truncate max-w-sm">{field.value}</p>
-                </FormItem>
-              )
-            }
-          />
-
-          <div className="flex gap-3">
-            {editMode ? (
-              <>
+        {/* Inline edit form */}
+        {editMode && (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="full_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full name</FormLabel>
+                    <FormControl>
+                      <Input type="text" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex gap-2 pt-1">
                 <LoadingButton
                   type="submit"
                   loading={mutation.isPending}
@@ -155,16 +151,12 @@ const UserInformation = () => {
                 >
                   Cancel
                 </Button>
-              </>
-            ) : (
-              <Button type="button" onClick={toggleEditMode}>
-                Edit
-              </Button>
-            )}
-          </div>
-        </form>
-      </Form>
-    </div>
+              </div>
+            </form>
+          </Form>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 

@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { signalloopRequest } from "@/lib/signalloop-api"
 
@@ -339,7 +340,16 @@ export default function SequencesPage() {
       {error && <Alert variant="destructive">{error}</Alert>}
       {feedback && <Alert>{feedback}</Alert>}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
+      <Tabs defaultValue="list" className="gap-6">
+        <TabsList className="flex h-auto flex-wrap">
+          <TabsTrigger value="list">Sequence List</TabsTrigger>
+          <TabsTrigger value="builder">Builder</TabsTrigger>
+          <TabsTrigger value="enrollments">Enrollments</TabsTrigger>
+          <TabsTrigger value="performance">Performance</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="list">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
         <Card className="border-border/70">
           <CardHeader>
             <CardTitle>Real sequences</CardTitle>
@@ -481,7 +491,56 @@ export default function SequencesPage() {
             )}
           </CardContent>
         </Card>
-      </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="builder">
+          <Card>
+            <CardHeader>
+              <CardTitle>Builder</CardTitle>
+              <CardDescription>Create or edit ordered outreach steps.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={openCreateDialog} disabled={campaigns.length === 0}>
+                <Plus className="mr-2 h-4 w-4" />
+                New Sequence
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="enrollments">
+          <Card>
+            <CardHeader>
+              <CardTitle>Enrollments</CardTitle>
+              <CardDescription>Current enrollment status for the selected sequence.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {selectedProgress ? (
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(selectedProgress.status_breakdown).map(([status, count]) => (
+                    <Badge key={status} variant="outline">{`${status}: ${count}`}</Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Select a sequence to inspect enrollments.</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="performance">
+          <Card>
+            <CardHeader>
+              <CardTitle>Performance</CardTitle>
+              <CardDescription>Delivery and response metrics appear here when connected.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">No sequence performance data is available for this build.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
