@@ -104,7 +104,7 @@ Primary navigation items:
 | Dashboard | High-level overview and quick access to major workflows. |
 | Campaigns | Guided campaign intake, audience selection from the existing Contacts lead pool, filtered subsets, offer-pack assignment, and strategy setup. |
 | Sequences | Build and manage multi-step outreach flows. |
-| Voice Agents | Configure Alex, Morgan, Rajesh, and Priya voice agents, scripts, test calls, and shared knowledgebase files. |
+| Voice Agents | Configure Alex, Morgan, and Priya voice agents, scripts, test calls, and shared knowledgebase files. |
 | Contacts | Download the CSV template, analyze imports, map fields, preview rows, fix validation issues, import contacts, search the shared lead pool, and view timelines from selected contact links. |
 | Customer 360 | Review one account's summary, contacts, cross-channel activity, open work, next best action, and unified timeline before follow-up. |
 | Analytics | Review campaign performance, email rates, voice calls, and sequence funnel data. |
@@ -279,13 +279,12 @@ Voice Agents lets you choose, configure, and test AI voice outreach behavior.
 
 ![Voice agents screen](screenshots/07-voice-agents.png)
 
-SignalLoop includes four voice agents with English and Hindi preview/script starter support:
+SignalLoop includes three voice agents with English and Hindi preview/script starter support:
 
 | Agent | Best For | Tone |
 | --- | --- | --- |
 | Alex | B2B outreach, appointment confirmations, executive communication | Professional and authoritative |
 | Morgan | Re-engagement, follow-ups, support check-ins, relationship-driven outreach | Empathetic and conversational |
-| Rajesh | Regional outreach, follow-ups, appointment calls with Hindi support | Warm and confident |
 | Priya | Hindi-aware re-engagement, customer check-ins, relationship-led follow-ups | Friendly and reassuring |
 
 ### Choose an Agent
@@ -293,7 +292,7 @@ SignalLoop includes four voice agents with English and Hindi preview/script star
 Steps:
 
 1. Select Voice Agents in the sidebar.
-2. Review the Alex, Morgan, Rajesh, and Priya cards.
+2. Review the Alex, Morgan, and Priya cards.
 3. Choose English or Hindi from Voice language.
 4. Select the agent you want to configure.
 5. Use Preview to hear a sample greeting.
@@ -326,7 +325,7 @@ Script writing tips:
 
 ### Add Shared Knowledgebase Files
 
-Knowledgebase files give Alex, Morgan, Rajesh, and Priya additional context when contacts ask questions outside the script.
+Knowledgebase files give Alex, Morgan, and Priya additional context when contacts ask questions outside the script.
 
 ![Voice knowledgebase screen](screenshots/07b-voice-knowledgebase.png)
 
@@ -1290,7 +1289,7 @@ Follow this end-to-end workflow when launching your first campaign.
    - Publish the selected template.
 2. Prepare voice behavior if calls are included.
    - Go to Voice Agents.
-   - Select Alex, Morgan, Rajesh, or Priya.
+   - Select Alex, Morgan, or Priya.
    - Review the call script.
    - Upload relevant knowledgebase files.
    - Run a preview test call if available.
@@ -1399,7 +1398,7 @@ Use Controls:
 | Offer pack | A published, versioned bundle of offer content used by a campaign. |
 | Channel strategy | Configuration that defines whether outreach uses email, voice, or another supported channel pattern. |
 | Lead pool | The shared list of contacts available for selection by any campaign. |
-| Voice agent | An AI voice persona (Alex, Morgan, Rajesh, or Priya) that places outbound calls. |
+| Voice agent | An AI voice persona (Alex, Morgan, or Priya) that places outbound calls. |
 | Knowledgebase | Files supplied to voice agents for context beyond the script. |
 | Quiet hours | A configured window where no outreach is sent. |
 | Emergency pause | An administrator action that immediately halts all outreach. |

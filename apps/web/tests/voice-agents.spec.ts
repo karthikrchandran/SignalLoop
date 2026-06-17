@@ -366,11 +366,11 @@ test("Voice Agents page shows profiles, language support, and scripts when fully
     page.getByRole("button", { name: "Select Morgan voice profile" }),
   ).toBeVisible()
   await expect(
-    page.getByRole("button", { name: "Select Rajesh voice profile" }),
-  ).toBeVisible()
-  await expect(
     page.getByRole("button", { name: "Select Priya voice profile" }),
   ).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: /Select .* voice profile/ }),
+  ).toHaveCount(3)
   await expect(page.getByLabel("Voice language")).toContainText("English")
   await page.getByLabel("Voice language").click()
   await page.getByRole("option", { name: "Hindi" }).click()
@@ -433,9 +433,7 @@ test("Readiness notice links to provider setup when voice prerequisites are not 
   await expect(page.getByText("Twilio SMS")).toBeHidden()
 })
 
-test("New Hindi script uses the selected Indian persona and language", async ({
-  page,
-}) => {
+test("New Hindi script uses Priya as the Indian persona", async ({ page }) => {
   await page.route("**/api/v1/scripts/", async (route) => {
     await route.fulfill({
       status: 200,
@@ -462,141 +460,16 @@ test("New Hindi script uses the selected Indian persona and language", async ({
 
   await page.goto("/voice-agents")
 
-  await page
-    .getByRole("button", { name: "Select Rajesh voice profile" })
-    .click()
+  await page.getByRole("button", { name: "Select Priya voice profile" }).click()
   await page.getByLabel("Voice language").click()
   await page.getByRole("option", { name: "Hindi" }).click()
   await page.getByRole("button", { name: /new script/i }).click()
 
   await expect(page.getByLabel(/script name/i)).toHaveValue(
-    "Rajesh Hindi campaign script",
+    "Priya Hindi campaign script",
   )
   await expect(page.getByLabel(/script content/i)).toHaveValue(/Namaste/)
-  await expect(page.getByLabel(/script content/i)).toHaveValue(/Rajesh/)
-})
-
-test("Rajesh preview prefers an Indian English browser voice", async ({
-  page,
-}) => {
-  await page.route("**/api/v1/scripts/", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ data: SCRIPTS, count: 2 }),
-    })
-  })
-
-  await page.route("**/api/v1/scripts/script-1", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(SCRIPT_DETAIL),
-    })
-  })
-
-  await page.route("**/api/v1/utils/setup-overview/**", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(SETUP_CONFIGURED),
-    })
-  })
-
-  await page.goto("/voice-agents")
-  await page.evaluate(() => {
-    const voices = [
-      {
-        default: false,
-        lang: "en-GB",
-        localService: false,
-        name: "Google UK English Male",
-        voiceURI: "google-uk-english-male",
-      },
-      {
-        default: false,
-        lang: "en-IN",
-        localService: false,
-        name: "Microsoft Prabhat Online (Natural) - English (India)",
-        voiceURI: "microsoft-prabhat-en-in",
-      },
-      {
-        default: false,
-        lang: "en-US",
-        localService: false,
-        name: "Microsoft David - English (United States)",
-        voiceURI: "microsoft-david-en-us",
-      },
-    ] satisfies SpeechSynthesisVoice[]
-
-    type SpokenVoice = {
-      lang: string
-      voiceLang: string | null
-      voiceName: string | null
-    }
-    const testWindow = window as typeof window & {
-      __spokenVoice?: SpokenVoice
-    }
-    const synth = window.speechSynthesis
-
-    class TestSpeechSynthesisUtterance {
-      lang = ""
-      onend: ((event: SpeechSynthesisEvent) => void) | null = null
-      onerror: ((event: SpeechSynthesisErrorEvent) => void) | null = null
-      onstart: ((event: SpeechSynthesisEvent) => void) | null = null
-      pitch = 1
-      rate = 1
-      voice: SpeechSynthesisVoice | null = null
-
-      constructor(public text: string) {}
-    }
-
-    Object.defineProperty(window, "SpeechSynthesisUtterance", {
-      configurable: true,
-      value: TestSpeechSynthesisUtterance,
-    })
-    Object.defineProperty(synth, "getVoices", {
-      configurable: true,
-      value: () => voices,
-    })
-    Object.defineProperty(synth, "speak", {
-      configurable: true,
-      value: (utterance: SpeechSynthesisUtterance) => {
-        testWindow.__spokenVoice = {
-          lang: utterance.lang,
-          voiceLang: utterance.voice?.lang ?? null,
-          voiceName: utterance.voice?.name ?? null,
-        }
-        utterance.onstart?.({} as SpeechSynthesisEvent)
-        utterance.onend?.({} as SpeechSynthesisEvent)
-      },
-    })
-    Object.defineProperty(synth, "cancel", {
-      configurable: true,
-      value: () => {},
-    })
-  })
-
-  await page.getByRole("button", { name: "Preview Rajesh voice" }).click()
-
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const testWindow = window as typeof window & {
-          __spokenVoice?: {
-            lang: string
-            voiceLang: string | null
-            voiceName: string | null
-          }
-        }
-        return testWindow.__spokenVoice
-      }),
-    )
-    .toEqual({
-      lang: "en-IN",
-      voiceLang: "en-IN",
-      voiceName: "Microsoft Prabhat Online (Natural) - English (India)",
-    })
+  await expect(page.getByLabel(/script content/i)).toHaveValue(/Priya/)
 })
 
 // ---------------------------------------------------------------------------

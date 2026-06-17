@@ -142,7 +142,7 @@ type TestCallResponse = {
   message: string
 }
 
-type VoiceProfileId = "alex" | "morgan" | "rajesh" | "priya"
+type VoiceProfileId = "alex" | "morgan" | "priya"
 
 type VoiceLanguageId = "en-US" | "hi-IN"
 
@@ -217,32 +217,6 @@ const VOICE_PROFILES: VoiceProfile[] = [
     pitch: 1.1,
     rate: 0.92,
     languages: ["en-US"],
-  },
-  {
-    id: "rajesh",
-    name: "Rajesh",
-    gender: "Male",
-    accent: "Indian English / Hindi",
-    tone: "Warm and confident",
-    description:
-      "Best for regional outreach, follow-ups, and appointment calls where Hindi support improves trust.",
-    demoGreetings: {
-      "en-US":
-        "Good morning. My name is Rajesh, and I am calling to help you with the next step.",
-      "hi-IN":
-        "Namaste. Mera naam Rajesh hai, aur main aapki madad ke liye call kar raha hoon.",
-    },
-    voiceHints: {
-      "en-US": ["prabhat", "ravi", "hemant", "narayanan", "india", "indian"],
-      "hi-IN": ["hemant", "ravi", "prabhat", "google hindi", "india"],
-    },
-    pitch: 0.82,
-    rate: 0.9,
-    languages: ["en-US", "hi-IN"],
-    speechLanguageOverrides: {
-      "en-US": "en-IN",
-      "hi-IN": "hi-IN",
-    },
   },
   {
     id: "priya",
