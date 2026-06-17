@@ -163,6 +163,7 @@ type VoiceProfile = {
   pitch: number
   rate: number
   languages?: VoiceLanguageId[]
+  speechLanguageOverrides?: Partial<Record<VoiceLanguageId, string>>
 }
 
 const VOICE_LANGUAGES: VoiceLanguage[] = [
@@ -232,12 +233,16 @@ const VOICE_PROFILES: VoiceProfile[] = [
         "Namaste. Mera naam Rajesh hai, aur main aapki madad ke liye call kar raha hoon.",
     },
     voiceHints: {
-      "en-US": ["ravi", "narayanan", "google uk english male", "david", "mark", "james", "hemant"],
-      "hi-IN": [],
+      "en-US": ["prabhat", "ravi", "hemant", "narayanan", "india", "indian"],
+      "hi-IN": ["hemant", "ravi", "prabhat", "google hindi", "india"],
     },
     pitch: 0.82,
     rate: 0.9,
-    languages: ["en-US"],
+    languages: ["en-US", "hi-IN"],
+    speechLanguageOverrides: {
+      "en-US": "en-IN",
+      "hi-IN": "hi-IN",
+    },
   },
   {
     id: "priya",
@@ -254,11 +259,25 @@ const VOICE_PROFILES: VoiceProfile[] = [
         "Namaste! Main Priya hoon, aur aapse baat karke bahut khushi hui. Main aapki kaise madad kar sakti hoon?",
     },
     voiceHints: {
-      "en-US": ["ava", "emma", "mia", "neerja", "jenny", "aria", "zira", "kalpana"],
-      "hi-IN": ["swara", "kalpana", "heera", "google हिन्दी"],
+      "en-US": [
+        "neerja",
+        "kalpana",
+        "swara",
+        "ava",
+        "emma",
+        "mia",
+        "jenny",
+        "aria",
+        "zira",
+      ],
+      "hi-IN": ["swara", "kalpana", "heera", "google hindi", "neerja"],
     },
     pitch: 1.08,
     rate: 0.92,
+    speechLanguageOverrides: {
+      "en-US": "en-IN",
+      "hi-IN": "hi-IN",
+    },
   },
 ]
 
@@ -311,22 +330,28 @@ const integrationDisplayName = (
 function pickSpeechVoice(
   hints: string[],
   gender: VoiceProfile["gender"],
-  languageId: VoiceLanguageId,
+  languageId: string,
 ) {
   if (!("speechSynthesis" in window)) return null
   const voices = window.speechSynthesis.getVoices()
   if (!voices.length) return null
-  const languagePrefix = languageId.split("-")[0].toLowerCase()
-  const languageVoices = voices.filter((voice) => {
+  const languageIdLower = languageId.toLowerCase()
+  const languagePrefix = languageIdLower.split("-")[0]
+  const exactLanguageVoices = voices.filter(
+    (voice) => voice.lang.toLowerCase() === languageIdLower,
+  )
+  const languageFamilyVoices = voices.filter((voice) => {
     const lang = voice.lang.toLowerCase()
-    return lang === languageId.toLowerCase() || lang.startsWith(languagePrefix)
+    return lang.startsWith(languagePrefix)
   })
   const fallbackVoices = voices.filter((voice) =>
     voice.lang.toLowerCase().startsWith("en"),
   )
-  const candidateVoices = languageVoices.length
-    ? languageVoices
-    : fallbackVoices
+  const candidateVoices = exactLanguageVoices.length
+    ? exactLanguageVoices
+    : languageFamilyVoices.length
+      ? languageFamilyVoices
+      : fallbackVoices
   for (const hint of hints) {
     const match = candidateVoices.find((voice) =>
       voice.name.toLowerCase().includes(hint.toLowerCase()),
@@ -362,7 +387,7 @@ function pickSpeechVoice(
   // For non-English languages, keep a native voice even if gender is imperfect —
   // an Indian-accented Hindi voice with low pitch sounds far better than an
   // English voice trying to speak Hindi text
-  if (!languageId.toLowerCase().startsWith("en") && candidateVoices.length > 0) {
+  if (!languageIdLower.startsWith("en") && candidateVoices.length > 0) {
     return candidateVoices[0]
   }
   // Cross-language gender rescue (English only) — prefer correctly-gendered
@@ -411,18 +436,13 @@ export default function VoiceAgentsPage() {
   const [selectedVoiceLanguageId, setSelectedVoiceLanguageId] =
     useState<VoiceLanguageId>(DEFAULT_VOICE_LANGUAGE.id)
 
-  const availableLanguages = useMemo(() => {
-    const profile = VOICE_PROFILES.find((p) => p.id === selectedVoiceProfileId)
-    const supported = profile?.languages
-    return supported
-      ? VOICE_LANGUAGES.filter((l) => supported.includes(l.id))
-      : VOICE_LANGUAGES
-  }, [selectedVoiceProfileId])
-
   const handleSelectVoiceProfile = (id: VoiceProfileId) => {
     setSelectedVoiceProfileId(id)
     const profile = VOICE_PROFILES.find((p) => p.id === id)
-    if (profile?.languages && !profile.languages.includes(selectedVoiceLanguageId)) {
+    if (
+      profile?.languages &&
+      !profile.languages.includes(selectedVoiceLanguageId)
+    ) {
       setSelectedVoiceLanguageId(profile.languages[0])
     }
   }
@@ -671,13 +691,16 @@ export default function VoiceAgentsPage() {
     const utterance = new SpeechSynthesisUtterance(
       profile.demoGreetings[selectedVoiceLanguage.id],
     )
+    const speechLanguageId =
+      profile.speechLanguageOverrides?.[selectedVoiceLanguage.id] ??
+      selectedVoiceLanguage.id
     const speechVoice = pickSpeechVoice(
       profile.voiceHints[selectedVoiceLanguage.id],
       profile.gender,
-      selectedVoiceLanguage.id,
+      speechLanguageId,
     )
     if (speechVoice) utterance.voice = speechVoice
-    utterance.lang = selectedVoiceLanguage.id
+    utterance.lang = speechLanguageId
     utterance.pitch = profile.pitch
     utterance.rate = profile.rate
     utterance.onstart = () => setSpeakingProfileId(profile.id)
@@ -870,7 +893,9 @@ export default function VoiceAgentsPage() {
             const langId = value as VoiceLanguageId
             setSelectedVoiceLanguageId(langId)
             // If the current profile doesn't support the new language, switch to Priya
-            const current = VOICE_PROFILES.find((p) => p.id === selectedVoiceProfileId)
+            const current = VOICE_PROFILES.find(
+              (p) => p.id === selectedVoiceProfileId,
+            )
             if (current?.languages && !current.languages.includes(langId)) {
               setSelectedVoiceProfileId("priya")
             }
@@ -880,7 +905,7 @@ export default function VoiceAgentsPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {availableLanguages.map((language) => (
+            {VOICE_LANGUAGES.map((language) => (
               <SelectItem key={language.id} value={language.id}>
                 {language.label}
               </SelectItem>
@@ -890,8 +915,10 @@ export default function VoiceAgentsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {VOICE_PROFILES.filter((profile) =>
-          !profile.languages || profile.languages.includes(selectedVoiceLanguageId)
+        {VOICE_PROFILES.filter(
+          (profile) =>
+            !profile.languages ||
+            profile.languages.includes(selectedVoiceLanguageId),
         ).map((profile) => (
           <VoiceProfileCard
             key={profile.id}
