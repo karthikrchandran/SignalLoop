@@ -38,6 +38,9 @@ import { Route as LayoutChatbotKnowledgeBaseRouteImport } from './routes/_layout
 import { Route as LayoutChatbotInboxRouteImport } from './routes/_layout/chatbot.inbox'
 import { Route as LayoutChatbotChannelsRouteImport } from './routes/_layout/chatbot.channels'
 import { Route as LayoutChatbotAnalyticsRouteImport } from './routes/_layout/chatbot.analytics'
+import { Route as LayoutCampaignsRunningRouteImport } from './routes/_layout/campaigns.running'
+import { Route as LayoutCampaignsPausedRouteImport } from './routes/_layout/campaigns.paused'
+import { Route as LayoutCampaignsDraftRouteImport } from './routes/_layout/campaigns.draft'
 import { Route as LayoutChatbotInboxThreadIdRouteImport } from './routes/_layout/chatbot.inbox.$threadId'
 import { Route as LayoutAdminChatbotDeadLettersRouteImport } from './routes/_layout/admin.chatbot.dead-letters'
 
@@ -187,6 +190,21 @@ const LayoutChatbotAnalyticsRoute = LayoutChatbotAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => LayoutChatbotRoute,
 } as any)
+const LayoutCampaignsRunningRoute = LayoutCampaignsRunningRouteImport.update({
+  id: '/running',
+  path: '/running',
+  getParentRoute: () => LayoutCampaignsRoute,
+} as any)
+const LayoutCampaignsPausedRoute = LayoutCampaignsPausedRouteImport.update({
+  id: '/paused',
+  path: '/paused',
+  getParentRoute: () => LayoutCampaignsRoute,
+} as any)
+const LayoutCampaignsDraftRoute = LayoutCampaignsDraftRouteImport.update({
+  id: '/draft',
+  path: '/draft',
+  getParentRoute: () => LayoutCampaignsRoute,
+} as any)
 const LayoutChatbotInboxThreadIdRoute =
   LayoutChatbotInboxThreadIdRouteImport.update({
     id: '/$threadId',
@@ -208,7 +226,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/admin': typeof LayoutAdminRouteWithChildren
   '/analytics': typeof LayoutAnalyticsRoute
-  '/campaigns': typeof LayoutCampaignsRoute
+  '/campaigns': typeof LayoutCampaignsRouteWithChildren
   '/chatbot': typeof LayoutChatbotRouteWithChildren
   '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
@@ -222,6 +240,9 @@ export interface FileRoutesByFullPath {
   '/signalloop-ai': typeof LayoutSignalloopAiRoute
   '/templates': typeof LayoutTemplatesRoute
   '/voice-agents': typeof LayoutVoiceAgentsRoute
+  '/campaigns/draft': typeof LayoutCampaignsDraftRoute
+  '/campaigns/paused': typeof LayoutCampaignsPausedRoute
+  '/campaigns/running': typeof LayoutCampaignsRunningRoute
   '/chatbot/analytics': typeof LayoutChatbotAnalyticsRoute
   '/chatbot/channels': typeof LayoutChatbotChannelsRoute
   '/chatbot/inbox': typeof LayoutChatbotInboxRouteWithChildren
@@ -239,7 +260,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/admin': typeof LayoutAdminRouteWithChildren
   '/analytics': typeof LayoutAnalyticsRoute
-  '/campaigns': typeof LayoutCampaignsRoute
+  '/campaigns': typeof LayoutCampaignsRouteWithChildren
   '/chatbot': typeof LayoutChatbotRouteWithChildren
   '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
@@ -254,6 +275,9 @@ export interface FileRoutesByTo {
   '/templates': typeof LayoutTemplatesRoute
   '/voice-agents': typeof LayoutVoiceAgentsRoute
   '/': typeof LayoutIndexRoute
+  '/campaigns/draft': typeof LayoutCampaignsDraftRoute
+  '/campaigns/paused': typeof LayoutCampaignsPausedRoute
+  '/campaigns/running': typeof LayoutCampaignsRunningRoute
   '/chatbot/analytics': typeof LayoutChatbotAnalyticsRoute
   '/chatbot/channels': typeof LayoutChatbotChannelsRoute
   '/chatbot/inbox': typeof LayoutChatbotInboxRouteWithChildren
@@ -273,7 +297,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_layout/admin': typeof LayoutAdminRouteWithChildren
   '/_layout/analytics': typeof LayoutAnalyticsRoute
-  '/_layout/campaigns': typeof LayoutCampaignsRoute
+  '/_layout/campaigns': typeof LayoutCampaignsRouteWithChildren
   '/_layout/chatbot': typeof LayoutChatbotRouteWithChildren
   '/_layout/contacts': typeof LayoutContactsRoute
   '/_layout/controls': typeof LayoutControlsRoute
@@ -288,6 +312,9 @@ export interface FileRoutesById {
   '/_layout/templates': typeof LayoutTemplatesRoute
   '/_layout/voice-agents': typeof LayoutVoiceAgentsRoute
   '/_layout/': typeof LayoutIndexRoute
+  '/_layout/campaigns/draft': typeof LayoutCampaignsDraftRoute
+  '/_layout/campaigns/paused': typeof LayoutCampaignsPausedRoute
+  '/_layout/campaigns/running': typeof LayoutCampaignsRunningRoute
   '/_layout/chatbot/analytics': typeof LayoutChatbotAnalyticsRoute
   '/_layout/chatbot/channels': typeof LayoutChatbotChannelsRoute
   '/_layout/chatbot/inbox': typeof LayoutChatbotInboxRouteWithChildren
@@ -322,6 +349,9 @@ export interface FileRouteTypes {
     | '/signalloop-ai'
     | '/templates'
     | '/voice-agents'
+    | '/campaigns/draft'
+    | '/campaigns/paused'
+    | '/campaigns/running'
     | '/chatbot/analytics'
     | '/chatbot/channels'
     | '/chatbot/inbox'
@@ -354,6 +384,9 @@ export interface FileRouteTypes {
     | '/templates'
     | '/voice-agents'
     | '/'
+    | '/campaigns/draft'
+    | '/campaigns/paused'
+    | '/campaigns/running'
     | '/chatbot/analytics'
     | '/chatbot/channels'
     | '/chatbot/inbox'
@@ -387,6 +420,9 @@ export interface FileRouteTypes {
     | '/_layout/templates'
     | '/_layout/voice-agents'
     | '/_layout/'
+    | '/_layout/campaigns/draft'
+    | '/_layout/campaigns/paused'
+    | '/_layout/campaigns/running'
     | '/_layout/chatbot/analytics'
     | '/_layout/chatbot/channels'
     | '/_layout/chatbot/inbox'
@@ -611,6 +647,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutChatbotAnalyticsRouteImport
       parentRoute: typeof LayoutChatbotRoute
     }
+    '/_layout/campaigns/running': {
+      id: '/_layout/campaigns/running'
+      path: '/running'
+      fullPath: '/campaigns/running'
+      preLoaderRoute: typeof LayoutCampaignsRunningRouteImport
+      parentRoute: typeof LayoutCampaignsRoute
+    }
+    '/_layout/campaigns/paused': {
+      id: '/_layout/campaigns/paused'
+      path: '/paused'
+      fullPath: '/campaigns/paused'
+      preLoaderRoute: typeof LayoutCampaignsPausedRouteImport
+      parentRoute: typeof LayoutCampaignsRoute
+    }
+    '/_layout/campaigns/draft': {
+      id: '/_layout/campaigns/draft'
+      path: '/draft'
+      fullPath: '/campaigns/draft'
+      preLoaderRoute: typeof LayoutCampaignsDraftRouteImport
+      parentRoute: typeof LayoutCampaignsRoute
+    }
     '/_layout/chatbot/inbox/$threadId': {
       id: '/_layout/chatbot/inbox/$threadId'
       path: '/$threadId'
@@ -638,6 +695,22 @@ const LayoutAdminRouteChildren: LayoutAdminRouteChildren = {
 
 const LayoutAdminRouteWithChildren = LayoutAdminRoute._addFileChildren(
   LayoutAdminRouteChildren,
+)
+
+interface LayoutCampaignsRouteChildren {
+  LayoutCampaignsDraftRoute: typeof LayoutCampaignsDraftRoute
+  LayoutCampaignsPausedRoute: typeof LayoutCampaignsPausedRoute
+  LayoutCampaignsRunningRoute: typeof LayoutCampaignsRunningRoute
+}
+
+const LayoutCampaignsRouteChildren: LayoutCampaignsRouteChildren = {
+  LayoutCampaignsDraftRoute: LayoutCampaignsDraftRoute,
+  LayoutCampaignsPausedRoute: LayoutCampaignsPausedRoute,
+  LayoutCampaignsRunningRoute: LayoutCampaignsRunningRoute,
+}
+
+const LayoutCampaignsRouteWithChildren = LayoutCampaignsRoute._addFileChildren(
+  LayoutCampaignsRouteChildren,
 )
 
 interface LayoutChatbotInboxRouteChildren {
@@ -697,7 +770,7 @@ const LayoutSettingsRouteWithChildren = LayoutSettingsRoute._addFileChildren(
 interface LayoutRouteChildren {
   LayoutAdminRoute: typeof LayoutAdminRouteWithChildren
   LayoutAnalyticsRoute: typeof LayoutAnalyticsRoute
-  LayoutCampaignsRoute: typeof LayoutCampaignsRoute
+  LayoutCampaignsRoute: typeof LayoutCampaignsRouteWithChildren
   LayoutChatbotRoute: typeof LayoutChatbotRouteWithChildren
   LayoutContactsRoute: typeof LayoutContactsRoute
   LayoutControlsRoute: typeof LayoutControlsRoute
@@ -717,7 +790,7 @@ interface LayoutRouteChildren {
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutAdminRoute: LayoutAdminRouteWithChildren,
   LayoutAnalyticsRoute: LayoutAnalyticsRoute,
-  LayoutCampaignsRoute: LayoutCampaignsRoute,
+  LayoutCampaignsRoute: LayoutCampaignsRouteWithChildren,
   LayoutChatbotRoute: LayoutChatbotRouteWithChildren,
   LayoutContactsRoute: LayoutContactsRoute,
   LayoutControlsRoute: LayoutControlsRoute,

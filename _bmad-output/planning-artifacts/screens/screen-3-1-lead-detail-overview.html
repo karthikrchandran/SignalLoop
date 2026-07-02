@@ -3,28 +3,96 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SignalLoop Screen 3.1 - Lead Detail - Overview</title>
+  <title>SignalLoop Screen 3.1 - Lead Detail Overview</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="topbar">
     <div>
       <h1>SignalLoop Screen 3.1</h1>
-      <p>Journey 3 - Lead Detail - Overview</p>
+      <p>Journey 3 - Lead Detail Overview</p>
     </div>
-    <a class="btn" href="index.html">Back to Home</a>
+    <a class="btn" href="index.html">Back to Gallery</a>
   </div>
 
   <div class="wrap">
-    <div class="card">
-      <div class="card-head">
-        <div class="screen-id">Screen 3.1</div>
-        <div class="title">Lead Detail - Overview</div>
-      </div>
-      <div class="body">Context ladder summary with status and immediate next action.<div class="mini-frame"><div class="mini-header"><span>Lead Overview</span><span>In Sequence</span></div><div class="mini-content"><div class="row"><span class="chip">Email opened 2h ago</span><span class="chip">Call Friday 2 PM</span></div></div></div></div>
+    <div class="hero">
+      <section class="hero-card">
+        <h2>Lead detail with account context, contact roster, and next action.</h2>
+        <p>
+          The overview page acts like a compact command panel for one lead. It shows who this
+          is, what is happening, and what should happen next without burying the user in tabs.
+        </p>
+        <div class="hero-meta">
+          <span class="pill brand">Account context</span>
+          <span class="pill teal">Next action</span>
+          <span class="pill good">Active lead</span>
+        </div>
+      </section>
+      <aside class="hero-side">
+        <div class="stat-grid">
+          <div class="stat"><small>Stage</small><strong>Qualified</strong><span>ready</span></div>
+          <div class="stat"><small>Owner</small><strong>Priya</strong><span>sales</span></div>
+          <div class="stat"><small>Contacts</small><strong>4</strong><span>linked</span></div>
+          <div class="stat"><small>Next</small><strong>Call</strong><span>today</span></div>
+        </div>
+      </aside>
     </div>
 
-    <div class="nav">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="screen-id">Screen 3.1</div>
+          <div class="title">Lead Detail Overview</div>
+        </div>
+        <span class="pill brand">Overview</span>
+      </div>
+      <div class="card-body">
+        <div class="dashboard-layout">
+          <div class="stack">
+            <div class="surface surface-pad">
+              <h3 class="section-title" style="font-size: 18px;">Lead summary</h3>
+              <div class="split" style="margin-top: 12px;">
+                <div class="mock-box">
+                  <h4>Account</h4>
+                  <p>Northwind Health Systems. Mid-market account with active evaluation.</p>
+                </div>
+                <div class="mock-box">
+                  <h4>Opportunity</h4>
+                  <p>Budget confirmed, security review pending, close window this month.</p>
+                </div>
+              </div>
+            </div>
+            <div class="surface surface-pad">
+              <h3 class="section-title" style="font-size: 18px;">Contacts</h3>
+              <div class="chip-row" style="margin-top: 12px;">
+                <span class="chip brand">Maya - champion</span>
+                <span class="chip">Ari - finance</span>
+                <span class="chip">Lena - technical</span>
+                <span class="chip">Owen - executive</span>
+              </div>
+            </div>
+          </div>
+          <aside class="stack">
+            <div class="surface surface-pad">
+              <h3 class="section-title" style="font-size: 18px;">Next-best action</h3>
+              <div class="mock-box" style="margin-top: 12px;">
+                <h4>Schedule call</h4>
+                <p>Book a 20-minute follow-up to confirm security responses and next steps.</p>
+              </div>
+            </div>
+            <div class="surface surface-pad">
+              <h3 class="section-title" style="font-size: 18px;">Health</h3>
+              <div class="bar-row"><div>Interest</div><div class="bar-track"><div class="bar-fill good" style="width: 84%;"></div></div><div>84%</div></div>
+              <div class="bar-row"><div>Risk</div><div class="bar-track"><div class="bar-fill warn" style="width: 22%;"></div></div><div>22%</div></div>
+              <div class="bar-row"><div>Momentum</div><div class="bar-track"><div class="bar-fill alt" style="width: 69%;"></div></div><div>69%</div></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-nav">
       <a class="btn" href="screen-2-4-daily-summary-card.html">Previous: 2.4</a>
       <a class="btn" href="index.html">Home</a>
       <a class="btn primary" href="screen-3-2-lead-detail-timeline.html">Next: 3.2</a>

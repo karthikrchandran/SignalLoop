@@ -11,6 +11,7 @@ from sqlmodel import SQLModel, func, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
+from app.core.config import settings
 from app.core.idempotency import run_idempotent_mutation
 from app.domain.audit.audit_events import (
     append_audit_event_to_session,
@@ -26,6 +27,7 @@ from app.domain.sequences.models import (
     EmailSequence,
     SequenceStatus,
 )
+from app.domain.shared_records import service as shared_record_service
 from app.domain.voice.models import (
     CallRequest,
     CallRequestStatus,
@@ -127,6 +129,24 @@ def _get_call_request_or_404(
     if not req:
         raise HTTPException(status_code=404, detail="Call not found")
     return req
+
+
+def _load_contact_for_workspace(
+    session: SessionDep,
+    *,
+    workspace_id: str,
+    contact_id: uuid.UUID,
+) -> Contact | None:
+    shared_contact = shared_record_service.get_shared_contact(
+        workspace_id=workspace_id,
+        contact_id=contact_id,
+    )
+    if shared_contact is None:
+        return None
+    contact = shared_record_service.shared_contact_to_contact(shared_contact)
+    if contact and contact.workspace_id != workspace_id:
+        return None
+    return contact
 
 
 def _call_action_intent_key(call_request_id: uuid.UUID, action: str) -> str:
@@ -364,8 +384,12 @@ def _queue_test_call_once(
     if not campaign or campaign.workspace_id != workspace_id:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    contact = session.get(Contact, payload.contact_id)
-    if not contact or contact.workspace_id != workspace_id:
+    contact = _load_contact_for_workspace(
+        session,
+        workspace_id=workspace_id,
+        contact_id=payload.contact_id,
+    )
+    if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
     if not contact.phone:
         raise HTTPException(status_code=400, detail="Contact phone is required")
@@ -552,8 +576,12 @@ async def _send_demo_email_once(
 ) -> dict[str, str]:
     req = _get_call_request_or_404(session, call_request_id, workspace_id)
 
-    contact = session.get(Contact, req.contact_id)
-    if not contact or contact.workspace_id != workspace_id:
+    contact = _load_contact_for_workspace(
+        session,
+        workspace_id=workspace_id,
+        contact_id=req.contact_id,
+    )
+    if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
 
     name = contact.first_name or "there"
@@ -634,8 +662,12 @@ async def _flag_for_sales_once(
 ) -> dict[str, str]:
     req = _get_call_request_or_404(session, call_request_id, workspace_id)
 
-    contact = session.get(Contact, req.contact_id)
-    if not contact or contact.workspace_id != workspace_id:
+    contact = _load_contact_for_workspace(
+        session,
+        workspace_id=workspace_id,
+        contact_id=req.contact_id,
+    )
+    if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
 
     team_email = resolve_team_notification_email(session, workspace_id)

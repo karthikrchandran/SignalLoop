@@ -12,19 +12,83 @@
       <h1>SignalLoop Screen 4.2</h1>
       <p>Journey 4 - Error Detail Panel</p>
     </div>
-    <a class="btn" href="index.html">Back to Home</a>
+    <a class="btn" href="index.html">Back to Gallery</a>
   </div>
 
   <div class="wrap">
-    <div class="card">
-      <div class="card-head">
-        <div class="screen-id">Screen 4.2</div>
-        <div class="title">Error Detail Panel</div>
-      </div>
-      <div class="body">Recovery decision panel showing options A/B/C and root-cause context.<div class="mini-frame"><div class="mini-header"><span>Recovery Options</span><span>Choose Action</span></div><div class="mini-content"><div class="row"><span class="chip">A Retry tomorrow</span></div><div class="row"><span class="chip">B Override reason</span></div><div class="row"><span class="chip">C Acknowledge + Skip</span></div></div></div></div>
+    <div class="hero">
+      <section class="hero-card">
+        <h2>A deeper diagnostics panel with cause, context, and evidence.</h2>
+        <p>
+          The panel keeps the important recovery information visible: when it failed, what
+          changed, which records are affected, and what the operator should try next.
+        </p>
+        <div class="hero-meta">
+          <span class="pill bad">Diagnostics</span>
+          <span class="pill warn">Evidence</span>
+          <span class="pill good">Recovery path</span>
+        </div>
+      </section>
+      <aside class="hero-side">
+        <div class="stat-grid">
+          <div class="stat"><small>Root cause</small><strong>SMTP</strong><span>timeout</span></div>
+          <div class="stat"><small>Affected</small><strong>12</strong><span>items</span></div>
+          <div class="stat"><small>Retries</small><strong>2</strong><span>attempted</span></div>
+          <div class="stat"><small>ETA</small><strong>5m</strong><span>fixable</span></div>
+        </div>
+      </aside>
     </div>
 
-    <div class="nav">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="screen-id">Screen 4.2</div>
+          <div class="title">Error Detail Panel</div>
+        </div>
+        <span class="pill bad">Open detail</span>
+      </div>
+      <div class="card-body">
+        <div class="dashboard-layout">
+          <div class="stack">
+            <div class="surface surface-pad">
+              <h3 class="section-title" style="font-size: 18px;">Incident timeline</h3>
+              <div class="timeline" style="margin-top: 12px;">
+                <div class="timeline-item"><div class="timeline-dot bad"></div><div><strong>Send request failed</strong><span>10:41 AM</span></div></div>
+                <div class="timeline-item"><div class="timeline-dot warn"></div><div><strong>Retry attempt started</strong><span>10:42 AM</span></div></div>
+                <div class="timeline-item"><div class="timeline-dot"></div><div><strong>Queue paused</strong><span>10:43 AM</span></div></div>
+              </div>
+            </div>
+            <div class="surface surface-pad">
+              <h3 class="section-title" style="font-size: 18px;">Evidence</h3>
+              <div class="mock-box" style="margin-top: 12px;">
+                <h4>Log snippet</h4>
+                <p>Timeout waiting on upstream response after 30 seconds during batch send.</p>
+              </div>
+            </div>
+          </div>
+          <aside class="stack">
+            <div class="surface surface-pad">
+              <h3 class="section-title" style="font-size: 18px;">Suggested action</h3>
+              <div class="list" style="margin-top: 12px;">
+                <div class="list-item"><strong>Retry batch</strong><span>safe</span></div>
+                <div class="list-item"><strong>Check provider</strong><span>ops</span></div>
+                <div class="list-item"><strong>Escalate issue</strong><span>if repeated</span></div>
+              </div>
+            </div>
+            <div class="surface surface-pad">
+              <h3 class="section-title" style="font-size: 18px;">Impact scope</h3>
+              <div class="chip-row" style="margin-top: 12px;">
+                <span class="chip bad">Batch send</span>
+                <span class="chip warn">12 records</span>
+                <span class="chip">1 campaign</span>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-nav">
       <a class="btn" href="screen-4-1-error-card-in-feed.html">Previous: 4.1</a>
       <a class="btn" href="index.html">Home</a>
       <a class="btn primary" href="screen-4-3-retry-confirmation-modal.html">Next: 4.3</a>

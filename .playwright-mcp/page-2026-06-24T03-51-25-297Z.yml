@@ -1,0 +1,52 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]: EH
+        - generic [ref=e7]: SignalLoop
+      - generic [ref=e8]:
+        - heading "Intelligent Outreach, Simplified" [level=2] [ref=e9]
+        - paragraph [ref=e10]: Reach your audience across email and voice channels — with AI-driven personalisation, prebuilt sequences, and real-time analytics in one platform.
+      - list [ref=e11]:
+        - listitem [ref=e12]:
+          - generic [ref=e13]: ✓
+          - text: Multi-channel campaign management
+        - listitem [ref=e14]:
+          - generic [ref=e15]: ✓
+          - text: Voice agents with custom scripts
+        - listitem [ref=e16]:
+          - generic [ref=e17]: ✓
+          - text: Real-time analytics & reporting
+        - listitem [ref=e18]:
+          - generic [ref=e19]: ✓
+          - text: Reusable email sequence templates
+    - generic [ref=e20]:
+      - button "Toggle theme" [ref=e23] [cursor=pointer]:
+        - img
+        - generic [ref=e24]: Toggle theme
+      - generic [ref=e27]:
+        - heading "Login to your account" [level=1] [ref=e29]
+        - generic [ref=e30]:
+          - generic [ref=e31]:
+            - generic [ref=e32]: Email
+            - textbox "Email" [ref=e33]:
+              - /placeholder: user@example.com
+          - generic [ref=e34]:
+            - generic [ref=e35]:
+              - generic [ref=e36]: Password
+              - link "Forgot your password?" [ref=e37] [cursor=pointer]:
+                - /url: /recover-password
+            - generic [ref=e38]:
+              - textbox "Password" [ref=e39]
+              - button "Show password" [ref=e40] [cursor=pointer]:
+                - img
+          - button "Log In" [ref=e41] [cursor=pointer]
+        - generic [ref=e42]:
+          - text: Don't have an account yet?
+          - link "Sign up" [ref=e43] [cursor=pointer]:
+            - /url: /signup
+      - contentinfo [ref=e44]:
+        - generic [ref=e45]:
+          - paragraph [ref=e46]: (c) 2026 SignalLoop
+          - paragraph [ref=e47]: Campaigns, voice, email, and account workflows
+  - region "Notifications alt+T"

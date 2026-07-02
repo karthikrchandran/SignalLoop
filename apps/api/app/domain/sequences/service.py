@@ -154,26 +154,26 @@ def enroll_campaign_contacts(
     """Enroll all campaign contacts into a sequence with next_send_at = now."""
     get_sequence_or_404(session, sequence_id)
     # Get all contact IDs linked to this campaign via contact_progression
-    progressions = session.exec(
-        select(ContactProgression.contact_id).where(
+    shared_contact_ids = session.exec(
+        select(ContactProgression.shared_contact_id).where(
             ContactProgression.campaign_id == campaign_id
         )
     ).all()
 
     now = datetime.now(timezone.utc)
     enrolled = 0
-    for contact_id in progressions:
+    for shared_contact_id in shared_contact_ids:
         # Check if already enrolled
         existing = session.exec(
             select(ContactSequenceState).where(
-                ContactSequenceState.contact_id == contact_id,
+                ContactSequenceState.shared_contact_id == shared_contact_id,
                 ContactSequenceState.sequence_id == sequence_id,
             )
         ).first()
         if existing:
             continue
         state = ContactSequenceState(
-            contact_id=contact_id,
+            shared_contact_id=shared_contact_id,
             sequence_id=sequence_id,
             current_step=1,
             next_send_at=now,

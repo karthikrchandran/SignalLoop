@@ -12,19 +12,67 @@
       <h1>SignalLoop Screen 4.1</h1>
       <p>Journey 4 - Error Card in Feed</p>
     </div>
-    <a class="btn" href="index.html">Back to Home</a>
+    <a class="btn" href="index.html">Back to Gallery</a>
   </div>
 
   <div class="wrap">
-    <div class="card">
-      <div class="card-head">
-        <div class="screen-id">Screen 4.1</div>
-        <div class="title">Error Card in Feed</div>
-      </div>
-      <div class="body">High-visibility error card with impact count and review entrypoint.<div class="mini-frame"><div class="mini-header"><span>Error</span><span>47 leads affected</span></div><div class="mini-content"><div class="row"><span class="chip err">Duplicate email detected</span></div></div></div></div>
+    <div class="hero">
+      <section class="hero-card">
+        <h2>An error card that fits the feed without breaking the layout.</h2>
+        <p>
+          The card stays visually distinct, but it still looks like part of the same system.
+          It carries a short explanation, an impact label, and a direct recovery prompt.
+        </p>
+        <div class="hero-meta">
+          <span class="pill bad">Failure</span>
+          <span class="pill warn">Feed-safe</span>
+          <span class="pill good">Recoverable</span>
+        </div>
+      </section>
+      <aside class="hero-side">
+        <div class="stat-grid">
+          <div class="stat"><small>Errors</small><strong>1</strong><span>card</span></div>
+          <div class="stat"><small>Impact</small><strong>12</strong><span>records</span></div>
+          <div class="stat"><small>Retries</small><strong>2</strong><span>used</span></div>
+          <div class="stat"><small>Status</small><strong>Open</strong><span>now</span></div>
+        </div>
+      </aside>
     </div>
 
-    <div class="nav">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="screen-id">Screen 4.1</div>
+          <div class="title">Error Card in Feed</div>
+        </div>
+        <span class="pill bad">Attention</span>
+      </div>
+      <div class="card-body">
+        <div class="split">
+          <div class="surface surface-pad">
+            <h3 class="section-title" style="font-size: 18px;">Error summary</h3>
+            <div class="mock-box" style="margin-top: 12px;">
+              <h4>Send failure</h4>
+              <p>Delivery attempt timed out while processing the batch. The item is retryable.</p>
+            </div>
+            <div class="chip-row" style="margin-top: 12px;">
+              <span class="chip bad">Timeout</span>
+              <span class="chip warn">Retryable</span>
+            </div>
+          </div>
+          <div class="surface surface-pad">
+            <h3 class="section-title" style="font-size: 18px;">Action strip</h3>
+            <div class="list" style="margin-top: 12px;">
+              <div class="list-item"><strong>Retry now</strong><span>recommended</span></div>
+              <div class="list-item"><strong>Open details</strong><span>inspect</span></div>
+              <div class="list-item"><strong>Pause campaign</strong><span>if needed</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-nav">
       <a class="btn" href="screen-3-4-lead-detail-handoff.html">Previous: 3.4</a>
       <a class="btn" href="index.html">Home</a>
       <a class="btn primary" href="screen-4-2-error-detail-panel.html">Next: 4.2</a>

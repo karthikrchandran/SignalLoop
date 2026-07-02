@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, ClassVar
 
 from sqlalchemy import (
     JSON,
@@ -18,7 +18,9 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    Uuid,
 )
+from sqlalchemy.orm import Synonym, synonym
 from sqlalchemy.types import UserDefinedType
 from sqlmodel import Field, SQLModel
 
@@ -132,7 +134,9 @@ class ChatbotChannelConfig(SQLModel, table=True):
 
     __tablename__ = "chatbot_channel_configs"
     __table_args__ = (
-        UniqueConstraint("workspace_id", "channel_type", name="uq_chatbot_channel_workspace_type"),
+        UniqueConstraint(
+            "workspace_id", "channel_type", name="uq_chatbot_channel_workspace_type"
+        ),
         Index("idx_chatbot_channel_workspace_status", "workspace_id", "status"),
     )
 
@@ -140,14 +144,24 @@ class ChatbotChannelConfig(SQLModel, table=True):
     workspace_id: str = Field(sa_type=String(64), index=True)
     channel_type: ChatbotChannelType = Field(sa_type=String(32), index=True)
     display_name: str = Field(max_length=120)
-    credential_id: uuid.UUID | None = Field(default=None, foreign_key="provider_credentials.id")
-    status: ChatbotChannelStatus = Field(default=ChatbotChannelStatus.draft, sa_type=String(32))
+    credential_id: uuid.UUID | None = Field(
+        default=None, foreign_key="provider_credentials.id"
+    )
+    status: ChatbotChannelStatus = Field(
+        default=ChatbotChannelStatus.draft, sa_type=String(32)
+    )
     is_active: bool = Field(default=False)
     webhook_secret_hash: str | None = Field(default=None, sa_type=Text)
     config_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    last_verified_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
-    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    last_verified_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True)
+    )
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class ChatbotBotConfig(SQLModel, table=True):
@@ -168,10 +182,18 @@ class ChatbotBotConfig(SQLModel, table=True):
     ai_disclosure: str = Field(default="AI assistant", max_length=255)
     token_cap_per_session: int = Field(default=4000)
     retention_days: int = Field(default=90)
-    business_hours_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    lead_capture_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
-    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    business_hours_json: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON)
+    )
+    lead_capture_json: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON)
+    )
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class ChatbotKnowledgeSource(SQLModel, table=True):
@@ -180,7 +202,9 @@ class ChatbotKnowledgeSource(SQLModel, table=True):
     __tablename__ = "chatbot_knowledge_sources"
     __table_args__ = (
         Index("idx_chatbot_knowledge_workspace_status", "workspace_id", "status"),
-        Index("idx_chatbot_knowledge_workspace_version", "workspace_id", "index_version"),
+        Index(
+            "idx_chatbot_knowledge_workspace_version", "workspace_id", "index_version"
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -188,13 +212,19 @@ class ChatbotKnowledgeSource(SQLModel, table=True):
     source_type: ChatbotKnowledgeSourceType = Field(sa_type=String(32), index=True)
     title: str = Field(max_length=255)
     source_uri: str | None = Field(default=None, sa_type=Text)
-    status: ChatbotKnowledgeStatus = Field(default=ChatbotKnowledgeStatus.pending, sa_type=String(32))
+    status: ChatbotKnowledgeStatus = Field(
+        default=ChatbotKnowledgeStatus.pending, sa_type=String(32)
+    )
     index_version: int = Field(default=1, index=True)
     content_hash: str | None = Field(default=None, max_length=128)
     config_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     error_message: str | None = Field(default=None, sa_type=Text)
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
-    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
     indexed_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
 
 
@@ -203,7 +233,9 @@ class ChatbotKnowledgeChunk(SQLModel, table=True):
 
     __tablename__ = "chatbot_knowledge_chunks"
     __table_args__ = (
-        UniqueConstraint("source_id", "chunk_index", name="uq_chatbot_chunk_source_index"),
+        UniqueConstraint(
+            "source_id", "chunk_index", name="uq_chatbot_chunk_source_index"
+        ),
         Index("idx_chatbot_chunk_workspace_version", "workspace_id", "index_version"),
     )
 
@@ -214,9 +246,13 @@ class ChatbotKnowledgeChunk(SQLModel, table=True):
     chunk_index: int
     content: str = Field(sa_type=Text)
     token_count: int = Field(default=0)
-    embedding: list[float] | None = Field(default=None, sa_column=Column(PgVector(768), nullable=True))
+    embedding: list[float] | None = Field(
+        default=None, sa_column=Column(PgVector(768), nullable=True)
+    )
     metadata_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class ChatbotConversation(SQLModel, table=True):
@@ -231,7 +267,11 @@ class ChatbotConversation(SQLModel, table=True):
             name="uq_chatbot_conversation_workspace_visitor",
         ),
         Index("idx_chatbot_conversation_workspace_status", "workspace_id", "status"),
-        Index("idx_chatbot_conversation_workspace_last_message", "workspace_id", "last_message_at"),
+        Index(
+            "idx_chatbot_conversation_workspace_last_message",
+            "workspace_id",
+            "last_message_at",
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -239,8 +279,15 @@ class ChatbotConversation(SQLModel, table=True):
     channel_type: ChatbotChannelType = Field(sa_type=String(32), index=True)
     visitor_id: str = Field(max_length=255, index=True)
     provider_thread_id: str | None = Field(default=None, max_length=255)
-    contact_id: uuid.UUID | None = Field(default=None, foreign_key="contacts.id", index=True)
-    status: ChatbotConversationStatus = Field(default=ChatbotConversationStatus.open, sa_type=String(32))
+    shared_contact_id: uuid.UUID | None = Field(
+        default=None,
+        alias="contact_id",
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=True),
+    )
+    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
+    status: ChatbotConversationStatus = Field(
+        default=ChatbotConversationStatus.open, sa_type=String(32)
+    )
     index_version: int = Field(default=1)
     bot_paused: bool = Field(default=False)
     escalated: bool = Field(default=False)
@@ -251,15 +298,31 @@ class ChatbotConversation(SQLModel, table=True):
     )
     lead_capture_intent: str | None = Field(default=None, max_length=128)
     outcome: ChatbotConversationOutcome | None = Field(default=None, sa_type=String(32))
-    turn_count: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
-    consecutive_low_confidence_count: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
-    session_token_total: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
-    last_message_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True), index=True)
-    customer_last_message_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    turn_count: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, default=0)
+    )
+    consecutive_low_confidence_count: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, default=0)
+    )
+    session_token_total: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, default=0)
+    )
+    last_message_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True), index=True
+    )
+    customer_last_message_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True)
+    )
     resolved_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    deleted_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True), index=True)
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
-    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    deleted_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True), index=True
+    )
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class ChatbotMessage(SQLModel, table=True):
@@ -272,25 +335,39 @@ class ChatbotMessage(SQLModel, table=True):
             "provider_message_id",
             name="uq_chatbot_message_workspace_provider_message",
         ),
-        Index("idx_chatbot_message_conversation_created", "conversation_id", "created_at"),
+        Index(
+            "idx_chatbot_message_conversation_created", "conversation_id", "created_at"
+        ),
         Index("idx_chatbot_message_workspace_sender", "workspace_id", "sender"),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
-    conversation_id: uuid.UUID = Field(foreign_key="chatbot_conversations.id", index=True)
+    conversation_id: uuid.UUID = Field(
+        foreign_key="chatbot_conversations.id", index=True
+    )
     provider_message_id: str | None = Field(default=None, max_length=255)
     direction: ChatbotMessageDirection = Field(sa_type=String(16), index=True)
     sender: ChatbotMessageSender = Field(sa_type=String(16), index=True)
     message_type: str = Field(default="text", max_length=32)
     content: str | None = Field(default=None, sa_type=Text)
-    bot_confidence: float | None = Field(default=None, sa_column=Column(Float, nullable=True))
-    prompt_tokens: int | None = Field(default=None, sa_column=Column(Integer, nullable=True))
-    completion_tokens: int | None = Field(default=None, sa_column=Column(Integer, nullable=True))
+    bot_confidence: float | None = Field(
+        default=None, sa_column=Column(Float, nullable=True)
+    )
+    prompt_tokens: int | None = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
+    completion_tokens: int | None = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
     metadata_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True), index=True)
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True), index=True
+    )
     delivered_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    deleted_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True), index=True)
+    deleted_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True), index=True
+    )
 
 
 class ChatbotOptOut(SQLModel, table=True):
@@ -298,7 +375,12 @@ class ChatbotOptOut(SQLModel, table=True):
 
     __tablename__ = "chatbot_opt_outs"
     __table_args__ = (
-        UniqueConstraint("workspace_id", "channel_type", "visitor_id", name="uq_chatbot_opt_out_visitor"),
+        UniqueConstraint(
+            "workspace_id",
+            "channel_type",
+            "visitor_id",
+            name="uq_chatbot_opt_out_visitor",
+        ),
         Index("idx_chatbot_opt_out_workspace_created", "workspace_id", "created_at"),
     )
 
@@ -306,11 +388,22 @@ class ChatbotOptOut(SQLModel, table=True):
     workspace_id: str = Field(sa_type=String(64), index=True)
     channel_type: ChatbotChannelType = Field(sa_type=String(32), index=True)
     visitor_id: str = Field(max_length=255, index=True)
-    contact_id: uuid.UUID | None = Field(default=None, foreign_key="contacts.id", index=True)
+    shared_contact_id: uuid.UUID | None = Field(
+        default=None,
+        alias="contact_id",
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=True),
+    )
+    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     reason: str | None = Field(default=None, max_length=255)
-    source_message_id: uuid.UUID | None = Field(default=None, foreign_key="chatbot_messages.id")
-    reopt_in_invited_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    source_message_id: uuid.UUID | None = Field(
+        default=None, foreign_key="chatbot_messages.id"
+    )
+    reopt_in_invited_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True)
+    )
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
 
 
 class ChatbotAnalyticsSnapshot(SQLModel, table=True):
@@ -336,4 +429,6 @@ class ChatbotAnalyticsSnapshot(SQLModel, table=True):
     escalations: int = Field(default=0)
     leads_captured: int = Field(default=0)
     metrics_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )

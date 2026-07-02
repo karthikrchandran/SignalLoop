@@ -18,6 +18,7 @@ from app.domain.chatbot.models import (
     ChatbotMessageSender,
 )
 from app.domain.chatbot.schemas import ChatbotThreadReplyRequest
+from app.domain_models import ContactPublic
 from app.models import User
 from app.routers.chatbot.inbox import (
     export_threads,
@@ -161,3 +162,48 @@ def test_export_is_workspace_scoped() -> None:
         body = response.body.decode()
         assert "in scope" in body
         assert "not in scope" not in body
+
+
+def test_whatsapp_threads_use_shared_contact_details(monkeypatch: pytest.MonkeyPatch) -> None:
+    contact_id = uuid.uuid4()
+
+    def get_shared_contact(**kwargs):
+        assert kwargs == {"workspace_id": "ws-a", "contact_id": contact_id}
+        return ContactPublic(
+            id=contact_id,
+            workspace_id="ws-a",
+            account_id=None,
+            email="ada@example.com",
+            first_name="Ada",
+            last_name="Lovelace",
+            company="Analytical",
+            phone="+15551234567",
+            timezone="UTC",
+            source_channel="whatsapp_business",
+            tags_json=["chatbot-lead", "whatsapp_business"],
+            intent_json=["demo-request"],
+            last_seen_at=datetime.now(timezone.utc),
+            created_at=datetime.now(timezone.utc),
+        )
+
+    monkeypatch.setattr(
+        "app.routers.chatbot.inbox.shared_record_service.get_shared_contact",
+        get_shared_contact,
+    )
+
+    with _session() as session:
+        conversation = _conversation(
+            session,
+            channel_type=ChatbotChannelType.whatsapp_business,
+            visitor_id="15551234567",
+        )
+        conversation.shared_contact_id = contact_id
+        session.add(conversation)
+        session.commit()
+
+        result = list_threads("ws-a", session, _user(), limit=10)
+
+    assert result.data[0].lead is not None
+    assert result.data[0].lead.email == "ada@example.com"
+    assert result.data[0].lead.source_channel == "whatsapp_business"
+    assert "chatbot-lead" in result.data[0].lead.tags

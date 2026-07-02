@@ -16,9 +16,10 @@ from app.domain.outreach.outbox_service import (
     mark_outbox_published,
 )
 from app.domain.runtime_settings import resolve_team_notification_email
+from app.domain.shared_records import service as shared_record_service
 from app.domain.voice.models import CallOutcome, CallRequest, CallSession
 from app.domain.voice.summary_generator import generate_summary
-from app.domain_models import Contact, OutboxEvent
+from app.domain_models import Campaign, OutboxEvent
 from app.infrastructure.providers.base import EmailAdapter
 from app.infrastructure.providers.registry import resolve_email_adapter
 from app.infrastructure.providers.sendgrid import SendGridAdapter
@@ -63,7 +64,7 @@ def _prepare_postcall_summary_intent(
         event_data={
             "call_session_id": str(call_session.id),
             "call_request_id": str(call_request.id),
-            "contact_id": str(call_request.contact_id),
+            "contact_id": str(call_request.shared_contact_id),
             "campaign_id": str(call_request.campaign_id),
             "to": team_email,
         },
@@ -125,7 +126,19 @@ async def _send_summary(
     if not call_request:
         return
 
-    contact = session.get(Contact, call_request.contact_id)
+    workspace_id = settings.DEFAULT_WORKSPACE_ID
+    campaign = session.get(Campaign, call_request.campaign_id)
+    if campaign is not None:
+        workspace_id = campaign.workspace_id
+    shared_contact = shared_record_service.get_shared_contact(
+        workspace_id=workspace_id,
+        contact_id=call_request.shared_contact_id,
+    )
+    contact = (
+        shared_record_service.shared_contact_to_contact(shared_contact)
+        if shared_contact
+        else None
+    )
     contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() if contact else "Unknown"
     contact_company = contact.company or "" if contact else ""
     contact_email = contact.email if contact else ""
@@ -137,7 +150,7 @@ async def _send_summary(
         contact_email=contact_email,
     )
 
-    workspace_id = contact.workspace_id if contact else settings.DEFAULT_WORKSPACE_ID
+    workspace_id = contact.workspace_id if contact else workspace_id
     team_email = resolve_team_notification_email(session, workspace_id)
     if not team_email:
         logger.warning("TEAM_NOTIFICATION_EMAIL not configured, skipping send")

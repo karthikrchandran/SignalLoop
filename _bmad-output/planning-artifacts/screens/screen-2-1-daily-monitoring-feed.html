@@ -12,19 +12,94 @@
       <h1>SignalLoop Screen 2.1</h1>
       <p>Journey 2 - Daily Monitoring Feed</p>
     </div>
-    <a class="btn" href="index.html">Back to Home</a>
+    <a class="btn" href="index.html">Back to Gallery</a>
   </div>
 
   <div class="wrap">
-    <div class="card">
-      <div class="card-head">
-        <div class="screen-id">Screen 2.1</div>
-        <div class="title">Daily Monitoring Feed</div>
-      </div>
-      <div class="body">Default operations view with mixed status activity cards and quick filters.<div class="mini-frame"><div class="mini-header"><span>Feed</span><span>Filters</span></div><div class="mini-content"><div class="row"><span class="chip ok">Demo Booked</span><span class="chip warn">Needs Review</span><span class="chip err">Exception</span></div></div></div></div>
+    <div class="hero">
+      <section class="hero-card">
+        <h2>Company-wide dashboard with charts, queues, and ranked signals.</h2>
+        <p>
+          This is the main command center view. It combines summary charts, a rep ranking,
+          a follow-up queue, and exception visibility so the day can be read in one screen.
+        </p>
+        <div class="hero-meta">
+          <span class="pill brand">Company-wide</span>
+          <span class="pill teal">Trend charts</span>
+          <span class="pill violet">Ranked lists</span>
+          <span class="pill good">Attention signals</span>
+        </div>
+      </section>
+      <aside class="hero-side">
+        <div class="stat-grid">
+          <div class="stat"><small>Active</small><strong>42</strong><span>campaigns</span></div>
+          <div class="stat"><small>At risk</small><strong>7</strong><span>needs review</span></div>
+          <div class="stat"><small>Booked</small><strong>18</strong><span>today</span></div>
+          <div class="stat"><small>Follow-ups</small><strong>24</strong><span>due</span></div>
+        </div>
+      </aside>
     </div>
 
-    <div class="nav">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="screen-id">Screen 2.1</div>
+          <div class="title">Daily Monitoring Feed</div>
+        </div>
+        <span class="pill brand">Dashboard</span>
+      </div>
+      <div class="card-body">
+        <div class="dashboard-layout">
+          <div class="stack">
+            <div class="surface surface-pad">
+              <h3 class="section-title" style="font-size: 18px;">Today by outcome</h3>
+              <div class="bar-chart" style="margin-top: 12px;">
+                <div class="bar-row"><div>Booked</div><div class="bar-track"><div class="bar-fill good" style="width: 74%;"></div></div><div>74</div></div>
+                <div class="bar-row"><div>Pending</div><div class="bar-track"><div class="bar-fill alt" style="width: 56%;"></div></div><div>56</div></div>
+                <div class="bar-row"><div>Needs review</div><div class="bar-track"><div class="bar-fill warn" style="width: 31%;"></div></div><div>31</div></div>
+                <div class="bar-row"><div>Blocked</div><div class="bar-track"><div class="bar-fill" style="width: 12%; background: linear-gradient(90deg, #dc2626, #fb7185);"></div></div><div>12</div></div>
+              </div>
+            </div>
+
+            <div class="split">
+              <div class="surface surface-pad">
+                <h3 class="section-title" style="font-size: 18px;">Top reps</h3>
+                <div class="list" style="margin-top: 12px;">
+                  <div class="list-item"><strong>Priya</strong><span>14 booked</span></div>
+                  <div class="list-item"><strong>Sam</strong><span>11 booked</span></div>
+                  <div class="list-item"><strong>Arjun</strong><span>9 booked</span></div>
+                </div>
+              </div>
+              <div class="surface surface-pad">
+                <h3 class="section-title" style="font-size: 18px;">Follow-up queue</h3>
+                <div class="list" style="margin-top: 12px;">
+                  <div class="list-item"><strong>Warm leads</strong><span>12 due</span></div>
+                  <div class="list-item"><strong>Re-engage</strong><span>7 due</span></div>
+                  <div class="list-item"><strong>Callback</strong><span>5 due</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="stack">
+            <div class="surface surface-pad">
+              <h3 class="section-title" style="font-size: 18px;">Attention signals</h3>
+              <div class="list" style="margin-top: 12px;">
+                <div class="alert-row"><strong>Campaign A</strong><span class="chip warn">open rate down</span></div>
+                <div class="alert-row"><strong>Campaign B</strong><span class="chip good">reply lift up</span></div>
+                <div class="alert-row"><strong>Campaign C</strong><span class="chip bad">3 errors</span></div>
+              </div>
+            </div>
+            <div class="surface surface-pad">
+              <h3 class="section-title" style="font-size: 18px;">Company pulse</h3>
+              <div class="ring">18<small>booked today</small></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-nav">
       <a class="btn" href="screen-1-5-first-activation-feed-state.html">Previous: 1.5</a>
       <a class="btn" href="index.html">Home</a>
       <a class="btn primary" href="screen-2-2-exception-expanded-panel.html">Next: 2.2</a>

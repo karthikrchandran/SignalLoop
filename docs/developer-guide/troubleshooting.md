@@ -221,7 +221,28 @@ $env:PYTHONDONTWRITEBYTECODE = '1'
 [System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))
 ```
 
-## 18. Playwright spec times out
+## 18. `StartApp.ps1` brings up the web app but the browser shows a generic network error
+
+**Symptom:** The Vite window starts, but the API window dies immediately and the browser later shows a generic network error. The API crash includes `UnicodeEncodeError` from the FastAPI CLI / Rich console output on Windows.
+
+**Cause:** The Windows console is using a non-UTF-8 code page, and `fastapi dev` writes emoji-rich startup output that crashes before the API is fully online.
+
+**Fix:** Use the repo `StartApp.ps1` as shipped now, which starts the API through `uvicorn` with UTF-8 environment settings:
+
+```powershell
+.\StartApp.ps1
+```
+
+If you need to run the API manually, use:
+
+```powershell
+cd apps\api
+$env:PYTHONIOENCODING='utf-8'
+$env:PYTHONUTF8='1'
+uv run python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
+```
+
+## 19. Playwright spec times out
 
 **Common causes:**
 
@@ -230,7 +251,7 @@ $env:PYTHONDONTWRITEBYTECODE = '1'
 3. Database was not seeded; the spec expects fixtures that aren't there. Run `uv run seed_db.py`.
 4. First-run delay — Playwright needs to launch the browser; allow a longer timeout on the first run.
 
-## 19. Frontend can't reach the API (CORS or 404)
+## 20. Frontend can't reach the API (CORS or 404)
 
 **Checks:**
 

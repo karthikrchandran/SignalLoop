@@ -71,7 +71,7 @@ type AudienceMode = (typeof audienceModes)[number]["value"]
 const filterFields = ["email", "firstName", "lastName", "company", "phone", "timezone"]
 const segmentOperators = ["equals", "contains", "startsWith", "in-list"]
 
-const steps = ["Campaign basics", "Audience selection", "Offer/channel strategy"]
+const steps = ["Draft basics", "Audience and segment", "Launch setup"]
 
 function contactName(contact: Contact) {
   return [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "-"
@@ -180,7 +180,7 @@ export default function CampaignIntakeWizardPage() {
         body: { name: campaignName.trim() },
       })
       setCampaignId(campaign.id)
-      setFeedback(`Campaign draft ${campaign.name} created.`)
+      setFeedback(`Draft ${campaign.name} created.`)
       setStep(1)
     })
   }
@@ -221,7 +221,7 @@ export default function CampaignIntakeWizardPage() {
           channel_strategy: JSON.parse(channelStrategy),
         },
       })
-      setFeedback("Campaign intake flow complete. Draft audience and strategy saved.")
+      setFeedback("Draft setup saved. Strategy is ready for launch review.")
     })
   }
 
@@ -242,9 +242,9 @@ export default function CampaignIntakeWizardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Campaign intake</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Campaign draft builder</h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Create a campaign draft, choose leads from the contact pool, and assign channel strategy.
+          Create a draft, choose an audience, and line up the launch details before the campaign goes live.
         </p>
       </div>
 
@@ -254,17 +254,19 @@ export default function CampaignIntakeWizardPage() {
           <CardDescription>{steps.map((item, index) => `${index + 1}. ${item}`).join("  |  ")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm">Current step: <strong>{step + 1}. {steps[step]}</strong></p>
+          <p className="text-sm">
+            Current step: <strong>{step + 1}. {steps[step]}</strong>
+          </p>
         </CardContent>
       </Card>
 
       {step === 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Step 1: Campaign basics</CardTitle>
+            <CardTitle>Step 1: Draft basics</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Label htmlFor="campaignName">Campaign name</Label>
+            <Label htmlFor="campaignName">Draft name</Label>
             <Input id="campaignName" value={campaignName} onChange={(event) => setCampaignName(event.target.value)} placeholder="Q2 Product Outreach" />
           </CardContent>
         </Card>
@@ -273,7 +275,7 @@ export default function CampaignIntakeWizardPage() {
       {step === 1 && (
         <Card>
           <CardHeader>
-            <CardTitle>Step 2: Audience selection</CardTitle>
+            <CardTitle>Step 2: Audience and segment</CardTitle>
             <CardDescription>{contactCount} available contact{contactCount === 1 ? "" : "s"}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -344,7 +346,7 @@ export default function CampaignIntakeWizardPage() {
                     if (event.key === "Enter") void loadContacts(contactSearch)
                   }}
                   className="pl-9"
-                  placeholder="Search lead pool"
+                  placeholder="Search contacts"
                 />
               </div>
               <Button variant="outline" onClick={() => void loadContacts(contactSearch)} disabled={loadingContacts}>
@@ -399,9 +401,9 @@ export default function CampaignIntakeWizardPage() {
       {step === 2 && (
         <Card>
           <CardHeader>
-            <CardTitle>Step 3: Offer/channel strategy</CardTitle>
+            <CardTitle>Step 3: Launch setup</CardTitle>
             {audienceResult && (
-              <CardDescription>{audienceResult.selected_count} contacts assigned to this campaign</CardDescription>
+              <CardDescription>{audienceResult.selected_count} contacts assigned to this draft</CardDescription>
             )}
           </CardHeader>
           <CardContent className="space-y-3">
@@ -453,7 +455,7 @@ export default function CampaignIntakeWizardPage() {
         </Button>
         <Button onClick={onContinue} disabled={!canMoveForward || busy}>
           {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : step === 1 ? <Users className="mr-2 size-4" /> : <CheckCircle2 className="mr-2 size-4" />}
-          {step === steps.length - 1 ? "Save strategy" : "Continue"}
+          {step === steps.length - 1 ? "Save draft setup" : "Continue"}
         </Button>
       </div>
     </div>

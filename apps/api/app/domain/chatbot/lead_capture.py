@@ -8,7 +8,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.domain.audit.audit_events import append_audit_event_to_session
 from app.domain.chatbot.models import (
@@ -18,7 +18,8 @@ from app.domain.chatbot.models import (
     ChatbotConversationOutcome,
     ChatbotLeadCaptureState,
 )
-from app.domain_models import Contact
+from app.domain.shared_records import service as shared_record_service
+from app.domain_models import ContactPublic
 
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 PHONE_RE = re.compile(r"(?:\+?\d[\d\s().-]{7,}\d)")
@@ -251,7 +252,7 @@ class LeadCaptureStateMachine:
             intent=intent,
         )
         conversation.lead_capture_state = ChatbotLeadCaptureState.confirmed
-        conversation.contact_id = contact.id
+        conversation.shared_contact_id = contact.id
         conversation.outcome = ChatbotConversationOutcome.lead_captured
         self._session.add(conversation)
         append_audit_event_to_session(
@@ -290,35 +291,26 @@ class LeadCaptureStateMachine:
         email: str | None,
         phone: str | None,
         intent: str,
-    ) -> Contact:
-        contact = None
-        if email:
-            contact = self._session.exec(
-                select(Contact).where(Contact.workspace_id == workspace_id, Contact.email == email.lower())
-            ).first()
-        if contact is None and phone:
-            contact = self._session.exec(
-                select(Contact).where(Contact.workspace_id == workspace_id, Contact.phone == phone)
-            ).first()
-
-        if contact is None:
-            contact = Contact(
-                workspace_id=workspace_id,
-                email=email or _placeholder_email(channel_type, visitor_id),
-                phone=phone,
-                timezone="UTC",
-            )
-
+    ) -> ContactPublic:
         first_name, last_name = _split_name(name)
-        contact.first_name = first_name or contact.first_name
-        contact.last_name = last_name or contact.last_name
-        if email and contact.email.endswith("@chatbot.local.invalid"):
-            contact.email = email
-        contact.phone = phone or contact.phone
-        contact.source_channel = channel_type.value
-        contact.tags_json = _append_unique(contact.tags_json, "chatbot-lead", channel_type.value)
-        contact.intent_json = _append_unique(contact.intent_json, intent)
-        contact.last_seen_at = _now()
-        self._session.add(contact)
-        self._session.flush()
-        return contact
+        normalized_email = email.lower() if email else None
+        normalized_phone = phone or None
+        identity = normalized_email or normalized_phone or visitor_id
+        contact_id = uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"emailvoice:chatbot-contact:{workspace_id}:{channel_type.value}:{identity}",
+        )
+        return shared_record_service.upsert_shared_contact(
+            workspace_id=workspace_id,
+            contact_id=contact_id,
+            email=normalized_email or _placeholder_email(channel_type, visitor_id),
+            first_name=first_name,
+            last_name=last_name,
+            company=None,
+            phone=normalized_phone,
+            timezone="UTC",
+            source_channel=channel_type.value,
+            tags_json=_append_unique(None, "chatbot-lead", channel_type.value),
+            intent_json=_append_unique(None, intent),
+            last_seen_at=_now(),
+        )

@@ -12,19 +12,76 @@
       <h1>SignalLoop Screen 2.3</h1>
       <p>Journey 2 - Sensitivity Preference Modal</p>
     </div>
-    <a class="btn" href="index.html">Back to Home</a>
+    <a class="btn" href="index.html">Back to Gallery</a>
   </div>
 
   <div class="wrap">
-    <div class="card">
-      <div class="card-head">
-        <div class="screen-id">Screen 2.3</div>
-        <div class="title">Sensitivity Preference Modal</div>
-      </div>
-      <div class="body">Admin controls for automation sensitivity and escalation behavior.<div class="mini-frame"><div class="mini-header"><span>Sensitivity Settings</span><span>Save</span></div><div class="mini-content"><div class="row"><span class="chip">No-reply > 3x</span><span class="chip">Auto-escalate 5 days</span></div></div></div></div>
+    <div class="hero">
+      <section class="hero-card">
+        <h2>A focused modal for tuning alert sensitivity and noise level.</h2>
+        <p>
+          The modal uses a real settings treatment instead of a generic pop-up. Users can see
+          the trade-off between catching more issues and reducing false positives.
+        </p>
+        <div class="hero-meta">
+          <span class="pill violet">Settings modal</span>
+          <span class="pill warn">Noise reduction</span>
+          <span class="pill good">Safer alerts</span>
+        </div>
+      </section>
+      <aside class="hero-side">
+        <div class="stat-grid">
+          <div class="stat"><small>Current</small><strong>Medium</strong><span>default</span></div>
+          <div class="stat"><small>False positives</small><strong>11%</strong><span>today</span></div>
+          <div class="stat"><small>Alerts kept</small><strong>89%</strong><span>coverage</span></div>
+          <div class="stat"><small>Mode</small><strong>Adaptive</strong><span>on</span></div>
+        </div>
+      </aside>
     </div>
 
-    <div class="nav">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="screen-id">Screen 2.3</div>
+          <div class="title">Sensitivity Preference Modal</div>
+        </div>
+        <span class="pill violet">Modal</span>
+      </div>
+      <div class="card-body">
+        <div class="modal-backdrop">
+          <div class="modal">
+            <div class="modal-head">
+              <div class="screen-id">Alert tuning</div>
+              <div class="title" style="font-size: 20px;">Choose the sensitivity level</div>
+            </div>
+            <div class="modal-body">
+              <div class="split">
+                <div class="surface surface-pad">
+                  <h3 class="section-title" style="font-size: 18px;">Sensitivity</h3>
+                  <div class="bar-row"><div>Lower noise</div><div class="bar-track"><div class="bar-fill good" style="width: 64%;"></div></div><div>64%</div></div>
+                  <div class="bar-row"><div>Balanced</div><div class="bar-track"><div class="bar-fill alt" style="width: 82%;"></div></div><div>82%</div></div>
+                  <div class="bar-row"><div>High catch rate</div><div class="bar-track"><div class="bar-fill warn" style="width: 92%;"></div></div><div>92%</div></div>
+                </div>
+                <div class="surface surface-pad">
+                  <h3 class="section-title" style="font-size: 18px;">What changes</h3>
+                  <div class="list" style="margin-top: 12px;">
+                    <div class="list-item"><strong>More alerts</strong><span>high</span></div>
+                    <div class="list-item"><strong>More review work</strong><span>medium</span></div>
+                    <div class="list-item"><strong>Fewer misses</strong><span>high</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <a class="btn ghost" href="screen-2-2-exception-expanded-panel.html">Cancel</a>
+              <a class="btn primary" href="#">Save preference</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-nav">
       <a class="btn" href="screen-2-2-exception-expanded-panel.html">Previous: 2.2</a>
       <a class="btn" href="index.html">Home</a>
       <a class="btn primary" href="screen-2-4-daily-summary-card.html">Next: 2.4</a>

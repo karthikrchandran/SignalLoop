@@ -12,7 +12,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 from app.api.routes import calls
 from app.domain.audit.audit_events import AuditEvent
 from app.domain.voice.models import CallOutcome, CallRequest, CallSession, VoiceScript
-from app.domain_models import Campaign, Contact, OutboxEvent
+from app.domain_models import Campaign, Contact, ContactPublic, OutboxEvent
 
 
 def _run(coro):
@@ -192,6 +192,67 @@ def test_queue_test_call_creates_queued_request_and_audit_event() -> None:
     assert queued_call.voice_script_id == expected_script_id
     assert queued_call.trigger_reason == "manual_test_call"
     assert audit_events[-1].event_name == "call.test_call_queued"
+
+
+def test_queue_test_call_uses_shared_contact_when_enabled(monkeypatch) -> None:
+    monkeypatch.setattr(calls.settings, "USE_ECRM_SHARED_RECORDS", True)
+
+    def get_shared_contact(**kwargs):
+        assert kwargs == {
+            "workspace_id": "ws",
+            "contact_id": contact_id,
+        }
+        return ContactPublic(
+            id=contact_id,
+            workspace_id="ws",
+            account_id=None,
+            email="caller@example.com",
+            first_name="Casey",
+            last_name="Call",
+            company="ExampleCo",
+            phone="+15551234567",
+            timezone="UTC",
+            created_at=datetime.now(timezone.utc),
+        )
+
+    monkeypatch.setattr(
+        calls.shared_record_service,
+        "get_shared_contact",
+        get_shared_contact,
+    )
+
+    with _session() as session:
+        owner_id = uuid.uuid4()
+        campaign = Campaign(
+            name="Campaign",
+            workspace_id="ws",
+            created_by=owner_id,
+        )
+        session.add(campaign)
+        session.flush()
+        script = VoiceScript(
+            campaign_id=campaign.id,
+            name="Script",
+            content="Say hello.",
+            created_by=owner_id,
+        )
+        session.add(script)
+        session.commit()
+
+        contact_id = uuid.uuid4()
+        result = calls._queue_test_call_once(
+            session=session,
+            current_user=_user(),
+            workspace_id="ws",
+            payload=calls.TestCallCreate(
+                contact_id=contact_id,
+                campaign_id=campaign.id,
+                voice_script_id=script.id,
+            ),
+        )
+
+    assert result.contact_id == contact_id
+    assert result.message == "Test call queued"
 
 
 def test_call_detail_returns_outcome_intelligence() -> None:

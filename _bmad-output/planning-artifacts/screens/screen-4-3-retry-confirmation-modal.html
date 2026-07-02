@@ -12,19 +12,77 @@
       <h1>SignalLoop Screen 4.3</h1>
       <p>Journey 4 - Retry Confirmation Modal</p>
     </div>
-    <a class="btn" href="index.html">Back to Home</a>
+    <a class="btn" href="index.html">Back to Gallery</a>
   </div>
 
   <div class="wrap">
-    <div class="card">
-      <div class="card-head">
-        <div class="screen-id">Screen 4.3</div>
-        <div class="title">Retry Confirmation Modal</div>
-      </div>
-      <div class="body">Confirmation flow before scheduled retry and audit stamp entry.<div class="mini-frame"><div class="mini-header"><span>Confirm Retry</span><span>03/25 9:00 AM</span></div><div class="mini-content"><div class="row"><span class="chip warn">Audit reason required</span></div></div></div></div>
+    <div class="hero">
+      <section class="hero-card">
+        <h2>A confirmation modal that makes the retry decision explicit.</h2>
+        <p>
+          This modal clearly states what will happen if the user retries the failed batch and
+          what the downside is if the failure repeats.
+        </p>
+        <div class="hero-meta">
+          <span class="pill violet">Confirmation</span>
+          <span class="pill warn">Retry risk</span>
+          <span class="pill good">Proceed safely</span>
+        </div>
+      </section>
+      <aside class="hero-side">
+        <div class="stat-grid">
+          <div class="stat"><small>Retry</small><strong>1</strong><span>click</span></div>
+          <div class="stat"><small>Delay</small><strong>30s</strong><span>queued</span></div>
+          <div class="stat"><small>Scope</small><strong>12</strong><span>records</span></div>
+          <div class="stat"><small>Fallback</small><strong>Pause</strong><span>ready</span></div>
+        </div>
+      </aside>
     </div>
 
-    <div class="nav">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="screen-id">Screen 4.3</div>
+          <div class="title">Retry Confirmation Modal</div>
+        </div>
+        <span class="pill violet">Modal</span>
+      </div>
+      <div class="card-body">
+        <div class="modal-backdrop">
+          <div class="modal">
+            <div class="modal-head">
+              <div class="screen-id">Confirm action</div>
+              <div class="title" style="font-size: 20px;">Retry the failed batch?</div>
+            </div>
+            <div class="modal-body">
+              <div class="split">
+                <div class="surface surface-pad">
+                  <h3 class="section-title" style="font-size: 18px;">If you retry</h3>
+                  <div class="list" style="margin-top: 12px;">
+                    <div class="list-item"><strong>Re-send 12 records</strong><span>immediately</span></div>
+                    <div class="list-item"><strong>Clear current error</strong><span>if successful</span></div>
+                    <div class="list-item"><strong>Resume queue</strong><span>automatically</span></div>
+                  </div>
+                </div>
+                <div class="surface surface-pad">
+                  <h3 class="section-title" style="font-size: 18px;">If it fails again</h3>
+                  <div class="chip-row" style="margin-top: 12px;">
+                    <span class="chip warn">Pause campaign</span>
+                    <span class="chip bad">Escalate ops</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <a class="btn ghost" href="screen-4-2-error-detail-panel.html">Cancel</a>
+              <a class="btn primary" href="#">Retry batch</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-nav">
       <a class="btn" href="screen-4-2-error-detail-panel.html">Previous: 4.2</a>
       <a class="btn" href="index.html">Home</a>
       <a class="btn primary" href="screen-4-4-audit-trail-entry.html">Next: 4.4</a>

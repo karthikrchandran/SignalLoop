@@ -1,21 +1,23 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 
 import pytest
 from pydantic import ValidationError
 from pytest import MonkeyPatch
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import Session, SQLModel, create_engine
 
 from app.domain.accounts.service import (
     account_to_public,
     find_or_create_account_for_company,
     generate_account_key,
 )
+from app.domain.shared_records import service as shared_service
 from app.domain_models import (
-    Account,
     AccountContactAssignment,
     AccountContactAssignmentPublic,
+    AccountPublic,
 )
 
 
@@ -32,7 +34,32 @@ def test_generate_account_key_normalizes_company_name() -> None:
     assert generate_account_key("ACME___Clinic!!!") == "acme-clinic"
 
 
-def test_find_or_create_account_reuses_account_by_workspace_and_key() -> None:
+def test_find_or_create_account_reuses_account_by_workspace_and_key(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    store: dict[str, dict[str, object]] = {}
+
+    def get_shared_record(record_id: str) -> dict[str, object]:
+        record = store.get(record_id)
+        if record is None:
+            raise shared_service.EcrmSharedRecordNotFound(record_id)
+        return record
+
+    def upsert_shared_record(payload: dict[str, object]) -> dict[str, object]:
+        store[str(payload["emailVoiceLegacyId"])] = {"record": payload, "created": True}
+        return store[str(payload["emailVoiceLegacyId"])]
+
+    monkeypatch.setattr(
+        shared_service.ecrm_shared_records,
+        "get_shared_record",
+        get_shared_record,
+    )
+    monkeypatch.setattr(
+        shared_service.ecrm_shared_records,
+        "upsert_shared_record",
+        upsert_shared_record,
+    )
+
     with _session() as session:
         first = find_or_create_account_for_company(
             session,
@@ -49,55 +76,66 @@ def test_find_or_create_account_reuses_account_by_workspace_and_key() -> None:
             workspace_id="ws-b",
             company_name="Analytical Health Inc",
         )
-        session.commit()
 
-        accounts = session.exec(select(Account)).all()
-
+    assert first is not None
+    assert second is not None
+    assert other_workspace is not None
     assert first.id == second.id
-    assert other_workspace.id != first.id
-    assert len(accounts) == 2
     assert first.name == "Analytical Health, Inc."
     assert first.account_key == "analytical-health-inc"
-
-
-class _EmptyResult:
-    def first(self) -> None:
-        return None
+    assert other_workspace.workspace_id == "ws-b"
+    assert other_workspace.id != first.id
 
 
 def test_find_or_create_account_reselects_after_duplicate_key_race(
     monkeypatch: MonkeyPatch,
 ) -> None:
+    existing_id = uuid.uuid5(
+        uuid.NAMESPACE_URL, "emailvoice:account:ws-a:analytical-health-inc"
+    )
+    store = {
+        str(existing_id): {
+            "record": {
+                "id": str(existing_id),
+                "entityType": "CUSTOMER",
+                "displayName": "Analytical Health Inc",
+                "status": "active",
+                "companyName": "Analytical Health Inc",
+                "emailVoiceLegacyId": str(existing_id),
+                "data": {
+                    "workspaceId": "ws-a",
+                    "accountKey": "analytical-health-inc",
+                },
+                "createdAt": "2026-06-30T12:00:00Z",
+                "updatedAt": "2026-06-30T12:00:00Z",
+            },
+            "created": False,
+        }
+    }
+
+    def get_shared_record(record_id: str) -> dict[str, object]:
+        record = store.get(record_id)
+        if record is None:
+            raise shared_service.EcrmSharedRecordNotFound(record_id)
+        return record
+
+    def upsert_shared_record(payload: dict[str, object]) -> dict[str, object]:
+        record_id = str(payload["emailVoiceLegacyId"])
+        store[record_id] = {"record": payload, "created": record_id not in store}
+        return store[record_id]
+
+    monkeypatch.setattr(shared_service.ecrm_shared_records, "get_shared_record", get_shared_record)
+    monkeypatch.setattr(shared_service.ecrm_shared_records, "upsert_shared_record", upsert_shared_record)
+
     with _session() as session:
-        existing = Account(
-            workspace_id="ws-a",
-            name="Analytical Health Inc",
-            account_key="analytical-health-inc",
-        )
-        session.add(existing)
-        session.commit()
-        session.refresh(existing)
-
-        real_exec = session.exec
-        select_calls = 0
-
-        def exec_with_initial_miss(statement, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
-            nonlocal select_calls
-            select_calls += 1
-            if select_calls == 1:
-                return _EmptyResult()
-            return real_exec(statement, *args, **kwargs)
-
-        monkeypatch.setattr(session, "exec", exec_with_initial_miss)
-
         account = find_or_create_account_for_company(
             session,
             workspace_id="ws-a",
             company_name="Analytical Health, Inc.",
         )
 
-    assert account.id == existing.id
-    assert select_calls == 2
+    assert account is not None
+    assert account.id == existing_id
 
 
 def test_find_or_create_account_ignores_blank_company() -> None:
@@ -107,14 +145,13 @@ def test_find_or_create_account_ignores_blank_company() -> None:
             workspace_id="ws-a",
             company_name=" ",
         )
-        accounts = session.exec(select(Account)).all()
 
     assert account is None
-    assert accounts == []
 
 
 def test_account_to_public_maps_fields() -> None:
-    account = Account(
+    account = AccountPublic(
+        id=uuid.uuid4(),
         workspace_id="ws-a",
         name="Analytical Health",
         account_key="analytical-health",
@@ -122,7 +159,9 @@ def test_account_to_public_maps_fields() -> None:
         industry="Healthcare",
         status="active",
         summary="Multi-location buyer.",
-        tags_json=["pricing", "voice-ready"],
+        tags=["pricing", "voice-ready"],
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
 
     public = account_to_public(account)

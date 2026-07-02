@@ -5,11 +5,13 @@ from __future__ import annotations
 import asyncio
 import uuid
 from collections.abc import Generator
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from app.domain.shared_records import service as shared_record_service
 from app.domain.signals import trigger_service
 from app.domain.signals.models import SignalEvent
 from app.domain.signals.scheduling import SchedulingRequest
@@ -20,7 +22,9 @@ from app.domain.signals.trigger_service import (
     set_trigger_enabled,
 )
 from app.domain.voice.models import CallRequest, VoiceScript
-from app.domain_models import Campaign, Contact, OutboxEvent
+from app.domain_models import Campaign, Contact, ContactPublic, OutboxEvent
+
+_SHARED_CONTACTS: dict[uuid.UUID, Contact] = {}
 
 
 def _run(coro):
@@ -40,12 +44,18 @@ def session() -> Generator[Session, None, None]:
 def reset_trigger_state() -> Generator[None, None, None]:
     """Reset module-level toggle state and patch external sinks."""
     original = dict(trigger_service._trigger_enabled)
+    _SHARED_CONTACTS.clear()
     with patch.object(trigger_service, "append_audit_event", new=AsyncMock()):
         with patch.object(trigger_service, "SendGridAdapter") as adapter_cls:
             adapter_cls.return_value.send_email = AsyncMock(
                 return_value={"status_code": 202, "message_id": "x"}
             )
-            yield
+            with patch.object(
+                shared_record_service,
+                "get_shared_contact",
+                side_effect=lambda **kwargs: _SHARED_CONTACTS.get(kwargs["contact_id"]),
+            ):
+                yield
     trigger_service._trigger_enabled.clear()
     trigger_service._trigger_enabled.update(original)
 
@@ -63,6 +73,7 @@ def _make_contact(session: Session, **overrides) -> Contact:
     session.add(contact)
     session.commit()
     session.refresh(contact)
+    _SHARED_CONTACTS[contact.id] = contact
     return contact
 
 
@@ -184,6 +195,34 @@ def test_process_signal_no_active_script_skips_call(session: Session) -> None:
 def test_process_signal_send_demo_email_missing_contact(session: Session) -> None:
     """If contact is missing, send_demo_email returns silently."""
     sig = _make_signal(session, uuid.uuid4(), signal_type="email_positive_reply")
+    executed = _run(process_signal(session, sig))
+    assert "send_demo_email" in executed
+
+
+def test_process_signal_send_demo_email_uses_shared_contact_when_enabled(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Shared contact lookup should still allow demo emails without a local Contact row."""
+    contact_id = uuid.uuid4()
+    monkeypatch.setattr(trigger_service.settings, "USE_ECRM_SHARED_RECORDS", True)
+    monkeypatch.setattr(
+        trigger_service.shared_record_service,
+        "get_shared_contact",
+        lambda **kwargs: ContactPublic(
+            id=contact_id,
+            workspace_id="ws",
+            account_id=None,
+            email="alice@example.com",
+            first_name="Alice",
+            last_name="A",
+            company="Acme",
+            phone="+15551234567",
+            timezone="UTC",
+            created_at=datetime.now(timezone.utc),
+        ),
+    )
+    sig = _make_signal(session, contact_id, signal_type="email_positive_reply")
     executed = _run(process_signal(session, sig))
     assert "send_demo_email" in executed
 

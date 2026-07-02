@@ -7,7 +7,15 @@ import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.domain.contacts.progression_service import transition_contact_state
-from app.domain_models import Campaign, Contact, ContactProgressionState, ContactStateHistory
+from app.domain.shared_records import service as shared_record_service
+from app.domain_models import (
+    Campaign,
+    Contact,
+    ContactProgressionState,
+    ContactStateHistory,
+)
+
+_SHARED_CONTACTS: dict[uuid.UUID, Contact] = {}
 
 
 @pytest.fixture
@@ -18,11 +26,22 @@ def session() -> Generator[Session, None, None]:
         yield db
 
 
+@pytest.fixture(autouse=True)
+def _shared_contact_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    _SHARED_CONTACTS.clear()
+
+    def get_shared_contact(*, workspace_id: str, contact_id: uuid.UUID):  # noqa: ARG001
+        return _SHARED_CONTACTS.get(contact_id)
+
+    monkeypatch.setattr(shared_record_service, "get_shared_contact", get_shared_contact)
+
+
 def _seed_contact(session: Session) -> uuid.UUID:
     contact = Contact(workspace_id="ws-epic2", email="test@example.com")
     session.add(contact)
     session.commit()
     session.refresh(contact)
+    _SHARED_CONTACTS[contact.id] = contact
     return contact.id
 
 
@@ -80,6 +99,7 @@ def _seed_contact_for_workspace(session: Session, workspace_id: str) -> uuid.UUI
     session.add(contact)
     session.commit()
     session.refresh(contact)
+    _SHARED_CONTACTS[contact.id] = contact
     return contact.id
 
 

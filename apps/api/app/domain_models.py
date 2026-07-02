@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, ClassVar
 
 from sqlalchemy import (
     JSON,
@@ -15,8 +15,10 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    Uuid,
     text,
 )
+from sqlalchemy.orm import Synonym, synonym
 from sqlmodel import Field, SQLModel
 
 
@@ -469,9 +471,12 @@ class Contact(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
-    account_id: uuid.UUID | None = Field(
-        default=None, foreign_key="accounts.id", index=True
+    shared_account_id: uuid.UUID | None = Field(
+        default=None,
+        alias="account_id",
+        sa_column=Column("account_id", Uuid(), index=True, nullable=True),
     )
+    account_id: ClassVar[Synonym] = synonym("shared_account_id")
     email: str = Field(sa_type=String(255), index=True)
     first_name: str | None = Field(default=None, max_length=255)
     last_name: str | None = Field(default=None, max_length=255)
@@ -486,6 +491,7 @@ class Contact(SQLModel, table=True):
         default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
     )
 
+
 class ProspectingSnapshot(SQLModel, table=True):
     """Persisted prospecting research result for one contact."""
 
@@ -493,7 +499,11 @@ class ProspectingSnapshot(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
-    contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
+    shared_contact_id: uuid.UUID = Field(
+        alias="contact_id",
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
+    )
+    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     created_by: uuid.UUID | None = Field(default=None, index=True)
     company_url: str | None = Field(default=None, sa_type=Text)
     sources_json: list[dict[str, Any]] = Field(
@@ -520,7 +530,11 @@ class ContactProgression(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
+    shared_contact_id: uuid.UUID = Field(
+        alias="contact_id",
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
+    )
+    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     current_state: ContactProgressionState
     last_action_at: datetime | None = Field(
@@ -538,7 +552,11 @@ class ContactStateHistory(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
-    contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
+    shared_contact_id: uuid.UUID = Field(
+        alias="contact_id",
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
+    )
+    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     from_state: ContactProgressionState
     to_state: ContactProgressionState
@@ -571,7 +589,11 @@ class ActionQueue(SQLModel, table=True):
     __tablename__ = "action_queue"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
+    shared_contact_id: uuid.UUID = Field(
+        alias="contact_id",
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
+    )
+    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     action_type: str = Field(max_length=64)  # "send_email" | "make_call" | "send_sms"
     channel: str = Field(max_length=32)  # "email" | "phone" | "sms"
@@ -723,7 +745,11 @@ class ContactEvent(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
+    shared_contact_id: uuid.UUID = Field(
+        alias="contact_id",
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
+    )
+    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
     event_type: str = Field(max_length=128)
@@ -753,7 +779,11 @@ class RoutingDecision(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
+    shared_contact_id: uuid.UUID = Field(
+        alias="contact_id",
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
+    )
+    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
     decision_type: str = Field(max_length=128)
@@ -866,6 +896,10 @@ class ContactPublic(SQLModel):
     company: str | None = None
     phone: str | None = None
     timezone: str
+    source_channel: str | None = None
+    tags_json: list[str] = Field(default_factory=list)
+    intent_json: list[str] = Field(default_factory=list)
+    last_seen_at: datetime | None = None
     created_at: datetime
 
 
@@ -1407,7 +1441,11 @@ class DeadLetterEvent(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     action_queue_id: uuid.UUID = Field(foreign_key="action_queue.id", index=True)
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
-    contact_id: uuid.UUID = Field(foreign_key="contacts.id", index=True)
+    shared_contact_id: uuid.UUID = Field(
+        alias="contact_id",
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
+    )
+    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     workspace_id: str = Field(sa_type=String(64), index=True)
     action_type: str = Field(max_length=64)
     failure_reason: str | None = Field(default=None, sa_type=Text)

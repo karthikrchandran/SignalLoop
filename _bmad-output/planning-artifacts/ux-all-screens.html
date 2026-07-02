@@ -3,206 +3,81 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SignalLoop MVP Screen Inventory</title>
-  <style>
-    :root {
-      --brand: #1d4ed8;
-      --brand-deep: #1e3a8a;
-      --bg: #f8fafc;
-      --panel: #ffffff;
-      --text: #334155;
-      --muted: #64748b;
-      --border: #cbd5e1;
-      --success: #10b981;
-      --warning: #f59e0b;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      font-family: Inter, "Segoe UI", Roboto, sans-serif;
-      color: var(--text);
-      background: linear-gradient(180deg, #eff6ff 0%, var(--bg) 100%);
-    }
-
-    header {
-      padding: 32px 24px;
-      color: white;
-      background: linear-gradient(135deg, var(--brand) 0%, var(--brand-deep) 100%);
-    }
-
-    header h1 {
-      margin: 0 0 8px;
-      font-size: 28px;
-    }
-
-    header p {
-      margin: 0;
-      max-width: 840px;
-      line-height: 1.6;
-    }
-
-    main {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 24px;
-    }
-
-    .notice,
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 20px;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
-    }
-
-    .notice {
-      margin-bottom: 24px;
-    }
-
-    .grid {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    }
-
-    h2 {
-      margin-top: 0;
-      font-size: 20px;
-    }
-
-    h3 {
-      margin: 0 0 8px;
-      font-size: 17px;
-    }
-
-    ul {
-      margin: 12px 0 0 18px;
-      padding: 0;
-      line-height: 1.7;
-    }
-
-    .tag {
-      display: inline-block;
-      margin-right: 8px;
-      padding: 4px 10px;
-      font-size: 12px;
-      font-weight: 600;
-      border-radius: 999px;
-    }
-
-    .tag.mvp {
-      color: #0f172a;
-      background: #dbeafe;
-    }
-
-    .tag.scope {
-      color: #0f172a;
-      background: #fef3c7;
-    }
-
-    .muted {
-      color: var(--muted);
-    }
-  </style>
+  <title>SignalLoop Command Center Screen Inventory</title>
+  <link rel="stylesheet" href="screens/styles.css" />
 </head>
 <body>
-  <header>
-    <h1>SignalLoop MVP Screen Inventory</h1>
-    <p>
-      This page summarizes the revised MVP screen set. It replaces the earlier
-      exploratory gallery that included post-MVP concepts such as native mobile
-      flows and feedback analytics.
-    </p>
-  </header>
+  <div class="topbar">
+    <div>
+      <h1>SignalLoop Command Center</h1>
+      <p>New screen inventory with the dashboard rebuilt as an operational cockpit.</p>
+    </div>
+    <a class="btn" href="screens/index.html">Open Gallery</a>
+  </div>
 
-  <main>
-    <section class="notice">
-      <h2>Revision Note</h2>
-      <p>
-        The planning artifacts were rewritten on April 2, 2026 to align with the
-        product brief. The MVP screen set is now web-first, responsive, and focused
-        on outreach operations, booking, handoff, auditability, and KPI review.
-      </p>
+  <div class="wrap">
+    <div class="hero">
+      <section class="hero-card">
+        <h2>Command Center direction</h2>
+        <p>
+          The revised gallery is a cleaner, more analytical workspace. The dashboard now
+          emphasizes charts, ranked lists, and exception visibility, while the supporting
+          screens carry the same visual system through templates, lead detail, error handling,
+          and feedback flows.
+        </p>
+        <div class="hero-meta">
+          <span class="pill brand">Charts first</span>
+          <span class="pill teal">Lists and tables</span>
+          <span class="pill violet">Drawer and modal patterns</span>
+          <span class="pill good">Operational clarity</span>
+        </div>
+      </section>
+      <aside class="hero-side">
+        <div class="stat-grid">
+          <div class="stat"><small>Focused on</small><strong>Ops</strong><span>now</span></div>
+          <div class="stat"><small>Dashboard</small><strong>Charts</strong><span>priority</span></div>
+          <div class="stat"><small>Lists</small><strong>Ranked</strong><span>scannable</span></div>
+          <div class="stat"><small>States</small><strong>Modal</strong><span>consistent</span></div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="screen-id">Revision note</div>
+          <div class="title">What changed from the earlier gallery</div>
+        </div>
+        <span class="pill warn">Older exploratory look replaced</span>
+      </div>
+      <div class="card-body">
+        <div class="split">
+          <div class="surface surface-pad">
+            <div class="tag-row">
+              <span class="chip info">Dashboard charts</span>
+              <span class="chip info">Queue ranking</span>
+              <span class="chip info">Exception list</span>
+            </div>
+            <p class="note">
+              The old inventory leaned on simple page titles and generic placeholders.
+              The new version gives each screen a concrete operational role and uses a
+              stronger visual hierarchy so the pages feel like a product system.
+            </p>
+          </div>
+          <div class="surface surface-pad">
+            <div class="tag-row">
+              <span class="chip good">Calmer surfaces</span>
+              <span class="chip good">Visible controls</span>
+              <span class="chip good">Same language</span>
+            </div>
+            <p class="note">
+              The overall visual treatment stays consistent across all screens so the set
+              reads as one polished workspace instead of a mix of unrelated mockups.
+            </p>
+          </div>
+        </div>
+      </div>
     </section>
-
-    <section class="grid">
-      <article class="card">
-        <span class="tag mvp">MVP</span>
-        <h3>Dashboard and Operations</h3>
-        <p class="muted">Primary control-tower view for campaign health.</p>
-        <ul>
-          <li>Queue health and active campaigns</li>
-          <li>Failure and retry summary</li>
-          <li>KPI snapshot</li>
-          <li>Pause and resume controls</li>
-        </ul>
-      </article>
-
-      <article class="card">
-        <span class="tag mvp">MVP</span>
-        <h3>Campaign Setup</h3>
-        <p class="muted">Create and activate campaigns safely.</p>
-        <ul>
-          <li>Campaign details and audience selection</li>
-          <li>Offer-pack assignment</li>
-          <li>Channel setup</li>
-          <li>Activation summary</li>
-        </ul>
-      </article>
-
-      <article class="card">
-        <span class="tag mvp">MVP</span>
-        <h3>Contact Intake</h3>
-        <p class="muted">CSV import and validation workflow.</p>
-        <ul>
-          <li>Upload and field mapping</li>
-          <li>Accepted rows summary</li>
-          <li>Invalid rows summary</li>
-          <li>Add valid contacts to campaign</li>
-        </ul>
-      </article>
-
-      <article class="card">
-        <span class="tag mvp">MVP</span>
-        <h3>Lead Timeline</h3>
-        <p class="muted">One place to understand what happened and what comes next.</p>
-        <ul>
-          <li>Chronological events</li>
-          <li>Reason codes</li>
-          <li>Current state</li>
-          <li>Next planned action</li>
-        </ul>
-      </article>
-
-      <article class="card">
-        <span class="tag mvp">MVP</span>
-        <h3>Booking and Handoff</h3>
-        <p class="muted">Move qualified leads into a productive sales conversation.</p>
-        <ul>
-          <li>Booking status</li>
-          <li>Handoff packet</li>
-          <li>Signal summary</li>
-          <li>Objections and transcript highlights</li>
-        </ul>
-      </article>
-
-      <article class="card">
-        <span class="tag scope">Deferred</span>
-        <h3>Post-MVP Items Removed From This Gallery</h3>
-        <p class="muted">These were present in the older draft but are not part of the revised MVP.</p>
-        <ul>
-          <li>Native mobile app screens</li>
-          <li>Sales-engineer feedback loop</li>
-          <li>Template-insights analytics</li>
-          <li>Advanced experimentation flows</li>
-        </ul>
-      </article>
-    </section>
-  </main>
+  </div>
 </body>
 </html>

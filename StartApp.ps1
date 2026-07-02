@@ -13,7 +13,7 @@ function Open-Window($title, $workDir, $cmd) {
 }
 
 Write-Host "Starting API..."
-Open-Window "API  :8001"  $apiDir  "uv run fastapi dev app/main.py --port 8001"
+Open-Window "API  :8001"  $apiDir  "`$env:PYTHONIOENCODING='utf-8'; `$env:PYTHONUTF8='1'; uv run python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001"
 
 Write-Host "Starting Web..."
 Open-Window "Web  :5173"  $webDir  "`$env:VITE_API_URL='http://localhost:8001'; npm run dev"

@@ -16,6 +16,7 @@ from app.domain.audit.audit_events import (
 from app.domain.contacts.import_service import parse_csv, preview_rows, validate_rows
 from app.domain.contacts.mapping_service import map_row, resolve_mapping
 from app.domain.contacts.segment_service import estimate_segment, matches_rule
+from app.domain.shared_records import service as shared_record_service
 from app.domain_models import (
     Campaign,
     CampaignAudiencePublic,
@@ -40,9 +41,9 @@ from app.domain_models import (
     ImportRowError,
     OfferPack,
     OfferPackVersion,
+    SegmentOperator,
     StrategyPublic,
     StrategyRequest,
-    SegmentOperator,
     TemplateStatus,
 )
 
@@ -58,12 +59,16 @@ def _get_campaign_or_404(
     owner_id: uuid.UUID | None = None,
 ) -> Campaign:
     campaign = session.exec(
-        select(Campaign).where(Campaign.id == campaign_id, Campaign.workspace_id == workspace_id)
+        select(Campaign).where(
+            Campaign.id == campaign_id, Campaign.workspace_id == workspace_id
+        )
     ).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     if owner_id and campaign.created_by != owner_id:
-        raise HTTPException(status_code=403, detail="Campaign does not belong to current user")
+        raise HTTPException(
+            status_code=403, detail="Campaign does not belong to current user"
+        )
     return campaign
 
 
@@ -91,19 +96,65 @@ def _contact_filter_row(contact: Contact) -> dict[str, str]:
     }
 
 
-def _matches_campaign_audience_rules(contact: Contact, rules: list[dict[str, str]]) -> bool:
+def _matches_campaign_audience_rules(
+    contact: Contact, rules: list[dict[str, str]]
+) -> bool:
     row = _contact_filter_row(contact)
     return all(
-        matches_rule(row.get(rule["field_name"]), SegmentOperator(rule["operator"]), rule["value"])
+        matches_rule(
+            row.get(rule["field_name"]),
+            SegmentOperator(rule["operator"]),
+            rule["value"],
+        )
         for rule in rules
     )
 
 
+def _list_campaign_audience_contacts(
+    _session: Session,
+    workspace_id: str,
+    contact_ids: list[uuid.UUID] | None,
+) -> list[Contact]:
+    shared_contacts = shared_record_service.list_shared_contacts(
+        workspace_id=workspace_id,
+        search=None,
+        limit=100,
+    )
+    if contact_ids:
+        wanted_ids = set(contact_ids)
+        return [contact for contact in shared_contacts if contact.id in wanted_ids]
+    return list(shared_contacts)
+
+
+def _ensure_operational_contact_row(session: Session, contact: Contact) -> None:
+    existing = session.get(Contact, contact.id)
+    if existing is not None:
+        existing.workspace_id = contact.workspace_id
+        existing.shared_account_id = contact.account_id
+        existing.email = contact.email
+        existing.first_name = contact.first_name
+        existing.last_name = contact.last_name
+        existing.company = contact.company
+        existing.phone = contact.phone
+        existing.timezone = contact.timezone
+        existing.source_channel = contact.source_channel
+        existing.tags_json = list(contact.tags_json or [])
+        existing.intent_json = list(contact.intent_json or [])
+        existing.last_seen_at = contact.last_seen_at
+        session.add(existing)
+        return
+    session.add(shared_record_service.shared_contact_to_contact(contact))
+
+
 @router.get("/", response_model=CampaignsPublic)
-def read_campaigns(session: SessionDep, workspace_id: WorkspaceIdDep) -> CampaignsPublic:
+def read_campaigns(
+    session: SessionDep, workspace_id: WorkspaceIdDep
+) -> CampaignsPublic:
     """Return campaigns."""
     campaigns = session.exec(
-        select(Campaign).where(Campaign.workspace_id == workspace_id).order_by(Campaign.created_at.desc())
+        select(Campaign)
+        .where(Campaign.workspace_id == workspace_id)
+        .order_by(Campaign.created_at.desc())
     ).all()
     return CampaignsPublic(
         data=[
@@ -129,7 +180,9 @@ async def create_campaign(
     body: CampaignCreate,
 ) -> CampaignPublic:
     """Create campaign."""
-    campaign = Campaign(name=body.name, created_by=current_user.id, workspace_id=workspace_id)
+    campaign = Campaign(
+        name=body.name, created_by=current_user.id, workspace_id=workspace_id
+    )
     session.add(campaign)
     append_audit_event_to_session(
         session,
@@ -152,7 +205,11 @@ async def create_campaign(
     )
 
 
-@router.post("/{campaign_id}/contacts/import", response_model=CampaignImportPublic, dependencies=[Depends(require_admin)])
+@router.post(
+    "/{campaign_id}/contacts/import",
+    response_model=CampaignImportPublic,
+    dependencies=[Depends(require_admin)],
+)
 async def import_contacts(
     *,
     session: SessionDep,
@@ -165,7 +222,9 @@ async def import_contacts(
     _get_campaign_or_404(session, campaign_id, workspace_id, owner_id=current_user.id)
     file_bytes = await file.read()
     if len(file_bytes) > MAX_UPLOAD_SIZE_BYTES:
-        raise HTTPException(status_code=413, detail="CSV file too large. Maximum size is 10MB")
+        raise HTTPException(
+            status_code=413, detail="CSV file too large. Maximum size is 10MB"
+        )
     headers, rows = parse_csv(file_bytes)
     valid_rows, errors = validate_rows(headers, rows)
     requires_mapping = any(error.row_number == 0 for error in errors)
@@ -183,7 +242,9 @@ async def import_contacts(
     session.flush()
 
     for index, row in enumerate(rows, start=1):
-        row_errors = [error.model_dump() for error in errors if error.row_number == index]
+        row_errors = [
+            error.model_dump() for error in errors if error.row_number == index
+        ]
         stage = CampaignContactStage(
             campaign_id=campaign_id,
             import_id=campaign_import.id,
@@ -225,7 +286,11 @@ async def import_contacts(
     )
 
 
-@router.post("/{campaign_id}/contacts/mapping", response_model=ImportPreviewPublic, dependencies=[Depends(require_admin)])
+@router.post(
+    "/{campaign_id}/contacts/mapping",
+    response_model=ImportPreviewPublic,
+    dependencies=[Depends(require_admin)],
+)
 def persist_mapping(
     *,
     session: SessionDep,
@@ -238,23 +303,35 @@ def persist_mapping(
     _get_campaign_or_404(session, campaign_id, workspace_id, owner_id=current_user.id)
     campaign_import = _latest_import(session, campaign_id)
     staged_rows = session.exec(
-        select(CampaignContactStage).where(CampaignContactStage.import_id == campaign_import.id)
+        select(CampaignContactStage).where(
+            CampaignContactStage.import_id == campaign_import.id
+        )
     ).all()
     raw_rows = [row.mapped_data_json for row in staged_rows]
     try:
-        effective_mapping = resolve_mapping(campaign_import.headers_json, body.mapping, strict=True)
+        effective_mapping = resolve_mapping(
+            campaign_import.headers_json, body.mapping, strict=True
+        )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     mapped_rows = [map_row(row, effective_mapping) for row in raw_rows]
-    valid_rows, errors = validate_rows(campaign_import.headers_json, raw_rows, body.mapping)
+    valid_rows, errors = validate_rows(
+        campaign_import.headers_json, raw_rows, body.mapping
+    )
 
     campaign_import.mapping_json = body.mapping
     campaign_import.valid_rows = len(valid_rows)
-    campaign_import.invalid_rows = len([error for error in errors if error.row_number > 0])
+    campaign_import.invalid_rows = len(
+        [error for error in errors if error.row_number > 0]
+    )
     session.add(campaign_import)
 
     for staged_row in staged_rows:
-        row_errors = [error.model_dump() for error in errors if error.row_number == staged_row.row_number]
+        row_errors = [
+            error.model_dump()
+            for error in errors
+            if error.row_number == staged_row.row_number
+        ]
         staged_row.is_valid = not row_errors
         staged_row.error_json = row_errors
         staged_row.mapped_data_json = mapped_rows[staged_row.row_number - 1]
@@ -287,7 +364,11 @@ def persist_mapping(
     )
 
 
-@router.post("/{campaign_id}/audience", response_model=CampaignAudiencePublic, dependencies=[Depends(require_admin)])
+@router.post(
+    "/{campaign_id}/audience",
+    response_model=CampaignAudiencePublic,
+    dependencies=[Depends(require_admin)],
+)
 def assign_existing_contacts_to_campaign(
     *,
     session: SessionDep,
@@ -299,33 +380,29 @@ def assign_existing_contacts_to_campaign(
     """Assign existing canonical contacts to a campaign audience."""
     _get_campaign_or_404(session, campaign_id, workspace_id, owner_id=current_user.id)
 
-    if body.contact_ids:
-        contacts = list(
-            session.exec(
-                select(Contact).where(
-                    Contact.workspace_id == workspace_id,
-                    Contact.id.in_(body.contact_ids),  # type: ignore[attr-defined]
-                )
-            ).all()
-        )
-    else:
-        contacts = list(
-            session.exec(select(Contact).where(Contact.workspace_id == workspace_id)).all()
-        )
+    contacts = _list_campaign_audience_contacts(session, workspace_id, body.contact_ids)
 
     rules = [rule.model_dump() for rule in body.rules]
     if rules:
-        contacts = [contact for contact in contacts if _matches_campaign_audience_rules(contact, rules)]
+        contacts = [
+            contact
+            for contact in contacts
+            if _matches_campaign_audience_rules(contact, rules)
+        ]
     elif not body.include_all_contacts and not body.contact_ids:
-        raise HTTPException(status_code=400, detail="Choose all contacts, selected contacts, or filter rules")
+        raise HTTPException(
+            status_code=400,
+            detail="Choose all contacts, selected contacts, or filter rules",
+        )
 
     selected_count = len(contacts)
     added_count = 0
     existing_count = 0
     for contact in contacts:
+        _ensure_operational_contact_row(session, contact)
         existing = session.exec(
             select(ContactProgression).where(
-                ContactProgression.contact_id == contact.id,
+                ContactProgression.shared_contact_id == contact.id,
                 ContactProgression.campaign_id == campaign_id,
             )
         ).first()
@@ -334,7 +411,7 @@ def assign_existing_contacts_to_campaign(
             continue
         session.add(
             ContactProgression(
-                contact_id=contact.id,
+                shared_contact_id=contact.id,
                 campaign_id=campaign_id,
                 current_state=ContactProgressionState.inbox,
             )
@@ -409,7 +486,11 @@ def get_import_preview(
         .order_by(CampaignContactStage.row_number)
     ).all()
     valid = [row for row in staged_rows if row.is_valid]
-    errors = [ImportRowError.model_validate(error) for row in staged_rows for error in row.error_json]
+    errors = [
+        ImportRowError.model_validate(error)
+        for row in staged_rows
+        for error in row.error_json
+    ]
     return ImportPreviewPublic(
         import_id=campaign_import.id,
         preview_rows=[
@@ -420,7 +501,11 @@ def get_import_preview(
     )
 
 
-@router.post("/{campaign_id}/segments", response_model=CampaignSegmentPublic, dependencies=[Depends(require_admin)])
+@router.post(
+    "/{campaign_id}/segments",
+    response_model=CampaignSegmentPublic,
+    dependencies=[Depends(require_admin)],
+)
 def create_segment(
     *,
     session: SessionDep,
@@ -439,7 +524,9 @@ def create_segment(
         )
     ).all()
     rules = [rule.model_dump() for rule in body.rules]
-    estimated_count = estimate_segment([row.mapped_data_json for row in staged_rows], rules)
+    estimated_count = estimate_segment(
+        [row.mapped_data_json for row in staged_rows], rules
+    )
 
     segment = CampaignSegment(
         campaign_id=campaign_id,
@@ -477,10 +564,16 @@ def create_segment(
         },
     )
     session.commit()
-    return CampaignSegmentPublic(id=segment.id, name=segment.name, estimated_count=segment.estimated_count)
+    return CampaignSegmentPublic(
+        id=segment.id, name=segment.name, estimated_count=segment.estimated_count
+    )
 
 
-@router.post("/{campaign_id}/strategy", response_model=StrategyPublic, dependencies=[Depends(require_admin)])
+@router.post(
+    "/{campaign_id}/strategy",
+    response_model=StrategyPublic,
+    dependencies=[Depends(require_admin)],
+)
 def assign_strategy(
     *,
     session: SessionDep,
@@ -499,19 +592,36 @@ def assign_strategy(
             )
         ).first()
         if not offer_pack:
-            raise HTTPException(status_code=400, detail="Offer pack must belong to the active workspace")
+            raise HTTPException(
+                status_code=400, detail="Offer pack must belong to the active workspace"
+            )
     if body.offer_pack_version_id:
         version = session.get(OfferPackVersion, body.offer_pack_version_id)
-        if not version or version.workspace_id != workspace_id or version.status != TemplateStatus.published or not version.guardrail_compliant:
-            raise HTTPException(status_code=400, detail="Only published compliant offer pack versions can be assigned")
+        if (
+            not version
+            or version.workspace_id != workspace_id
+            or version.status != TemplateStatus.published
+            or not version.guardrail_compliant
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Only published compliant offer pack versions can be assigned",
+            )
         if body.offer_pack_id and version.offer_pack_id != body.offer_pack_id:
-            raise HTTPException(status_code=400, detail="Offer pack version must belong to the selected offer pack")
+            raise HTTPException(
+                status_code=400,
+                detail="Offer pack version must belong to the selected offer pack",
+            )
 
     strategy = session.exec(
-        select(CampaignChannelStrategy).where(CampaignChannelStrategy.campaign_id == campaign_id)
+        select(CampaignChannelStrategy).where(
+            CampaignChannelStrategy.campaign_id == campaign_id
+        )
     ).first()
     if not strategy:
-        strategy = CampaignChannelStrategy(campaign_id=campaign_id, workspace_id=workspace_id)
+        strategy = CampaignChannelStrategy(
+            campaign_id=campaign_id, workspace_id=workspace_id
+        )
     strategy.offer_pack_id = body.offer_pack_id
     strategy.offer_pack_version_id = body.offer_pack_version_id
     strategy.strategy_json = body.channel_strategy
@@ -527,13 +637,19 @@ def assign_strategy(
         payload={
             "campaign_id": str(campaign_id),
             "offer_pack_id": str(body.offer_pack_id) if body.offer_pack_id else None,
-            "offer_pack_version_id": str(body.offer_pack_version_id) if body.offer_pack_version_id else None,
+            "offer_pack_version_id": str(body.offer_pack_version_id)
+            if body.offer_pack_version_id
+            else None,
             "channels": sorted(body.channel_strategy.keys()),
         },
     )
     session.commit()
     session.refresh(strategy)
-    return StrategyPublic(id=strategy.id, campaign_id=strategy.campaign_id, strategy_json=strategy.strategy_json)
+    return StrategyPublic(
+        id=strategy.id,
+        campaign_id=strategy.campaign_id,
+        strategy_json=strategy.strategy_json,
+    )
 
 
 @router.put("/{campaign_id}/pause", dependencies=[Depends(require_admin)])
@@ -545,8 +661,11 @@ async def pause_campaign(
 ) -> dict[str, str]:
     """Pause campaign."""
     from app.domain_models import Campaign
+
     campaign = session.exec(
-        select(Campaign).where(Campaign.id == campaign_id, Campaign.workspace_id == workspace_id)
+        select(Campaign).where(
+            Campaign.id == campaign_id, Campaign.workspace_id == workspace_id
+        )
     ).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -575,8 +694,11 @@ async def resume_campaign(
 ) -> dict[str, str]:
     """Resume campaign."""
     from app.domain_models import Campaign
+
     campaign = session.exec(
-        select(Campaign).where(Campaign.id == campaign_id, Campaign.workspace_id == workspace_id)
+        select(Campaign).where(
+            Campaign.id == campaign_id, Campaign.workspace_id == workspace_id
+        )
     ).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")

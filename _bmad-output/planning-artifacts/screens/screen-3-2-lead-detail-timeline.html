@@ -3,28 +3,78 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SignalLoop Screen 3.2 - Lead Detail - Timeline</title>
+  <title>SignalLoop Screen 3.2 - Lead Detail Timeline</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="topbar">
     <div>
       <h1>SignalLoop Screen 3.2</h1>
-      <p>Journey 3 - Lead Detail - Timeline</p>
+      <p>Journey 3 - Lead Detail Timeline</p>
     </div>
-    <a class="btn" href="index.html">Back to Home</a>
+    <a class="btn" href="index.html">Back to Gallery</a>
   </div>
 
   <div class="wrap">
-    <div class="card">
-      <div class="card-head">
-        <div class="screen-id">Screen 3.2</div>
-        <div class="title">Lead Detail - Timeline</div>
-      </div>
-      <div class="body">Chronological action log with reason codes and expandable events.<div class="mini-frame"><div class="mini-header"><span>Timeline</span><span>Chronological</span></div><div class="mini-content"><div class="row"><span class="chip">Feb 28 - Email Sent</span></div><div class="row"><span class="chip">Mar 1 - Opened</span></div><div class="row"><span class="chip">Mar 2 - Call Scheduled</span></div></div></div></div>
+    <div class="hero">
+      <section class="hero-card">
+        <h2>A chronological view of the lead's interactions and state changes.</h2>
+        <p>
+          This screen keeps the history readable with a vertical timeline, outcome labels, and
+          a clear separation between events, automated actions, and human follow-up.
+        </p>
+        <div class="hero-meta">
+          <span class="pill brand">Timeline</span>
+          <span class="pill teal">State changes</span>
+          <span class="pill violet">Human + system</span>
+        </div>
+      </section>
+      <aside class="hero-side">
+        <div class="stat-grid">
+          <div class="stat"><small>Events</small><strong>9</strong><span>logged</span></div>
+          <div class="stat"><small>Calls</small><strong>2</strong><span>done</span></div>
+          <div class="stat"><small>Emails</small><strong>5</strong><span>sent</span></div>
+          <div class="stat"><small>Open tasks</small><strong>3</strong><span>remain</span></div>
+        </div>
+      </aside>
     </div>
 
-    <div class="nav">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="screen-id">Screen 3.2</div>
+          <div class="title">Lead Detail Timeline</div>
+        </div>
+        <span class="pill teal">Chronology</span>
+      </div>
+      <div class="card-body">
+        <div class="split">
+          <div class="surface surface-pad">
+            <h3 class="section-title" style="font-size: 18px;">Timeline</h3>
+            <div class="timeline" style="margin-top: 12px;">
+              <div class="timeline-item"><div class="timeline-dot good"></div><div><strong>Demo booked</strong><span>today, 9:15 AM</span></div></div>
+              <div class="timeline-item"><div class="timeline-dot"></div><div><strong>Email opened</strong><span>yesterday, 4:20 PM</span></div></div>
+              <div class="timeline-item"><div class="timeline-dot warn"></div><div><strong>Security question raised</strong><span>yesterday, 10:10 AM</span></div></div>
+              <div class="timeline-item"><div class="timeline-dot"></div><div><strong>Initial call completed</strong><span>2 days ago</span></div></div>
+            </div>
+          </div>
+          <div class="surface surface-pad">
+            <h3 class="section-title" style="font-size: 18px;">State summary</h3>
+            <div class="list" style="margin-top: 12px;">
+              <div class="list-item"><strong>Current stage</strong><span>Qualified</span></div>
+              <div class="list-item"><strong>Next action</strong><span>Confirm demo agenda</span></div>
+              <div class="list-item"><strong>Owner change</strong><span>none</span></div>
+            </div>
+            <div class="chip-row" style="margin-top: 14px;">
+              <span class="chip good">On track</span>
+              <span class="chip info">Review notes</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-nav">
       <a class="btn" href="screen-3-1-lead-detail-overview.html">Previous: 3.1</a>
       <a class="btn" href="index.html">Home</a>
       <a class="btn primary" href="screen-3-3-lead-detail-reason-codes.html">Next: 3.3</a>

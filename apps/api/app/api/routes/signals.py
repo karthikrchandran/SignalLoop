@@ -5,12 +5,13 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import SQLModel, select
+from sqlmodel import SQLModel
 
 from app.api.deps import SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep
 from app.domain.signals import aggregation_service
-from app.domain_models import Campaign, Contact
+from app.domain.shared_records import service as shared_record_service
+from app.domain_models import Campaign
 
 router = APIRouter(prefix="/signals", tags=["signals"], dependencies=[Depends(require_admin)])
 
@@ -37,12 +38,10 @@ def _ensure_contact_in_workspace(
     contact_id: uuid.UUID,
     workspace_id: str,
 ) -> None:
-    contact = session.exec(
-        select(Contact).where(
-            Contact.id == contact_id,
-            Contact.workspace_id == workspace_id,
-        )
-    ).first()
+    contact = shared_record_service.get_shared_contact(
+        workspace_id=workspace_id,
+        contact_id=contact_id,
+    )
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
 

@@ -22,9 +22,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from app.domain.shared_records import service as shared_record_service
 from app.domain.voice.models import CallOutcome, CallRequest, CallSession, VoiceScript
 from app.domain_models import Campaign, Contact, OutboxEvent
 from app.workers import postcall_worker
+
+_SHARED_CONTACTS: dict[object, object] = {}
 
 
 def _run(coro):
@@ -58,6 +61,16 @@ def _session() -> Session:
     return Session(engine)
 
 
+@pytest.fixture(autouse=True)
+def _shared_contact_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    _SHARED_CONTACTS.clear()
+
+    def get_shared_contact(*, workspace_id: str, contact_id):  # noqa: ANN001, ARG001
+        return _SHARED_CONTACTS.get(contact_id)
+
+    monkeypatch.setattr(shared_record_service, "get_shared_contact", get_shared_contact)
+
+
 def _seed_answered_call(session: Session, *, workspace_id: str = "ws") -> CallSession:
     owner_id = uuid.uuid4()
     campaign = Campaign(
@@ -78,6 +91,7 @@ def _seed_answered_call(session: Session, *, workspace_id: str = "ws") -> CallSe
     )
     session.add(contact)
     session.flush()
+    _SHARED_CONTACTS[contact.id] = contact
 
     script = VoiceScript(
         campaign_id=campaign.id,
@@ -242,8 +256,11 @@ def test_send_summary_returns_early_when_call_request_missing() -> None:
 def test_send_summary_uses_contact_defaults_when_contact_missing() -> None:
     """When contact lookup returns None, defaults ('Unknown'/empty) are used."""
     session = MagicMock()
-    call_request = MagicMock(contact_id=99)
-    # First .get -> CallRequest, second .get -> Contact
+    call_request = MagicMock(
+        contact_id=99,
+        shared_contact_id=99,
+        campaign_id=uuid.uuid4(),
+    )
     session.get.side_effect = [call_request, None]
 
     adapter = MagicMock()
@@ -284,10 +301,19 @@ def test_send_summary_uses_contact_fields_when_present() -> None:
     """Contact's name/company/email are forwarded to the summary generator."""
     session = MagicMock()
     contact = MagicMock(
-        first_name="Ada", last_name="Lovelace", company="Analytical", email="a@l.io"
+        first_name="Ada",
+        last_name="Lovelace",
+        company="Analytical",
+        email="a@l.io",
+        workspace_id="ws-a",
     )
-    call_request = MagicMock(contact_id=1)
-    session.get.side_effect = [call_request, contact]
+    call_request = MagicMock(
+        contact_id=1,
+        shared_contact_id=1,
+        campaign_id=uuid.uuid4(),
+    )
+    session.get.side_effect = [call_request, None]
+    _SHARED_CONTACTS[1] = contact
 
     adapter = MagicMock()
     adapter.send_email = AsyncMock(return_value={"status_code": 202, "message_id": "summary-1"})
@@ -320,6 +346,59 @@ def test_send_summary_uses_contact_fields_when_present() -> None:
         body_text="t",
         idempotency_key="postcall:1:summary_email",
     )
+
+
+def test_send_summary_uses_shared_contact_when_local_row_is_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _session() as session:
+        call_session = _seed_answered_call(session, workspace_id="ws-shared")
+        call_request = session.get(CallRequest, call_session.call_request_id)
+        assert call_request is not None
+        shared_contact_id = call_request.shared_contact_id
+
+        monkeypatch.setattr(
+            postcall_worker.shared_record_service,
+            "get_shared_contact",
+            lambda **kwargs: Contact(
+                id=shared_contact_id,
+                workspace_id="ws-shared",
+                email="shared@example.com",
+                first_name="Shared",
+                last_name="Buyer",
+                company="Shared Co",
+                phone="+15551234567",
+            ),
+        )
+
+        adapter = MagicMock()
+        adapter.send_email = AsyncMock(
+            return_value={"status_code": 202, "message_id": "summary-1"}
+        )
+        summary = MagicMock(subject="s", html_body="<p/>", transcript_preview="t")
+
+        with (
+            patch(
+                "app.workers.postcall_worker.generate_summary",
+                return_value=summary,
+            ) as gen,
+            patch.object(
+                postcall_worker,
+                "resolve_team_notification_email",
+                return_value="ops@example.com",
+            ),
+            patch.object(
+                postcall_worker,
+                "resolve_email_adapter",
+                return_value=adapter,
+            ),
+        ):
+            _run(postcall_worker._send_summary(session, call_session))
+
+        _, kwargs = gen.call_args
+        assert kwargs["contact_name"] == "Shared Buyer"
+        assert kwargs["contact_company"] == "Shared Co"
+        assert kwargs["contact_email"] == "shared@example.com"
 
 
 def test_send_summary_uses_outbox_intent_and_skips_duplicate() -> None:
@@ -412,9 +491,20 @@ def test_send_summary_rejection_leaves_intent_unpublished() -> None:
 def test_send_summary_skips_send_when_team_email_unset() -> None:
     """No ``TEAM_NOTIFICATION_EMAIL`` configured Ã¢â€¡â€™ generator runs but no email is sent."""
     session = MagicMock()
-    call_request = MagicMock(contact_id=1)
-    contact = MagicMock(first_name="X", last_name="Y", company="C", email="e@e.io")
-    session.get.side_effect = [call_request, contact]
+    call_request = MagicMock(
+        contact_id=1,
+        shared_contact_id=1,
+        campaign_id=uuid.uuid4(),
+    )
+    contact = MagicMock(
+        first_name="X",
+        last_name="Y",
+        company="C",
+        email="e@e.io",
+        workspace_id="ws-a",
+    )
+    session.get.side_effect = [call_request, None]
+    _SHARED_CONTACTS[1] = contact
 
     adapter = MagicMock()
     adapter.send_email = AsyncMock()

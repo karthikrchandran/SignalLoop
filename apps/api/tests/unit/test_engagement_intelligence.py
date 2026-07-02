@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.domain.audit.audit_events import AuditEvent
@@ -21,6 +22,7 @@ from app.domain.sequences.models import (
     SendRequest,
     SendRequestStatus,
 )
+from app.domain.shared_records import service as shared_record_service
 from app.domain.voice.models import CallOutcome, CallRequest, CallSession, VoiceScript
 from app.domain_models import (
     Campaign,
@@ -33,11 +35,31 @@ from app.domain_models import (
     ProviderEventLog,
 )
 
+_SHARED_CONTACTS: dict[tuple[str, uuid.UUID], Contact] = {}
+
 
 def _session() -> Session:
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
     return Session(engine)
+
+
+@pytest.fixture(autouse=True)
+def _shared_contact_reads(monkeypatch: pytest.MonkeyPatch) -> None:
+    _SHARED_CONTACTS.clear()
+
+    def list_shared_contacts(*, workspace_id: str, search=None, limit=100, parent_id=None):  # noqa: ANN001, ARG001
+        return [
+            contact
+            for (contact_workspace_id, _), contact in _SHARED_CONTACTS.items()
+            if contact_workspace_id == workspace_id
+        ][:limit]
+
+    monkeypatch.setattr(
+        shared_record_service,
+        "list_shared_contacts",
+        list_shared_contacts,
+    )
 
 
 def _seed_workspace(session: Session, *, workspace_id: str = "ws-a") -> None:
@@ -72,12 +94,14 @@ def _seed_workspace(session: Session, *, workspace_id: str = "ws-a") -> None:
     session.add(ada)
     session.add(grace)
     session.flush()
+    _SHARED_CONTACTS[(workspace_id, ada.id)] = ada
+    _SHARED_CONTACTS[(workspace_id, grace.id)] = grace
 
     conversation = ChatbotConversation(
         workspace_id=workspace_id,
         channel_type=ChatbotChannelType.whatsapp_business,
         visitor_id="visitor-ada",
-        contact_id=ada.id,
+        shared_contact_id=ada.id,
         status=ChatbotConversationStatus.escalated,
         escalated=True,
         escalation_reason="Pricing question needs a human",
@@ -106,7 +130,7 @@ def _seed_workspace(session: Session, *, workspace_id: str = "ws-a") -> None:
     session.add(script)
     session.flush()
     call_request = CallRequest(
-        contact_id=ada.id,
+        shared_contact_id=ada.id,
         campaign_id=campaign.id,
         voice_script_id=script.id,
         trigger_reason="manual_test_call",
@@ -135,7 +159,7 @@ def _seed_workspace(session: Session, *, workspace_id: str = "ws-a") -> None:
     session.add(sequence)
     session.flush()
     sequence_state = ContactSequenceState(
-        contact_id=ada.id,
+        shared_contact_id=ada.id,
         sequence_id=sequence.id,
         next_send_at=datetime.now(timezone.utc) - timedelta(hours=6),
     )
@@ -152,7 +176,7 @@ def _seed_workspace(session: Session, *, workspace_id: str = "ws-a") -> None:
     )
     session.add(
         ContactProgression(
-            contact_id=ada.id,
+            shared_contact_id=ada.id,
             campaign_id=campaign.id,
             current_state=ContactProgressionState.engaged,
             last_action_at=datetime.now(timezone.utc) - timedelta(days=5),
@@ -162,7 +186,7 @@ def _seed_workspace(session: Session, *, workspace_id: str = "ws-a") -> None:
     session.add(
         ProspectingSnapshot(
             workspace_id=workspace_id,
-            contact_id=grace.id,
+            shared_contact_id=grace.id,
             company_url="https://compiler.example",
             sources_json=[{"label": "CRM contact", "summary": "Grace at Compiler Co"}],
             research_json={

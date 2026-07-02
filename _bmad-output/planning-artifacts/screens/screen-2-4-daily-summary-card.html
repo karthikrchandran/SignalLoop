@@ -12,19 +12,73 @@
       <h1>SignalLoop Screen 2.4</h1>
       <p>Journey 2 - Daily Summary Card</p>
     </div>
-    <a class="btn" href="index.html">Back to Home</a>
+    <a class="btn" href="index.html">Back to Gallery</a>
   </div>
 
   <div class="wrap">
-    <div class="card">
-      <div class="card-head">
-        <div class="screen-id">Screen 2.4</div>
-        <div class="title">Daily Summary Card</div>
-      </div>
-      <div class="body">Daily rollup for sent, replies, exceptions, and booked demos.<div class="mini-frame"><div class="mini-header"><span>Daily Summary</span><span>Yesterday</span></div><div class="mini-content"><div class="row"><span class="chip">47 Sent</span><span class="chip">3 Replies</span><span class="chip ok">1 Demo</span></div></div></div></div>
+    <div class="hero">
+      <section class="hero-card">
+        <h2>A compact summary card for quick executive reading.</h2>
+        <p>
+          This version condenses the day into one clean card with a small chart, a few critical
+          metrics, and a short action list. It is designed to sit alongside the dashboard.
+        </p>
+        <div class="hero-meta">
+          <span class="pill brand">Compact</span>
+          <span class="pill teal">Summary</span>
+          <span class="pill good">Decision ready</span>
+        </div>
+      </section>
+      <aside class="hero-side">
+        <div class="stat-grid">
+          <div class="stat"><small>Booked</small><strong>18</strong><span>today</span></div>
+          <div class="stat"><small>Reply rate</small><strong>26%</strong><span>up</span></div>
+          <div class="stat"><small>At risk</small><strong>7</strong><span>follow</span></div>
+          <div class="stat"><small>Coverage</small><strong>91%</strong><span>good</span></div>
+        </div>
+      </aside>
     </div>
 
-    <div class="nav">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="screen-id">Screen 2.4</div>
+          <div class="title">Daily Summary Card</div>
+        </div>
+        <span class="pill brand">Snapshot</span>
+      </div>
+      <div class="card-body">
+        <div class="split">
+          <div class="surface surface-pad">
+            <h3 class="section-title" style="font-size: 18px;">Key metrics</h3>
+            <div class="tile-grid" style="margin-top: 12px; grid-template-columns: repeat(2, minmax(0,1fr));">
+              <div class="stat"><small>Booked</small><strong>18</strong><span>today</span></div>
+              <div class="stat"><small>Open</small><strong>24</strong><span>pending</span></div>
+              <div class="stat"><small>Won</small><strong>9</strong><span>this week</span></div>
+              <div class="stat"><small>Blocked</small><strong>3</strong><span>needs action</span></div>
+            </div>
+          </div>
+          <div class="surface surface-pad">
+            <h3 class="section-title" style="font-size: 18px;">Short trend</h3>
+            <div class="bar-chart" style="margin-top: 12px;">
+              <div class="bar-row"><div>Mon</div><div class="bar-track"><div class="bar-fill" style="width: 28%;"></div></div><div>28</div></div>
+              <div class="bar-row"><div>Tue</div><div class="bar-track"><div class="bar-fill alt" style="width: 43%;"></div></div><div>43</div></div>
+              <div class="bar-row"><div>Wed</div><div class="bar-track"><div class="bar-fill good" style="width: 60%;"></div></div><div>60</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="surface surface-pad" style="margin-top: 16px;">
+          <h3 class="section-title" style="font-size: 18px;">Recommended action</h3>
+          <div class="chip-row" style="margin-top: 12px;">
+            <span class="chip good">Move 7 leads to priority</span>
+            <span class="chip">Review 3 blocks</span>
+            <span class="chip info">Share snapshot</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-nav">
       <a class="btn" href="screen-2-3-sensitivity-preference-modal.html">Previous: 2.3</a>
       <a class="btn" href="index.html">Home</a>
       <a class="btn primary" href="screen-3-1-lead-detail-overview.html">Next: 3.1</a>

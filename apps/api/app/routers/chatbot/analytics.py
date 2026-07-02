@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, datetime, time, timezone, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -68,7 +68,7 @@ def _channel_type(value) -> ChatbotChannelType:
 
 
 def _is_lead(conversation: ChatbotConversation) -> bool:
-    return _enum_value(conversation.outcome) == ChatbotConversationOutcome.lead_captured.value or conversation.contact_id is not None
+    return _enum_value(conversation.outcome) == ChatbotConversationOutcome.lead_captured.value or conversation.shared_contact_id is not None
 
 
 def _is_escalated(conversation: ChatbotConversation) -> bool:
@@ -93,9 +93,9 @@ def _conversion_funnel(
     leads_captured: int,
 ) -> ChatbotAnalyticsConversionFunnelPublic:
     lead_contact_ids = {
-        conversation.contact_id
+        conversation.shared_contact_id
         for conversation in conversations
-        if _is_lead(conversation) and conversation.contact_id is not None
+        if _is_lead(conversation) and conversation.shared_contact_id is not None
     }
     if not lead_contact_ids:
         return ChatbotAnalyticsConversionFunnelPublic(
@@ -112,28 +112,28 @@ def _conversion_funnel(
         session.exec(
             select(ProspectingSnapshot.contact_id).where(
                 ProspectingSnapshot.workspace_id == workspace_id,
-                ProspectingSnapshot.contact_id.in_(contact_ids),
+                ProspectingSnapshot.shared_contact_id.in_(contact_ids),
             )
         ).all()
     )
     added_to_campaign = _distinct_contact_count(
         session.exec(
             select(ContactProgression.contact_id).where(
-                ContactProgression.contact_id.in_(contact_ids),
+                ContactProgression.shared_contact_id.in_(contact_ids),
             )
         ).all()
     )
     sequence_enrolled = _distinct_contact_count(
         session.exec(
             select(ContactSequenceState.contact_id).where(
-                ContactSequenceState.contact_id.in_(contact_ids),
+                ContactSequenceState.shared_contact_id.in_(contact_ids),
             )
         ).all()
     )
     voice_followups = _distinct_contact_count(
         session.exec(
             select(CallRequest.contact_id).where(
-                CallRequest.contact_id.in_(contact_ids),
+                CallRequest.shared_contact_id.in_(contact_ids),
             )
         ).all()
     )

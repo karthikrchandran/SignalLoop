@@ -41,7 +41,7 @@ from app.domain.chatbot.schemas import (
     ChatbotThreadsPublic,
     ChatbotThreadSummary,
 )
-from app.domain_models import Contact
+from app.domain.shared_records import service as shared_record_service
 from app.infrastructure.providers.chat.registry import build_chat_adapter
 from app.infrastructure.providers.chat.whatsapp_cloud import WhatsAppWindowExpiredError
 from app.models import User
@@ -104,15 +104,13 @@ def _opt_out(session: Session, conversation: ChatbotConversation) -> ChatbotOptO
     ).first()
 
 
-def _lead_details(session: Session, conversation: ChatbotConversation) -> ChatbotLeadDetails | None:
-    if not conversation.contact_id:
+def _lead_details(_session: Session, conversation: ChatbotConversation) -> ChatbotLeadDetails | None:
+    if not conversation.shared_contact_id:
         return None
-    contact = session.exec(
-        select(Contact).where(
-            Contact.workspace_id == conversation.workspace_id,
-            Contact.id == conversation.contact_id,
-        )
-    ).first()
+    contact = shared_record_service.get_shared_contact(
+        workspace_id=conversation.workspace_id,
+        contact_id=conversation.shared_contact_id,
+    )
     if not contact:
         return None
     name = " ".join(part for part in [contact.first_name, contact.last_name] if part) or None
@@ -121,8 +119,8 @@ def _lead_details(session: Session, conversation: ChatbotConversation) -> Chatbo
         name=name,
         email=contact.email,
         phone=contact.phone,
-        source_channel=contact.source_channel,
-        tags=list(contact.tags_json or []),
+        source_channel=contact.source_channel or conversation.channel_type.value,
+        tags=list(contact.tags_json or ["chatbot-lead"]),
         intents=list(contact.intent_json or []),
     )
 

@@ -23,6 +23,7 @@ from app.domain.sequences.models import (
     SequenceStep,
 )
 from app.domain.sequences.suppression import EmailSuppression
+from app.domain.shared_records import service as shared_record_service
 from app.domain_models import (
     Campaign,
     CampaignStatus,
@@ -296,9 +297,22 @@ async def _process_single(
     session: Session,
     state: ContactSequenceState,
 ) -> None:
-    contact = session.get(Contact, state.contact_id)
+    campaign = _campaign_for_state(session, state)
+    workspace_id = campaign.workspace_id if campaign else "system"
+    shared_contact = shared_record_service.get_shared_contact(
+        workspace_id=workspace_id,
+        contact_id=state.shared_contact_id,
+    )
+    contact = (
+        shared_record_service.shared_contact_to_contact(shared_contact)
+        if shared_contact
+        else None
+    )
     if not contact:
-        logger.warning("Contact %s not found, stopping sequence", state.contact_id)
+        logger.warning(
+            "Shared contact %s not found, stopping sequence",
+            state.shared_contact_id,
+        )
         state.status = SequenceStatus.stopped
         session.add(state)
         return
@@ -336,7 +350,9 @@ async def _process_single(
         return
 
     # Build idempotency key
-    idempotency_key = f"{state.contact_id}:{state.sequence_id}:{state.current_step}"
+    idempotency_key = (
+        f"{state.shared_contact_id}:{state.sequence_id}:{state.current_step}"
+    )
 
     # Check for existing SendRequest (idempotent)
     existing = session.exec(

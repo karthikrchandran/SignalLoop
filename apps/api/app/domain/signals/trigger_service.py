@@ -16,6 +16,7 @@ from app.domain.outreach.outbox_service import (
     mark_outbox_published,
 )
 from app.domain.runtime_settings import resolve_team_notification_email
+from app.domain.shared_records import service as shared_record_service
 from app.domain.signals.models import SignalEvent
 from app.domain.signals.scheduling import SchedulingRequest
 from app.domain.timeline.timeline_service import (
@@ -23,7 +24,7 @@ from app.domain.timeline.timeline_service import (
     invalidate_timeline_cache_from_url,
 )
 from app.domain.voice.models import CallRequest
-from app.domain_models import Campaign, OutboxEvent
+from app.domain_models import Campaign, Contact, OutboxEvent
 from app.infrastructure.providers.base import EmailAdapter
 from app.infrastructure.providers.registry import resolve_email_adapter
 from app.infrastructure.providers.sendgrid import SendGridAdapter
@@ -40,6 +41,16 @@ DEFAULT_RULES: dict[str, list[str]] = {
 # In-memory trigger enabled state (MVP — single-process only; not shared across
 # multiple worker instances. Move to Redis/DB if horizontal scaling is needed.)
 _trigger_enabled: dict[str, bool] = dict.fromkeys(DEFAULT_RULES, True)
+
+
+def _load_signal_contact(session: Session, signal: SignalEvent) -> Contact | None:
+    shared_contact = shared_record_service.get_shared_contact(
+        workspace_id=_workspace_for_campaign(session, signal.campaign_id),
+        contact_id=signal.shared_contact_id,
+    )
+    if shared_contact is None:
+        return None
+    return shared_record_service.shared_contact_to_contact(shared_contact)
 
 
 async def process_signal(
@@ -103,7 +114,7 @@ async def process_signal(
                 payload={
                     "signal_id": str(signal.id),
                     "signal_type": signal.signal_type,
-                    "contact_id": str(signal.contact_id),
+                    "contact_id": str(signal.shared_contact_id),
                 },
             )
         except Exception:
@@ -114,13 +125,13 @@ async def process_signal(
         if timeline_cache_redis is not None:
             await invalidate_timeline_cache_for_client(
                 timeline_cache_redis,
-                signal.contact_id,
+                signal.shared_contact_id,
                 signal.campaign_id,
             )
         else:
             await invalidate_timeline_cache_from_url(
                 settings.REDIS_URL,
-                signal.contact_id,
+                signal.shared_contact_id,
                 signal.campaign_id,
             )
     return executed
@@ -164,7 +175,7 @@ def _prepare_signal_action_intent(
         event_type=event_type,
         event_data={
             "signal_id": str(signal.id),
-            "contact_id": str(signal.contact_id),
+            "contact_id": str(signal.shared_contact_id),
             "campaign_id": str(signal.campaign_id),
             "signal_type": signal.signal_type,
             **event_data,
@@ -206,7 +217,7 @@ def _queue_followup_call(session: Session, signal: SignalEvent) -> bool:
     scheduled_at = now + timedelta(hours=1)
 
     call_req = CallRequest(
-        contact_id=signal.contact_id,
+        shared_contact_id=signal.shared_contact_id,
         campaign_id=signal.campaign_id,
         voice_script_id=script.id,
         trigger_reason="positive_email_signal",
@@ -217,9 +228,7 @@ def _queue_followup_call(session: Session, signal: SignalEvent) -> bool:
 
 
 async def _send_demo_email(adapter: EmailAdapter, session: Session, signal: SignalEvent) -> None:
-    from app.domain_models import Contact
-
-    contact = session.get(Contact, signal.contact_id)
+    contact = _load_signal_contact(session, signal)
     if not contact:
         return
 
@@ -249,7 +258,7 @@ async def _send_demo_email(adapter: EmailAdapter, session: Session, signal: Sign
 
 def _create_scheduling_request(session: Session, signal: SignalEvent) -> bool:
     req = SchedulingRequest(
-        contact_id=signal.contact_id,
+        shared_contact_id=signal.shared_contact_id,
         campaign_id=signal.campaign_id,
         signal_event_id=signal.id,
     )
@@ -258,9 +267,7 @@ def _create_scheduling_request(session: Session, signal: SignalEvent) -> bool:
 
 
 async def _email_sales_team(adapter: EmailAdapter, session: Session, signal: SignalEvent) -> None:
-    from app.domain_models import Contact
-
-    contact = session.get(Contact, signal.contact_id)
+    contact = _load_signal_contact(session, signal)
     if not contact:
         return
 
@@ -292,9 +299,7 @@ async def _email_sales_team(adapter: EmailAdapter, session: Session, signal: Sig
 
 
 async def _send_resource_email(adapter: EmailAdapter, session: Session, signal: SignalEvent) -> None:
-    from app.domain_models import Contact
-
-    contact = session.get(Contact, signal.contact_id)
+    contact = _load_signal_contact(session, signal)
     if not contact:
         return
 

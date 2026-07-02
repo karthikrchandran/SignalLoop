@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlmodel import Session, select
 
+from app.domain.shared_records import service as shared_record_service
 from app.domain.voice.models import (
     CallOutcome,
     CallRequest,
@@ -22,6 +23,8 @@ from app.domain.voice.models import (
 )
 from app.domain_models import Campaign, CampaignStatus, Contact, GlobalControlState
 from app.workers import call_worker
+
+_SHARED_CONTACTS: dict[uuid.UUID, Contact] = {}
 
 # ---------------------------------------------------------------------------
 # Helpers / seed factories
@@ -33,6 +36,7 @@ def _seed_contact(session: Session, *, phone: str | None = "+15551234567") -> Co
     session.add(contact)
     session.commit()
     session.refresh(contact)
+    _SHARED_CONTACTS[contact.id] = contact
     return contact
 
 
@@ -99,6 +103,16 @@ def _seed_call_request(
 def _patch_engine(engine):
     """Patch the worker module's `engine` symbol with the in-memory engine."""
     return patch.object(call_worker, "engine", engine)
+
+
+@pytest.fixture(autouse=True)
+def _shared_contact_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    _SHARED_CONTACTS.clear()
+
+    def get_shared_contact(*, workspace_id: str, contact_id: uuid.UUID):  # noqa: ARG001
+        return _SHARED_CONTACTS.get(contact_id)
+
+    monkeypatch.setattr(shared_record_service, "get_shared_contact", get_shared_contact)
 
 
 # ---------------------------------------------------------------------------

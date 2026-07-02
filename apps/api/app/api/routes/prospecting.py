@@ -24,8 +24,8 @@ from app.domain.prospecting.service import (
     create_bulk_prospecting_snapshots,
     create_prospecting_snapshot,
     enroll_selected_prospects,
-    list_ready_contacts,
     list_prospecting_snapshots,
+    list_ready_contacts,
     snapshot_to_public,
 )
 
@@ -43,7 +43,7 @@ def read_ready_contacts(
 ) -> ProspectingReadyContactsPublic:
     """Return workspace contacts ranked for prospecting handoff."""
     contacts = list_ready_contacts(
-        session=session,
+        session,
         workspace_id=workspace_id,
         search=search,
         only_handoffs=only_handoffs,

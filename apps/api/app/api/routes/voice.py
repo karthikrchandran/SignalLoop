@@ -9,6 +9,7 @@ import hmac
 import json
 import logging
 import time
+import uuid
 from contextlib import suppress
 from datetime import datetime, timezone
 from urllib.parse import urlencode
@@ -23,6 +24,7 @@ from app.core.config import settings
 from app.core.db import engine
 from app.core.encryption import decrypt
 from app.domain.runtime_settings import resolve_workspace_runtime_config
+from app.domain.shared_records import service as shared_record_service
 from app.domain.timeline.timeline_service import (
     invalidate_timeline_cache,
     invalidate_timeline_cache_from_url_sync,
@@ -145,8 +147,26 @@ def _workspace_for_call_request(session: Session, call_request: CallRequest | No
     campaign = session.get(Campaign, call_request.campaign_id)
     if campaign:
         return campaign.workspace_id
-    contact = session.get(Contact, call_request.contact_id)
-    return contact.workspace_id if contact else "system"
+    shared_contact = shared_record_service.get_shared_contact(
+        workspace_id="system",
+        contact_id=call_request.contact_id,
+    )
+    return shared_contact.workspace_id if shared_contact else "system"
+
+
+def _load_contact_for_workspace(
+    _session: Session,
+    *,
+    workspace_id: str,
+    contact_id: uuid.UUID,
+) -> Contact | None:
+    shared_contact = shared_record_service.get_shared_contact(
+        workspace_id=workspace_id,
+        contact_id=contact_id,
+    )
+    if shared_contact is None:
+        return None
+    return shared_record_service.shared_contact_to_contact(shared_contact)
 
 
 def _record_twilio_provider_event(
@@ -449,13 +469,15 @@ async def _load_engine_for_call(call_sid: str) -> ConversationEngine | None:
         if not voice_script:
             return None
 
-        contact = session.get(Contact, call_request.contact_id)
+        campaign = session.get(Campaign, call_request.campaign_id)
+        workspace_id = campaign.workspace_id if campaign else settings.DEFAULT_WORKSPACE_ID
+        contact = _load_contact_for_workspace(
+            session,
+            workspace_id=workspace_id,
+            contact_id=call_request.contact_id,
+        )
         contact_name = contact.first_name or "there" if contact else "there"
         contact_company = contact.company or "" if contact else ""
-        workspace_id = contact.workspace_id if contact else None
-        if workspace_id is None:
-            campaign = session.get(Campaign, call_request.campaign_id)
-            workspace_id = campaign.workspace_id if campaign else settings.DEFAULT_WORKSPACE_ID
         runtime_config = resolve_workspace_runtime_config(session, workspace_id)
 
         # Resolve STT/TTS/LLM adapters per-workspace (multi-provider support).

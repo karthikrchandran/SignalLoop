@@ -9,10 +9,10 @@ from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.domain.audit.audit_events import append_audit_event_to_session
+from app.domain.shared_records import service as shared_record_service
 from app.domain.timeline.timeline_service import invalidate_timeline_cache_from_url_sync
 from app.domain_models import (
     Campaign,
-    Contact,
     ContactProgression,
     ContactProgressionState,
     ContactStateHistory,
@@ -58,7 +58,7 @@ def get_progression(
     """Return progression."""
     return session.exec(
         select(ContactProgression).where(
-            ContactProgression.contact_id == contact_id,
+            ContactProgression.shared_contact_id == contact_id,
             ContactProgression.campaign_id == campaign_id,
         )
     ).first()
@@ -68,7 +68,10 @@ def _resolve_workspace_id(session: Session, *, contact_id: uuid.UUID, campaign_i
     campaign = session.get(Campaign, campaign_id)
     if campaign:
         return campaign.workspace_id
-    contact = session.get(Contact, contact_id)
+    contact = shared_record_service.get_shared_contact(
+        workspace_id=settings.DEFAULT_WORKSPACE_ID,
+        contact_id=contact_id,
+    )
     return contact.workspace_id if contact else "system"
 
 
@@ -87,7 +90,7 @@ def transition_contact_state(
 
     if current is None:
         progression = ContactProgression(
-            contact_id=contact_id,
+            shared_contact_id=contact_id,
             campaign_id=campaign_id,
             current_state=to_state,
             last_action_at=now,
@@ -97,7 +100,7 @@ def transition_contact_state(
         session.add(
             ContactStateHistory(
                 workspace_id=workspace_id,
-                contact_id=contact_id,
+                shared_contact_id=contact_id,
                 campaign_id=campaign_id,
                 from_state=ContactProgressionState.inbox,
                 to_state=to_state,
@@ -136,7 +139,7 @@ def transition_contact_state(
     session.add(
         ContactStateHistory(
             workspace_id=workspace_id,
-            contact_id=contact_id,
+            shared_contact_id=contact_id,
             campaign_id=campaign_id,
             from_state=from_state,
             to_state=to_state,

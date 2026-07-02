@@ -22,8 +22,11 @@ from app.domain.sequences.models import (
     SequenceStep,
 )
 from app.domain.sequences.suppression import EmailSuppression
+from app.domain.shared_records import service as shared_record_service
 from app.domain_models import Campaign, CampaignStatus, Contact, GlobalControlState
 from app.workers import sequence_worker
+
+_SHARED_CONTACTS: dict[uuid.UUID, Contact] = {}
 
 # ---------------------------------------------------------------------------
 # Seed factories
@@ -42,6 +45,7 @@ def _seed_contact(session: Session, *, email: str = "lead@example.com",
     session.add(contact)
     session.commit()
     session.refresh(contact)
+    _SHARED_CONTACTS[contact.id] = contact
     return contact
 
 
@@ -117,6 +121,19 @@ def _seed_state(
 def _patch_engine(engine):
     """Patch the worker module's `engine` symbol with the in-memory engine."""
     return patch.object(sequence_worker, "engine", engine)
+
+
+@pytest.fixture(autouse=True)
+def _shared_contact_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    _SHARED_CONTACTS.clear()
+
+    def get_shared_contact(*, workspace_id: str, contact_id: uuid.UUID):  # noqa: ARG001
+        contact = _SHARED_CONTACTS.get(contact_id)
+        if contact is None:
+            return None
+        return contact
+
+    monkeypatch.setattr(shared_record_service, "get_shared_contact", get_shared_contact)
 
 
 def _datetime_at(hour: int, minute: int = 0):

@@ -12,13 +12,19 @@ from app.domain.prospecting.schemas import (
     ProspectingResearchPublic,
     ProspectingSource,
 )
-from app.domain.sequences.models import ContactSequenceState, EmailSequence, SequenceStatus
+from app.domain.sequences.models import (
+    ContactSequenceState,
+    EmailSequence,
+    SequenceStatus,
+)
+from app.domain.shared_records import service as shared_record_service
 from app.domain_models import (
     Campaign,
     Contact,
     ContactEvent,
     ContactProgression,
     ContactProgressionState,
+    ContactPublic,
     ContactStateHistory,
     ProspectingSnapshot,
 )
@@ -53,6 +59,25 @@ def _company_name(contact: Contact) -> str:
     return domain
 
 
+def _contact_from_public(contact: ContactPublic) -> Contact:
+    return Contact(
+        id=contact.id,
+        workspace_id=contact.workspace_id,
+        shared_account_id=contact.account_id,
+        email=contact.email,
+        first_name=contact.first_name,
+        last_name=contact.last_name,
+        company=contact.company,
+        phone=contact.phone,
+        timezone=contact.timezone,
+        source_channel=contact.source_channel,
+        tags_json=list(contact.tags_json or []),
+        intent_json=list(contact.intent_json or []),
+        last_seen_at=contact.last_seen_at,
+        created_at=contact.created_at,
+    )
+
+
 def _compact(values: list[str]) -> list[str]:
     seen: set[str] = set()
     compacted: list[str] = []
@@ -66,12 +91,17 @@ def _compact(values: list[str]) -> list[str]:
 
 
 def _normalized_values(values: list[str] | None) -> set[str]:
-    return {value.strip().lower() for value in (values or []) if value and value.strip()}
+    return {
+        value.strip().lower() for value in (values or []) if value and value.strip()
+    }
 
 
 def _has_buyer_intent(intents: set[str]) -> bool:
     intent_text = " ".join(intents)
-    return any(token in intent_text for token in ["pricing", "demo", "purchase", "trial", "quote", "sales"])
+    return any(
+        token in intent_text
+        for token in ["pricing", "demo", "purchase", "trial", "quote", "sales"]
+    )
 
 
 def score_prospecting_contact(contact: Contact) -> ProspectingReadyContactPublic:
@@ -127,22 +157,23 @@ def score_prospecting_contact(contact: Contact) -> ProspectingReadyContactPublic
 
 
 def list_ready_contacts(
+    _session: Session,
     *,
-    session: Session,
     workspace_id: str,
     search: str | None = None,
     only_handoffs: bool = False,
     limit: int = 20,
 ) -> list[ProspectingReadyContactPublic]:
     """Return workspace contacts ranked for prospecting."""
-    contacts = list(
-        session.exec(
-            select(Contact)
-            .where(Contact.workspace_id == workspace_id)
-            .order_by(Contact.created_at.desc())
-            .limit(200)
-        ).all()
+    shared_contacts = shared_record_service.list_shared_contacts(
+        workspace_id=workspace_id,
+        search=search,
+        limit=200,
     )
+    contacts = [
+        contact if isinstance(contact, Contact) else _contact_from_public(contact)
+        for contact in shared_contacts
+    ]
     scored = [score_prospecting_contact(contact) for contact in contacts]
     if only_handoffs:
         scored = [contact for contact in scored if contact.handoff_source]
@@ -164,7 +195,9 @@ def list_ready_contacts(
             return query in haystack
 
         scored = [contact for contact in scored if matches(contact)]
-    scored.sort(key=lambda contact: (contact.lead_score, contact.created_at), reverse=True)
+    scored.sort(
+        key=lambda contact: (contact.lead_score, contact.created_at), reverse=True
+    )
     return scored[:limit]
 
 
@@ -186,16 +219,25 @@ def _crm_contact_source(contact: Contact) -> ProspectingSource:
     return ProspectingSource(label="CRM contact", summary="; ".join(fragments))
 
 
-def _timeline_sources(session: Session, *, workspace_id: str, contact_id: uuid.UUID) -> list[ProspectingSource]:
+def _timeline_sources(
+    session: Session, *, workspace_id: str, contact_id: uuid.UUID
+) -> list[ProspectingSource]:
+    shared_contact_id = contact_id
     contact_events = session.exec(
         select(ContactEvent)
-        .where(ContactEvent.workspace_id == workspace_id, ContactEvent.contact_id == contact_id)
+        .where(
+            ContactEvent.workspace_id == workspace_id,
+            ContactEvent.shared_contact_id == shared_contact_id,
+        )
         .order_by(ContactEvent.created_at.desc())
         .limit(5)
     ).all()
     state_history = session.exec(
         select(ContactStateHistory)
-        .where(ContactStateHistory.workspace_id == workspace_id, ContactStateHistory.contact_id == contact_id)
+        .where(
+            ContactStateHistory.workspace_id == workspace_id,
+            ContactStateHistory.shared_contact_id == shared_contact_id,
+        )
         .order_by(ContactStateHistory.triggered_at.desc())
         .limit(5)
     ).all()
@@ -211,7 +253,9 @@ def _timeline_sources(session: Session, *, workspace_id: str, contact_id: uuid.U
             parts.append(f"reason {event.reason_code}")
         summaries.append(" ".join(parts))
     for state in state_history:
-        summaries.append(f"state moved from {state.from_state.value} to {state.to_state.value}")
+        summaries.append(
+            f"state moved from {state.from_state.value} to {state.to_state.value}"
+        )
 
     if not summaries:
         return []
@@ -254,7 +298,9 @@ async def _website_sources(company_url: str | None) -> list[ProspectingSource]:
     return sources
 
 
-def build_prospecting_brief(*, contact: Contact, sources: list[ProspectingSource]) -> ProspectingBrief:
+def build_prospecting_brief(
+    *, contact: Contact, sources: list[ProspectingSource]
+) -> ProspectingBrief:
     """Build a deterministic prospecting brief from CRM and source snippets."""
     name = _contact_name(contact)
     first_name = _first_name(contact)
@@ -272,19 +318,29 @@ def build_prospecting_brief(*, contact: Contact, sources: list[ProspectingSource
         "Improve outreach conversion with messaging that reflects the account context.",
     ]
     if contact.intent_json:
-        pain_points.append(f"Respond to declared intent around {', '.join(contact.intent_json)}.")
+        pain_points.append(
+            f"Respond to declared intent around {', '.join(contact.intent_json)}."
+        )
     if "pricing" in text:
-        pain_points.append("Clarify pricing fit and value quickly because pricing intent is present.")
+        pain_points.append(
+            "Clarify pricing fit and value quickly because pricing intent is present."
+        )
     if "follow-up" in text or "outbound" in text or "conversion" in text:
-        pain_points.append("Tighten outbound follow-up so interest does not stall after first engagement.")
+        pain_points.append(
+            "Tighten outbound follow-up so interest does not stall after first engagement."
+        )
     if contact.phone:
-        pain_points.append("Coordinate email and voice touchpoints without losing context between channels.")
+        pain_points.append(
+            "Coordinate email and voice touchpoints without losing context between channels."
+        )
 
     objections = [
         "May already have a CRM, enrichment, or sales engagement workflow.",
         "May need proof that personalization can be generated without adding manual research time.",
     ]
-    if "pricing" in text or any("pricing" in value.lower() for value in contact.intent_json):
+    if "pricing" in text or any(
+        "pricing" in value.lower() for value in contact.intent_json
+    ):
         objections.append("May ask for pricing clarity before agreeing to a call.")
 
     personalization = [
@@ -292,13 +348,15 @@ def build_prospecting_brief(*, contact: Contact, sources: list[ProspectingSource
         f"Use {first_name}'s recent CRM context instead of a generic industry opener.",
     ]
     if contact.tags_json:
-        personalization.append(f"Mention the signal behind {', '.join(contact.tags_json[:2])}.")
+        personalization.append(
+            f"Mention the signal behind {', '.join(contact.tags_json[:2])}."
+        )
     if sources:
-        personalization.append(f"Anchor the message in {sources[0].label.lower()}: {sources[0].summary[:140]}.")
+        personalization.append(
+            f"Anchor the message in {sources[0].label.lower()}: {sources[0].summary[:140]}."
+        )
 
-    suggested_next_action = (
-        "Send a short value-led email, then use the voice opener as a same-day follow-up if the account is high fit."
-    )
+    suggested_next_action = "Send a short value-led email, then use the voice opener as a same-day follow-up if the account is high fit."
 
     primary_signal = personalization[-1].rstrip(".")
     email_draft = (
@@ -336,20 +394,24 @@ async def create_prospecting_snapshot(
     actor_role: str | None,
 ) -> ProspectingSnapshot:
     """Create and persist a prospecting research snapshot."""
-    contact = session.exec(
-        select(Contact).where(Contact.workspace_id == workspace_id, Contact.id == contact_id)
-    ).first()
+    shared_contact = shared_record_service.get_shared_contact(
+        workspace_id=workspace_id,
+        contact_id=contact_id,
+    )
+    contact = _contact_from_public(shared_contact) if shared_contact else None
     if contact is None:
         raise ProspectingContactNotFoundError
 
     sources = [_crm_contact_source(contact)]
-    sources.extend(_timeline_sources(session, workspace_id=workspace_id, contact_id=contact.id))
+    sources.extend(
+        _timeline_sources(session, workspace_id=workspace_id, contact_id=contact.id)
+    )
     sources.extend(await _website_sources(company_url))
     brief = build_prospecting_brief(contact=contact, sources=sources)
 
     snapshot = ProspectingSnapshot(
         workspace_id=workspace_id,
-        contact_id=contact.id,
+        shared_contact_id=contact.id,
         created_by=actor_id,
         company_url=company_url.strip() if company_url else None,
         sources_json=[source.model_dump() for source in sources],
@@ -384,23 +446,23 @@ def _unique_ids(values: list[uuid.UUID]) -> list[uuid.UUID]:
 
 def _load_selected_contacts(
     *,
-    session: Session,
+    _session: Session,
     workspace_id: str,
     contact_ids: list[uuid.UUID],
 ) -> list[Contact]:
     unique_contact_ids = _unique_ids(contact_ids)
-    contacts = list(
-        session.exec(
-            select(Contact).where(
-                Contact.workspace_id == workspace_id,
-                Contact.id.in_(unique_contact_ids),  # type: ignore[attr-defined]
-            )
-        ).all()
-    )
-    by_id = {contact.id: contact for contact in contacts}
-    if len(by_id) != len(unique_contact_ids):
+    contacts = []
+    for contact_id in unique_contact_ids:
+        contact = shared_record_service.get_shared_contact(
+            workspace_id=workspace_id,
+            contact_id=contact_id,
+        )
+        if contact is None:
+            raise ProspectingContactNotFoundError
+        contacts.append(_contact_from_public(contact))
+    if len(contacts) != len(unique_contact_ids):
         raise ProspectingContactNotFoundError
-    return [by_id[contact_id] for contact_id in unique_contact_ids]
+    return contacts
 
 
 async def create_bulk_prospecting_snapshots(
@@ -413,7 +475,9 @@ async def create_bulk_prospecting_snapshots(
     actor_role: str | None,
 ) -> list[ProspectingSnapshot]:
     """Create prospecting snapshots for selected workspace contacts."""
-    contacts = _load_selected_contacts(session=session, workspace_id=workspace_id, contact_ids=contact_ids)
+    contacts = _load_selected_contacts(
+        _session=session, workspace_id=workspace_id, contact_ids=contact_ids
+    )
     snapshots: list[ProspectingSnapshot] = []
     for contact in contacts:
         snapshots.append(
@@ -440,9 +504,13 @@ def enroll_selected_prospects(
     actor_role: str | None,
 ) -> ProspectingEnrollmentPublic:
     """Add selected prospects to a campaign and optionally to one sequence."""
-    contacts = _load_selected_contacts(session=session, workspace_id=workspace_id, contact_ids=contact_ids)
+    contacts = _load_selected_contacts(
+        _session=session, workspace_id=workspace_id, contact_ids=contact_ids
+    )
     campaign = session.exec(
-        select(Campaign).where(Campaign.workspace_id == workspace_id, Campaign.id == campaign_id)
+        select(Campaign).where(
+            Campaign.workspace_id == workspace_id, Campaign.id == campaign_id
+        )
     ).first()
     if campaign is None:
         raise ProspectingCampaignNotFoundError
@@ -469,7 +537,7 @@ def enroll_selected_prospects(
     for contact in contacts:
         progression = session.exec(
             select(ContactProgression).where(
-                ContactProgression.contact_id == contact.id,
+                ContactProgression.shared_contact_id == contact.id,
                 ContactProgression.campaign_id == campaign_id,
             )
         ).first()
@@ -478,7 +546,7 @@ def enroll_selected_prospects(
         else:
             session.add(
                 ContactProgression(
-                    contact_id=contact.id,
+                    shared_contact_id=contact.id,
                     campaign_id=campaign_id,
                     current_state=ContactProgressionState.inbox,
                 )
@@ -489,7 +557,7 @@ def enroll_selected_prospects(
             continue
         sequence_state = session.exec(
             select(ContactSequenceState).where(
-                ContactSequenceState.contact_id == contact.id,
+                ContactSequenceState.shared_contact_id == contact.id,
                 ContactSequenceState.sequence_id == sequence.id,
             )
         ).first()
@@ -498,7 +566,7 @@ def enroll_selected_prospects(
         else:
             session.add(
                 ContactSequenceState(
-                    contact_id=contact.id,
+                    shared_contact_id=contact.id,
                     sequence_id=sequence.id,
                     status=SequenceStatus.active,
                     signal_type="prospecting",
@@ -550,9 +618,13 @@ def list_prospecting_snapshots(
     limit: int = 20,
 ) -> list[ProspectingSnapshot]:
     """Return recent prospecting snapshots for one workspace."""
-    statement = select(ProspectingSnapshot).where(ProspectingSnapshot.workspace_id == workspace_id)
+    statement = select(ProspectingSnapshot).where(
+        ProspectingSnapshot.workspace_id == workspace_id
+    )
     if contact_id is not None:
-        statement = statement.where(ProspectingSnapshot.contact_id == contact_id)
+        statement = statement.where(
+            ProspectingSnapshot.shared_contact_id == contact_id
+        )
     return list(
         session.exec(
             statement.order_by(ProspectingSnapshot.created_at.desc()).limit(limit)
@@ -566,7 +638,7 @@ def snapshot_to_public(snapshot: ProspectingSnapshot) -> ProspectingResearchPubl
     sources = [ProspectingSource(**source) for source in snapshot.sources_json]
     return ProspectingResearchPublic(
         id=snapshot.id,
-        contact_id=snapshot.contact_id,
+        contact_id=snapshot.shared_contact_id,
         company_url=snapshot.company_url,
         sources=sources,
         created_at=snapshot.created_at,

@@ -155,6 +155,10 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY: str = ""
     SENDGRID_WEBHOOK_SECRET: str = ""
     SENDGRID_FROM_EMAIL: str = ""
+    ECRM_SHARED_API_BASE_URL: str = "http://localhost:5050"
+    ECRM_SHARED_API_TOKEN: str = ""
+    # Route-adapter cutover flag; intentionally unused by the low-level client.
+    USE_ECRM_SHARED_RECORDS: bool = True
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_PHONE_NUMBER: str = ""

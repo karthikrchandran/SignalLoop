@@ -7,6 +7,7 @@ import hmac
 import html
 import uuid
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -16,6 +17,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 from starlette.websockets import WebSocketDisconnect
 
+from app.api.routes import voice as voice_routes
 from app.core.config import settings
 from app.core.encryption import encrypt
 from app.domain.voice.models import (
@@ -28,6 +30,7 @@ from app.domain.voice.models import (
 from app.domain_models import (
     Campaign,
     Contact,
+    ContactPublic,
     NotificationProvider,
     ProviderCredential,
     ProviderEventLog,
@@ -390,3 +393,116 @@ def test_media_stream_rejects_mismatched_start_frame(client: TestClient) -> None
             websocket.receive_text()
 
     assert exc_info.value.code == 1008
+
+
+def test_load_engine_for_call_uses_shared_contact_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(voice_routes.settings, "USE_ECRM_SHARED_RECORDS", True)
+    contact_id = uuid.uuid4()
+
+    class _DummyAdapter:
+        pass
+
+    monkeypatch.setattr(
+        voice_routes, "resolve_stt_adapter", lambda *args, **kwargs: _DummyAdapter()
+    )
+    monkeypatch.setattr(
+        voice_routes, "resolve_tts_adapter", lambda *args, **kwargs: _DummyAdapter()
+    )
+    monkeypatch.setattr(
+        voice_routes, "resolve_llm_adapter", lambda *args, **kwargs: _DummyAdapter()
+    )
+    monkeypatch.setattr(
+        voice_routes.shared_record_service,
+        "get_shared_contact",
+        lambda **kwargs: ContactPublic(
+            id=contact_id,
+            workspace_id=WORKSPACE_ID,
+            account_id=None,
+            email="voice@example.com",
+            first_name="Avery",
+            last_name="Stone",
+            company="SharedCo",
+            phone="+15551234567",
+            timezone="UTC",
+            created_at=datetime.now(timezone.utc),
+        ),
+    )
+    monkeypatch.setattr(
+        voice_routes,
+        "resolve_workspace_runtime_config",
+        lambda *args, **kwargs: SimpleNamespace(
+            deepgram_api_key=SimpleNamespace(value=""),
+            groq_api_key=SimpleNamespace(value=""),
+            team_notification_email=SimpleNamespace(value=""),
+        ),
+    )
+
+    owner_id = uuid.uuid4()
+    campaign = Campaign(
+        name="Voice",
+        workspace_id=WORKSPACE_ID,
+        created_by=owner_id,
+    )
+    script = VoiceScript(
+        campaign_id=campaign.id,
+        name="Voice Script",
+        content="Say hello.",
+        created_by=owner_id,
+    )
+    call_request = CallRequest(
+        contact_id=contact_id,
+        campaign_id=campaign.id,
+        voice_script_id=script.id,
+        trigger_reason="manual_queue",
+        scheduled_at=datetime.now(timezone.utc),
+    )
+    call_session = CallSession(
+        call_request_id=call_request.id,
+        twilio_call_sid=_call_sid(),
+        twilio_account_sid=GLOBAL_ACCOUNT_SID,
+    )
+
+    class _FakeResult:
+        def __init__(self, value: object) -> None:
+            self._value = value
+
+        def first(self) -> object:
+            return self._value
+
+    class _FakeSession:
+        def __enter__(self) -> _FakeSession:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def exec(self, statement):  # type: ignore[no-untyped-def]
+            entity = statement.column_descriptions[0]["entity"]
+            if entity is voice_routes.CallSession:
+                return _FakeResult(call_session)
+            if entity is voice_routes.CallRequest:
+                return _FakeResult(call_request)
+            if entity is voice_routes.VoiceScript:
+                return _FakeResult(script)
+            if entity is voice_routes.Campaign:
+                return _FakeResult(campaign)
+            return _FakeResult(None)
+
+        def get(self, model, key):  # type: ignore[no-untyped-def]
+            if model is voice_routes.CallRequest and key == call_request.id:
+                return call_request
+            if model is voice_routes.VoiceScript and key == script.id:
+                return script
+            if model is voice_routes.Campaign and key == campaign.id:
+                return campaign
+            return None
+
+    monkeypatch.setattr(voice_routes, "Session", lambda *args, **kwargs: _FakeSession())
+
+    engine = asyncio.run(voice_routes._load_engine_for_call(call_session.twilio_call_sid))
+
+    assert engine is not None
+    assert engine._contact_name == "Avery"
+    assert engine._contact_company == "SharedCo"

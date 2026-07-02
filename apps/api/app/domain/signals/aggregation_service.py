@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -12,14 +12,16 @@ from app.domain.signals.models import SignalEvent
 
 def get_contact_signals(
     session: Session,
-    contact_id: uuid.UUID,
+    shared_contact_id: uuid.UUID,
     *,
     channel: str | None = None,
     signal_type: str | None = None,
     since: datetime | None = None,
 ) -> list[SignalEvent]:
     """Return contact signals."""
-    query = select(SignalEvent).where(SignalEvent.contact_id == contact_id)
+    query = select(SignalEvent).where(
+        SignalEvent.shared_contact_id == shared_contact_id
+    )
     if channel:
         query = query.where(SignalEvent.channel == channel)
     if signal_type:
@@ -30,12 +32,12 @@ def get_contact_signals(
 
 
 def get_latest_signal(
-    session: Session, contact_id: uuid.UUID
+    session: Session, shared_contact_id: uuid.UUID
 ) -> SignalEvent | None:
     """Return latest signal."""
     return session.exec(
         select(SignalEvent)
-        .where(SignalEvent.contact_id == contact_id)
+        .where(SignalEvent.shared_contact_id == shared_contact_id)
         .order_by(SignalEvent.created_at.desc())
         .limit(1)
     ).first()

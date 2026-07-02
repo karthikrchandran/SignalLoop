@@ -14,6 +14,7 @@ from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.db import engine
+from app.domain.shared_records import service as shared_record_service
 
 # Timeline cache invalidation moved to route layer (invalidate_timeline_cache via Request object)
 # from app.domain.timeline.timeline_service import invalidate_timeline_cache_from_url
@@ -26,7 +27,6 @@ from app.domain.voice.models import (
 from app.domain_models import (
     Campaign,
     CampaignStatus,
-    Contact,
     GlobalControlState,
     GovernancePolicy,
     PolicyStatus,
@@ -274,9 +274,22 @@ async def _process_batch() -> int:
 async def _initiate_call(
     session: Session, call_req: CallRequest
 ) -> tuple[uuid.UUID, uuid.UUID] | None:
-    contact = session.get(Contact, call_req.contact_id)
+    campaign = session.get(Campaign, call_req.campaign_id)
+    workspace_id = campaign.workspace_id if campaign else settings.DEFAULT_WORKSPACE_ID
+    shared_contact = shared_record_service.get_shared_contact(
+        workspace_id=workspace_id,
+        contact_id=call_req.shared_contact_id,
+    )
+    contact = (
+        shared_record_service.shared_contact_to_contact(shared_contact)
+        if shared_contact
+        else None
+    )
     if not contact:
-        logger.warning("Contact %s not found, marking failed", call_req.contact_id)
+        logger.warning(
+            "Shared contact %s not found, marking failed",
+            call_req.shared_contact_id,
+        )
         call_req.status = CallRequestStatus.failed
         session.add(call_req)
         return None
@@ -372,7 +385,7 @@ async def _initiate_call(
         error_detail = result.get("error_code") or result.get("error", "twilio_rejected")
         logger.warning("Call failed for contact=%s: %s", contact.id, error_detail)
 
-    return call_req.contact_id, call_req.campaign_id
+    return call_req.shared_contact_id, call_req.campaign_id
 
 
 async def run_worker() -> None:

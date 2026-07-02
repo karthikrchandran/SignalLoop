@@ -3,11 +3,17 @@ from __future__ import annotations
 import json
 import uuid
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from app.core.config import settings
-from app.domain_models import Account, Contact, ContactProgression
+from app.core.db import engine
+from app.domain_models import ContactProgression
+from tests.utils.shared_records import (
+    SharedRecordStore,
+    install_shared_record_mocks,
+)
 
 
 def _headers(token_headers: dict[str, str], workspace_id: str, *, idempotency: bool = False) -> dict[str, str]:
@@ -17,10 +23,15 @@ def _headers(token_headers: dict[str, str], workspace_id: str, *, idempotency: b
     return headers
 
 
+@pytest.fixture(autouse=True)
+def shared_records(monkeypatch: pytest.MonkeyPatch) -> SharedRecordStore:
+    return install_shared_record_mocks(monkeypatch)
+
+
 def test_contact_import_preview_and_commit(
     client: TestClient,
     superuser_token_headers: dict[str, str],
-    db: Session,
+    shared_records: SharedRecordStore,
 ) -> None:
     workspace_id = f"ws-contact-pool-{uuid.uuid4().hex[:8]}"
     email = f"lead-{uuid.uuid4().hex[:8]}@example.com"
@@ -80,21 +91,21 @@ def test_contact_import_preview_and_commit(
     assert contact["first_name"] == "Ada"
     assert contact["phone"] == "+15551234567"
 
-    persisted = db.exec(select(Contact).where(Contact.email == email)).first()
+    persisted = shared_records.get(contact["id"])
     assert persisted is not None
-    assert persisted.account_id is not None
-    assert contact["account_id"] == str(persisted.account_id)
-    account = db.get(Account, persisted.account_id)
+    assert persisted["parentId"]
+    assert contact["account_id"] == persisted["parentId"]
+    account = shared_records.get(persisted["parentId"])
     assert account is not None
-    assert account.workspace_id == workspace_id
-    assert account.name == "Analytical"
-    assert account.account_key == "analytical"
+    assert account["data"]["workspaceId"] == workspace_id
+    assert account["companyName"] == "Analytical"
+    assert account["data"]["accountKey"] == "analytical"
 
 
 def test_campaign_audience_can_select_existing_contacts_by_filter(
     client: TestClient,
     superuser_token_headers: dict[str, str],
-    db: Session,
+    shared_records: SharedRecordStore,
 ) -> None:
     workspace_id = f"ws-contact-pool-{uuid.uuid4().hex[:8]}"
     campaign_response = client.post(
@@ -104,13 +115,17 @@ def test_campaign_audience_can_select_existing_contacts_by_filter(
     )
     assert campaign_response.status_code == 200
     campaign_id = campaign_response.json()["id"]
-    contacts = [
-        Contact(workspace_id=workspace_id, email=f"saas-{uuid.uuid4().hex[:6]}@example.com", company="Acme SaaS", phone="+15550000001"),
-        Contact(workspace_id=workspace_id, email=f"retail-{uuid.uuid4().hex[:6]}@example.com", company="Retail Co"),
-    ]
-    for contact in contacts:
-        db.add(contact)
-    db.commit()
+    saas_contact_id = shared_records.register_contact(
+        workspace_id=workspace_id,
+        email=f"saas-{uuid.uuid4().hex[:6]}@example.com",
+        company="Acme SaaS",
+        phone="+15550000001",
+    )
+    shared_records.register_contact(
+        workspace_id=workspace_id,
+        email=f"retail-{uuid.uuid4().hex[:6]}@example.com",
+        company="Retail Co",
+    )
 
     response = client.post(
         f"{settings.API_V1_STR}/campaigns/{campaign_id}/audience",
@@ -126,8 +141,11 @@ def test_campaign_audience_can_select_existing_contacts_by_filter(
     assert payload["added_count"] == 1
     assert payload["segment_name"] == "SaaS leads"
 
-    progressions = db.exec(
-        select(ContactProgression).where(ContactProgression.campaign_id == uuid.UUID(campaign_id))
-    ).all()
+    with Session(engine) as session:
+        progressions = session.exec(
+            select(ContactProgression).where(
+                ContactProgression.campaign_id == uuid.UUID(campaign_id)
+            )
+        ).all()
     assert len(progressions) == 1
-    assert progressions[0].contact_id == contacts[0].id
+    assert progressions[0].contact_id == saas_contact_id

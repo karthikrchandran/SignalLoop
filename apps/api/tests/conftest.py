@@ -85,7 +85,7 @@ def reset_db_session_state(db: Session) -> Generator[None, None, None]:
 
 
 @pytest.fixture(scope="module")
-def client() -> Generator[TestClient, None, None]:
+def client(db: Session) -> Generator[TestClient, None, None]:  # noqa: ARG001
     with TestClient(app) as c:
         yield c
 

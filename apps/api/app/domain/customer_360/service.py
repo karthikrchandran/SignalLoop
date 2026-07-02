@@ -7,7 +7,6 @@ from typing import TypedDict
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from app.domain.accounts.service import account_to_public
 from app.domain.chatbot.models import (
     ChatbotConversation,
     ChatbotConversationStatus,
@@ -19,11 +18,12 @@ from app.domain.sequences.models import (
     EmailSequence,
     SendRequest,
 )
+from app.domain.shared_records import service as shared_record_service
 from app.domain.voice.models import CallRequest, CallSession
 from app.domain_models import (
-    Account,
+    AccountPublic,
     Campaign,
-    Contact,
+    ContactPublic,
     Customer360AccountProfilePublic,
     Customer360AccountRowPublic,
     Customer360AccountsPublic,
@@ -46,25 +46,13 @@ class _ProfileParts(TypedDict):
     last_activity_at: datetime | None
 
 
-def _contact_name(contact: Contact) -> str:
+def _contact_name(contact: ContactPublic) -> str:
     name = f"{contact.first_name or ''} {contact.last_name or ''}".strip()
     return name or contact.email
 
 
-def _contact_public(contact: Contact) -> Customer360ContactPublic:
-    return Customer360ContactPublic(
-        id=contact.id,
-        workspace_id=contact.workspace_id,
-        account_id=contact.account_id,
-        email=contact.email,
-        first_name=contact.first_name,
-        last_name=contact.last_name,
-        company=contact.company,
-        phone=contact.phone,
-        timezone=contact.timezone,
-        created_at=contact.created_at,
-        display_name=_contact_name(contact),
-    )
+def _contact_public(contact: ContactPublic) -> Customer360ContactPublic:
+    return shared_record_service.shared_contact_to_customer_360(contact)
 
 
 def _status_value(value: object) -> str:
@@ -114,18 +102,35 @@ def _excerpt(value: str | None, *, limit: int = 180) -> str:
     return f"{text[: limit - 3].rstrip()}..."
 
 
+def _load_accounts(
+    *,
+    workspace_id: str,
+    search: str | None = None,
+    limit: int = 50,
+) -> list[AccountPublic]:
+    records = shared_record_service.ecrm_shared_records.list_shared_records(
+        entity_type="CUSTOMER",
+        q=search,
+        status="active",
+        limit=limit,
+    )
+    accounts = [
+        shared_record_service.shared_account_to_public(record, workspace_id=workspace_id)
+        for record in records.get("records", [])
+        if isinstance(record, dict)
+    ]
+    return [account for account in accounts if account.workspace_id == workspace_id]
+
+
 def _load_contacts(
-    session: Session,
     *,
     workspace_id: str,
     account_id: uuid.UUID,
-) -> list[Contact]:
-    return list(
-        session.exec(
-            select(Contact)
-            .where(Contact.workspace_id == workspace_id, Contact.account_id == account_id)
-            .order_by(Contact.created_at.desc())
-        ).all(),
+) -> list[ContactPublic]:
+    return shared_record_service.list_shared_contacts(
+        workspace_id=workspace_id,
+        parent_id=str(account_id),
+        limit=100,
     )
 
 
@@ -146,15 +151,10 @@ def list_customer_360_accounts(
     search: str | None = None,
     limit: int = 50,
 ) -> Customer360AccountsPublic:
-    stmt = select(Account).where(Account.workspace_id == workspace_id).order_by(Account.name)
-    if search and search.strip():
-        stmt = stmt.where(Account.name.ilike(f"%{search.strip()}%"))
-
-    accounts = list(session.exec(stmt.limit(limit)).all())
+    accounts = _load_accounts(workspace_id=workspace_id, search=search, limit=limit)
     rows: list[Customer360AccountRowPublic] = []
     for account in accounts:
         contacts = _load_contacts(
-            session,
             workspace_id=workspace_id,
             account_id=account.id,
         )
@@ -175,15 +175,13 @@ def list_customer_360_accounts(
             if parts["next_best_action"] is not None
             else None
         )
-        public = account_to_public(account)
         rows.append(
             Customer360AccountRowPublic(
-                **public.model_dump(),
+                **account.model_dump(),
                 contact_count=len(contacts),
                 last_activity_at=parts["last_activity_at"],
                 channel_counts={
-                    key: value.count
-                    for key, value in parts["channel_summaries"].items()
+                    key: value.count for key, value in parts["channel_summaries"].items()
                 },
                 top_next_action=prospecting_action or fallback_action,
             ),
@@ -197,17 +195,18 @@ def get_account_profile(
     workspace_id: str,
     account_id: uuid.UUID,
 ) -> Customer360AccountProfilePublic | None:
-    account = session.exec(
-        select(Account).where(
-            Account.id == account_id,
-            Account.workspace_id == workspace_id,
+    account = next(
+        (
+            candidate
+            for candidate in _load_accounts(workspace_id=workspace_id, limit=100)
+            if candidate.id == account_id
         ),
-    ).first()
+        None,
+    )
     if account is None:
         return None
 
     contacts = _load_contacts(
-        session,
         workspace_id=workspace_id,
         account_id=account.id,
     )
@@ -219,7 +218,7 @@ def get_account_profile(
         contact_ids=contact_ids,
     )
     return Customer360AccountProfilePublic(
-        account=account_to_public(account),
+        account=account,
         contacts=[_contact_public(contact) for contact in contacts],
         channel_summaries=parts["channel_summaries"],
         next_best_action=parts["next_best_action"],
@@ -232,8 +231,8 @@ def get_account_profile(
 def _build_profile_parts(
     session: Session,
     *,
-    account: Account,
-    contacts: list[Contact],
+    account: AccountPublic,
+    contacts: list[ContactPublic],
     contact_ids: list[uuid.UUID],
 ) -> _ProfileParts:
     if not contact_ids:
@@ -257,11 +256,11 @@ def _build_profile_parts(
             select(ChatbotConversation)
             .where(
                 ChatbotConversation.workspace_id == account.workspace_id,
-                ChatbotConversation.contact_id.in_(contact_ids),
+                ChatbotConversation.shared_contact_id.in_(contact_ids),
                 ChatbotConversation.deleted_at.is_(None),
             )
             .order_by(ChatbotConversation.last_message_at.desc()),
-        ).all(),
+        ).all()
     )
     call_rows = list(
         session.exec(
@@ -269,11 +268,11 @@ def _build_profile_parts(
             .join(Campaign, Campaign.id == CallRequest.campaign_id)
             .outerjoin(CallSession, CallRequest.id == CallSession.call_request_id)
             .where(
-                CallRequest.contact_id.in_(contact_ids),
+                CallRequest.shared_contact_id.in_(contact_ids),
                 Campaign.workspace_id == account.workspace_id,
             )
             .order_by(CallRequest.created_at.desc()),
-        ).all(),
+        ).all()
     )
     sequence_states = list(
         session.exec(
@@ -281,21 +280,21 @@ def _build_profile_parts(
             .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
             .join(Campaign, Campaign.id == EmailSequence.campaign_id)
             .where(
-                ContactSequenceState.contact_id.in_(contact_ids),
+                ContactSequenceState.shared_contact_id.in_(contact_ids),
                 Campaign.workspace_id == account.workspace_id,
             )
             .order_by(ContactSequenceState.created_at.desc()),
-        ).all(),
+        ).all()
     )
     snapshots = list(
         session.exec(
             select(ProspectingSnapshot)
             .where(
                 ProspectingSnapshot.workspace_id == account.workspace_id,
-                ProspectingSnapshot.contact_id.in_(contact_ids),
+                ProspectingSnapshot.shared_contact_id.in_(contact_ids),
             )
             .order_by(ProspectingSnapshot.created_at.desc()),
-        ).all(),
+        ).all()
     )
 
     send_rows: list[tuple[ContactSequenceState, SendRequest]] = []
@@ -303,7 +302,9 @@ def _build_profile_parts(
     opened_count = 0
     if sequence_states:
         state_ids = [state.id for state in sequence_states]
-        state_contact_ids = {state.id: state.contact_id for state in sequence_states}
+        state_contact_ids = {
+            state.id: state.shared_contact_id for state in sequence_states
+        }
         send_rows = list(
             session.exec(
                 select(ContactSequenceState, SendRequest)
@@ -313,7 +314,7 @@ def _build_profile_parts(
                 )
                 .where(ContactSequenceState.id.in_(state_ids))
                 .order_by(SendRequest.sent_at.desc(), SendRequest.created_at.desc()),
-            ).all(),
+            ).all()
         )
         if send_rows:
             send_ids = [send_request.id for _state, send_request in send_rows]
@@ -322,8 +323,8 @@ def _build_profile_parts(
                     select(func.count(EmailEvent.id)).where(
                         EmailEvent.send_request_id.in_(send_ids),
                         EmailEvent.event_type.in_(["opened", "clicked"]),
-                    ),
-                ).one(),
+                    )
+                ).one()
             )
             events = list(
                 session.exec(
@@ -331,7 +332,7 @@ def _build_profile_parts(
                     .join(SendRequest, EmailEvent.send_request_id == SendRequest.id)
                     .where(EmailEvent.send_request_id.in_(send_ids))
                     .order_by(EmailEvent.timestamp.desc()),
-                ).all(),
+                ).all()
             )
             email_events = [
                 (event, state_contact_ids[state_id])
@@ -383,8 +384,8 @@ def _build_profile_parts(
 
     for conversation in conversations:
         contact = (
-            contact_map.get(conversation.contact_id)
-            if conversation.contact_id is not None
+            contact_map.get(conversation.shared_contact_id)
+            if conversation.shared_contact_id is not None
             else None
         )
         message = _latest_message(session, conversation)
@@ -398,43 +399,39 @@ def _build_profile_parts(
                 Customer360OpenWorkPublic(
                     id=f"chatbot-{conversation.id}",
                     source="chatbot",
-                    title=(
-                        "Chatbot escalation"
-                        if conversation.escalated
-                        else "Open chatbot thread"
-                    ),
-                    contact_id=conversation.contact_id,
+                    title="Chatbot escalation"
+                    if conversation.escalated
+                    else "Open chatbot thread",
+                    contact_id=conversation.shared_contact_id,
                     contact_name=_contact_name(contact) if contact else None,
                     status=_status_value(conversation.status),
                     created_at=timestamp,
-                ),
+                )
             )
         timeline.append(
             Customer360TimelineEventPublic(
                 id=f"chatbot-{conversation.id}",
                 source="chatbot",
                 event_type="chatbot_thread",
-                title=(
-                    "Chatbot escalation"
-                    if conversation.escalated
-                    else "Chatbot conversation"
-                ),
+                title="Chatbot escalation"
+                if conversation.escalated
+                else "Chatbot conversation",
                 detail=_excerpt(
                     conversation.escalation_reason
                     or (
                         message.content
                         if message and message.content
                         else "Chatbot activity"
-                    ),
+                    )
                 ),
-                contact_id=conversation.contact_id,
+                contact_id=conversation.shared_contact_id,
                 contact_name=_contact_name(contact) if contact else None,
                 timestamp=timestamp,
-            ),
+            )
         )
 
     for call_request, call_session in call_rows:
-        contact = contact_map.get(call_request.contact_id)
+        contact = contact_map.get(call_request.shared_contact_id)
         timestamp = call_session.created_at if call_session else call_request.created_at
         if call_session and call_session.scheduling_interest:
             open_work.append(
@@ -442,11 +439,11 @@ def _build_profile_parts(
                     id=f"voice-{call_request.id}",
                     source="voice",
                     title="Voice follow-up",
-                    contact_id=call_request.contact_id,
+                    contact_id=call_request.shared_contact_id,
                     contact_name=_contact_name(contact) if contact else None,
                     status=_status_value(call_session.outcome),
                     created_at=timestamp,
-                ),
+                )
             )
         timeline.append(
             Customer360TimelineEventPublic(
@@ -457,16 +454,16 @@ def _build_profile_parts(
                 detail=_excerpt(
                     call_session.transcript
                     if call_session and call_session.transcript
-                    else call_request.trigger_reason,
+                    else call_request.trigger_reason
                 ),
-                contact_id=call_request.contact_id,
+                contact_id=call_request.shared_contact_id,
                 contact_name=_contact_name(contact) if contact else None,
                 timestamp=timestamp,
-            ),
+            )
         )
 
     for state, send_request in send_rows:
-        contact = contact_map.get(state.contact_id)
+        contact = contact_map.get(state.shared_contact_id)
         timestamp = send_request.sent_at or send_request.created_at
         timeline.append(
             Customer360TimelineEventPublic(
@@ -475,10 +472,10 @@ def _build_profile_parts(
                 event_type="email_send",
                 title="Email sent",
                 detail=f"Sequence step {send_request.step_order} {_status_value(send_request.status)}",
-                contact_id=state.contact_id,
+                contact_id=state.shared_contact_id,
                 contact_name=_contact_name(contact) if contact else None,
                 timestamp=timestamp,
-            ),
+            )
         )
 
     for event, contact_id in email_events:
@@ -493,7 +490,7 @@ def _build_profile_parts(
                 contact_id=contact_id,
                 contact_name=_contact_name(contact) if contact else None,
                 timestamp=event.timestamp,
-            ),
+            )
         )
 
     latest_snapshot = snapshots[0] if snapshots else None
@@ -501,7 +498,7 @@ def _build_profile_parts(
     if latest_snapshot:
         prospecting_brief = Customer360ProspectingBriefPublic(
             snapshot_id=latest_snapshot.id,
-            contact_id=latest_snapshot.contact_id,
+            contact_id=latest_snapshot.shared_contact_id,
             account_summary=_snapshot_summary(latest_snapshot),
             suggested_next_action=_snapshot_next_action(latest_snapshot),
             email_draft_available=bool((latest_snapshot.email_draft or "").strip()),
@@ -509,7 +506,7 @@ def _build_profile_parts(
             created_at=latest_snapshot.created_at,
         )
     for snapshot in snapshots:
-        contact = contact_map.get(snapshot.contact_id)
+        contact = contact_map.get(snapshot.shared_contact_id)
         timeline.append(
             Customer360TimelineEventPublic(
                 id=f"prospecting-{snapshot.id}",
@@ -517,19 +514,15 @@ def _build_profile_parts(
                 event_type="prospecting_research",
                 title="Prospecting research created",
                 detail=_snapshot_summary(snapshot),
-                contact_id=snapshot.contact_id,
+                contact_id=snapshot.shared_contact_id,
                 contact_name=_contact_name(contact) if contact else None,
                 timestamp=snapshot.created_at,
-            ),
+            )
         )
 
     next_best_action = None
     if open_work:
-        first_work = sorted(
-            open_work,
-            key=lambda item: item.created_at,
-            reverse=True,
-        )[0]
+        first_work = sorted(open_work, key=lambda item: item.created_at, reverse=True)[0]
         if prospecting_brief and prospecting_brief.suggested_next_action:
             next_best_action = Customer360NextActionPublic(
                 title=_without_final_period(prospecting_brief.suggested_next_action),
@@ -542,9 +535,9 @@ def _build_profile_parts(
                 title=first_work.title,
                 reason=f"{account.name} has open {first_work.source} work.",
                 source=first_work.source,
-                priority=(
-                    "high" if first_work.source in {"chatbot", "voice"} else "medium"
-                ),
+                priority="high"
+                if first_work.source in {"chatbot", "voice"}
+                else "medium",
             )
     elif prospecting_brief and prospecting_brief.suggested_next_action:
         next_best_action = Customer360NextActionPublic(
@@ -560,11 +553,9 @@ def _build_profile_parts(
     return {
         "channel_summaries": channel_summaries,
         "next_best_action": next_best_action,
-        "open_work": sorted(
-            open_work,
-            key=lambda item: item.created_at,
-            reverse=True,
-        )[:12],
+        "open_work": sorted(open_work, key=lambda item: item.created_at, reverse=True)[
+            :12
+        ],
         "prospecting_brief": prospecting_brief,
         "timeline": timeline,
         "last_activity_at": last_activity_at,

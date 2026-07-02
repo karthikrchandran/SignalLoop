@@ -12,19 +12,69 @@
       <h1>SignalLoop Screen 4.4</h1>
       <p>Journey 4 - Audit Trail Entry</p>
     </div>
-    <a class="btn" href="index.html">Back to Home</a>
+    <a class="btn" href="index.html">Back to Gallery</a>
   </div>
 
   <div class="wrap">
-    <div class="card">
-      <div class="card-head">
-        <div class="screen-id">Screen 4.4</div>
-        <div class="title">Audit Trail Entry</div>
-      </div>
-      <div class="body">Feed confirmation showing admin action, reason code, and timestamp.<div class="mini-frame"><div class="mini-header"><span>Audit Log</span><span>Now</span></div><div class="mini-content"><div class="row"><span class="chip ok">Error resolved - retry initiated</span></div></div></div></div>
+    <div class="hero">
+      <section class="hero-card">
+        <h2>Audit trail entries shown as compact, readable records.</h2>
+        <p>
+          The audit log keeps accountability visible without burying the operator in raw data.
+          Each row includes the action, actor, timestamp, and result in one glance.
+        </p>
+        <div class="hero-meta">
+          <span class="pill teal">Audit</span>
+          <span class="pill brand">Traceable</span>
+          <span class="pill good">Complete</span>
+        </div>
+      </section>
+      <aside class="hero-side">
+        <div class="stat-grid">
+          <div class="stat"><small>Entries</small><strong>28</strong><span>today</span></div>
+          <div class="stat"><small>Actors</small><strong>5</strong><span>users</span></div>
+          <div class="stat"><small>Changes</small><strong>9</strong><span>state</span></div>
+          <div class="stat"><small>Search</small><strong>Live</strong><span>on</span></div>
+        </div>
+      </aside>
     </div>
 
-    <div class="nav">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="screen-id">Screen 4.4</div>
+          <div class="title">Audit Trail Entry</div>
+        </div>
+        <span class="pill teal">History</span>
+      </div>
+      <div class="card-body">
+        <div class="table">
+          <div class="table-head">
+            <div>Action</div><div>Actor</div><div>Time</div><div>Result</div>
+          </div>
+          <div class="table-row">
+            <div><strong>Retry batch</strong><span>campaign A</span></div>
+            <div>Ops user</div>
+            <div>10:43 AM</div>
+            <div class="chip good">Succeeded</div>
+          </div>
+          <div class="table-row">
+            <div><strong>Pause campaign</strong><span>campaign A</span></div>
+            <div>System</div>
+            <div>10:42 AM</div>
+            <div class="chip warn">Applied</div>
+          </div>
+          <div class="table-row">
+            <div><strong>Send failed</strong><span>batch 12</span></div>
+            <div>Worker</div>
+            <div>10:41 AM</div>
+            <div class="chip bad">Error</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-nav">
       <a class="btn" href="screen-4-3-retry-confirmation-modal.html">Previous: 4.3</a>
       <a class="btn" href="index.html">Home</a>
       <a class="btn primary" href="screen-5-1-se-handoff-panel.html">Next: 5.1</a>

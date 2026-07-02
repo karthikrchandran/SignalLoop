@@ -1,125 +1,155 @@
-import { useEffect, useState } from "react"
-import { Loader2, RefreshCw } from "lucide-react"
+import { Link } from "@tanstack/react-router"
+import { ArrowRight, Plus, RefreshCw } from "lucide-react"
 
-import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import CampaignIntakeWizardPage from "@/features/campaigns/CampaignIntakeWizardPage"
-import { signalloopRequest } from "@/lib/signalloop-api"
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import WorkspaceHeader from "@/components/layout/WorkspaceHeader"
+import {
+  campaignLifecycleOrder,
+  formatCampaignDate,
+  getCampaignLifecycleLabel,
+  getCampaignLifecycleMeta,
+  getCampaignLifecycleRoute,
+  getCampaignLifecycleTone,
+  useCampaignsWorkspace,
+} from "./campaign-data"
+import { cn } from "@/lib/utils"
 
-type CampaignPublic = {
-  id: string
-  name: string
-  status: string
-}
-
-type CampaignsResponse = {
-  data: CampaignPublic[]
-  count: number
-}
+const toneClasses = {
+  info: "bg-primary/10 text-primary",
+  ready: "bg-[color:var(--workspace-success)]/10 text-[var(--workspace-success)]",
+  warning:
+    "bg-[color:var(--workspace-warning)]/10 text-[var(--workspace-warning)]",
+} as const
 
 export default function CampaignsWorkspacePage() {
-  const [campaigns, setCampaigns] = useState<CampaignPublic[]>([])
-  const [count, setCount] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [feedback, setFeedback] = useState("")
+  const { campaigns, count, counts, loading, error, refresh } =
+    useCampaignsWorkspace()
 
-  async function loadCampaigns() {
-    setLoading(true)
-    setFeedback("")
-    try {
-      const response = await signalloopRequest<CampaignsResponse>("/api/v1/campaigns/")
-      setCampaigns(response.data)
-      setCount(response.count)
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "Could not load campaigns")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    void loadCampaigns()
-  }, [])
+  const recentCampaigns = campaigns.slice(0, 6)
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Campaigns</h1>
-          <p className="text-sm text-muted-foreground">
-            Review campaign drafts first, then create a new campaign when needed.
-          </p>
-        </div>
-        <Button variant="outline" onClick={() => void loadCampaigns()} disabled={loading}>
-          {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}
-          Refresh
-        </Button>
-      </div>
+      <WorkspaceHeader
+        eyebrow="Campaigns"
+        title="Campaign lifecycle"
+        description="Use the lifecycle lanes to keep draft work, live activity, and paused work separated the way operators actually work."
+        actions={
+          <>
+            <Button asChild variant="outline">
+              <Link to="/campaigns/draft">
+                <Plus className="size-4" />
+                New draft
+              </Link>
+            </Button>
+            <Button variant="outline" onClick={refresh} disabled={loading}>
+              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+              Refresh
+            </Button>
+          </>
+        }
+      />
 
-      {feedback && (
-        <Alert>
-          <p className="text-sm">{feedback}</p>
-        </Alert>
-      )}
+      {error ? (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="py-4 text-sm text-destructive">
+            {error}
+          </CardContent>
+        </Card>
+      ) : null}
 
-      <Tabs defaultValue="list" className="gap-4">
-        <TabsList className="flex h-auto w-fit flex-wrap">
-          <TabsTrigger value="list">Campaign List</TabsTrigger>
-          <TabsTrigger value="create">Create Campaign</TabsTrigger>
-        </TabsList>
+      <section className="grid gap-3 md:grid-cols-3">
+        {campaignLifecycleOrder.map((status) => {
+          const meta = getCampaignLifecycleMeta(status)
+          const tone = toneClasses[getCampaignLifecycleTone(status)]
 
-        <TabsContent value="list">
-          <Card>
-            <CardHeader>
-              <CardTitle>Campaign List</CardTitle>
-              <CardDescription>{count} campaign{count === 1 ? "" : "s"} in this workspace.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {campaigns.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={2} className="py-10 text-center text-muted-foreground">
-                        No campaigns found.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    campaigns.map((campaign) => (
-                      <TableRow key={campaign.id}>
-                        <TableCell className="font-medium">{campaign.name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{campaign.status}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+          return (
+            <Card key={status} className="border-border/70">
+              <CardHeader className="flex flex-row items-center justify-between gap-3 pb-2">
+                <div>
+                  <CardDescription className="text-xs font-semibold uppercase tracking-wide">
+                    {meta.label}
+                  </CardDescription>
+                  <CardTitle className="mt-2 text-lg">{meta.title}</CardTitle>
+                </div>
+                <Badge variant="outline" className={tone}>
+                  {counts[status]}
+                </Badge>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">{meta.description}</p>
+                <Button asChild variant="outline" size="sm">
+                  <Link to={getCampaignLifecycleRoute(status)}>
+                    Open {getCampaignLifecycleLabel(status)}
+                    <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </section>
 
-        <TabsContent value="create">
-          <CampaignIntakeWizardPage />
-        </TabsContent>
-      </Tabs>
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent campaigns</CardTitle>
+          <CardDescription>
+            {count} campaign{count === 1 ? "" : "s"} in the workspace.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {recentCampaigns.length === 0 ? (
+              <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">
+                No campaigns are available yet.
+              </div>
+            ) : (
+              recentCampaigns.map((campaign) => {
+                const status = campaign.status
+                const meta = getCampaignLifecycleMeta(
+                  status === "draft" || status === "active" || status === "paused"
+                    ? status
+                    : "draft",
+                )
+                return (
+                  <div
+                    key={campaign.id}
+                    className="rounded-md border border-border/70 bg-[var(--workspace-surface)] p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {campaign.name}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {formatCampaignDate(campaign.created_at)}
+                        </p>
+                      </div>
+                      <Badge variant="outline">
+                        {getCampaignLifecycleLabel(
+                          status === "draft" || status === "active" || status === "paused"
+                            ? status
+                            : "draft",
+                        )}
+                      </Badge>
+                    </div>
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {meta.nextStep}
+                    </p>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

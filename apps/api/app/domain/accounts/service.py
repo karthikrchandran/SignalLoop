@@ -3,18 +3,16 @@ from __future__ import annotations
 import re
 import uuid
 
-from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, select
+from sqlmodel import Session
 
+from app.domain.shared_records import service as shared_record_service
 from app.domain_models import (
-    Account,
     AccountContactAssignmentPublic,
     AccountCreate,
     AccountPublic,
     AccountUpdate,
-    Contact,
-    get_datetime_utc,
 )
+from app.integrations.ecrm_shared_records import EcrmSharedRecordNotFound
 
 
 class AccountAlreadyExistsError(Exception):
@@ -29,44 +27,52 @@ class AccountContactNotFoundError(Exception):
     """Raised when a requested contact is not assignable in the workspace."""
 
 
+def _normalize_tags(tags: list[str] | None) -> list[str]:
+    cleaned: list[str] = []
+    for tag in tags or []:
+        normalized = tag.strip()
+        if normalized and normalized not in cleaned:
+            cleaned.append(normalized)
+    return cleaned
+
+
 def generate_account_key(name: str) -> str:
     """Return a deterministic account key for a display name."""
     normalized = re.sub(r"[^a-z0-9]+", "-", name.strip().lower())
     return normalized.strip("-")
 
 
-def _find_account_by_key(
-    session: Session,
+def _account_id(workspace_id: str, account_key: str) -> uuid.UUID:
+    return uuid.uuid5(
+        uuid.NAMESPACE_URL,
+        f"emailvoice:account:{workspace_id}:{account_key}",
+    )
+
+
+def _load_account_or_none(
     *,
     workspace_id: str,
-    account_key: str,
-) -> Account | None:
-    return session.exec(
-        select(Account).where(
-            Account.workspace_id == workspace_id,
-            Account.account_key == account_key,
+    account_id: uuid.UUID,
+) -> AccountPublic | None:
+    try:
+        record = shared_record_service.ecrm_shared_records.get_shared_record(
+            str(account_id)
         )
-    ).first()
-
-
-def _clean_tags(tags: list[str] | None) -> list[str]:
-    cleaned: list[str] = []
-    seen: set[str] = set()
-    for raw_tag in tags or []:
-        tag = raw_tag.strip()
-        if not tag or tag in seen:
-            continue
-        cleaned.append(tag)
-        seen.add(tag)
-    return cleaned
+    except EcrmSharedRecordNotFound:
+        return None
+    account = shared_record_service.shared_account_to_public(
+        record,
+        workspace_id=workspace_id,
+    )
+    return account if account.workspace_id == workspace_id else None
 
 
 def find_or_create_account_for_company(
-    session: Session,
+    _session: Session,
     *,
     workspace_id: str,
     company_name: str | None,
-) -> Account | None:
+) -> AccountPublic | None:
     """Find or create an account from a contact company name."""
     name = (company_name or "").strip()
     if not name:
@@ -75,216 +81,219 @@ def find_or_create_account_for_company(
     if not account_key:
         return None
 
-    account = _find_account_by_key(
-        session,
+    account_id = _account_id(workspace_id, account_key)
+    existing = _load_account_or_none(workspace_id=workspace_id, account_id=account_id)
+    if existing is not None:
+        return existing
+    return shared_record_service.upsert_shared_account(
         workspace_id=workspace_id,
+        account_id=account_id,
+        name=name,
         account_key=account_key,
     )
-    if account is not None:
-        return account
-
-    try:
-        with session.begin_nested():
-            account = Account(
-                workspace_id=workspace_id,
-                name=name,
-                account_key=account_key,
-            )
-            session.add(account)
-            session.flush()
-    except IntegrityError:
-        account = _find_account_by_key(
-            session,
-            workspace_id=workspace_id,
-            account_key=account_key,
-        )
-        if account is None:
-            raise
-    return account
 
 
 def create_account(
-    session: Session,
+    _session: Session,
     *,
     workspace_id: str,
     data: AccountCreate,
-) -> Account:
+) -> AccountPublic:
     """Create a workspace-scoped account from an explicit command payload."""
     name = data.name.strip()
     account_key = generate_account_key(name)
     if not account_key:
         raise AccountNameRequiredError
-    if _find_account_by_key(
-        session,
-        workspace_id=workspace_id,
-        account_key=account_key,
-    ):
+    account_id = _account_id(workspace_id, account_key)
+    if _load_account_or_none(workspace_id=workspace_id, account_id=account_id):
         raise AccountAlreadyExistsError
-
-    account = Account(
+    return shared_record_service.upsert_shared_account(
         workspace_id=workspace_id,
+        account_id=account_id,
         name=name,
         account_key=account_key,
         website_url=data.website_url,
         industry=data.industry,
         status=data.status.strip() or "active",
         summary=data.summary,
-        tags_json=_clean_tags(data.tags),
+        tags=_normalize_tags(data.tags),
     )
-    try:
-        with session.begin_nested():
-            session.add(account)
-            session.flush()
-    except IntegrityError as exc:
-        raise AccountAlreadyExistsError from exc
-    return account
 
 
 def update_account(
-    session: Session,
+    _session: Session,
     *,
     workspace_id: str,
     account_id: uuid.UUID,
     data: AccountUpdate,
-) -> Account | None:
+) -> AccountPublic | None:
     """Update a workspace-scoped account and keep linked contact display names aligned."""
-    account = session.exec(
-        select(Account).where(
-            Account.id == account_id,
-            Account.workspace_id == workspace_id,
-        )
-    ).first()
-    if account is None:
+    current = _load_account_or_none(workspace_id=workspace_id, account_id=account_id)
+    if current is None:
         return None
 
     update_data = data.model_dump(exclude_unset=True)
-    old_name = account.name
     new_name = update_data.pop("name", None)
+    old_name = current.name
     if new_name is not None:
         cleaned_name = new_name.strip()
         new_account_key = generate_account_key(cleaned_name)
         if not new_account_key:
             raise AccountNameRequiredError
-        existing = _find_account_by_key(
-            session,
+        new_account_id = _account_id(workspace_id, new_account_key)
+        if new_account_id != account_id and _load_account_or_none(
             workspace_id=workspace_id,
-            account_key=new_account_key,
-        )
-        if existing is not None and existing.id != account.id:
+            account_id=new_account_id,
+        ):
             raise AccountAlreadyExistsError
-        account.name = cleaned_name
-        account.account_key = new_account_key
+        current = current.model_copy(
+            update={
+                "name": cleaned_name,
+                "account_key": new_account_key,
+            }
+        )
 
-    if update_data.get("tags") is not None:
-        account.tags_json = _clean_tags(update_data.pop("tags"))
-    else:
-        update_data.pop("tags", None)
+    account_key = current.account_key or generate_account_key(current.name)
+    if not account_key:
+        raise AccountNameRequiredError
 
-    for field_name, value in update_data.items():
-        if value is None and field_name in {
-            "website_url",
-            "industry",
-            "status",
-            "summary",
-        }:
-            continue
-        if isinstance(value, str) and field_name in {"industry", "status"}:
-            value = value.strip()
-        setattr(account, field_name, value)
-
-    if not account.status:
-        account.status = "active"
-    account.updated_at = get_datetime_utc()
-
-    if account.name != old_name:
-        contacts = session.exec(
-            select(Contact).where(
-                Contact.workspace_id == workspace_id,
-                Contact.account_id == account.id,
-                Contact.company == old_name,
+    updated = shared_record_service.upsert_shared_account(
+        workspace_id=workspace_id,
+        account_id=account_id,
+        name=current.name,
+        account_key=account_key,
+        website_url=(
+            update_data["website_url"]
+            if "website_url" in update_data and update_data["website_url"] is not None
+            else current.website_url
+        ),
+        industry=(
+            update_data["industry"]
+            if "industry" in update_data and update_data["industry"] is not None
+            else current.industry
+        ),
+        status=(
+            update_data["status"].strip()
+            if "status" in update_data and update_data["status"] is not None
+            else current.status
+        ),
+        summary=(
+            update_data["summary"]
+            if "summary" in update_data and update_data["summary"] is not None
+            else current.summary
+        ),
+        tags=(
+            _normalize_tags(update_data["tags"])
+            if "tags" in update_data and update_data["tags"] is not None
+            else current.tags
+        ),
+    )
+    if updated.name != old_name:
+        linked_contacts = shared_record_service.list_shared_contacts(
+            workspace_id=workspace_id,
+            parent_id=str(account_id),
+            limit=100,
+        )
+        for contact in linked_contacts:
+            if contact.company != old_name:
+                continue
+            shared_record_service.upsert_shared_contact(
+                workspace_id=workspace_id,
+                contact_id=contact.id,
+                email=contact.email,
+                first_name=contact.first_name,
+                last_name=contact.last_name,
+                company=updated.name,
+                phone=contact.phone,
+                timezone=contact.timezone,
+                source_channel=contact.source_channel,
+                parent_id=updated.id,
+                tags_json=list(contact.tags_json or []),
+                intent_json=list(contact.intent_json or []),
+                last_seen_at=contact.last_seen_at,
             )
-        ).all()
-        for contact in contacts:
-            contact.company = account.name
-
-    try:
-        session.flush()
-    except IntegrityError as exc:
-        raise AccountAlreadyExistsError from exc
-    return account
+    return updated
 
 
 def assign_contacts_to_account(
-    session: Session,
+    _session: Session,
     *,
     workspace_id: str,
     account_id: uuid.UUID,
     contact_ids: list[uuid.UUID],
 ) -> AccountContactAssignmentPublic | None:
     """Link workspace contacts to an account and align their company display name."""
-    account = session.exec(
-        select(Account).where(
-            Account.id == account_id,
-            Account.workspace_id == workspace_id,
-        )
-    ).first()
+    account = _load_account_or_none(workspace_id=workspace_id, account_id=account_id)
     if account is None:
         return None
 
     unique_contact_ids = list(dict.fromkeys(contact_ids))
-    contacts = list(
-        session.exec(
-            select(Contact).where(
-                Contact.workspace_id == workspace_id,
-                Contact.id.in_(unique_contact_ids),
-            )
-        ).all()
-    )
-    found_contact_ids = {contact.id for contact in contacts}
-    if any(contact_id not in found_contact_ids for contact_id in unique_contact_ids):
-        raise AccountContactNotFoundError
+    assigned_count = 0
+    for contact_id in unique_contact_ids:
+        contact = shared_record_service.get_shared_contact(
+            workspace_id=workspace_id,
+            contact_id=contact_id,
+        )
+        if contact is None:
+            raise AccountContactNotFoundError
+        shared_record_service.upsert_shared_contact(
+            workspace_id=workspace_id,
+            contact_id=contact.id,
+            email=contact.email,
+            first_name=contact.first_name,
+            last_name=contact.last_name,
+            company=account.name,
+            phone=contact.phone,
+            timezone=contact.timezone,
+            source_channel=contact.source_channel,
+            parent_id=account.id,
+            tags_json=list(contact.tags_json or []),
+            intent_json=list(contact.intent_json or []),
+            last_seen_at=contact.last_seen_at,
+        )
+        assigned_count += 1
 
-    for contact in contacts:
-        contact.account_id = account.id
-        contact.company = account.name
-
-    session.flush()
     return AccountContactAssignmentPublic(
         account_id=account.id,
-        assigned_count=len(unique_contact_ids),
+        assigned_count=assigned_count,
         contact_ids=unique_contact_ids,
     )
 
 
 def unassign_contact_from_account(
-    session: Session,
+    _session: Session,
     *,
     workspace_id: str,
     account_id: uuid.UUID,
     contact_id: uuid.UUID,
 ) -> AccountContactAssignmentPublic | None:
     """Unlink one workspace contact from an account without changing company text."""
-    account = session.exec(
-        select(Account).where(
-            Account.id == account_id,
-            Account.workspace_id == workspace_id,
-        )
-    ).first()
+    account = _load_account_or_none(workspace_id=workspace_id, account_id=account_id)
     if account is None:
         return None
 
-    contact = session.exec(
-        select(Contact).where(
-            Contact.id == contact_id,
-            Contact.workspace_id == workspace_id,
-            Contact.account_id == account.id,
-        )
-    ).first()
-    if contact is None:
+    contact = shared_record_service.get_shared_contact(
+        workspace_id=workspace_id,
+        contact_id=contact_id,
+    )
+    if contact is None or contact.account_id != account.id:
         raise AccountContactNotFoundError
 
-    contact.account_id = None
-    session.flush()
+    shared_record_service.upsert_shared_contact(
+        workspace_id=workspace_id,
+        contact_id=contact.id,
+        email=contact.email,
+        first_name=contact.first_name,
+        last_name=contact.last_name,
+        company=contact.company,
+        phone=contact.phone,
+        timezone=contact.timezone,
+        source_channel=contact.source_channel,
+        parent_id=None,
+        tags_json=list(contact.tags_json or []),
+        intent_json=list(contact.intent_json or []),
+        last_seen_at=contact.last_seen_at,
+    )
     return AccountContactAssignmentPublic(
         account_id=account.id,
         unassigned_count=1,
@@ -292,18 +301,6 @@ def unassign_contact_from_account(
     )
 
 
-def account_to_public(account: Account) -> AccountPublic:
-    """Map an Account row to the public schema."""
-    return AccountPublic(
-        id=account.id,
-        workspace_id=account.workspace_id,
-        name=account.name,
-        account_key=account.account_key,
-        website_url=account.website_url,
-        industry=account.industry,
-        status=account.status,
-        summary=account.summary,
-        tags=account.tags_json or [],
-        created_at=account.created_at,
-        updated_at=account.updated_at,
-    )
+def account_to_public(account: AccountPublic) -> AccountPublic:
+    """Map an account record to the public schema."""
+    return account

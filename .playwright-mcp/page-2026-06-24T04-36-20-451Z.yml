@@ -1,0 +1,58 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading "Superpowers Brainstorming" [level=1] [ref=e3]:
+      - link "Superpowers Brainstorming" [ref=e4] [cursor=pointer]:
+        - /url: https://github.com/obra/superpowers
+    - generic [ref=e5]: Connected
+  - generic [ref=e7]:
+    - heading "Which dashboard direction fits best?" [level=2] [ref=e8]
+    - paragraph [ref=e9]: All three use live CRM data, but they organize charts, lists, and alerts differently.
+    - generic [ref=e10]:
+      - generic [ref=e11] [cursor=pointer]:
+        - generic [ref=e13]:
+          - generic [ref=e14]: A. Command Center
+          - generic [ref=e15]:
+            - generic [ref=e16]: Dashboard | Leads | Contacts | Pipeline
+            - generic [ref=e17]:
+              - generic [ref=e18]: KPI
+              - generic [ref=e19]: KPI
+              - generic [ref=e20]: KPI
+            - generic [ref=e21]: Large trend chart
+            - generic [ref=e22]: Recent follow-ups list
+        - generic [ref=e23]:
+          - heading "Executive command center" [level=3] [ref=e24]
+          - paragraph [ref=e25]: Best if the dashboard should feel clear, polished, and top-level first.
+      - generic [ref=e26] [cursor=pointer]:
+        - generic [ref=e28]:
+          - generic [ref=e29]: B. Balanced Hub
+          - generic [ref=e30]:
+            - generic [ref=e31]:
+              - generic [ref=e32]:
+                - generic [ref=e33]: Pipeline chart
+                - generic [ref=e34]: Trend line + conversion bars
+              - generic [ref=e35]:
+                - generic [ref=e36]: Urgent tasks
+                - generic [ref=e37]: At-risk deals
+            - generic [ref=e38]: Follow-up table
+        - generic [ref=e39]:
+          - heading "Balanced operations hub" [level=3] [ref=e40]
+          - paragraph [ref=e41]: Good if charts matter, but the list work still needs equal space.
+      - generic [ref=e42] [cursor=pointer]:
+        - generic [ref=e44]:
+          - generic [ref=e45]: C. Analytics Grid
+          - generic [ref=e46]:
+            - generic [ref=e47]:
+              - generic [ref=e48]: Win rate
+              - generic [ref=e49]: Open value
+              - generic [ref=e50]: Overdue
+              - generic [ref=e51]: Collections
+            - generic [ref=e52]: Multi-series chart
+            - generic [ref=e53]: Dense ranked lists
+        - generic [ref=e54]:
+          - heading "Analytics grid" [level=3] [ref=e55]
+          - paragraph [ref=e56]: Best for a more information-dense, analyst-style dashboard.
+    - paragraph [ref=e58]:
+      - text: "My recommendation:"
+      - strong [ref=e59]: Balanced operations hub
+      - text: . It gives charts and lists without feeling too crowded.
+  - generic [ref=e60]: Click an option above, then return to the terminal

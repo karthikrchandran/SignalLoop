@@ -3,55 +3,120 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SignalLoop Legacy Screen Archive</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 40px 24px;
-      font-family: Inter, "Segoe UI", Roboto, sans-serif;
-      color: #334155;
-      background: #f8fafc;
-    }
-
-    .panel {
-      max-width: 860px;
-      margin: 0 auto;
-      padding: 28px;
-      background: #fff;
-      border: 1px solid #cbd5e1;
-      border-radius: 16px;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
-    }
-
-    h1 {
-      margin-top: 0;
-      color: #1e3a8a;
-    }
-
-    p, li {
-      line-height: 1.7;
-    }
-  </style>
+  <title>SignalLoop Command Center Screen Gallery</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="panel">
-    <h1>Legacy Screen Archive</h1>
-    <p>
-      The individual screen mockups in this folder were generated from an earlier
-      UX exploration. They are retained as archive material only.
-    </p>
-    <p>
-      The authoritative MVP direction is now documented in:
-    </p>
-    <ul>
-      <li><code>_bmad-output/planning-artifacts/ux-design-specification.md</code></li>
-      <li><code>_bmad-output/planning-artifacts/figma-design-system.md</code></li>
-      <li><code>_bmad-output/planning-artifacts/ux-all-screens.html</code></li>
-    </ul>
-    <p>
-      If any archived screen conflicts with those revised artifacts, follow the revised
-      artifacts and treat the older screen file as out of date.
-    </p>
+  <div class="topbar">
+    <div>
+      <h1>SignalLoop Command Center</h1>
+      <p>Updated screen gallery using the new operational dashboard direction.</p>
+    </div>
+    <a class="btn" href="../ux-all-screens.html">Overview</a>
+  </div>
+
+  <div class="wrap">
+    <div class="hero">
+      <section class="hero-card">
+        <h2>All screens rebuilt around a sharper, data-first workspace.</h2>
+        <p>
+          This gallery replaces the earlier exploratory mockups with a calmer command center
+          language: strong hierarchy, chart-led summaries, ranked lists, operational panels,
+          and modal/drawer patterns that feel consistent across the whole product.
+        </p>
+        <div class="hero-meta">
+          <span class="pill brand">Charts and lists</span>
+          <span class="pill teal">Operational workflows</span>
+          <span class="pill violet">Stateful modals</span>
+          <span class="pill good">Company-wide view</span>
+        </div>
+      </section>
+
+      <aside class="hero-side">
+        <div class="stat-grid">
+          <div class="stat">
+            <small>Screens</small>
+            <strong>24</strong>
+            <span>updated</span>
+          </div>
+          <div class="stat">
+            <small>Primary style</small>
+            <strong>Cmd Ctr</strong>
+            <span>chosen</span>
+          </div>
+          <div class="stat">
+            <small>Dashboard</small>
+            <strong>Charts</strong>
+            <span>added</span>
+          </div>
+          <div class="stat">
+            <small>Pattern</small>
+            <strong>Lists</strong>
+            <span>kept</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="screen-id">Screen map</div>
+          <div class="title">Grouped by workflow</div>
+        </div>
+        <span class="pill brand">New mockups</span>
+      </div>
+      <div class="card-body">
+        <div class="section-grid">
+          <div class="mock-box" style="grid-column: span 4;">
+            <h4>Templates</h4>
+            <p><a href="screen-1-1-template-library.html">1.1 Template Library</a></p>
+            <p><a href="screen-1-2-template-editor.html">1.2 Template Editor</a></p>
+            <p><a href="screen-1-3-async-template-scan.html">1.3 Async Template Scan</a></p>
+            <p><a href="screen-1-4-preview-results.html">1.4 Preview Results</a></p>
+            <p><a href="screen-1-5-first-activation-feed-state.html">1.5 First Activation Feed State</a></p>
+          </div>
+          <div class="mock-box" style="grid-column: span 4;">
+            <h4>Operations</h4>
+            <p><a href="screen-2-1-daily-monitoring-feed.html">2.1 Daily Monitoring Feed</a></p>
+            <p><a href="screen-2-2-exception-expanded-panel.html">2.2 Exception Expanded Panel</a></p>
+            <p><a href="screen-2-3-sensitivity-preference-modal.html">2.3 Sensitivity Preference Modal</a></p>
+            <p><a href="screen-2-4-daily-summary-card.html">2.4 Daily Summary Card</a></p>
+          </div>
+          <div class="mock-box" style="grid-column: span 4;">
+            <h4>Lead detail</h4>
+            <p><a href="screen-3-1-lead-detail-overview.html">3.1 Lead Detail Overview</a></p>
+            <p><a href="screen-3-2-lead-detail-timeline.html">3.2 Lead Detail Timeline</a></p>
+            <p><a href="screen-3-3-lead-detail-reason-codes.html">3.3 Reason Codes</a></p>
+            <p><a href="screen-3-4-lead-detail-handoff.html">3.4 Handoff</a></p>
+          </div>
+          <div class="mock-box" style="grid-column: span 4;">
+            <h4>Errors</h4>
+            <p><a href="screen-4-1-error-card-in-feed.html">4.1 Error Card in Feed</a></p>
+            <p><a href="screen-4-2-error-detail-panel.html">4.2 Error Detail Panel</a></p>
+            <p><a href="screen-4-3-retry-confirmation-modal.html">4.3 Retry Confirmation Modal</a></p>
+            <p><a href="screen-4-4-audit-trail-entry.html">4.4 Audit Trail Entry</a></p>
+          </div>
+          <div class="mock-box" style="grid-column: span 4;">
+            <h4>Handoff and feedback</h4>
+            <p><a href="screen-5-1-se-handoff-panel.html">5.1 SE Handoff Panel</a></p>
+            <p><a href="screen-5-2-se-notification-mock.html">5.2 SE Notification Mock</a></p>
+            <p><a href="screen-5-3-se-feedback-modal.html">5.3 SE Feedback Modal</a></p>
+            <p><a href="screen-5-4-admin-feedback-notification.html">5.4 Admin Feedback Notification</a></p>
+            <p><a href="screen-5-5-feedback-action-panel.html">5.5 Feedback Action Panel</a></p>
+            <p><a href="screen-5-6-30-day-outcome-report.html">5.6 30-Day Outcome Report</a></p>
+          </div>
+          <div class="mock-box" style="grid-column: span 4;">
+            <h4>Notes</h4>
+            <p>
+              The dashboard mockup should now lead with charts, ranked lists, and status
+              cards instead of a flat activity feed. Other screens use the same visual
+              system so the set reads like one product rather than separate experiments.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </body>
 </html>

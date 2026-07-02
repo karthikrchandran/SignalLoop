@@ -12,19 +12,83 @@
       <h1>SignalLoop Screen 5.3</h1>
       <p>Journey 5 - SE Feedback Modal</p>
     </div>
-    <a class="btn" href="index.html">Back to Home</a>
+    <a class="btn" href="index.html">Back to Gallery</a>
   </div>
 
   <div class="wrap">
-    <div class="card">
-      <div class="card-head">
-        <div class="screen-id">Screen 5.3</div>
-        <div class="title">SE Feedback Modal</div>
-      </div>
-      <div class="body">Feedback collection modal with rating, notes, and submission action.<div class="mini-frame"><div class="mini-header"><span>Feedback</span><span>Submit</span></div><div class="mini-content"><div class="row"><span class="chip">Rating: 1-5 stars</span></div><div class="row"><span class="chip">What was missing?</span></div></div></div></div>
+    <div class="hero">
+      <section class="hero-card">
+        <h2>A feedback modal that captures outcome, friction, and improvement.</h2>
+        <p>
+          The modal is positioned as a lightweight review step. It captures the sales
+          engineer's feedback without making the task feel like a survey form.
+        </p>
+        <div class="hero-meta">
+          <span class="pill violet">Feedback</span>
+          <span class="pill teal">Outcome</span>
+          <span class="pill good">Short form</span>
+        </div>
+      </section>
+      <aside class="hero-side">
+        <div class="stat-grid">
+          <div class="stat"><small>Score</small><strong>8/10</strong><span>submitted</span></div>
+          <div class="stat"><small>Tags</small><strong>4</strong><span>selected</span></div>
+          <div class="stat"><small>Notes</small><strong>1</strong><span>added</span></div>
+          <div class="stat"><small>Action</small><strong>Done</strong><span>saved</span></div>
+        </div>
+      </aside>
     </div>
 
-    <div class="nav">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="screen-id">Screen 5.3</div>
+          <div class="title">SE Feedback Modal</div>
+        </div>
+        <span class="pill violet">Modal</span>
+      </div>
+      <div class="card-body">
+        <div class="modal-backdrop">
+          <div class="modal">
+            <div class="modal-head">
+              <div class="screen-id">Add feedback</div>
+              <div class="title" style="font-size: 20px;">How did the handoff go?</div>
+            </div>
+            <div class="modal-body">
+              <div class="split">
+                <div class="surface surface-pad">
+                  <h3 class="section-title" style="font-size: 18px;">Outcome</h3>
+                  <div class="chip-row" style="margin-top: 12px;">
+                    <span class="chip good">Successful</span>
+                    <span class="chip warn">Partial</span>
+                    <span class="chip bad">Blocked</span>
+                  </div>
+                </div>
+                <div class="surface surface-pad">
+                  <h3 class="section-title" style="font-size: 18px;">Common friction</h3>
+                  <div class="chip-row" style="margin-top: 12px;">
+                    <span class="chip">Timing</span>
+                    <span class="chip">Missing data</span>
+                    <span class="chip">Routing</span>
+                    <span class="chip">Follow-up</span>
+                  </div>
+                </div>
+              </div>
+              <div class="surface surface-pad" style="margin-top: 16px;">
+                <h3 class="section-title" style="font-size: 18px;">Notes</h3>
+                <p class="note">Handoff was clear, but the security timeline should be surfaced earlier.</p>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <a class="btn ghost" href="screen-5-2-se-notification-mock.html">Cancel</a>
+              <a class="btn primary" href="#">Save feedback</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-nav">
       <a class="btn" href="screen-5-2-se-notification-mock.html">Previous: 5.2</a>
       <a class="btn" href="index.html">Home</a>
       <a class="btn primary" href="screen-5-4-admin-feedback-notification.html">Next: 5.4</a>

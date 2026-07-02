@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.domain.chatbot.models import (
@@ -24,8 +25,126 @@ from app.domain.sequences.models import (
     SendRequest,
     SendRequestStatus,
 )
+from app.domain.shared_records import service as shared_service
 from app.domain.voice.models import CallOutcome, CallRequest, CallSession, VoiceScript
 from app.domain_models import Account, Campaign, Contact, ProspectingSnapshot
+from app.integrations.ecrm_shared_records import EcrmSharedRecordNotFound
+
+_SHARED_RECORDS: dict[str, dict[str, object]] = {}
+
+
+@pytest.fixture(autouse=True)
+def _shared_record_fixtures(monkeypatch: pytest.MonkeyPatch) -> None:
+    _SHARED_RECORDS.clear()
+
+    def list_shared_records(**kwargs):  # noqa: ANN001
+        entity_type = kwargs.get("entity_type")
+        q = str(kwargs.get("q") or "").lower()
+        status = kwargs.get("status")
+        parent_id = kwargs.get("parent_id")
+        records = list(_SHARED_RECORDS.values())
+        if entity_type:
+            records = [
+                record
+                for record in records
+                if str(record.get("entityType") or "").upper()
+                == str(entity_type).upper()
+            ]
+        if status is not None:
+            records = [
+                record
+                for record in records
+                if str(record.get("status") or "").lower() == str(status).lower()
+            ]
+        if parent_id is not None:
+            records = [
+                record
+                for record in records
+                if str(record.get("parentId") or "") == str(parent_id)
+            ]
+        if q:
+            records = [
+                record
+                for record in records
+                if q
+                in " ".join(
+                    str(record.get(field) or "")
+                    for field in ("displayName", "companyName", "email")
+                ).lower()
+            ]
+        limit = kwargs.get("limit")
+        if isinstance(limit, int):
+            records = records[:limit]
+        return {"records": records}
+
+    def get_shared_record(record_id: str) -> dict[str, object]:
+        record = _SHARED_RECORDS.get(record_id)
+        if record is None:
+            raise EcrmSharedRecordNotFound(record_id)
+        return record
+
+    monkeypatch.setattr(
+        shared_service.ecrm_shared_records,
+        "list_shared_records",
+        list_shared_records,
+    )
+    monkeypatch.setattr(
+        shared_service.ecrm_shared_records,
+        "get_shared_record",
+        get_shared_record,
+    )
+
+
+def _register_shared_account(account: Account) -> None:
+    _SHARED_RECORDS[str(account.id)] = {
+        "id": str(account.id),
+        "entityType": "CUSTOMER",
+        "displayName": account.name,
+        "status": "active",
+        "sourceApp": "emailvoice",
+        "emailVoiceLegacyId": str(account.id),
+        "externalKey": f"emailvoice:account:{account.workspace_id}:{account.account_key}",
+        "companyName": account.name,
+        "data": {
+            "workspaceId": account.workspace_id,
+            "accountKey": account.account_key,
+            "summary": account.summary,
+            "tags": list(account.tags_json or []),
+        },
+        "createdAt": account.created_at.isoformat(),
+        "updatedAt": account.updated_at.isoformat(),
+    }
+
+
+def _register_shared_contact(contact: Contact, *, parent_id: uuid.UUID | None = None) -> None:
+    payload: dict[str, object] = {
+        "id": str(contact.id),
+        "entityType": "CONTACT",
+        "displayName": " ".join(
+            part for part in [contact.first_name, contact.last_name] if part
+        ).strip()
+        or contact.email,
+        "status": "active",
+        "sourceApp": "emailvoice",
+        "emailVoiceLegacyId": str(contact.id),
+        "externalKey": f"emailvoice:contact:{contact.workspace_id}:{contact.email}",
+        "email": contact.email,
+        "phone": contact.phone,
+        "companyName": contact.company,
+        "data": {
+            "workspaceId": contact.workspace_id,
+            "firstName": contact.first_name,
+            "lastName": contact.last_name,
+            "timezone": contact.timezone,
+            "sourceChannel": contact.source_channel,
+            "tags": list(contact.tags_json or []),
+            "intents": list(contact.intent_json or []),
+        },
+        "createdAt": contact.created_at.isoformat(),
+    }
+    if parent_id is not None:
+        payload["parentId"] = str(parent_id)
+    _SHARED_RECORDS[str(contact.id)] = payload
 
 
 def _session() -> Session:
@@ -72,6 +191,9 @@ def _seed_account(
     session.add(ada)
     session.add(grace)
     session.flush()
+    _register_shared_account(account)
+    _register_shared_contact(ada, parent_id=account.id)
+    _register_shared_contact(grace, parent_id=account.id)
 
     campaign = Campaign(name="Q2 Outreach", workspace_id=workspace_id, created_by=owner_id)
     session.add(campaign)
@@ -175,6 +297,9 @@ def _seed_account(
         )
     )
     session.commit()
+    session.refresh(account)
+    session.refresh(ada)
+    session.refresh(grace)
     return account, ada, grace
 
 
@@ -519,6 +644,8 @@ def test_prospecting_summary_and_actions_are_bounded() -> None:
 def test_profile_timeline_includes_all_prospecting_snapshots() -> None:
     with _session() as session:
         account, ada, grace = _seed_account(session)
+        ada_id = ada.id
+        grace_id = grace.id
         _add_prospecting_snapshot(
             session,
             workspace_id="ws-a",
@@ -539,4 +666,4 @@ def test_profile_timeline_includes_all_prospecting_snapshots() -> None:
         and event.event_type == "prospecting_research"
     ]
     assert len(prospecting_events) == 2
-    assert {event.contact_id for event in prospecting_events} == {ada.id, grace.id}
+    assert {event.contact_id for event in prospecting_events} == {ada_id, grace_id}

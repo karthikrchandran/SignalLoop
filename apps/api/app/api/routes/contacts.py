@@ -1,4 +1,5 @@
 """Contact management and timeline API endpoints."""
+
 from __future__ import annotations
 
 import json
@@ -16,24 +17,23 @@ from fastapi import (
     Request,
     UploadFile,
 )
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep
-from app.domain.accounts.service import find_or_create_account_for_company
 from app.domain.audit.audit_events import (
     append_audit_event_to_session,
     audit_actor_role,
 )
 from app.domain.contacts.import_service import parse_csv, preview_rows
 from app.domain.contacts.segment_service import matches_rule
+from app.domain.shared_records import service as shared_record_service
 from app.domain.timeline.timeline_service import (
     get_contact_timeline,
     get_timeline_event_detail,
 )
 from app.domain_models import (
     Campaign,
-    Contact,
     ContactImportPublic,
     ContactPublic,
     ContactsPublic,
@@ -48,7 +48,14 @@ from app.domain_models import (
 router = APIRouter(prefix="/contacts", tags=["contacts"])
 MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
 
-CONTACT_IMPORT_FIELDS = ["email", "firstName", "lastName", "company", "phone", "timezone"]
+CONTACT_IMPORT_FIELDS = [
+    "email",
+    "firstName",
+    "lastName",
+    "company",
+    "phone",
+    "timezone",
+]
 CONTACT_REQUIRED_FIELDS = ["email"]
 CONTACT_FIELD_ALIASES = {
     "email": ["email", "emailAddress", "email_address", "work_email"],
@@ -58,21 +65,6 @@ CONTACT_FIELD_ALIASES = {
     "phone": ["phone", "phoneNumber", "phone_number", "mobile", "mobile_phone"],
     "timezone": ["timezone", "timeZone", "time_zone", "tz"],
 }
-
-
-def _contact_public(contact: Contact) -> ContactPublic:
-    return ContactPublic(
-        id=contact.id,
-        workspace_id=contact.workspace_id,
-        account_id=contact.account_id,
-        email=contact.email,
-        first_name=contact.first_name,
-        last_name=contact.last_name,
-        company=contact.company,
-        phone=contact.phone,
-        timezone=contact.timezone,
-        created_at=contact.created_at,
-    )
 
 
 def _default_mapping(headers: list[str]) -> dict[str, str]:
@@ -102,9 +94,14 @@ def _parse_mapping(headers: list[str], mapping_json: str | None) -> dict[str, st
     for field in CONTACT_IMPORT_FIELDS:
         source = raw.get(field, "")
         if source and not isinstance(source, str):
-            raise HTTPException(status_code=400, detail=f"Mapping for {field} must be a string")
+            raise HTTPException(
+                status_code=400, detail=f"Mapping for {field} must be a string"
+            )
         if source and source not in available:
-            raise HTTPException(status_code=400, detail=f"Mapping contains unknown source column: {source}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Mapping contains unknown source column: {source}",
+            )
         mapping[field] = source or ""
     return mapping
 
@@ -114,14 +111,19 @@ def _clean(value: object) -> str:
 
 
 def _map_contact_row(row: dict[str, object], mapping: dict[str, str]) -> dict[str, str]:
-    return {field: _clean(row.get(source, "")) if source else "" for field, source in mapping.items()}
+    return {
+        field: _clean(row.get(source, "")) if source else ""
+        for field, source in mapping.items()
+    }
 
 
 def _validate_contact_rows(
     rows: list[dict[str, object]],
     mapping: dict[str, str],
 ) -> tuple[list[dict[str, str]], list[ImportRowError]]:
-    missing_required = [field for field in CONTACT_REQUIRED_FIELDS if not mapping.get(field)]
+    missing_required = [
+        field for field in CONTACT_REQUIRED_FIELDS if not mapping.get(field)
+    ]
     errors: list[ImportRowError] = []
     if missing_required:
         for field in missing_required:
@@ -179,7 +181,7 @@ def _validate_contact_rows(
     return valid_rows, errors
 
 
-def _contact_filter_row(contact: Contact) -> dict[str, str]:
+def _contact_filter_row(contact: ContactPublic) -> dict[str, str]:
     return {
         "email": contact.email,
         "firstName": contact.first_name or "",
@@ -192,41 +194,51 @@ def _contact_filter_row(contact: Contact) -> dict[str, str]:
     }
 
 
-def contact_matches_rules(contact: Contact, rules: list[dict[str, str]]) -> bool:
+def contact_matches_rules(contact: ContactPublic, rules: list[dict[str, str]]) -> bool:
     row = _contact_filter_row(contact)
     return all(
-        matches_rule(row.get(rule["field_name"]), SegmentOperator(rule["operator"]), rule["value"])
+        matches_rule(
+            row.get(rule["field_name"]),
+            SegmentOperator(rule["operator"]),
+            rule["value"],
+        )
         for rule in rules
     )
 
 
 def _apply_contact_filters(
-    contacts: list[Contact],
+    contacts: list[ContactPublic],
     *,
     search: str | None = None,
     has_phone: bool | None = None,
     field_name: str | None = None,
     operator: SegmentOperator | None = None,
     value: str | None = None,
-) -> list[Contact]:
+) -> list[ContactPublic]:
     filtered = contacts
     if search:
         needle = search.lower()
         filtered = [
-            contact for contact in filtered
-            if needle in " ".join([
-                contact.email,
-                contact.first_name or "",
-                contact.last_name or "",
-                contact.company or "",
-                contact.phone or "",
-            ]).lower()
+            contact
+            for contact in filtered
+            if needle
+            in " ".join(
+                [
+                    contact.email,
+                    contact.first_name or "",
+                    contact.last_name or "",
+                    contact.company or "",
+                    contact.phone or "",
+                ]
+            ).lower()
         ]
     if has_phone is not None:
         filtered = [contact for contact in filtered if bool(contact.phone) is has_phone]
     if field_name and operator and value is not None:
         rules = [{"field_name": field_name, "operator": operator.value, "value": value}]
-        filtered = [contact for contact in filtered if contact_matches_rules(contact, rules)]
+        filtered = [
+            contact for contact in filtered if contact_matches_rules(contact, rules)
+        ]
     return filtered
 
 
@@ -240,30 +252,44 @@ def _upsert_contacts(
     updated = 0
     for row in rows:
         email = row["email"].lower()
-        contact = session.exec(
-            select(Contact).where(Contact.workspace_id == workspace_id, Contact.email == email)
-        ).first()
-        if contact is None:
-            contact = Contact(workspace_id=workspace_id, email=email, timezone=row.get("timezone") or "UTC")
+        company = row.get("company") or None
+        account = None
+        if company:
+            account_key = shared_record_service.generate_account_key(company)
+            account_id = uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                f"emailvoice:account:{workspace_id}:{account_key}",
+            )
+            account = shared_record_service.upsert_shared_account(
+                workspace_id=workspace_id,
+                account_id=account_id,
+                name=company,
+                account_key=account_key,
+            )
+
+        contact_id = uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"emailvoice:contact:{workspace_id}:{email}",
+        )
+        existing = shared_record_service.get_shared_contact(
+            workspace_id=workspace_id,
+            contact_id=contact_id,
+        )
+        shared_record_service.upsert_shared_contact(
+            workspace_id=workspace_id,
+            contact_id=contact_id,
+            email=email,
+            first_name=row.get("firstName") or None,
+            last_name=row.get("lastName") or None,
+            company=account.name if account else company,
+            phone=row.get("phone") or None,
+            timezone=row.get("timezone") or "UTC",
+            parent_id=account.id if account else None,
+        )
+        if existing is None:
             created += 1
         else:
             updated += 1
-
-        account = find_or_create_account_for_company(
-            session,
-            workspace_id=workspace_id,
-            company_name=row.get("company"),
-        )
-        contact.first_name = row.get("firstName") or contact.first_name
-        contact.last_name = row.get("lastName") or contact.last_name
-        if account is not None:
-            contact.account_id = account.id
-            contact.company = account.name
-        else:
-            contact.company = row.get("company") or contact.company
-        contact.phone = row.get("phone") or contact.phone
-        contact.timezone = row.get("timezone") or contact.timezone or "UTC"
-        session.add(contact)
     return created, updated
 
 
@@ -271,13 +297,11 @@ def _get_contact_or_404(
     session: Session,
     contact_id: uuid.UUID,
     workspace_id: str,
-) -> Contact:
-    contact = session.exec(
-        select(Contact).where(
-            Contact.id == contact_id,
-            Contact.workspace_id == workspace_id,
-        )
-    ).first()
+) -> ContactPublic:
+    contact = shared_record_service.get_shared_contact(
+        workspace_id=workspace_id,
+        contact_id=contact_id,
+    )
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
     return contact
@@ -312,12 +336,10 @@ def read_contacts(
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> ContactsPublic:
     """Return canonical contacts for the active workspace."""
-    contacts = list(
-        session.exec(
-            select(Contact)
-            .where(Contact.workspace_id == workspace_id)
-            .order_by(Contact.created_at.desc())
-        ).all()
+    contacts = shared_record_service.list_shared_contacts(
+        workspace_id=workspace_id,
+        search=search,
+        limit=min(skip + limit, 100),
     )
     filtered = _apply_contact_filters(
         contacts,
@@ -327,13 +349,14 @@ def read_contacts(
         operator=operator,
         value=value,
     )
-    return ContactsPublic(
-        data=[_contact_public(contact) for contact in filtered[skip: skip + limit]],
-        count=len(filtered),
-    )
+    if has_phone is not None:
+        filtered = [contact for contact in filtered if bool(contact.phone) is has_phone]
+    return ContactsPublic(data=filtered[skip : skip + limit], count=len(filtered))
 
 
-@router.post("/import", response_model=ContactImportPublic, dependencies=[Depends(require_admin)])
+@router.post(
+    "/import", response_model=ContactImportPublic, dependencies=[Depends(require_admin)]
+)
 async def import_contacts_to_pool(
     *,
     session: SessionDep,
@@ -346,7 +369,9 @@ async def import_contacts_to_pool(
     """Preview or commit a CSV import into the canonical contact pool."""
     file_bytes = await file.read()
     if len(file_bytes) > MAX_UPLOAD_SIZE_BYTES:
-        raise HTTPException(status_code=413, detail="CSV file too large. Maximum size is 10MB")
+        raise HTTPException(
+            status_code=413, detail="CSV file too large. Maximum size is 10MB"
+        )
 
     headers, rows = parse_csv(file_bytes)
     mapping = _parse_mapping(headers, mapping_json)
@@ -355,7 +380,9 @@ async def import_contacts_to_pool(
     updated_count = 0
 
     if commit and not errors:
-        created_count, updated_count = _upsert_contacts(session, workspace_id=workspace_id, rows=valid_rows)
+        created_count, updated_count = _upsert_contacts(
+            session, workspace_id=workspace_id, rows=valid_rows
+        )
         append_audit_event_to_session(
             session,
             event_name="contacts.imported",
@@ -370,7 +397,9 @@ async def import_contacts_to_pool(
                 "valid_rows": len(valid_rows),
                 "created_count": created_count,
                 "updated_count": updated_count,
-                "mapped_fields": sorted(field for field, source in mapping.items() if source),
+                "mapped_fields": sorted(
+                    field for field, source in mapping.items() if source
+                ),
             },
         )
         session.commit()

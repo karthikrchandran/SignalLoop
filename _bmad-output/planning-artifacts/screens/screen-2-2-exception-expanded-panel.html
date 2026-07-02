@@ -12,19 +12,78 @@
       <h1>SignalLoop Screen 2.2</h1>
       <p>Journey 2 - Exception Expanded Panel</p>
     </div>
-    <a class="btn" href="index.html">Back to Home</a>
+    <a class="btn" href="index.html">Back to Gallery</a>
   </div>
 
   <div class="wrap">
-    <div class="card">
-      <div class="card-head">
-        <div class="screen-id">Screen 2.2</div>
-        <div class="title">Exception Expanded Panel</div>
-      </div>
-      <div class="body">Slide-out panel with reason detail and next action for exception handling.<div class="mini-frame"><div class="mini-header"><span>Exception Detail</span><span>Overview</span></div><div class="mini-content"><div class="row"><span class="chip err">No reply after 3 emails</span></div><div class="row"><span class="chip">Call scheduled Friday 2 PM</span></div></div></div></div>
+    <div class="hero">
+      <section class="hero-card">
+        <h2>Open an exception to see the why, impact, and next action together.</h2>
+        <p>
+          The expanded panel uses a stronger detail layout with cause, impact, and recovery
+          steps visible in one place so operators do not have to bounce between screens.
+        </p>
+        <div class="hero-meta">
+          <span class="pill bad">Exception</span>
+          <span class="pill warn">Cause analysis</span>
+          <span class="pill good">Recovery steps</span>
+        </div>
+      </section>
+      <aside class="hero-side">
+        <div class="stat-grid">
+          <div class="stat"><small>Severity</small><strong>High</strong><span>priority</span></div>
+          <div class="stat"><small>Impact</small><strong>14</strong><span>contacts</span></div>
+          <div class="stat"><small>Retries</small><strong>2</strong><span>used</span></div>
+          <div class="stat"><small>Owner</small><strong>Ops</strong><span>assigned</span></div>
+        </div>
+      </aside>
     </div>
 
-    <div class="nav">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="screen-id">Screen 2.2</div>
+          <div class="title">Exception Expanded Panel</div>
+        </div>
+        <span class="pill bad">Open</span>
+      </div>
+      <div class="card-body">
+        <div class="split">
+          <div class="surface surface-pad">
+            <h3 class="section-title" style="font-size: 18px;">What happened</h3>
+            <div class="timeline" style="margin-top: 12px;">
+              <div class="timeline-item">
+                <div class="timeline-dot bad"></div>
+                <div><strong>Delivery failure</strong><span>SMTP timeout during send</span></div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-dot warn"></div>
+                <div><strong>Retry attempted</strong><span>System retried once automatically</span></div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div><strong>Review needed</strong><span>Operator should confirm next step</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="surface surface-pad">
+            <h3 class="section-title" style="font-size: 18px;">Recovery actions</h3>
+            <div class="list" style="margin-top: 12px;">
+              <div class="list-item"><strong>Retry send</strong><span>safe</span></div>
+              <div class="list-item"><strong>Pause campaign</strong><span>available</span></div>
+              <div class="list-item"><strong>Escalate to ops</strong><span>recommended</span></div>
+            </div>
+            <div class="chip-row" style="margin-top: 14px;">
+              <span class="chip good">Retry</span>
+              <span class="chip warn">Pause</span>
+              <span class="chip bad">Escalate</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-nav">
       <a class="btn" href="screen-2-1-daily-monitoring-feed.html">Previous: 2.1</a>
       <a class="btn" href="index.html">Home</a>
       <a class="btn primary" href="screen-2-3-sensitivity-preference-modal.html">Next: 2.3</a>

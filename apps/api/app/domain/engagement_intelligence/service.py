@@ -16,12 +16,15 @@ from app.domain.chatbot.models import (
 )
 from app.domain.sequences.models import (
     ContactSequenceState,
+    EmailSequence,
     SendRequest,
     SendRequestStatus,
     SequenceStatus,
 )
+from app.domain.shared_records import service as shared_record_service
 from app.domain.voice.models import CallOutcome, CallRequest, CallSession
 from app.domain_models import (
+    Campaign,
     Contact,
     ContactProgression,
     ContactProgressionState,
@@ -239,9 +242,13 @@ def _load_workspace_data(
     list[tuple[SendRequest, ContactSequenceState, Contact]],
     list[tuple[ContactProgression, Contact]],
 ]:
-    contacts = list(
-        session.exec(select(Contact).where(Contact.workspace_id == workspace_id)).all()
-    )
+    contacts = [
+        shared_record_service.shared_contact_to_contact(contact)
+        for contact in shared_record_service.list_shared_contacts(
+            workspace_id=workspace_id,
+            limit=1000,
+        )
+    ]
     contact_map = {contact.id: contact for contact in contacts}
     conversations = list(
         session.exec(
@@ -254,16 +261,25 @@ def _load_workspace_data(
             .limit(25)
         ).all()
     )
-    calls = list(
+    call_rows = list(
         session.exec(
-            select(CallRequest, CallSession, Contact)
-            .join(Contact, CallRequest.contact_id == Contact.id)
+            select(CallRequest, CallSession)
             .outerjoin(CallSession, CallRequest.id == CallSession.call_request_id)
-            .where(Contact.workspace_id == workspace_id)
+            .join(Campaign, CallRequest.campaign_id == Campaign.id)
+            .where(Campaign.workspace_id == workspace_id)
             .order_by(CallRequest.created_at.desc())
             .limit(25)
         ).all()
     )
+    calls = [
+        (
+            call_request,
+            call_session,
+            contact_map.get(call_request.shared_contact_id),
+        )
+        for call_request, call_session in call_rows
+        if contact_map.get(call_request.shared_contact_id) is not None
+    ]
     snapshots = list(
         session.exec(
             select(ProspectingSnapshot)
@@ -272,13 +288,19 @@ def _load_workspace_data(
             .limit(25)
         ).all()
     )
-    sequence_states = list(
+    sequence_rows = list(
         session.exec(
-            select(ContactSequenceState, Contact)
-            .join(Contact, ContactSequenceState.contact_id == Contact.id)
-            .where(Contact.workspace_id == workspace_id)
+            select(ContactSequenceState)
+            .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
+            .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+            .where(Campaign.workspace_id == workspace_id)
         ).all()
     )
+    sequence_states = [
+        (state, contact_map.get(state.shared_contact_id))
+        for state in sequence_rows
+        if contact_map.get(state.shared_contact_id) is not None
+    ]
     offer_packs = list(
         session.exec(
             select(OfferPack)
@@ -303,26 +325,37 @@ def _load_workspace_data(
             .limit(50)
         ).all()
     )
-    send_requests = list(
+    send_rows = list(
         session.exec(
-            select(SendRequest, ContactSequenceState, Contact)
+            select(SendRequest, ContactSequenceState)
             .join(
                 ContactSequenceState,
                 SendRequest.contact_sequence_state_id == ContactSequenceState.id,
             )
-            .join(Contact, ContactSequenceState.contact_id == Contact.id)
-            .where(Contact.workspace_id == workspace_id)
+            .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
+            .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+            .where(Campaign.workspace_id == workspace_id)
             .order_by(SendRequest.created_at.desc())
             .limit(50)
         ).all()
     )
-    progressions = list(
+    send_requests = [
+        (send_request, state, contact_map.get(state.shared_contact_id))
+        for send_request, state in send_rows
+        if contact_map.get(state.shared_contact_id) is not None
+    ]
+    progression_rows = list(
         session.exec(
-            select(ContactProgression, Contact)
-            .join(Contact, ContactProgression.contact_id == Contact.id)
-            .where(Contact.workspace_id == workspace_id)
+            select(ContactProgression)
+            .join(Campaign, ContactProgression.campaign_id == Campaign.id)
+            .where(Campaign.workspace_id == workspace_id)
         ).all()
     )
+    progressions = [
+        (progression, contact_map.get(progression.shared_contact_id))
+        for progression in progression_rows
+        if contact_map.get(progression.shared_contact_id) is not None
+    ]
     return (
         contact_map,
         conversations,
@@ -389,8 +422,8 @@ def _build_next_best_actions(
         ):
             continue
         contact = (
-            contact_map.get(conversation.contact_id)
-            if conversation.contact_id
+            contact_map.get(conversation.shared_contact_id)
+            if conversation.shared_contact_id
             else None
         )
         message = _latest_message(session, conversation)
@@ -400,7 +433,7 @@ def _build_next_best_actions(
         actions.append(
             NextBestActionPublic(
                 id=f"nba-chatbot-{conversation.id}",
-                contact_id=conversation.contact_id,
+                contact_id=conversation.shared_contact_id,
                 contact_name=_contact_name(contact),
                 company=contact.company if contact else None,
                 channel="chatbot",
@@ -419,7 +452,7 @@ def _build_next_best_actions(
         )
 
     for snapshot in snapshots:
-        contact = contact_map.get(snapshot.contact_id)
+        contact = contact_map.get(snapshot.shared_contact_id)
         if contact is None or contact.id in active_sequence_contact_ids:
             continue
         actions.append(
@@ -465,8 +498,8 @@ def _build_unified_inbox(
         ):
             continue
         contact = (
-            contact_map.get(conversation.contact_id)
-            if conversation.contact_id
+            contact_map.get(conversation.shared_contact_id)
+            if conversation.shared_contact_id
             else None
         )
         message = _latest_message(session, conversation)
@@ -474,7 +507,7 @@ def _build_unified_inbox(
             UnifiedInboxItemPublic(
                 id=f"chatbot-{conversation.id}",
                 source="chatbot",
-                contact_id=conversation.contact_id,
+                contact_id=conversation.shared_contact_id,
                 contact_name=_contact_name(contact),
                 title="Chatbot escalation"
                 if conversation.escalated
@@ -520,7 +553,7 @@ def _build_unified_inbox(
         )
 
     for snapshot in snapshots[:5]:
-        contact = contact_map.get(snapshot.contact_id)
+        contact = contact_map.get(snapshot.shared_contact_id)
         if contact is None:
             continue
         items.append(
@@ -552,12 +585,12 @@ def _build_journey(
     sequence_states: list[tuple[ContactSequenceState, Contact]],
 ) -> JourneyCanvasPublic:
     chatbot_contacts = {
-        conversation.contact_id
+        conversation.shared_contact_id
         for conversation in conversations
-        if conversation.contact_id is not None
+        if conversation.shared_contact_id is not None
         and (conversation.escalated or conversation.lead_capture_intent)
     }
-    researched_contacts = {snapshot.contact_id for snapshot in snapshots}
+    researched_contacts = {snapshot.shared_contact_id for snapshot in snapshots}
     enrolled_contacts = {
         contact.id
         for state, contact in sequence_states
@@ -1017,8 +1050,8 @@ def _build_pipeline_risks(
             ChatbotConversationStatus.bot_paused,
         }:
             contact = (
-                contact_map.get(conversation.contact_id)
-                if conversation.contact_id
+                contact_map.get(conversation.shared_contact_id)
+                if conversation.shared_contact_id
                 else None
             )
             add_risk(contact, 35, "Open chatbot escalation")
