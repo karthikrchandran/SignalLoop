@@ -15,6 +15,7 @@ from app.api.routes import (
     engagement_intelligence,
     kpis,
     login,
+    platform_shared,
     private,
     prospecting,
     provider_credentials,
@@ -52,6 +53,7 @@ api_router.include_router(calls.router)
 api_router.include_router(customer_360.router)
 api_router.include_router(accounts.router)
 api_router.include_router(contacts.router)
+api_router.include_router(platform_shared.router)
 api_router.include_router(prospecting.router)
 api_router.include_router(provider_credentials.router)
 api_router.include_router(workspace_runtime_config.router)

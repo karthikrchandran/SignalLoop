@@ -159,6 +159,7 @@ class Settings(BaseSettings):
     ECRM_SHARED_API_TOKEN: str = ""
     # Route-adapter cutover flag; intentionally unused by the low-level client.
     USE_ECRM_SHARED_RECORDS: bool = True
+    USE_LOCAL_SHARED_RECORDS: bool = False
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_PHONE_NUMBER: str = ""
