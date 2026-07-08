@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -210,6 +211,27 @@ class PlatformSharedRepository:
             source_record_id=source_record_id,
         )
 
+    def find_entity_id_by_source_identity(
+        self,
+        *,
+        workspace_id: str,
+        entity_type: str,
+        source_app: str,
+        source_record_id: str,
+    ) -> uuid.UUID | None:
+        normalized_source_record_id = source_record_id.strip()
+        if not normalized_source_record_id:
+            return None
+        link = self._get_external_link(
+            workspace_id=workspace_id,
+            entity_type=entity_type,
+            source_app=source_app.strip(),
+            source_record_id=normalized_source_record_id,
+        )
+        if link is None:
+            return None
+        return link.entity_id
+
     def list_contacts(
         self,
         *,
@@ -305,14 +327,18 @@ class PlatformSharedRepository:
         workspace_id: str,
         account_public_id: uuid.UUID,
     ) -> int:
-        return len(
-            self.list_contacts(
-                workspace_id=workspace_id,
-                search=None,
-                parent_public_id=account_public_id,
-                limit=1000,
-            )
+        parent_row_id = self._find_entity_id_by_public_id(
+            workspace_id=workspace_id,
+            entity_type="ACCOUNT",
+            public_id=account_public_id,
         )
+        if parent_row_id is None:
+            return 0
+        statement = select(func.count()).select_from(PlatformSharedContact).where(
+            PlatformSharedContact.workspace_id == workspace_id,
+            PlatformSharedContact.parent_account_id == parent_row_id,
+        )
+        return int(self.session.exec(statement).one())
 
     def _upsert_link(
         self,
@@ -323,11 +349,17 @@ class PlatformSharedRepository:
         source_app: str,
         source_record_id: str,
     ) -> None:
+        normalized_source_app = source_app.strip()
+        normalized_source_record_id = source_record_id.strip()
+        if not normalized_source_app:
+            raise ValueError("source_app is required")
+        if not normalized_source_record_id:
+            raise ValueError("source_record_id is required")
         link = self._get_external_link(
             workspace_id=workspace_id,
             entity_type=entity_type,
-            source_app=source_app,
-            source_record_id=source_record_id,
+            source_app=normalized_source_app,
+            source_record_id=normalized_source_record_id,
         )
         if link is None:
             link = self._insert_or_get_existing(
@@ -335,14 +367,14 @@ class PlatformSharedRepository:
                     entity_type=entity_type,
                     entity_id=entity_id,
                     workspace_id=workspace_id,
-                    source_app=source_app,
-                    source_record_id=source_record_id,
+                    source_app=normalized_source_app,
+                    source_record_id=normalized_source_record_id,
                 ),
                 get_existing=lambda: self._get_external_link(
                     workspace_id=workspace_id,
                     entity_type=entity_type,
-                    source_app=source_app,
-                    source_record_id=source_record_id,
+                    source_app=normalized_source_app,
+                    source_record_id=normalized_source_record_id,
                 ),
             )
         elif link.entity_id != entity_id:

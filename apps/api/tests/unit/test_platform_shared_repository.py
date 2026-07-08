@@ -478,3 +478,37 @@ def test_repository_serializes_imported_metadata_and_preserves_emailvoice_legacy
     assert serialized_contact["source_channel"] == "voice"
     assert serialized_contact["tags_json"] == ["vip"]
     assert serialized_contact["intent_json"] == ["demo"]
+
+
+def test_count_contacts_for_account_counts_more_than_one_thousand_rows() -> None:
+    engine = _sqlite_engine()
+    SQLModel.metadata.create_all(engine)
+    account_public_id = uuid.uuid4()
+
+    with Session(engine) as session:
+        repo = PlatformSharedRepository(session)
+        account = repo.upsert_account(
+            workspace_id="ws-1",
+            external_key="emailvoice:account:ws-1:acme",
+            display_name="Acme",
+            source_app="emailvoice",
+            source_record_id=str(account_public_id),
+        )
+        for index in range(1001):
+            repo.upsert_contact(
+                workspace_id="ws-1",
+                external_key=f"ecrm:contact:ws-1:contact-{index}",
+                display_name=f"Contact {index}",
+                email=f"contact-{index}@example.com",
+                parent_account_id=account.id,
+                source_app="ecrm",
+                source_record_id=f"contact-{index}",
+            )
+        session.commit()
+
+        count = repo.count_contacts_for_account(
+            workspace_id="ws-1",
+            account_public_id=account_public_id,
+        )
+
+    assert count == 1001

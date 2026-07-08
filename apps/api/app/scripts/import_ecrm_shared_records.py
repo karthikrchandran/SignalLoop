@@ -59,6 +59,52 @@ def _record_data(record: dict[str, object]) -> dict[str, object]:
     return data if isinstance(data, dict) else {}
 
 
+def _string_value(value: object) -> str | None:
+    if isinstance(value, str):
+        normalized = value.strip()
+        return normalized or None
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
+def _source_record_id(record: dict[str, object]) -> str | None:
+    return _string_value(record.get("id"))
+
+
+def _external_key(
+    record: dict[str, object],
+    *,
+    fallback_prefix: str,
+    workspace_id: str,
+    source_record_id: str,
+) -> str:
+    return _string_value(record.get("externalKey")) or (
+        f"{fallback_prefix}:{workspace_id}:{source_record_id}"
+    )
+
+
+def _report_skip(
+    summary: dict[str, object],
+    *,
+    entity_type: str,
+    record_id: str | None,
+    reason: str,
+) -> None:
+    counter_key = "skipped_accounts" if entity_type == "CUSTOMER" else "skipped_contacts"
+    summary[counter_key] = int(summary[counter_key]) + 1
+    issues = summary["issues"]
+    assert isinstance(issues, list)
+    issues.append(
+        {
+            "entity_type": entity_type,
+            "record_id": record_id,
+            "reason": reason,
+        }
+    )
+
+
 def _timestamp(record: dict[str, object], *keys: str) -> datetime | None:
     for key in keys:
         raw_value = record.get(key)
@@ -81,6 +127,9 @@ def run_import(
         "dry_run": dry_run,
         "accounts": 0,
         "contacts": 0,
+        "skipped_accounts": 0,
+        "skipped_contacts": 0,
+        "issues": [],
     }
 
     with _session_scope(session) as active_session:
@@ -90,12 +139,23 @@ def run_import(
         for record in fetch_records("CUSTOMER"):
             if _record_workspace_id(record) != workspace_id:
                 continue
+            source_record_id = _source_record_id(record)
+            if source_record_id is None:
+                _report_skip(
+                    summary,
+                    entity_type="CUSTOMER",
+                    record_id=None,
+                    reason="missing_source_id",
+                )
+                continue
             data = _record_data(record)
             account = repo.upsert_account(
                 workspace_id=workspace_id,
-                external_key=str(
-                    record.get("externalKey")
-                    or f"ecrm:customer:{workspace_id}:{record.get('id')}"
+                external_key=_external_key(
+                    record,
+                    fallback_prefix="ecrm:customer",
+                    workspace_id=workspace_id,
+                    source_record_id=source_record_id,
                 ),
                 display_name=str(record.get("displayName") or record.get("companyName") or ""),
                 status=str(record.get("status") or "active"),
@@ -117,7 +177,7 @@ def run_import(
                 created_at=_timestamp(record, "createdAt", "created_at"),
                 updated_at=_timestamp(record, "updatedAt", "updated_at", "createdAt", "created_at"),
                 source_app="ecrm",
-                source_record_id=str(record.get("id") or ""),
+                source_record_id=source_record_id,
             )
             legacy_id = record.get("emailVoiceLegacyId") or record.get(
                 "email_voice_legacy_id"
@@ -130,19 +190,48 @@ def run_import(
                     source_app="emailvoice",
                     source_record_id=legacy_id.strip(),
                 )
-            imported_accounts[str(record.get("id") or "")] = account.id
+            imported_accounts[source_record_id] = account.id
             summary["accounts"] += 1
 
         for record in fetch_records("CONTACT"):
             if _record_workspace_id(record) != workspace_id:
                 continue
+            source_record_id = _source_record_id(record)
+            if source_record_id is None:
+                _report_skip(
+                    summary,
+                    entity_type="CONTACT",
+                    record_id=None,
+                    reason="missing_source_id",
+                )
+                continue
             data = _record_data(record)
-            parent_account_id = imported_accounts.get(str(record.get("parentId") or ""))
+            parent_account_id = None
+            parent_source_record_id = _string_value(record.get("parentId"))
+            if parent_source_record_id is not None:
+                parent_account_id = imported_accounts.get(parent_source_record_id)
+                if parent_account_id is None:
+                    parent_account_id = repo.find_entity_id_by_source_identity(
+                        workspace_id=workspace_id,
+                        entity_type="ACCOUNT",
+                        source_app="ecrm",
+                        source_record_id=parent_source_record_id,
+                    )
+                if parent_account_id is None:
+                    _report_skip(
+                        summary,
+                        entity_type="CONTACT",
+                        record_id=source_record_id,
+                        reason="missing_parent_account",
+                    )
+                    continue
             contact = repo.upsert_contact(
                 workspace_id=workspace_id,
-                external_key=str(
-                    record.get("externalKey")
-                    or f"ecrm:contact:{workspace_id}:{record.get('id')}"
+                external_key=_external_key(
+                    record,
+                    fallback_prefix="ecrm:contact",
+                    workspace_id=workspace_id,
+                    source_record_id=source_record_id,
                 ),
                 display_name=str(record.get("displayName") or record.get("email") or ""),
                 email=str(record.get("email") or ""),
@@ -174,7 +263,7 @@ def run_import(
                 updated_at=_timestamp(record, "updatedAt", "updated_at", "createdAt", "created_at"),
                 parent_account_id=parent_account_id,
                 source_app="ecrm",
-                source_record_id=str(record.get("id") or ""),
+                source_record_id=source_record_id,
             )
             legacy_id = record.get("emailVoiceLegacyId") or record.get(
                 "email_voice_legacy_id"

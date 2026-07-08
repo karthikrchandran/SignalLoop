@@ -3,9 +3,10 @@ from __future__ import annotations
 import uuid
 from typing import get_type_hints
 
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.domain.shared_records import service as shared_service
+from app.domain.shared_records.models import PlatformSharedContact
 from app.domain.shared_records.repository import PlatformSharedRepository
 
 
@@ -343,6 +344,169 @@ def test_import_command_preserves_emailvoice_legacy_links_and_metadata(monkeypat
     assert imported_contact.source_channel == "voice"
     assert imported_contact.tags_json == ["vip"]
     assert imported_contact.intent_json == ["demo"]
+
+
+def test_import_command_reuses_preexisting_local_parent_when_customer_batch_omits_it(
+    monkeypatch,
+) -> None:
+    def fetch_records(
+        entity_type: str,
+        *,
+        _parent_id: str | None = None,
+    ) -> list[dict[str, object]]:
+        if entity_type == "CUSTOMER":
+            return []
+        if entity_type == "CONTACT":
+            return [
+                {
+                    "id": "contact-1",
+                    "externalKey": "ecrm:contact:ws-1:ada@example.com",
+                    "displayName": "Ada Lovelace",
+                    "email": "ada@example.com",
+                    "parentId": "customer-1",
+                    "data": {"workspaceId": "ws-1"},
+                }
+            ]
+        raise AssertionError(f"unexpected entity_type {entity_type}")
+
+    monkeypatch.setattr(
+        "app.scripts.import_ecrm_shared_records.fetch_records",
+        fetch_records,
+    )
+
+    from app.scripts.import_ecrm_shared_records import run_import
+
+    with _session() as session:
+        repo = PlatformSharedRepository(session)
+        existing_account = repo.upsert_account(
+            workspace_id="ws-1",
+            external_key="ecrm:customer:ws-1:acme",
+            display_name="Acme",
+            source_app="ecrm",
+            source_record_id="customer-1",
+        )
+        session.commit()
+        existing_account_id = existing_account.id
+
+        summary = run_import(workspace_id="ws-1", dry_run=False, session=session)
+        imported_contact = session.exec(select(PlatformSharedContact)).one()
+
+    assert summary["accounts"] == 0
+    assert summary["contacts"] == 1
+    assert summary["skipped_contacts"] == 0
+    assert imported_contact.parent_account_id == existing_account_id
+
+
+def test_import_command_skips_rows_missing_required_source_identity(
+    monkeypatch,
+) -> None:
+    calls: list[tuple[str, str]] = []
+
+    def fetch_records(
+        entity_type: str,
+        *,
+        _parent_id: str | None = None,
+    ) -> list[dict[str, object]]:
+        if entity_type == "CUSTOMER":
+            return [
+                {
+                    "id": None,
+                    "displayName": "Acme",
+                    "data": {"workspaceId": "ws-1"},
+                }
+            ]
+        if entity_type == "CONTACT":
+            return [
+                {
+                    "id": "",
+                    "displayName": "Ada Lovelace",
+                    "email": "ada@example.com",
+                    "data": {"workspaceId": "ws-1"},
+                }
+            ]
+        raise AssertionError(f"unexpected entity_type {entity_type}")
+
+    monkeypatch.setattr(
+        "app.scripts.import_ecrm_shared_records.fetch_records",
+        fetch_records,
+    )
+
+    class _Repo:
+        def find_entity_id_by_source_identity(self, **kwargs):
+            return None
+
+        def upsert_account(self, **kwargs):
+            calls.append(("ACCOUNT", kwargs["source_record_id"]))
+            return type("Account", (), {"id": uuid.uuid4()})()
+
+        def upsert_contact(self, **kwargs):
+            calls.append(("CONTACT", kwargs["source_record_id"]))
+            return type("Contact", (), {"id": uuid.uuid4()})()
+
+    monkeypatch.setattr(
+        "app.scripts.import_ecrm_shared_records.PlatformSharedRepository",
+        lambda session: _Repo(),
+    )
+
+    from app.scripts.import_ecrm_shared_records import run_import
+
+    summary = run_import(workspace_id="ws-1", dry_run=True)
+
+    assert calls == []
+    assert summary["accounts"] == 0
+    assert summary["contacts"] == 0
+    assert summary["skipped_accounts"] == 1
+    assert summary["skipped_contacts"] == 1
+    assert [issue["reason"] for issue in summary["issues"]] == [
+        "missing_source_id",
+        "missing_source_id",
+    ]
+
+
+def test_import_command_skips_contact_when_parent_cannot_be_resolved(
+    monkeypatch,
+) -> None:
+    def fetch_records(
+        entity_type: str,
+        *,
+        _parent_id: str | None = None,
+    ) -> list[dict[str, object]]:
+        if entity_type == "CUSTOMER":
+            return []
+        if entity_type == "CONTACT":
+            return [
+                {
+                    "id": "contact-1",
+                    "externalKey": "ecrm:contact:ws-1:ada@example.com",
+                    "displayName": "Ada Lovelace",
+                    "email": "ada@example.com",
+                    "parentId": "missing-customer",
+                    "data": {"workspaceId": "ws-1"},
+                }
+            ]
+        raise AssertionError(f"unexpected entity_type {entity_type}")
+
+    monkeypatch.setattr(
+        "app.scripts.import_ecrm_shared_records.fetch_records",
+        fetch_records,
+    )
+
+    from app.scripts.import_ecrm_shared_records import run_import
+
+    with _session() as session:
+        summary = run_import(workspace_id="ws-1", dry_run=False, session=session)
+        contacts = session.exec(select(PlatformSharedContact)).all()
+
+    assert summary["contacts"] == 0
+    assert summary["skipped_contacts"] == 1
+    assert summary["issues"] == [
+        {
+            "entity_type": "CONTACT",
+            "record_id": "contact-1",
+            "reason": "missing_parent_account",
+        }
+    ]
+    assert contacts == []
 
 
 def test_import_command_skips_records_from_other_workspaces(monkeypatch) -> None:
