@@ -108,18 +108,14 @@ def _load_accounts(
     search: str | None = None,
     limit: int = 50,
 ) -> list[AccountPublic]:
-    records = shared_record_service.ecrm_shared_records.list_shared_records(
-        entity_type="CUSTOMER",
-        q=search,
-        status="active",
-        limit=limit,
-    )
-    accounts = [
-        shared_record_service.shared_account_to_public(record, workspace_id=workspace_id)
-        for record in records.get("records", [])
-        if isinstance(record, dict)
+    return [
+        AccountPublic(**account.model_dump())
+        for account in shared_record_service.list_shared_accounts(
+            workspace_id=workspace_id,
+            search=search,
+            limit=limit,
+        )
     ]
-    return [account for account in accounts if account.workspace_id == workspace_id]
 
 
 def _load_contacts(

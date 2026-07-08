@@ -12,7 +12,6 @@ from app.domain_models import (
     AccountPublic,
     AccountUpdate,
 )
-from app.integrations.ecrm_shared_records import EcrmSharedRecordNotFound
 
 
 class AccountAlreadyExistsError(Exception):
@@ -54,17 +53,10 @@ def _load_account_or_none(
     workspace_id: str,
     account_id: uuid.UUID,
 ) -> AccountPublic | None:
-    try:
-        record = shared_record_service.ecrm_shared_records.get_shared_record(
-            str(account_id)
-        )
-    except EcrmSharedRecordNotFound:
-        return None
-    account = shared_record_service.shared_account_to_public(
-        record,
+    return shared_record_service.get_shared_account(
         workspace_id=workspace_id,
+        account_id=account_id,
     )
-    return account if account.workspace_id == workspace_id else None
 
 
 def find_or_create_account_for_company(

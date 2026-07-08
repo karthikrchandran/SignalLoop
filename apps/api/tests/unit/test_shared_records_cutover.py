@@ -11,6 +11,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 from app.api.routes import campaigns as campaign_routes
 from app.api.routes import contacts as contact_routes
 from app.api.routes.contacts import _upsert_contacts
+from app.domain import accounts as accounts_domain
 from app.domain.accounts.service import create_account, update_account
 from app.domain.chatbot.models import ChatbotConversation
 from app.domain.customer_360 import service as customer_360_service
@@ -332,6 +333,77 @@ def test_shared_account_service_maps_customer_and_child_contacts(monkeypatch) ->
         "CUSTOMER",
         "CONTACT",
     ]
+
+
+def test_customer_360_load_accounts_uses_shared_record_service(monkeypatch) -> None:
+    account_id = uuid.uuid4()
+
+    monkeypatch.setattr(
+        customer_360_service.shared_record_service.ecrm_shared_records,
+        "list_shared_records",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("adapter should not be called")),
+    )
+    monkeypatch.setattr(
+        customer_360_service.shared_record_service,
+        "list_shared_accounts",
+        lambda **kwargs: [
+            customer_360_service.Customer360AccountRowPublic(
+                id=account_id,
+                workspace_id="ws-shared",
+                name="Analytical",
+                account_key="analytical",
+                status="active",
+                tags=[],
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+                contact_count=0,
+                last_activity_at=None,
+                channel_counts={},
+                top_next_action=None,
+            )
+        ],
+    )
+
+    accounts = customer_360_service._load_accounts(
+        workspace_id="ws-shared",
+        search="ana",
+        limit=10,
+    )
+
+    assert len(accounts) == 1
+    assert accounts[0].id == account_id
+
+
+def test_accounts_load_account_or_none_uses_shared_record_service(monkeypatch) -> None:
+    account_id = uuid.uuid4()
+
+    monkeypatch.setattr(
+        accounts_domain.service.shared_record_service.ecrm_shared_records,
+        "get_shared_record",
+        lambda record_id: (_ for _ in ()).throw(AssertionError("adapter should not be called")),
+    )
+    monkeypatch.setattr(
+        accounts_domain.service.shared_record_service,
+        "get_shared_account",
+        lambda **kwargs: accounts_domain.service.AccountPublic(
+            id=account_id,
+            workspace_id="ws-shared",
+            name="Analytical",
+            account_key="analytical",
+            status="active",
+            tags=[],
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        ),
+    )
+
+    loaded = accounts_domain.service._load_account_or_none(
+        workspace_id="ws-shared",
+        account_id=account_id,
+    )
+
+    assert loaded is not None
+    assert loaded.id == account_id
 
 
 def test_customer_360_accounts_read_from_shared_layer_when_enabled(monkeypatch) -> None:

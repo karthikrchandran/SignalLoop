@@ -545,6 +545,31 @@ def list_shared_accounts(
     return rows
 
 
+def get_shared_account(
+    *,
+    workspace_id: str,
+    account_id: uuid.UUID,
+    session: Session | None = None,
+) -> AccountPublic | None:
+    if settings.USE_LOCAL_SHARED_RECORDS:
+        with _local_session(session) as local_session:
+            repo = _local_repo(local_session)
+            account = repo.get_account_by_public_id(
+                workspace_id=workspace_id,
+                public_id=account_id,
+            )
+        if account is None:
+            return None
+        return _platform_account_to_public(account)
+
+    try:
+        record = ecrm_shared_records.get_shared_record(str(account_id))
+    except EcrmSharedRecordNotFound:
+        return None
+    account = shared_account_to_public(record, workspace_id=workspace_id)
+    return account if account.workspace_id == workspace_id else None
+
+
 def get_shared_account_profile(
     *,
     workspace_id: str,
