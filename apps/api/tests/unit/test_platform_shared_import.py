@@ -3,11 +3,14 @@ from __future__ import annotations
 import uuid
 from typing import get_type_hints
 
+import httpx
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from app.core.config import settings
 from app.domain.shared_records import service as shared_service
 from app.domain.shared_records.models import PlatformSharedContact
 from app.domain.shared_records.repository import PlatformSharedRepository
+from app.integrations import ecrm_shared_records as ecrm_mod
 
 
 def _session() -> Session:
@@ -188,6 +191,67 @@ def test_imported_contact_with_emailvoice_legacy_id_preserves_public_id_and_meta
     assert loaded.source_channel == "voice"
     assert loaded.tags_json == ["vip"]
     assert loaded.intent_json == ["demo"]
+
+
+def test_fetch_records_pages_export_route_until_next_cursor(
+    monkeypatch,
+) -> None:
+    responses = [
+        httpx.Response(
+            200,
+            json={
+                "items": [
+                    {"id": "customer-1", "status": "active"},
+                    {"id": "customer-2", "status": "inactive"},
+                ],
+                "nextCursor": "cursor-2",
+            },
+        ),
+        httpx.Response(
+            200,
+            json={
+                "items": [
+                    {"id": "customer-3", "status": "active"},
+                ],
+                "nextCursor": None,
+            },
+        ),
+    ]
+    calls: list[dict[str, object]] = []
+
+    def request(method: str, url: str, **kwargs: object) -> httpx.Response:
+        calls.append({"method": method, "url": url, **kwargs})
+        return responses.pop(0)
+
+    monkeypatch.setattr(ecrm_mod.httpx, "request", request)
+    monkeypatch.setattr(settings, "ECRM_SHARED_API_BASE_URL", "https://crm.example")
+    monkeypatch.setattr(settings, "ECRM_SHARED_API_TOKEN", "token")
+
+    from app.scripts.import_ecrm_shared_records import fetch_records
+
+    records = fetch_records("CUSTOMER")
+
+    assert [record["id"] for record in records] == ["customer-1", "customer-3"]
+    assert calls == [
+        {
+            "method": "GET",
+            "url": "https://crm.example/api/shared-records/export",
+            "headers": {"Authorization": "Bearer token"},
+            "params": {"entityType": "CUSTOMER", "limit": 500},
+            "timeout": 10.0,
+        },
+        {
+            "method": "GET",
+            "url": "https://crm.example/api/shared-records/export",
+            "headers": {"Authorization": "Bearer token"},
+            "params": {
+                "entityType": "CUSTOMER",
+                "cursor": "cursor-2",
+                "limit": 500,
+            },
+            "timeout": 10.0,
+        },
+    ]
 
 
 def test_import_command_maps_ecrm_customer_and_contact_into_platform_rows(

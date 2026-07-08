@@ -9,6 +9,7 @@ import httpx
 from app.core.config import settings
 
 _SHARED_RECORDS_PATH = "/api/shared-records"
+_SHARED_RECORDS_EXPORT_PATH = "/api/shared-records/export"
 _REQUEST_TIMEOUT_SECONDS = 10.0
 _MAX_ERROR_BODY_CHARS = 300
 
@@ -58,6 +59,24 @@ class EcrmSharedRecordsClient:
             if value is not None
         }
         return self._request("GET", _SHARED_RECORDS_PATH, params=params)
+
+    def list_shared_records_export_page(
+        self,
+        entity_type: str | None = None,
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """Fetch one export page for shared-record backfill/import consumers."""
+        params = {
+            key: value
+            for key, value in {
+                "entityType": entity_type,
+                "cursor": cursor,
+                "limit": limit,
+            }.items()
+            if value is not None
+        }
+        return self._request("GET", _SHARED_RECORDS_EXPORT_PATH, params=params)
 
     def get_shared_record(self, record_id: str) -> dict[str, Any]:
         """Fetch one shared record by ID."""
@@ -120,6 +139,19 @@ def list_shared_records(
         q=q,
         status=status,
         parent_id=parent_id,
+        limit=limit,
+    )
+
+
+def list_shared_records_export_page(
+    entity_type: str | None = None,
+    cursor: str | None = None,
+    limit: int | None = None,
+) -> dict[str, Any]:
+    """Fetch one shared-record export page using configured eCRM settings."""
+    return EcrmSharedRecordsClient().list_shared_records_export_page(
+        entity_type=entity_type,
+        cursor=cursor,
         limit=limit,
     )
 

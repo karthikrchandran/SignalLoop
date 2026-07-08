@@ -80,6 +80,43 @@ def test_list_shared_records_sends_bearer_token_and_query_params(
     ]
 
 
+def test_list_shared_records_export_page_sends_bearer_token_and_query_params(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recorder = _Recorder(
+        httpx.Response(
+            200,
+            json={"items": [{"id": "rec-1"}], "nextCursor": "cursor-2"},
+        )
+    )
+    monkeypatch.setattr(ecrm_mod.httpx, "request", recorder)
+
+    client = EcrmSharedRecordsClient(
+        base_url="https://crm.example/",
+        token="secret-token",
+    )
+    result = client.list_shared_records_export_page(
+        entity_type="CONTACT",
+        cursor="cursor-1",
+        limit=500,
+    )
+
+    assert result == {"items": [{"id": "rec-1"}], "nextCursor": "cursor-2"}
+    assert recorder.calls == [
+        {
+            "method": "GET",
+            "url": "https://crm.example/api/shared-records/export",
+            "headers": {"Authorization": "Bearer secret-token"},
+            "params": {
+                "entityType": "CONTACT",
+                "cursor": "cursor-1",
+                "limit": 500,
+            },
+            "timeout": 10.0,
+        }
+    ]
+
+
 def test_empty_token_fails_before_http(monkeypatch: pytest.MonkeyPatch) -> None:
     recorder = _Recorder(httpx.Response(200, json={}))
     monkeypatch.setattr(ecrm_mod.httpx, "request", recorder)

@@ -30,16 +30,31 @@ def fetch_records(
     *,
     parent_id: str | None = None,
 ) -> list[dict[str, object]]:
-    response = ecrm_shared_records.list_shared_records(
-        entity_type=entity_type,
-        parent_id=parent_id,
-        status="active",
-        limit=500,
-    )
-    records = response.get("records", response.get("items", []))
-    if not isinstance(records, list):
-        return []
-    return [record for record in records if isinstance(record, dict)]
+    records: list[dict[str, object]] = []
+    cursor: str | None = None
+
+    while True:
+        response = ecrm_shared_records.list_shared_records_export_page(
+            entity_type=entity_type,
+            cursor=cursor,
+            limit=500,
+        )
+        items = response.get("items", response.get("records", []))
+        if isinstance(items, list):
+            for record in items:
+                if not isinstance(record, dict):
+                    continue
+                if parent_id is not None and _string_value(record.get("parentId")) != parent_id:
+                    continue
+                status = _string_value(record.get("status"))
+                if status is not None and status.lower() != "active":
+                    continue
+                records.append(record)
+
+        next_cursor = response.get("nextCursor")
+        cursor = next_cursor.strip() if isinstance(next_cursor, str) and next_cursor.strip() else None
+        if cursor is None:
+            return records
 
 
 def _record_workspace_id(record: dict[str, object]) -> str | None:
