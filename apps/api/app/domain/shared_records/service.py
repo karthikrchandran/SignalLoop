@@ -310,6 +310,7 @@ def upsert_shared_contact(
     session: Session | None = None,
 ) -> ContactPublic:
     if settings.USE_LOCAL_SHARED_RECORDS:
+        owns_session = session is None
         with _local_session(session) as local_session:
             repo = _local_repo(local_session)
             existing_contact_id = repo._find_entity_id_by_public_id(
@@ -356,6 +357,8 @@ def upsert_shared_contact(
                 source_record_id=str(contact_id),
             )
             local_session.flush()
+            if owns_session:
+                local_session.commit()
             local_session.refresh(contact)
         return _platform_contact_to_public(contact, repo=repo)
 
@@ -424,6 +427,7 @@ def upsert_shared_account(
     session: Session | None = None,
 ) -> AccountPublic:
     if settings.USE_LOCAL_SHARED_RECORDS:
+        owns_session = session is None
         with _local_session(session) as local_session:
             repo = _local_repo(local_session)
             existing_account_id = repo._find_entity_id_by_public_id(
@@ -454,6 +458,8 @@ def upsert_shared_account(
                 source_record_id=str(account_id),
             )
             local_session.flush()
+            if owns_session:
+                local_session.commit()
             local_session.refresh(account)
         return _platform_account_to_public(account, repo=repo)
 

@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from app.api.routes import accounts as account_routes
 from app.api.routes import campaigns as campaign_routes
 from app.api.routes import contacts as contact_routes
 from app.api.routes.contacts import _upsert_contacts
@@ -27,6 +28,7 @@ from app.domain.signals.models import SignalEvent
 from app.domain.signals.scheduling import SchedulingRequest
 from app.domain.voice.models import CallRequest
 from app.domain_models import (
+    AccountContactAssignment,
     AccountCreate,
     AccountPublic,
     AccountUpdate,
@@ -46,6 +48,12 @@ def _session() -> Session:
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
     return Session(engine)
+
+
+def _engine():
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    return engine
 
 
 def test_contact_import_upserts_shared_record_when_enabled(monkeypatch) -> None:
@@ -355,6 +363,131 @@ def test_account_contact_assignment_updates_local_shared_links_when_enabled(
     assert unlinked is not None
     assert unlinked.account_id is None
     assert unlinked.company == "Analytical"
+
+
+def test_accounts_route_local_mutations_commit_durably(monkeypatch) -> None:
+    monkeypatch.setattr(shared_service.settings, "USE_LOCAL_SHARED_RECORDS", True)
+    monkeypatch.setattr(
+        shared_service.ecrm_shared_records,
+        "upsert_shared_record",
+        lambda payload: (_ for _ in ()).throw(
+            AssertionError("remote adapter should not be called")
+        ),
+    )
+    monkeypatch.setattr(
+        shared_service.ecrm_shared_records,
+        "get_shared_record",
+        lambda record_id: (_ for _ in ()).throw(
+            AssertionError("remote adapter should not be called")
+        ),
+    )
+
+    engine = _engine()
+    with Session(engine) as request_session:
+        account = account_routes.create_workspace_account(
+            session=request_session,
+            workspace_id="ws-shared",
+            body=AccountCreate(name="Analytical"),
+        )
+        contact = shared_service.upsert_shared_contact(
+            workspace_id="ws-shared",
+            contact_id=uuid.uuid4(),
+            email="ada@example.com",
+            first_name="Ada",
+            last_name="Lovelace",
+            company="Independent",
+            session=request_session,
+        )
+        updated = account_routes.update_workspace_account(
+            account_id=account.id,
+            session=request_session,
+            workspace_id="ws-shared",
+            body=AccountUpdate(name="Analytical Engines", summary="Durable"),
+        )
+        assigned = account_routes.assign_workspace_account_contacts(
+            account_id=account.id,
+            session=request_session,
+            workspace_id="ws-shared",
+            body=AccountContactAssignment(contact_ids=[contact.id]),
+        )
+        linked = shared_service.get_shared_contact(
+            workspace_id="ws-shared",
+            contact_id=contact.id,
+            session=request_session,
+        )
+        unassigned = account_routes.unassign_workspace_account_contact(
+            account_id=account.id,
+            contact_id=contact.id,
+            session=request_session,
+            workspace_id="ws-shared",
+        )
+
+    with Session(engine) as verification_session:
+        persisted_account = shared_service.get_shared_account(
+            workspace_id="ws-shared",
+            account_id=account.id,
+            session=verification_session,
+        )
+        persisted_contact = shared_service.get_shared_contact(
+            workspace_id="ws-shared",
+            contact_id=contact.id,
+            session=verification_session,
+        )
+
+    assert updated.name == "Analytical Engines"
+    assert assigned.assigned_count == 1
+    assert linked is not None
+    assert linked.account_id == account.id
+    assert unassigned.account_id == account.id
+    assert persisted_account is not None
+    assert persisted_account.name == "Analytical Engines"
+    assert persisted_account.summary == "Durable"
+    assert persisted_contact is not None
+    assert persisted_contact.account_id is None
+    assert persisted_contact.company == "Analytical Engines"
+
+
+def test_sessionless_local_shared_write_commits_when_service_owns_session(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(shared_service.settings, "USE_LOCAL_SHARED_RECORDS", True)
+    monkeypatch.setattr(
+        shared_service.ecrm_shared_records,
+        "upsert_shared_record",
+        lambda payload: (_ for _ in ()).throw(
+            AssertionError("remote adapter should not be called")
+        ),
+    )
+    monkeypatch.setattr(
+        shared_service.ecrm_shared_records,
+        "get_shared_record",
+        lambda record_id: (_ for _ in ()).throw(
+            AssertionError("remote adapter should not be called")
+        ),
+    )
+
+    engine = _engine()
+    monkeypatch.setattr(shared_service, "engine", engine)
+
+    account_id = uuid.uuid4()
+    created = shared_service.upsert_shared_account(
+        workspace_id="ws-shared",
+        account_id=account_id,
+        name="Sessionless Account",
+        account_key="sessionless-account",
+    )
+
+    with Session(engine) as verification_session:
+        persisted = shared_service.get_shared_account(
+            workspace_id="ws-shared",
+            account_id=account_id,
+            session=verification_session,
+        )
+
+    assert created.id == account_id
+    assert persisted is not None
+    assert persisted.id == account_id
+    assert persisted.name == "Sessionless Account"
 
 
 def test_shared_contact_service_maps_records_without_local_contact_lookup(

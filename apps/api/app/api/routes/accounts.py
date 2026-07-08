@@ -39,11 +39,13 @@ def create_workspace_account(
 ) -> AccountPublic:
     """Create an account in the active workspace."""
     try:
-        return create_account(session, workspace_id=workspace_id, data=body)
+        created = create_account(session, workspace_id=workspace_id, data=body)
     except AccountNameRequiredError:
         raise HTTPException(status_code=400, detail="Account name is required")
     except AccountAlreadyExistsError as exc:
         raise HTTPException(status_code=409, detail="Account already exists") from exc
+    session.commit()
+    return created
 
 
 @router.patch("/{account_id}", response_model=AccountPublic)
@@ -68,6 +70,7 @@ def update_workspace_account(
         raise HTTPException(status_code=409, detail="Account already exists") from exc
     if updated is None:
         raise HTTPException(status_code=404, detail="Account not found")
+    session.commit()
     return updated
 
 
@@ -91,6 +94,7 @@ def assign_workspace_account_contacts(
         raise HTTPException(status_code=404, detail="Contact not found") from exc
     if assigned is None:
         raise HTTPException(status_code=404, detail="Account not found")
+    session.commit()
     return assigned
 
 
@@ -117,4 +121,5 @@ def unassign_workspace_account_contact(
         raise HTTPException(status_code=404, detail="Contact not found") from exc
     if unassigned is None:
         raise HTTPException(status_code=404, detail="Account not found")
+    session.commit()
     return unassigned
