@@ -6,14 +6,10 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.db import engine
-from app.domain.shared_records.models import (
-    PlatformSharedAccount,
-    PlatformSharedContact,
-)
 from app.domain.shared_records.repository import PlatformSharedRepository
 from app.domain_models import (
     AccountPublic,
@@ -43,7 +39,7 @@ def _local_repo(session: Session | None = None) -> PlatformSharedRepository:
     return PlatformSharedRepository(session or Session(engine))
 
 
-def _platform_contact_to_public(contact: PlatformSharedContact) -> ContactPublic:
+def _platform_contact_to_public(contact: Any) -> ContactPublic:
     if isinstance(contact, dict):
         return ContactPublic(
             id=contact["id"],
@@ -79,7 +75,9 @@ def _platform_contact_to_public(contact: PlatformSharedContact) -> ContactPublic
     )
 
 
-def _platform_account_to_public(account: PlatformSharedAccount) -> AccountPublic:
+def _platform_account_to_public(account: Any) -> AccountPublic:
+    if isinstance(account, dict):
+        return AccountPublic(**account)
     return AccountPublic(
         id=account.id,
         workspace_id=account.workspace_id,
@@ -372,36 +370,12 @@ def list_shared_contacts(
     if settings.USE_LOCAL_SHARED_RECORDS:
         with _local_session(session) as local_session:
             repo = _local_repo(local_session)
-            if hasattr(repo, "list_contacts"):
-                rows = repo.list_contacts(
-                    workspace_id=workspace_id,
-                    search=search,
-                    parent_id=parent_id,
-                    limit=limit,
-                )
-            else:
-                statement = select(PlatformSharedContact).where(
-                    PlatformSharedContact.workspace_id == workspace_id
-                )
-                if search:
-                    search_term = f"%{search.lower()}%"
-                    statement = statement.where(
-                        (PlatformSharedContact.email.ilike(search_term))
-                        | (PlatformSharedContact.display_name.ilike(search_term))
-                    )
-                if parent_id:
-                    try:
-                        statement = statement.where(
-                            PlatformSharedContact.parent_account_id == uuid.UUID(
-                                parent_id
-                            )
-                        )
-                    except ValueError:
-                        return []
-                statement = statement.order_by(
-                    PlatformSharedContact.created_at.desc()
-                ).limit(limit)
-                rows = repo.session.exec(statement).all()
+            rows = repo.list_contacts(
+                workspace_id=workspace_id,
+                search=search,
+                parent_public_id=uuid.UUID(parent_id) if parent_id else None,
+                limit=limit,
+            )
         return [_platform_contact_to_public(row) for row in rows]
 
     request: dict[str, object] = {
@@ -429,8 +403,11 @@ def get_shared_contact(
     if settings.USE_LOCAL_SHARED_RECORDS:
         with _local_session(session) as local_session:
             repo = _local_repo(local_session)
-            contact = repo.session.get(PlatformSharedContact, contact_id)
-        if contact is None or contact.workspace_id != workspace_id:
+            contact = repo.get_contact_by_public_id(
+                workspace_id=workspace_id,
+                public_id=contact_id,
+            )
+        if contact is None:
             return None
         return _platform_contact_to_public(contact)
 
@@ -524,27 +501,16 @@ def list_shared_accounts(
     if settings.USE_LOCAL_SHARED_RECORDS:
         with _local_session(session) as local_session:
             repo = _local_repo(local_session)
-            statement = select(PlatformSharedAccount).where(
-                PlatformSharedAccount.workspace_id == workspace_id
+            accounts = repo.list_accounts(
+                workspace_id=workspace_id,
+                search=search,
+                limit=limit,
             )
-            if search:
-                search_term = f"%{search.lower()}%"
-                statement = statement.where(
-                    PlatformSharedAccount.display_name.ilike(search_term)
-                )
-            statement = statement.order_by(
-                PlatformSharedAccount.updated_at.desc()
-            ).limit(limit)
-            accounts = repo.session.exec(statement).all()
             rows: list[Customer360AccountRowPublic] = []
             for account in accounts:
-                contact_count = len(
-                    repo.session.exec(
-                        select(PlatformSharedContact).where(
-                            PlatformSharedContact.workspace_id == workspace_id,
-                            PlatformSharedContact.parent_account_id == account.id,
-                        )
-                    ).all()
+                contact_count = repo.count_contacts_for_account(
+                    workspace_id=workspace_id,
+                    account_public_id=account["id"],
                 )
                 rows.append(
                     Customer360AccountRowPublic(
@@ -588,15 +554,18 @@ def get_shared_account_profile(
     if settings.USE_LOCAL_SHARED_RECORDS:
         with _local_session(session) as local_session:
             repo = _local_repo(local_session)
-            account = repo.session.get(PlatformSharedAccount, account_id)
-            if account is None or account.workspace_id != workspace_id:
+            account = repo.get_account_by_public_id(
+                workspace_id=workspace_id,
+                public_id=account_id,
+            )
+            if account is None:
                 return None
-            contacts = repo.session.exec(
-                select(PlatformSharedContact).where(
-                    PlatformSharedContact.workspace_id == workspace_id,
-                    PlatformSharedContact.parent_account_id == account.id,
-                )
-            ).all()
+            contacts = repo.list_contacts(
+                workspace_id=workspace_id,
+                search=None,
+                parent_public_id=account_id,
+                limit=100,
+            )
         return Customer360AccountProfilePublic(
             account=_platform_account_to_public(account),
             contacts=[

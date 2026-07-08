@@ -41,6 +41,18 @@ def fetch_records(
     return [record for record in records if isinstance(record, dict)]
 
 
+def _record_workspace_id(record: dict[str, object]) -> str | None:
+    data = record.get("data")
+    if isinstance(data, dict):
+        workspace_id = data.get("workspaceId")
+        if isinstance(workspace_id, str) and workspace_id.strip():
+            return workspace_id.strip()
+    workspace_id = record.get("workspaceId")
+    if isinstance(workspace_id, str) and workspace_id.strip():
+        return workspace_id.strip()
+    return None
+
+
 def run_import(
     *,
     workspace_id: str,
@@ -59,6 +71,8 @@ def run_import(
         imported_accounts: dict[str, object] = {}
 
         for record in fetch_records("CUSTOMER"):
+            if _record_workspace_id(record) != workspace_id:
+                continue
             account = repo.upsert_account(
                 workspace_id=workspace_id,
                 external_key=str(
@@ -73,6 +87,8 @@ def run_import(
             summary["accounts"] += 1
 
         for record in fetch_records("CONTACT"):
+            if _record_workspace_id(record) != workspace_id:
+                continue
             parent_account_id = imported_accounts.get(str(record.get("parentId") or ""))
             repo.upsert_contact(
                 workspace_id=workspace_id,
