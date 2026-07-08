@@ -12,7 +12,12 @@ from app.api.routes import campaigns as campaign_routes
 from app.api.routes import contacts as contact_routes
 from app.api.routes.contacts import _upsert_contacts
 from app.domain import accounts as accounts_domain
-from app.domain.accounts.service import create_account, update_account
+from app.domain.accounts.service import (
+    assign_contacts_to_account,
+    create_account,
+    unassign_contact_from_account,
+    update_account,
+)
 from app.domain.chatbot.models import ChatbotConversation
 from app.domain.customer_360 import service as customer_360_service
 from app.domain.prospecting import service as prospecting_service
@@ -217,6 +222,139 @@ def test_account_create_and_update_upsert_shared_customer_when_enabled(
     assert calls[0]["emailVoiceLegacyId"] == str(account.id)
     assert calls[0]["externalKey"] == "emailvoice:account:ws-shared:analytical"
     assert calls[1]["externalKey"] == "emailvoice:account:ws-shared:analytical-engines"
+
+
+def test_account_mutations_write_to_local_shared_store_when_enabled(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(shared_service.settings, "USE_LOCAL_SHARED_RECORDS", True)
+    monkeypatch.setattr(
+        shared_service.ecrm_shared_records,
+        "upsert_shared_record",
+        lambda payload: (_ for _ in ()).throw(
+            AssertionError("remote adapter should not be called")
+        ),
+    )
+    monkeypatch.setattr(
+        shared_service.ecrm_shared_records,
+        "get_shared_record",
+        lambda record_id: (_ for _ in ()).throw(
+            AssertionError("remote adapter should not be called")
+        ),
+    )
+
+    with _session() as session:
+        created = create_account(
+            session,
+            workspace_id="ws-shared",
+            data=AccountCreate(
+                name="Analytical",
+                website_url="https://analytical.example.com",
+                industry="Education",
+                summary="Original summary",
+                tags=["priority"],
+            ),
+        )
+        updated = update_account(
+            session,
+            workspace_id="ws-shared",
+            account_id=created.id,
+            data=AccountUpdate(
+                name="Analytical Engines",
+                website_url="https://engines.example.com",
+                industry="Research",
+                summary="Updated summary",
+                tags=["priority", "west"],
+            ),
+        )
+        stored = shared_service.get_shared_account(
+            workspace_id="ws-shared",
+            account_id=created.id,
+            session=session,
+        )
+
+    assert created.name == "Analytical"
+    assert updated is not None
+    assert updated.name == "Analytical Engines"
+    assert stored is not None
+    assert stored.id == created.id
+    assert stored.name == "Analytical Engines"
+    assert stored.account_key == "analytical-engines"
+    assert stored.website_url == "https://engines.example.com"
+    assert stored.industry == "Research"
+    assert stored.summary == "Updated summary"
+    assert stored.tags == ["priority", "west"]
+
+
+def test_account_contact_assignment_updates_local_shared_links_when_enabled(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(shared_service.settings, "USE_LOCAL_SHARED_RECORDS", True)
+    monkeypatch.setattr(
+        shared_service.ecrm_shared_records,
+        "upsert_shared_record",
+        lambda payload: (_ for _ in ()).throw(
+            AssertionError("remote adapter should not be called")
+        ),
+    )
+    monkeypatch.setattr(
+        shared_service.ecrm_shared_records,
+        "get_shared_record",
+        lambda record_id: (_ for _ in ()).throw(
+            AssertionError("remote adapter should not be called")
+        ),
+    )
+
+    with _session() as session:
+        account = shared_service.upsert_shared_account(
+            workspace_id="ws-shared",
+            account_id=uuid.uuid4(),
+            name="Analytical",
+            account_key="analytical",
+            session=session,
+        )
+        contact = shared_service.upsert_shared_contact(
+            workspace_id="ws-shared",
+            contact_id=uuid.uuid4(),
+            email="ada@example.com",
+            first_name="Ada",
+            last_name="Lovelace",
+            company="Independent",
+            session=session,
+        )
+
+        assignment = assign_contacts_to_account(
+            session,
+            workspace_id="ws-shared",
+            account_id=account.id,
+            contact_ids=[contact.id],
+        )
+        linked = shared_service.get_shared_contact(
+            workspace_id="ws-shared",
+            contact_id=contact.id,
+            session=session,
+        )
+        removal = unassign_contact_from_account(
+            session,
+            workspace_id="ws-shared",
+            account_id=account.id,
+            contact_id=contact.id,
+        )
+        unlinked = shared_service.get_shared_contact(
+            workspace_id="ws-shared",
+            contact_id=contact.id,
+            session=session,
+        )
+
+    assert assignment is not None
+    assert assignment.assigned_count == 1
+    assert linked is not None
+    assert linked.account_id == account.id
+    assert linked.company == "Analytical"
+    assert removal is not None
+    assert unlinked is not None
+    assert unlinked.account_id is None
+    assert unlinked.company == "Analytical"
 
 
 def test_shared_contact_service_maps_records_without_local_contact_lookup(

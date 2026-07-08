@@ -10,6 +10,10 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.db import engine
+from app.domain.shared_records.models import (
+    PlatformSharedAccount,
+    PlatformSharedContact,
+)
 from app.domain.shared_records.repository import PlatformSharedRepository
 from app.domain_models import (
     AccountPublic,
@@ -39,7 +43,11 @@ def _local_repo(session: Session | None = None) -> PlatformSharedRepository:
     return PlatformSharedRepository(session or Session(engine))
 
 
-def _platform_contact_to_public(contact: Any) -> ContactPublic:
+def _platform_contact_to_public(
+    contact: Any,
+    *,
+    repo: PlatformSharedRepository | None = None,
+) -> ContactPublic:
     if isinstance(contact, dict):
         return ContactPublic(
             id=contact["id"],
@@ -58,36 +66,56 @@ def _platform_contact_to_public(contact: Any) -> ContactPublic:
             created_at=contact.get("created_at") or datetime.now(timezone.utc),
         )
     return ContactPublic(
-        id=contact.id,
+        id=(
+            repo._public_id_for_entity(
+                workspace_id=contact.workspace_id,
+                entity_type="CONTACT",
+                entity_id=contact.id,
+            )
+            if repo is not None
+            else _stable_uuid("shared-contact", contact.id)
+        ),
         workspace_id=contact.workspace_id,
         account_id=contact.parent_account_id,
         email=contact.email,
-        first_name=None,
-        last_name=None,
-        company=None,
+        first_name=contact.first_name,
+        last_name=contact.last_name,
+        company=contact.company_name,
         phone=contact.phone,
-        timezone="UTC",
-        source_channel=None,
-        tags_json=[],
-        intent_json=[],
-        last_seen_at=None,
+        timezone=contact.timezone,
+        source_channel=contact.source_channel,
+        tags_json=list(contact.tags_json or []),
+        intent_json=list(contact.intent_json or []),
+        last_seen_at=contact.last_seen_at,
         created_at=contact.created_at,
     )
 
 
-def _platform_account_to_public(account: Any) -> AccountPublic:
+def _platform_account_to_public(
+    account: Any,
+    *,
+    repo: PlatformSharedRepository | None = None,
+) -> AccountPublic:
     if isinstance(account, dict):
         return AccountPublic(**account)
     return AccountPublic(
-        id=account.id,
+        id=(
+            repo._public_id_for_entity(
+                workspace_id=account.workspace_id,
+                entity_type="ACCOUNT",
+                entity_id=account.id,
+            )
+            if repo is not None
+            else _stable_uuid("shared-account", account.id)
+        ),
         workspace_id=account.workspace_id,
         name=account.display_name,
-        account_key=account.external_key.rsplit(":", 1)[-1],
-        website_url=None,
-        industry=None,
+        account_key=account.account_key or account.external_key.rsplit(":", 1)[-1],
+        website_url=account.website_url,
+        industry=account.industry,
         status=account.status,
-        summary=None,
-        tags=[],
+        summary=account.summary,
+        tags=list(account.tags_json or []),
         created_at=account.created_at,
         updated_at=account.updated_at,
     )
@@ -279,7 +307,58 @@ def upsert_shared_contact(
     tags_json: list[str] | None = None,
     intent_json: list[str] | None = None,
     last_seen_at: datetime | None = None,
+    session: Session | None = None,
 ) -> ContactPublic:
+    if settings.USE_LOCAL_SHARED_RECORDS:
+        with _local_session(session) as local_session:
+            repo = _local_repo(local_session)
+            existing_contact_id = repo._find_entity_id_by_public_id(
+                workspace_id=workspace_id,
+                entity_type="CONTACT",
+                public_id=contact_id,
+            )
+            existing_contact = (
+                local_session.get(PlatformSharedContact, existing_contact_id)
+                if existing_contact_id is not None
+                else None
+            )
+            parent_account_id = None
+            if parent_id is not None:
+                parent_account_id = repo._find_entity_id_by_public_id(
+                    workspace_id=workspace_id,
+                    entity_type="ACCOUNT",
+                    public_id=parent_id,
+                )
+            contact = repo.upsert_contact(
+                workspace_id=workspace_id,
+                external_key=(
+                    existing_contact.external_key
+                    if existing_contact is not None
+                    else f"emailvoice:contact:{workspace_id}:{email.lower()}"
+                ),
+                display_name=" ".join(
+                    part for part in [first_name, last_name] if part and part.strip()
+                )
+                or email,
+                email=email,
+                phone=phone,
+                company_name=company,
+                first_name=first_name,
+                last_name=last_name,
+                timezone=timezone,
+                source_channel=source_channel,
+                tags=list(tags_json or []),
+                intents=list(intent_json or []),
+                last_seen_at=last_seen_at,
+                status="active",
+                parent_account_id=parent_account_id,
+                source_app="emailvoice",
+                source_record_id=str(contact_id),
+            )
+            local_session.flush()
+            local_session.refresh(contact)
+        return _platform_contact_to_public(contact, repo=repo)
+
     response = ecrm_shared_records.upsert_shared_record(
         shared_contact_payload(
             workspace_id=workspace_id,
@@ -342,7 +421,42 @@ def upsert_shared_account(
     status: str = "active",
     summary: str | None = None,
     tags: list[str] | None = None,
+    session: Session | None = None,
 ) -> AccountPublic:
+    if settings.USE_LOCAL_SHARED_RECORDS:
+        with _local_session(session) as local_session:
+            repo = _local_repo(local_session)
+            existing_account_id = repo._find_entity_id_by_public_id(
+                workspace_id=workspace_id,
+                entity_type="ACCOUNT",
+                public_id=account_id,
+            )
+            existing_account = (
+                local_session.get(PlatformSharedAccount, existing_account_id)
+                if existing_account_id is not None
+                else None
+            )
+            account = repo.upsert_account(
+                workspace_id=workspace_id,
+                external_key=(
+                    existing_account.external_key
+                    if existing_account is not None
+                    else f"emailvoice:account:{workspace_id}:{account_key}"
+                ),
+                display_name=name,
+                status=status,
+                account_key=account_key,
+                website_url=website_url,
+                industry=industry,
+                summary=summary,
+                tags=list(tags or []),
+                source_app="emailvoice",
+                source_record_id=str(account_id),
+            )
+            local_session.flush()
+            local_session.refresh(account)
+        return _platform_account_to_public(account, repo=repo)
+
     response = ecrm_shared_records.upsert_shared_record(
         shared_account_payload(
             workspace_id=workspace_id,
@@ -376,7 +490,7 @@ def list_shared_contacts(
                 parent_public_id=uuid.UUID(parent_id) if parent_id else None,
                 limit=limit,
             )
-        return [_platform_contact_to_public(row) for row in rows]
+        return [_platform_contact_to_public(row, repo=repo) for row in rows]
 
     request: dict[str, object] = {
         "entity_type": "CONTACT",
@@ -409,7 +523,7 @@ def get_shared_contact(
             )
         if contact is None:
             return None
-        return _platform_contact_to_public(contact)
+        return _platform_contact_to_public(contact, repo=repo)
 
     try:
         response = ecrm_shared_records.get_shared_record(str(contact_id))
@@ -514,7 +628,7 @@ def list_shared_accounts(
                 )
                 rows.append(
                     Customer360AccountRowPublic(
-                        **_platform_account_to_public(account).model_dump(),
+                        **_platform_account_to_public(account, repo=repo).model_dump(),
                         contact_count=contact_count,
                         last_activity_at=None,
                         channel_counts={},
@@ -560,7 +674,7 @@ def get_shared_account(
             )
         if account is None:
             return None
-        return _platform_account_to_public(account)
+        return _platform_account_to_public(account, repo=repo)
 
     try:
         record = ecrm_shared_records.get_shared_record(str(account_id))
@@ -592,9 +706,11 @@ def get_shared_account_profile(
                 limit=100,
             )
         return Customer360AccountProfilePublic(
-            account=_platform_account_to_public(account),
+            account=_platform_account_to_public(account, repo=repo),
             contacts=[
-                shared_contact_to_customer_360(_platform_contact_to_public(contact))
+                shared_contact_to_customer_360(
+                    _platform_contact_to_public(contact, repo=repo)
+                )
                 for contact in contacts
             ],
             channel_summaries={

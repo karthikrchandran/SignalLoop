@@ -52,10 +52,12 @@ def _load_account_or_none(
     *,
     workspace_id: str,
     account_id: uuid.UUID,
+    session: Session | None = None,
 ) -> AccountPublic | None:
     return shared_record_service.get_shared_account(
         workspace_id=workspace_id,
         account_id=account_id,
+        session=session,
     )
 
 
@@ -74,7 +76,11 @@ def find_or_create_account_for_company(
         return None
 
     account_id = _account_id(workspace_id, account_key)
-    existing = _load_account_or_none(workspace_id=workspace_id, account_id=account_id)
+    existing = _load_account_or_none(
+        workspace_id=workspace_id,
+        account_id=account_id,
+        session=_session,
+    )
     if existing is not None:
         return existing
     return shared_record_service.upsert_shared_account(
@@ -82,6 +88,7 @@ def find_or_create_account_for_company(
         account_id=account_id,
         name=name,
         account_key=account_key,
+        session=_session,
     )
 
 
@@ -97,7 +104,11 @@ def create_account(
     if not account_key:
         raise AccountNameRequiredError
     account_id = _account_id(workspace_id, account_key)
-    if _load_account_or_none(workspace_id=workspace_id, account_id=account_id):
+    if _load_account_or_none(
+        workspace_id=workspace_id,
+        account_id=account_id,
+        session=_session,
+    ):
         raise AccountAlreadyExistsError
     return shared_record_service.upsert_shared_account(
         workspace_id=workspace_id,
@@ -109,6 +120,7 @@ def create_account(
         status=data.status.strip() or "active",
         summary=data.summary,
         tags=_normalize_tags(data.tags),
+        session=_session,
     )
 
 
@@ -120,7 +132,11 @@ def update_account(
     data: AccountUpdate,
 ) -> AccountPublic | None:
     """Update a workspace-scoped account and keep linked contact display names aligned."""
-    current = _load_account_or_none(workspace_id=workspace_id, account_id=account_id)
+    current = _load_account_or_none(
+        workspace_id=workspace_id,
+        account_id=account_id,
+        session=_session,
+    )
     if current is None:
         return None
 
@@ -136,6 +152,7 @@ def update_account(
         if new_account_id != account_id and _load_account_or_none(
             workspace_id=workspace_id,
             account_id=new_account_id,
+            session=_session,
         ):
             raise AccountAlreadyExistsError
         current = current.model_copy(
@@ -179,12 +196,14 @@ def update_account(
             if "tags" in update_data and update_data["tags"] is not None
             else current.tags
         ),
+        session=_session,
     )
     if updated.name != old_name:
         linked_contacts = shared_record_service.list_shared_contacts(
             workspace_id=workspace_id,
             parent_id=str(account_id),
             limit=100,
+            session=_session,
         )
         for contact in linked_contacts:
             if contact.company != old_name:
@@ -203,6 +222,7 @@ def update_account(
                 tags_json=list(contact.tags_json or []),
                 intent_json=list(contact.intent_json or []),
                 last_seen_at=contact.last_seen_at,
+                session=_session,
             )
     return updated
 
@@ -215,7 +235,11 @@ def assign_contacts_to_account(
     contact_ids: list[uuid.UUID],
 ) -> AccountContactAssignmentPublic | None:
     """Link workspace contacts to an account and align their company display name."""
-    account = _load_account_or_none(workspace_id=workspace_id, account_id=account_id)
+    account = _load_account_or_none(
+        workspace_id=workspace_id,
+        account_id=account_id,
+        session=_session,
+    )
     if account is None:
         return None
 
@@ -225,6 +249,7 @@ def assign_contacts_to_account(
         contact = shared_record_service.get_shared_contact(
             workspace_id=workspace_id,
             contact_id=contact_id,
+            session=_session,
         )
         if contact is None:
             raise AccountContactNotFoundError
@@ -242,6 +267,7 @@ def assign_contacts_to_account(
             tags_json=list(contact.tags_json or []),
             intent_json=list(contact.intent_json or []),
             last_seen_at=contact.last_seen_at,
+            session=_session,
         )
         assigned_count += 1
 
@@ -260,13 +286,18 @@ def unassign_contact_from_account(
     contact_id: uuid.UUID,
 ) -> AccountContactAssignmentPublic | None:
     """Unlink one workspace contact from an account without changing company text."""
-    account = _load_account_or_none(workspace_id=workspace_id, account_id=account_id)
+    account = _load_account_or_none(
+        workspace_id=workspace_id,
+        account_id=account_id,
+        session=_session,
+    )
     if account is None:
         return None
 
     contact = shared_record_service.get_shared_contact(
         workspace_id=workspace_id,
         contact_id=contact_id,
+        session=_session,
     )
     if contact is None or contact.account_id != account.id:
         raise AccountContactNotFoundError
@@ -285,6 +316,7 @@ def unassign_contact_from_account(
         tags_json=list(contact.tags_json or []),
         intent_json=list(contact.intent_json or []),
         last_seen_at=contact.last_seen_at,
+        session=_session,
     )
     return AccountContactAssignmentPublic(
         account_id=account.id,
