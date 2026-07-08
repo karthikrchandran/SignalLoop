@@ -28,6 +28,14 @@ class PlatformSharedRepository:
         workspace_id: str,
         external_key: str,
         display_name: str,
+        status: str = "active",
+        account_key: str | None = None,
+        website_url: str | None = None,
+        industry: str | None = None,
+        summary: str | None = None,
+        tags: list[str] | None = None,
+        created_at: datetime | None = None,
+        updated_at: datetime | None = None,
         source_app: str,
         source_record_id: str,
     ) -> PlatformSharedAccount:
@@ -37,6 +45,14 @@ class PlatformSharedRepository:
                 workspace_id=workspace_id,
                 external_key=external_key,
                 display_name=display_name,
+                status=status,
+                account_key=account_key,
+                website_url=website_url,
+                industry=industry,
+                summary=summary,
+                tags=tags,
+                created_at=created_at,
+                updated_at=updated_at,
             )
         self._validate_workspace_match(
             row_workspace_id=account.workspace_id,
@@ -44,9 +60,26 @@ class PlatformSharedRepository:
             entity_label="account",
             external_key=external_key,
         )
-        if account.display_name != display_name:
+        if (
+            account.display_name != display_name
+            or account.status != status
+            or account.account_key != account_key
+            or account.website_url != website_url
+            or account.industry != industry
+            or account.summary != summary
+            or account.tags_json != list(tags or [])
+            or (created_at is not None and account.created_at != created_at)
+        ):
             account.display_name = display_name
-            account.updated_at = _utc_now()
+            account.status = status
+            account.account_key = account_key
+            account.website_url = website_url
+            account.industry = industry
+            account.summary = summary
+            account.tags_json = list(tags or [])
+            if created_at is not None:
+                account.created_at = created_at
+            account.updated_at = updated_at or _utc_now()
 
         self._upsert_link(
             entity_type="ACCOUNT",
@@ -64,6 +97,18 @@ class PlatformSharedRepository:
         external_key: str,
         display_name: str,
         email: str,
+        phone: str | None = None,
+        company_name: str | None = None,
+        first_name: str | None = None,
+        last_name: str | None = None,
+        timezone: str = "UTC",
+        source_channel: str | None = None,
+        tags: list[str] | None = None,
+        intents: list[str] | None = None,
+        last_seen_at: datetime | None = None,
+        status: str = "active",
+        created_at: datetime | None = None,
+        updated_at: datetime | None = None,
         parent_account_id: uuid.UUID | None,
         source_app: str,
         source_record_id: str,
@@ -86,6 +131,18 @@ class PlatformSharedRepository:
                 external_key=external_key,
                 display_name=display_name,
                 email=email,
+                phone=phone,
+                company_name=company_name,
+                first_name=first_name,
+                last_name=last_name,
+                timezone=timezone,
+                source_channel=source_channel,
+                tags=tags,
+                intents=intents,
+                last_seen_at=last_seen_at,
+                status=status,
+                created_at=created_at,
+                updated_at=updated_at,
                 parent_account_id=parent_account_id,
             )
         self._validate_workspace_match(
@@ -97,12 +154,35 @@ class PlatformSharedRepository:
         if (
             contact.display_name != display_name
             or contact.email != email
+            or contact.phone != phone
+            or contact.company_name != company_name
+            or contact.first_name != first_name
+            or contact.last_name != last_name
+            or contact.timezone != timezone
+            or contact.source_channel != source_channel
+            or contact.tags_json != list(tags or [])
+            or contact.intent_json != list(intents or [])
+            or contact.last_seen_at != last_seen_at
+            or contact.status != status
             or contact.parent_account_id != parent_account_id
+            or (created_at is not None and contact.created_at != created_at)
         ):
             contact.display_name = display_name
             contact.email = email
+            contact.phone = phone
+            contact.company_name = company_name
+            contact.first_name = first_name
+            contact.last_name = last_name
+            contact.timezone = timezone
+            contact.source_channel = source_channel
+            contact.tags_json = list(tags or [])
+            contact.intent_json = list(intents or [])
+            contact.last_seen_at = last_seen_at
+            contact.status = status
             contact.parent_account_id = parent_account_id
-            contact.updated_at = _utc_now()
+            if created_at is not None:
+                contact.created_at = created_at
+            contact.updated_at = updated_at or _utc_now()
 
         self._upsert_link(
             entity_type="CONTACT",
@@ -112,6 +192,23 @@ class PlatformSharedRepository:
             source_record_id=source_record_id,
         )
         return contact
+
+    def upsert_source_link(
+        self,
+        *,
+        workspace_id: str,
+        entity_type: str,
+        entity_id: uuid.UUID,
+        source_app: str,
+        source_record_id: str,
+    ) -> None:
+        self._upsert_link(
+            entity_type=entity_type,
+            entity_id=entity_id,
+            workspace_id=workspace_id,
+            source_app=source_app,
+            source_record_id=source_record_id,
+        )
 
     def list_contacts(
         self,
@@ -314,12 +411,28 @@ class PlatformSharedRepository:
         workspace_id: str,
         external_key: str,
         display_name: str,
+        status: str,
+        account_key: str | None,
+        website_url: str | None,
+        industry: str | None,
+        summary: str | None,
+        tags: list[str] | None,
+        created_at: datetime | None,
+        updated_at: datetime | None,
     ) -> PlatformSharedAccount:
         return self._insert_or_get_existing(
             create_row=lambda: PlatformSharedAccount(
                 workspace_id=workspace_id,
                 external_key=external_key,
                 display_name=display_name,
+                status=status,
+                account_key=account_key,
+                website_url=website_url,
+                industry=industry,
+                summary=summary,
+                tags_json=list(tags or []),
+                created_at=created_at or _utc_now(),
+                updated_at=updated_at or created_at or _utc_now(),
             ),
             get_existing=lambda: self._get_account_by_external_key(external_key),
         )
@@ -331,6 +444,18 @@ class PlatformSharedRepository:
         external_key: str,
         display_name: str,
         email: str,
+        phone: str | None,
+        company_name: str | None,
+        first_name: str | None,
+        last_name: str | None,
+        timezone: str,
+        source_channel: str | None,
+        tags: list[str] | None,
+        intents: list[str] | None,
+        last_seen_at: datetime | None,
+        status: str,
+        created_at: datetime | None,
+        updated_at: datetime | None,
         parent_account_id: uuid.UUID | None,
     ) -> PlatformSharedContact:
         return self._insert_or_get_existing(
@@ -339,6 +464,18 @@ class PlatformSharedRepository:
                 external_key=external_key,
                 display_name=display_name,
                 email=email,
+                phone=phone,
+                company_name=company_name,
+                first_name=first_name,
+                last_name=last_name,
+                timezone=timezone,
+                source_channel=source_channel,
+                tags_json=list(tags or []),
+                intent_json=list(intents or []),
+                last_seen_at=last_seen_at,
+                status=status,
+                created_at=created_at or _utc_now(),
+                updated_at=updated_at or created_at or _utc_now(),
                 parent_account_id=parent_account_id,
             ),
             get_existing=lambda: self._get_contact_by_external_key(external_key),
@@ -401,15 +538,15 @@ class PlatformSharedRepository:
             if contact.parent_account_id is not None
             else None,
             "email": contact.email,
-            "first_name": None,
-            "last_name": None,
-            "company": None,
+            "first_name": contact.first_name,
+            "last_name": contact.last_name,
+            "company": contact.company_name,
             "phone": contact.phone,
-            "timezone": "UTC",
-            "source_channel": None,
-            "tags_json": [],
-            "intent_json": [],
-            "last_seen_at": None,
+            "timezone": contact.timezone,
+            "source_channel": contact.source_channel,
+            "tags_json": list(contact.tags_json or []),
+            "intent_json": list(contact.intent_json or []),
+            "last_seen_at": contact.last_seen_at,
             "created_at": contact.created_at,
         }
 
@@ -422,12 +559,12 @@ class PlatformSharedRepository:
             ),
             "workspace_id": account.workspace_id,
             "name": account.display_name,
-            "account_key": account.external_key.rsplit(":", 1)[-1],
-            "website_url": None,
-            "industry": None,
+            "account_key": account.account_key or account.external_key.rsplit(":", 1)[-1],
+            "website_url": account.website_url,
+            "industry": account.industry,
             "status": account.status,
-            "summary": None,
-            "tags": [],
+            "summary": account.summary,
+            "tags": list(account.tags_json or []),
             "created_at": account.created_at,
             "updated_at": account.updated_at,
         }

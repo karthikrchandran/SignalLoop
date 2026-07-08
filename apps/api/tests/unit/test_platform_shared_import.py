@@ -138,6 +138,57 @@ def test_local_imported_contact_uses_deterministic_public_id_when_emailvoice_id_
     assert loaded.id == expected_public_id
 
 
+def test_imported_contact_with_emailvoice_legacy_id_preserves_public_id_and_metadata(
+    monkeypatch,
+) -> None:
+    legacy_id = uuid.uuid4()
+
+    with _session() as session:
+        repo = PlatformSharedRepository(session)
+        contact = repo.upsert_contact(
+            workspace_id="ws-1",
+            external_key="ecrm:contact:ws-1:ada@example.com",
+            display_name="Ada Lovelace",
+            email="ada@example.com",
+            company_name="Analytical",
+            first_name="Ada",
+            last_name="Lovelace",
+            timezone="America/New_York",
+            source_channel="voice",
+            tags=["vip"],
+            intents=["demo"],
+            parent_account_id=None,
+            source_app="ecrm",
+            source_record_id="contact-1",
+        )
+        repo._upsert_link(  # noqa: SLF001
+            entity_type="CONTACT",
+            entity_id=contact.id,
+            workspace_id="ws-1",
+            source_app="emailvoice",
+            source_record_id=str(legacy_id),
+        )
+        session.commit()
+
+        monkeypatch.setattr(shared_service.settings, "USE_LOCAL_SHARED_RECORDS", True)
+
+        loaded = shared_service.get_shared_contact(
+            workspace_id="ws-1",
+            contact_id=legacy_id,
+            session=session,
+        )
+
+    assert loaded is not None
+    assert loaded.id == legacy_id
+    assert loaded.first_name == "Ada"
+    assert loaded.last_name == "Lovelace"
+    assert loaded.company == "Analytical"
+    assert loaded.timezone == "America/New_York"
+    assert loaded.source_channel == "voice"
+    assert loaded.tags_json == ["vip"]
+    assert loaded.intent_json == ["demo"]
+
+
 def test_import_command_maps_ecrm_customer_and_contact_into_platform_rows(
     monkeypatch,
 ) -> None:
@@ -197,6 +248,101 @@ def test_import_command_maps_ecrm_customer_and_contact_into_platform_rows(
     assert summary["contacts"] == 1
     assert ("ACCOUNT", "customer-1") in calls
     assert ("CONTACT", "contact-1") in calls
+
+
+def test_import_command_preserves_emailvoice_legacy_links_and_metadata(monkeypatch) -> None:
+    legacy_account_id = uuid.uuid4()
+    legacy_contact_id = uuid.uuid4()
+
+    def fetch_records(
+        entity_type: str,
+        *,
+        _parent_id: str | None = None,
+    ) -> list[dict[str, object]]:
+        if entity_type == "CUSTOMER":
+            return [
+                {
+                    "id": "customer-1",
+                    "externalKey": "ecrm:customer:ws-1:acme",
+                    "emailVoiceLegacyId": str(legacy_account_id),
+                    "displayName": "Acme",
+                    "companyName": "Acme",
+                    "status": "active",
+                    "data": {
+                        "workspaceId": "ws-1",
+                        "accountKey": "acme",
+                        "websiteUrl": "https://acme.example.com",
+                        "industry": "Education",
+                        "summary": "Strategic account",
+                        "tags": ["priority"],
+                    },
+                }
+            ]
+        if entity_type == "CONTACT":
+            return [
+                {
+                    "id": "contact-1",
+                    "externalKey": "ecrm:contact:ws-1:ada@example.com",
+                    "emailVoiceLegacyId": str(legacy_contact_id),
+                    "displayName": "Ada Lovelace",
+                    "email": "ada@example.com",
+                    "phone": "+15551234567",
+                    "companyName": "Acme",
+                    "status": "active",
+                    "parentId": "customer-1",
+                    "data": {
+                        "workspaceId": "ws-1",
+                        "firstName": "Ada",
+                        "lastName": "Lovelace",
+                        "timezone": "America/New_York",
+                        "sourceChannel": "voice",
+                        "tags": ["vip"],
+                        "intents": ["demo"],
+                    },
+                }
+            ]
+        raise AssertionError(f"unexpected entity_type {entity_type}")
+
+    monkeypatch.setattr(
+        "app.scripts.import_ecrm_shared_records.fetch_records",
+        fetch_records,
+    )
+    monkeypatch.setattr(shared_service.settings, "USE_LOCAL_SHARED_RECORDS", True)
+
+    from app.scripts.import_ecrm_shared_records import run_import
+
+    with _session() as session:
+        summary = run_import(workspace_id="ws-1", dry_run=False, session=session)
+
+        imported_account = shared_service.get_shared_account(
+            workspace_id="ws-1",
+            account_id=legacy_account_id,
+            session=session,
+        )
+        imported_contact = shared_service.get_shared_contact(
+            workspace_id="ws-1",
+            contact_id=legacy_contact_id,
+            session=session,
+        )
+
+    assert summary["accounts"] == 1
+    assert summary["contacts"] == 1
+    assert imported_account is not None
+    assert imported_account.id == legacy_account_id
+    assert imported_account.website_url == "https://acme.example.com"
+    assert imported_account.industry == "Education"
+    assert imported_account.summary == "Strategic account"
+    assert imported_account.tags == ["priority"]
+    assert imported_contact is not None
+    assert imported_contact.id == legacy_contact_id
+    assert imported_contact.first_name == "Ada"
+    assert imported_contact.last_name == "Lovelace"
+    assert imported_contact.company == "Acme"
+    assert imported_contact.phone == "+15551234567"
+    assert imported_contact.timezone == "America/New_York"
+    assert imported_contact.source_channel == "voice"
+    assert imported_contact.tags_json == ["vip"]
+    assert imported_contact.intent_json == ["demo"]
 
 
 def test_import_command_skips_records_from_other_workspaces(monkeypatch) -> None:

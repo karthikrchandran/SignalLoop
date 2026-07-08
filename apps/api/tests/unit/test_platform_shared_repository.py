@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 from sqlalchemy import event
 from sqlalchemy.exc import IntegrityError
@@ -396,3 +398,83 @@ def test_db_rejects_cross_workspace_parent_account_reference() -> None:
 
         with pytest.raises(IntegrityError):
             session.commit()
+
+
+def test_repository_serializes_imported_metadata_and_preserves_emailvoice_legacy_ids() -> None:
+    engine = _sqlite_engine()
+    SQLModel.metadata.create_all(engine)
+    legacy_account_id = uuid.uuid4()
+    legacy_contact_id = uuid.uuid4()
+
+    with Session(engine) as session:
+        repo = PlatformSharedRepository(session)
+        account = repo.upsert_account(
+            workspace_id="ws-1",
+            external_key="ecrm:customer:ws-1:acme",
+            display_name="Acme",
+            status="active",
+            account_key="acme",
+            website_url="https://acme.example.com",
+            industry="Education",
+            summary="Strategic account",
+            tags=["priority"],
+            source_app="ecrm",
+            source_record_id="customer-1",
+        )
+        repo._upsert_link(  # noqa: SLF001
+            entity_type="ACCOUNT",
+            entity_id=account.id,
+            workspace_id="ws-1",
+            source_app="emailvoice",
+            source_record_id=str(legacy_account_id),
+        )
+        contact = repo.upsert_contact(
+            workspace_id="ws-1",
+            external_key="ecrm:contact:ws-1:ada@example.com",
+            display_name="Ada Lovelace",
+            email="ada@example.com",
+            company_name="Acme",
+            first_name="Ada",
+            last_name="Lovelace",
+            timezone="America/New_York",
+            source_channel="voice",
+            tags=["vip"],
+            intents=["demo"],
+            parent_account_id=account.id,
+            source_app="ecrm",
+            source_record_id="contact-1",
+        )
+        repo._upsert_link(  # noqa: SLF001
+            entity_type="CONTACT",
+            entity_id=contact.id,
+            workspace_id="ws-1",
+            source_app="emailvoice",
+            source_record_id=str(legacy_contact_id),
+        )
+        session.commit()
+
+        serialized_account = repo.get_account_by_public_id(
+            workspace_id="ws-1",
+            public_id=legacy_account_id,
+        )
+        serialized_contact = repo.get_contact_by_public_id(
+            workspace_id="ws-1",
+            public_id=legacy_contact_id,
+        )
+
+    assert serialized_account is not None
+    assert serialized_account["id"] == legacy_account_id
+    assert serialized_account["website_url"] == "https://acme.example.com"
+    assert serialized_account["industry"] == "Education"
+    assert serialized_account["summary"] == "Strategic account"
+    assert serialized_account["tags"] == ["priority"]
+    assert serialized_contact is not None
+    assert serialized_contact["id"] == legacy_contact_id
+    assert serialized_contact["account_id"] == legacy_account_id
+    assert serialized_contact["first_name"] == "Ada"
+    assert serialized_contact["last_name"] == "Lovelace"
+    assert serialized_contact["company"] == "Acme"
+    assert serialized_contact["timezone"] == "America/New_York"
+    assert serialized_contact["source_channel"] == "voice"
+    assert serialized_contact["tags_json"] == ["vip"]
+    assert serialized_contact["intent_json"] == ["demo"]
