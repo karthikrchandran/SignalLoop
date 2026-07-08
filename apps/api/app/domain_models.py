@@ -1490,3 +1490,10 @@ class CampaignHealthPublic(SQLModel):
     failure_count_24h: int
     dead_letter_count: int
     provider_errors_by_type: dict[str, int]
+
+
+from app.domain.shared_records.models import (  # noqa: E402
+    PlatformExternalLink,
+    PlatformSharedAccount,
+    PlatformSharedContact,
+)
