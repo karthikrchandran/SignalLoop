@@ -19,6 +19,7 @@ import type { LucideIcon } from "lucide-react"
 
 import WorkspaceHeader from "@/components/layout/WorkspaceHeader"
 import { Button } from "@/components/ui/button"
+import RevenueOsHomePage from "@/features/revenue-os/RevenueOsHomePage"
 import useAuth from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
 
@@ -180,9 +181,9 @@ const quickAccess = [
 ]
 
 export const Route = createFileRoute("/_layout/")({
-  component: Dashboard,
+  component: RevenueOsHomePage,
   head: () => ({
-    meta: [{ title: "Dashboard - SignalLoop" }],
+    meta: [{ title: "Revenue OS - ARA Global" }],
   }),
 })
 
@@ -201,7 +202,7 @@ function StatusBadge({ item }: { item: DashboardItem }) {
   )
 }
 
-function Dashboard() {
+export function Dashboard() {
   const { user: currentUser } = useAuth()
   const firstName =
     currentUser?.full_name?.split(" ")[0] ||

@@ -6,10 +6,7 @@ export type SchedulingRequestStatus =
   | "booked"
   | "cancelled"
 
-export type SchedulingRequestSource =
-  | "voice_call"
-  | "email_reply"
-  | "manual"
+export type SchedulingRequestSource = "voice_call" | "email_reply" | "manual"
 
 export type SchedulingRequest = {
   id: string
@@ -52,7 +49,7 @@ export async function listSchedulingRequests(params?: {
   if (params?.limit != null) query.set("limit", String(params.limit))
   const qs = query.toString()
   return signalloopRequest<SchedulingRequestsResponse>(
-    `/scheduling/requests${qs ? `?${qs}` : ""}`,
+    `/api/v1/scheduling/requests${qs ? `?${qs}` : ""}`,
   )
 }
 
@@ -60,8 +57,11 @@ export async function updateSchedulingRequest(
   id: string,
   data: SchedulingRequestUpdate,
 ): Promise<SchedulingRequest> {
-  return signalloopRequest<SchedulingRequest>(`/scheduling/requests/${id}`, {
-    method: "PATCH",
-    body: data,
-  })
+  return signalloopRequest<SchedulingRequest>(
+    `/api/v1/scheduling/requests/${id}`,
+    {
+      method: "PATCH",
+      body: data,
+    },
+  )
 }

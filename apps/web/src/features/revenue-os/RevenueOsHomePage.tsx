@@ -1,4 +1,4 @@
-import { ArrowUpRight, BadgeDollarSign, BarChart3, Bot, Handshake, Megaphone, ReceiptText, Target, UsersRound } from "lucide-react"
+import { ArrowUpRight, BadgeDollarSign, BarChart3, Bot, Handshake, Megaphone, ReceiptText, UsersRound } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import useAuth from "@/hooks/useAuth"
@@ -20,9 +20,8 @@ const workspaces: WorkspaceCard[] = [
   { title: "ChatHub", stage: "Capture", description: "Inbound chat, channels, knowledge, escalation, and inbox coverage.", href: "/chatbot/inbox", action: "Open ChatHub", icon: Bot, roles: ["engagement", "sdr", "sales", "admin"] },
   { title: "Sales Ops", stage: "Qualify & Pipeline", description: "Lead scoring, rep queues, pipeline, and margin-aware proposals.", href: salesOpsUrl, action: "Open Sales Ops", icon: Handshake, roles: ["sales", "sales_leader", "revops", "admin"] },
   { title: "Operations", stage: "Fulfill & Get Paid", description: "Order status, delivery exceptions, and customer commitments tied to the deal.", href: `${salesOpsUrl}/production`, action: "Open Operations", icon: ReceiptText, roles: ["operations", "sales_leader", "admin"] },
-  { title: "Finance", stage: "Fulfill & Get Paid", description: "Payment milestones, overdue attention, and controlled accounting handoffs.", href: `${salesOpsUrl}/orders`, action: "Open Finance", icon: BadgeDollarSign, roles: ["finance", "admin"] },
+  { title: "Finance", stage: "Fulfill & Get Paid", description: "Company revenue, margin, collections, receivables, and incentive liability.", href: `${salesOpsUrl}/finance`, action: "Open Finance", icon: BadgeDollarSign, roles: ["finance", "admin"] },
   { title: "Performance", stage: "Incentives & Performance", description: "Targets, incentives, conversion health, and board-ready reporting.", href: `${salesOpsUrl}/performance`, action: "Open Performance", icon: BarChart3, roles: ["sales_leader", "revops", "finance", "compensation_admin", "executive", "admin"] },
-  { title: "Targets", stage: "Incentives & Performance", description: "Live target-versus-actual signals for teams and leaders.", href: `${salesOpsUrl}/performance`, action: "Open Targets", icon: Target, roles: ["sales_leader", "revops", "executive", "admin"] },
   { title: "Platform administration", stage: "Governance", description: "Users, roles, integrations, audit history, and approval controls.", href: "/admin", action: "Open administration", icon: UsersRound, roles: ["admin", "platform_admin"] },
 ]
 

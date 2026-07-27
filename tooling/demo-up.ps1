@@ -75,12 +75,14 @@ if (-not (Test-Port 8001)) {
     $apiCommand = @"
 `$env:SMTP_HOST='localhost';
 `$env:SMTP_PORT='1025';
+`$env:PYTHONIOENCODING='utf-8';
 `$env:SMTP_TLS='false';
 `$env:SMTP_USE_TLS='false';
 `$env:SMTP_USE_STARTTLS='false';
 `$env:EMAILS_FROM_EMAIL='noreply@example.com';
 `$env:SMTP_FROM_EMAIL='noreply@example.com';
 `$env:SMTP_FROM_NAME='SignalLoop Demo';
+`$env:USE_LOCAL_SHARED_RECORDS='true';
 `$env:OLLAMA_BASE_URL='http://localhost:11434';
 `$env:OLLAMA_MODEL='llama3.2:1b';
 `$env:FASTER_WHISPER_BASE_URL='http://localhost:9000';

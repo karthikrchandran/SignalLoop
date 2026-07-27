@@ -1,6 +1,6 @@
 # SignalLoop User Guide and Getting Started
 
-Version: June 15, 2026
+Version: July 27, 2026
 Audience: SignalLoop operators, campaign managers, administrators, and new users
 
 SignalLoop is an intelligent outreach platform for planning, launching, and monitoring multi-channel campaigns across email and voice. This guide walks you through the main screens, explains what each feature is for, and gives step-by-step instructions a new user can follow without knowing the product beforehand.
@@ -14,7 +14,7 @@ Use this checklist the first time you open SignalLoop.
 1. Open the SignalLoop web app.
 2. Create an account or log in with your email and password.
 3. Confirm you can see the left navigation menu.
-4. Visit the Dashboard to understand the main areas of the product.
+4. Visit the Dashboard to monitor campaigns, ChatHub traffic, agents, and calendar handoffs.
 5. Create or review templates before launching outreach.
 6. Configure voice agents if you plan to use phone calls.
 7. If you are an administrator, review Provider Setup before testing provider-backed workflows.
@@ -91,7 +91,7 @@ Steps:
 After logging in, the app uses a consistent layout.
 
 - The left sidebar is the main navigation area.
-- The top-left logo returns you to the Dashboard.
+- The top-left logo returns you to Revenue OS, the workspace landing page.
 - The sidebar can be collapsed with the button in the top header.
 - The Appearance control changes between light, dark, and system theme.
 - The account menu at the bottom of the sidebar shows the signed-in user.
@@ -101,7 +101,8 @@ Primary navigation items:
 
 | Menu Item | Purpose |
 | --- | --- |
-| Dashboard | High-level overview and quick access to major workflows. |
+| Revenue OS | Landing page for the connected capture, pipeline, fulfillment, finance, and performance workspaces. |
+| Dashboard | Admin command center for campaign performance, ChatHub traffic, channel health, AI-agent efficiency, and calendar handoffs. |
 | Campaigns | Guided campaign intake, audience selection from the existing Contacts lead pool, filtered subsets, offer-pack assignment, and strategy setup. |
 | Sequences | Build and manage multi-step outreach flows. |
 | Voice Agents | Configure Alex, Morgan, and Priya voice agents, scripts, test calls, and shared knowledgebase files. |
@@ -119,36 +120,37 @@ Primary navigation items:
 
 Administrators also see Providers for workspace provider setup, Admin for user management, and **Admin Ã¢â€ â€™ Messaging Dead Letters** for inspecting and retrying failed message deliveries.
 
-## 3. Dashboard
+## 3. Revenue OS and the Admin Command Center
 
-The Dashboard is your starting point after login.
+Revenue OS is the landing page for the connected workspace. Select **Dashboard** in the sidebar to open SignalLoop's admin command center. The dashboard is intentionally a report surface, not a second navigation menu; use the sidebar tabs to open detailed screens.
 
 ![Dashboard screen](screenshots/04-dashboard.png)
 
-What you can do here:
+The command center includes:
 
-- Check high-level campaign, email, voice, and open-rate summary cards.
-- Open major feature areas using Quick access cards.
-- Confirm the sidebar is available and your account is signed in.
+- **Campaign performance:** draft, running, and paused campaigns plus recent campaign activity.
+- **ChatHub traffic:** conversation volume, containment, leads captured, escalations, opt-outs, and channel mix for the selected period.
+- **Channel health:** active and ready messaging channels and any missing provider or webhook configuration.
+- **AI agent operations:** contacts processed, intent signals, qualified contacts, confirmed bookings, provider errors, and booking-SLA compliance. These are efficiency measures for agents, not sales targets or incentives.
+- **Calendar handoffs:** pending requests, links sent, booked meetings, cancelled requests, and the person assigned to the next step.
 
 Steps:
 
-1. Select Dashboard from the sidebar.
-2. Review the top summary cards:
-   - Active Campaigns
-   - Emails Sent (Month)
-   - Voice Calls (Week)
-   - Avg. Open Rate
-3. Use Quick access cards to jump into Campaigns, Email Sequences, Voice Agents, Analytics, or Templates.
-4. Use the sidebar when you need a specific feature directly.
+1. Select **Dashboard** from the sidebar.
+2. Choose a **7 days**, **30 days**, or **90 days** reporting range.
+3. Review the KPI strip for the current operating picture.
+4. Read each report panel for the source-specific detail.
+5. Select **Refresh** after importing contacts, launching a campaign, connecting a channel, or completing a booking.
+6. Use the sidebar to open the detailed workflow behind a report; the dashboard itself does not duplicate those navigation links.
 
-Note: the Dashboard Campaigns card opens campaign intake. Contact import, field mapping, validation, and lead-pool management happen on Contacts.
+Empty states are intentional. A panel that says no activity, no channels, or no handoffs means that source has not produced data for the selected period or is not configured yet; it does not represent fabricated demo metrics.
 
 When to use it:
 
-- At the beginning of the day to orient yourself.
-- Before launching new outreach to confirm you are in the right workspace.
-- After completing setup to move into monitoring and analytics.
+- At the beginning of the day to see what agents did overnight.
+- Before launching outreach to confirm campaigns and channels are ready.
+- During the day to catch escalations and unassigned calendar handoffs.
+- At the end of a reporting period to compare agent efficiency with human sales outcomes.
 
 ## 4. Campaign Intake
 

@@ -26,6 +26,7 @@ import { Route as LayoutReportingRouteImport } from './routes/_layout/reporting'
 import { Route as LayoutProspectingRouteImport } from './routes/_layout/prospecting'
 import { Route as LayoutOfferPacksRouteImport } from './routes/_layout/offer-packs'
 import { Route as LayoutGovernanceRouteImport } from './routes/_layout/governance'
+import { Route as LayoutDashboardRouteImport } from './routes/_layout/dashboard'
 import { Route as LayoutCustomer360RouteImport } from './routes/_layout/customer-360'
 import { Route as LayoutControlsRouteImport } from './routes/_layout/controls'
 import { Route as LayoutContactsRouteImport } from './routes/_layout/contacts'
@@ -128,6 +129,11 @@ const LayoutOfferPacksRoute = LayoutOfferPacksRouteImport.update({
 const LayoutGovernanceRoute = LayoutGovernanceRouteImport.update({
   id: '/governance',
   path: '/governance',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutDashboardRoute = LayoutDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutCustomer360Route = LayoutCustomer360RouteImport.update({
@@ -243,6 +249,7 @@ export interface FileRoutesByFullPath {
   '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
   '/customer-360': typeof LayoutCustomer360RouteWithChildren
+  '/dashboard': typeof LayoutDashboardRoute
   '/governance': typeof LayoutGovernanceRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
   '/prospecting': typeof LayoutProspectingRoute
@@ -279,6 +286,7 @@ export interface FileRoutesByTo {
   '/contacts': typeof LayoutContactsRoute
   '/controls': typeof LayoutControlsRoute
   '/customer-360': typeof LayoutCustomer360RouteWithChildren
+  '/dashboard': typeof LayoutDashboardRoute
   '/governance': typeof LayoutGovernanceRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
   '/prospecting': typeof LayoutProspectingRoute
@@ -318,6 +326,7 @@ export interface FileRoutesById {
   '/_layout/contacts': typeof LayoutContactsRoute
   '/_layout/controls': typeof LayoutControlsRoute
   '/_layout/customer-360': typeof LayoutCustomer360RouteWithChildren
+  '/_layout/dashboard': typeof LayoutDashboardRoute
   '/_layout/governance': typeof LayoutGovernanceRoute
   '/_layout/offer-packs': typeof LayoutOfferPacksRoute
   '/_layout/prospecting': typeof LayoutProspectingRoute
@@ -358,6 +367,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/controls'
     | '/customer-360'
+    | '/dashboard'
     | '/governance'
     | '/offer-packs'
     | '/prospecting'
@@ -394,6 +404,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/controls'
     | '/customer-360'
+    | '/dashboard'
     | '/governance'
     | '/offer-packs'
     | '/prospecting'
@@ -432,6 +443,7 @@ export interface FileRouteTypes {
     | '/_layout/contacts'
     | '/_layout/controls'
     | '/_layout/customer-360'
+    | '/_layout/dashboard'
     | '/_layout/governance'
     | '/_layout/offer-packs'
     | '/_layout/prospecting'
@@ -585,6 +597,13 @@ declare module '@tanstack/react-router' {
       path: '/governance'
       fullPath: '/governance'
       preLoaderRoute: typeof LayoutGovernanceRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/dashboard': {
+      id: '/_layout/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof LayoutDashboardRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/customer-360': {
@@ -813,6 +832,7 @@ interface LayoutRouteChildren {
   LayoutContactsRoute: typeof LayoutContactsRoute
   LayoutControlsRoute: typeof LayoutControlsRoute
   LayoutCustomer360Route: typeof LayoutCustomer360RouteWithChildren
+  LayoutDashboardRoute: typeof LayoutDashboardRoute
   LayoutGovernanceRoute: typeof LayoutGovernanceRoute
   LayoutOfferPacksRoute: typeof LayoutOfferPacksRoute
   LayoutProspectingRoute: typeof LayoutProspectingRoute
@@ -835,6 +855,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutContactsRoute: LayoutContactsRoute,
   LayoutControlsRoute: LayoutControlsRoute,
   LayoutCustomer360Route: LayoutCustomer360RouteWithChildren,
+  LayoutDashboardRoute: LayoutDashboardRoute,
   LayoutGovernanceRoute: LayoutGovernanceRoute,
   LayoutOfferPacksRoute: LayoutOfferPacksRoute,
   LayoutProspectingRoute: LayoutProspectingRoute,
