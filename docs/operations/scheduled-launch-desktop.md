@@ -24,6 +24,7 @@ Launch desktop
   -> checked-out release commit
   -> built web application
   -> FastAPI API and required workers
+  -> real-time voice-session orchestration
   -> local Redis
   -> local Ollama
   -> optional local faster-whisper
@@ -32,6 +33,9 @@ Launch desktop
 Managed services
   -> Neon Free PostgreSQL
   -> customer-owned SMTP or Amazon SES
+  -> Twilio telephone calls and media streams
+  -> Deepgram streaming speech-to-text and text-to-speech
+  -> Groq low-latency conversational LLM
 ```
 
 The laptop must not connect directly to the launch database during normal
@@ -83,17 +87,36 @@ https://supabase.com/pricing
 | Web, API, and workers | Launch desktop | $0 |
 | Database | Neon Free | $0 |
 | Redis | Local container | $0 |
-| LLM drafting | Ollama on the desktop | $0 API cost |
+| Proposal and email drafting | Ollama on the desktop | $0 API cost |
 | Secure public ingress | Cloudflare Tunnel | $0 |
 | Email | Customer SMTP or low-volume SES | $0-$2 |
+| Twilio local number | Launch voice number | About $1.15 |
+| Live AI voice usage | Twilio + Deepgram + Groq | About $0.04-$0.08/call minute |
 | Electricity | Four-to-six-hour operating window | $2-$8 |
 | Domain | Existing domain preferred | $0-$2 equivalent |
 | Monitoring and backup tools | Local and existing storage | $0 |
-| **Expected total** |  | **$2-$15 per month** |
+| **Expected fixed total** | Before live call minutes | **$3-$16 per month** |
 
 Code-generation LLM usage on the development laptop is excluded from this
 operating estimate. LLM use inside the customer workflow, including proposal
-and email drafting, is included through local Ollama.
+and email drafting, is included through local Ollama. Live voice is a required
+variable expense because telephone transport and low-latency speech services
+cannot be provided reliably by the desktop alone.
+
+Use these initial voice allowances:
+
+| Included live-call allowance | Planning range |
+|---|---:|
+| 100 minutes/month | $4-$8 |
+| 500 minutes/month | $20-$40 |
+| 1,000 minutes/month | $40-$80 |
+
+These are planning ranges, not guaranteed prices. Confirm destination-specific
+rates and current provider pricing before launch:
+
+- https://www.twilio.com/en-us/voice/pricing/us
+- https://deepgram.com/pricing
+- https://groq.com/pricing
 
 ## Desktop requirements
 
@@ -108,28 +131,30 @@ and email drafting, is included through local Ollama.
 - Administrator access for initial software installation.
 
 This minimum is suitable for the application and a small 4B local model. It
-will be slow for transcription and larger models.
+is also suitable for real-time voice orchestration because Twilio, Deepgram,
+and Groq perform the latency-sensitive voice processing remotely.
 
 ### Recommended
 
 - Eight or more modern CPU cores.
 - 32 GB RAM.
 - 250 GB free SSD space.
-- NVIDIA GPU with at least 8 GB VRAM, if available.
 - Wired Ethernet.
 - Uninterruptible power supply if the local power supply is unreliable.
 
-An NVIDIA GPU is helpful but not required. A CPU-only desktop with 32 GB RAM
-can run a quantized 8B model, but proposal generation will take longer.
+No GPU is required for the recommended live AI voice stack. A CPU-only desktop
+with 32 GB RAM can run a quantized 8B model for non-real-time proposal and
+email drafting, but generation will take longer.
 
-### Preferred for faster local AI
+### Optional upgrade for faster local drafting
 
 - 64 GB RAM.
 - NVIDIA GPU with 12 GB or more VRAM.
 - 500 GB available SSD space.
 
-Do not buy new hardware solely for the first launch partner until the existing
-desktop has been tested with the real workload.
+This optional upgrade affects local drafting speed. It is not required for
+real-time AI calls. Do not buy new hardware solely for the first launch partner
+until the existing desktop has been tested with the real workload.
 
 ## Accounts to prepare
 
@@ -139,11 +164,15 @@ Create or identify:
 2. A Neon account protected by multi-factor authentication.
 3. A Cloudflare account and a domain managed by Cloudflare DNS.
 4. A customer-approved SMTP relay, or an Amazon SES account.
-5. An off-machine backup destination, such as an existing encrypted cloud drive
+5. A Twilio account with a voice-capable number.
+6. A Deepgram account for streaming speech-to-text and text-to-speech.
+7. A Groq account for the real-time conversational LLM.
+8. An off-machine backup destination, such as an existing encrypted cloud drive
    or external disk.
 
 Do not share personal master passwords with the customer. Create separate
-service credentials and store them only on the launch desktop.
+service credentials and store them only on the launch desktop. Prefer
+customer-owned Twilio and high-volume provider accounts when practical.
 
 ## Software to install on the desktop
 
@@ -154,12 +183,30 @@ Install:
 - Python 3.11.
 - `uv`.
 - Docker Desktop with the WSL 2 backend.
-- Ollama for Windows.
+- Ollama for Windows for non-real-time drafting.
 - `cloudflared`.
 - PostgreSQL client tools for `pg_dump` and `pg_restore`.
 
 Only the PostgreSQL client tools are required. Do not install or start a local
 PostgreSQL server when Neon is the launch database.
+
+Twilio, Deepgram, and Groq are external APIs. They do not require GPU drivers
+or local model installation. SignalLoop connects to them using provider
+credentials.
+
+### Do not install for the initial launch
+
+Do not install:
+
+- A local PostgreSQL server. Neon is the system of record.
+- NVIDIA CUDA or other GPU runtimes when the desktop has no supported GPU.
+- A locally hosted real-time conversational LLM.
+- A locally hosted telephony server or SIP carrier.
+- An internet-facing SMTP server.
+- Kubernetes.
+- The faster-whisper service solely for live voice; Deepgram supplies streaming
+  STT. Install faster-whisper later only if batch/post-call transcription is
+  required.
 
 After installation, open a new PowerShell window and verify:
 
@@ -241,7 +288,13 @@ POSTGRES_PASSWORD=<neon-password>
 REDIS_URL=redis://127.0.0.1:6379/0
 
 OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=qwen3:8b
+OLLAMA_MODEL=qwen3:4b
+
+TWILIO_ACCOUNT_SID=<twilio-account-sid>
+TWILIO_AUTH_TOKEN=<twilio-auth-token>
+TWILIO_PHONE_NUMBER=<twilio-e164-phone-number>
+DEEPGRAM_API_KEY=<deepgram-api-key>
+GROQ_API_KEY=<groq-api-key>
 
 SMTP_HOST=<customer-or-ses-smtp-host>
 SMTP_PORT=587
@@ -258,6 +311,9 @@ Generate secrets with a password manager. Do not use `changethis`, reuse a
 personal password, or copy secrets from the development laptop.
 
 Restrict `.env` permissions to the Windows account that runs SignalLoop.
+
+Use `qwen3:4b` on a 16 GB desktop. Change `OLLAMA_MODEL` to `qwen3:8b` after
+confirming the desktop has 32 GB RAM and the draft response time is acceptable.
 
 ## Start local Redis
 
@@ -324,16 +380,66 @@ approval before sending.
 The repository's current local default is `llama3.2:1b`. It is suitable for a
 small demo but is not the recommended customer-facing proposal model.
 
-## Local transcription
+## Configure live AI voice
 
-The existing faster-whisper service is suitable for batch or post-call
-transcription. It is not a complete replacement for real-time streaming voice.
+Live AI voice is part of the launch environment. Use the direct provider stack
+already represented in SignalLoop:
 
-Leave transcription and voice workers disabled for the first launch unless the
-launch workflow requires them. This reduces CPU use and operational risk.
+```text
+Twilio call
+  -> Twilio Media Stream
+  -> SignalLoop authenticated WebSocket
+  -> Deepgram streaming speech-to-text
+  -> Groq conversational LLM
+  -> Deepgram streaming text-to-speech
+  -> Twilio caller audio
+```
 
-Do not claim live AI calling unless the customer supplies the required provider
-account and the complete call path has been verified.
+In `Settings -> Providers`, configure the launch workspace with:
+
+| Capability | Provider |
+|---|---|
+| `voice` | `twilio` |
+| `stt` | `deepgram` |
+| `tts` | `deepgram` |
+| `llm` | `groq` |
+
+The API uses `SERVER_HOST` to construct the public Twilio callback and secure
+WebSocket URLs. Set it to the public API hostname without a scheme:
+
+```env
+SERVER_HOST=api.<your-domain>
+```
+
+The required public routes are:
+
+| Purpose | Route |
+|---|---|
+| Call instructions | `https://api.<your-domain>/api/v1/voice/twiml` |
+| Status callback | `https://api.<your-domain>/api/v1/voice/status` |
+| Recording callback | `https://api.<your-domain>/api/v1/voice/recording` |
+| Live media | `wss://api.<your-domain>/api/v1/voice/media-stream` |
+
+The media-stream route validates the call, account, and signed stream token
+before performing provider work. Do not bypass that validation.
+
+Set a low initial call budget:
+
+- Maximum one simultaneous call.
+- Maximum 10 test calls per day.
+- Maximum 100 live minutes for the first billing month.
+- Approved destinations only.
+- Manual campaign activation.
+- Immediate stop on opt-out, repeated provider failure, or budget exhaustion.
+
+The existing faster-whisper service remains useful for batch and post-call
+transcription. It is not a replacement for Deepgram streaming STT during live
+calls. Local Ollama is for non-real-time drafting; it is not the conversational
+LLM for live calls on a CPU-only desktop.
+
+Before customer operation, complete one measured live call through the entire
+Twilio -> Deepgram -> Groq -> Deepgram -> Twilio path. Mocked tests and provider
+configuration alone are not sufficient evidence.
 
 ## Configure email
 
@@ -397,15 +503,25 @@ uv run python -m uvicorn app.main:app `
   --workers 1
 ```
 
-For live email sequences, start the sequence worker in a separate PowerShell
-window:
+Start the call worker in a separate PowerShell window. It is required for the
+launch voice agent:
+
+```powershell
+uv run python -m app.workers.call_worker
+```
+
+For live email sequences, start the sequence worker in another window:
 
 ```powershell
 uv run python -m app.workers.sequence_worker
 ```
 
-Do not start the call or post-call workers unless those workflows are in the
-approved launch scope.
+Start the post-call worker only when the approved workflow includes recordings,
+summaries, or operator notifications:
+
+```powershell
+uv run python -m app.workers.postcall_worker
+```
 
 The first implementation task after this guide is approved should create
 production start, stop, status, and backup scripts so these commands do not
@@ -424,6 +540,9 @@ Create one named tunnel and two public hostnames:
 |---|---|
 | `app.<your-domain>` | `http://127.0.0.1:5173` |
 | `api.<your-domain>` | `http://127.0.0.1:8001` |
+
+The API hostname must support both HTTPS callbacks and secure WebSocket traffic.
+Twilio connects to the `wss://` media-stream route generated by the API.
 
 Do not publish Redis, Ollama, the STT service, Docker, database ports, API
 documentation, or operating-system administration ports.
@@ -452,7 +571,7 @@ Run these steps in order:
 4. Start Ollama.
 5. Start the built web container.
 6. Start the API.
-7. Start only the required workers.
+7. Start the call worker and any other required workers.
 8. Check the local health endpoint:
 
    ```powershell
@@ -460,9 +579,13 @@ Run these steps in order:
    ```
 
 9. Sign in locally and perform one read-only application smoke test.
-10. Start Cloudflare Tunnel.
-11. Verify the public web and API health URLs from a different device.
-12. Tell the launch customer the operating window has started.
+10. Confirm the provider-readiness screen shows Twilio, Deepgram, Groq, Redis,
+    public callbacks, and the call worker as ready.
+11. Start Cloudflare Tunnel.
+12. Verify the public web, API health, HTTPS callback, and secure WebSocket
+    reachability from outside the desktop.
+13. Place one approved test call.
+14. Tell the launch customer the operating window has started.
 
 If any required health check fails, do not start the tunnel.
 
@@ -565,6 +688,13 @@ release process.
 - [ ] Ollama is not publicly reachable.
 - [ ] Qwen3 produces an acceptable draft from approved facts.
 - [ ] Proposal totals remain deterministic and human-approved.
+- [ ] Twilio, Deepgram, and Groq use launch-specific credentials.
+- [ ] Voice, STT, TTS, and LLM provider selections are correct.
+- [ ] The call worker reports a current heartbeat.
+- [ ] Public Twilio callback URLs use the expected API hostname.
+- [ ] The authenticated `wss://` media-stream route is reachable.
+- [ ] A real end-to-end test call has acceptable latency and clean teardown.
+- [ ] Daily call-count and minute limits are configured.
 - [ ] The web application is built rather than served by Vite development mode.
 - [ ] The API runs without reload.
 - [ ] Only required workers are running.
@@ -584,6 +714,7 @@ Stay on the scheduled desktop and Neon Free only while all of these remain true:
 - Availability is explicitly scheduled.
 - Database storage remains below 400 MB.
 - Neon usage remains below 75 compute-unit hours per month.
+- Voice usage remains within the funded monthly allowance.
 - One temporary outage would not create material customer harm.
 - Manual support remains manageable.
 - The launch customer understands the environment's limitations.
@@ -593,6 +724,8 @@ Upgrade the database or hosting when any of these occurs:
 - The first meaningful recurring payment is received.
 - The customer needs unattended or 24/7 operation.
 - Database storage or compute approaches the free limit.
+- Voice usage becomes material enough to require customer-owned credentials,
+  negotiated rates, or pass-through billing.
 - Backup retention must exceed the free restore window.
 - More than one customer depends on the same desktop.
 - The workflow handles material financial, regulated, or high-risk data.
