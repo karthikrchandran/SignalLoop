@@ -14,6 +14,7 @@ from app.domain.shared_records.models import (
     PlatformSharedAccount,
     PlatformSharedContact,
 )
+from app.domain.shared_records import reconciliation as shared_reconciliation
 from app.domain.shared_records.repository import PlatformSharedRepository
 from app.domain_models import (
     AccountPublic,
@@ -766,3 +767,16 @@ def import_from_ecrm(
     from app.scripts.import_ecrm_shared_records import run_import
 
     return run_import(workspace_id=workspace_id, dry_run=dry_run, session=session)
+
+
+def reconcile_with_ecrm(
+    *,
+    workspace_id: str,
+    session: Session | None = None,
+) -> dict[str, object]:
+    with _local_session(session) as local_session:
+        repo = _local_repo(local_session)
+        return shared_reconciliation.build_reconciliation_report(
+            repo=repo,
+            workspace_id=workspace_id,
+        )

@@ -23,3 +23,15 @@ def import_from_ecrm(
             dry_run=dry_run,
         )
     }
+
+
+@router.get("/reconciliation", dependencies=[Depends(require_admin)])
+def get_reconciliation(
+    *,
+    session: SessionDep,
+    workspace_id: WorkspaceIdDep,
+) -> dict[str, object]:
+    return shared_record_service.reconcile_with_ecrm(
+        session=session,
+        workspace_id=workspace_id,
+    )

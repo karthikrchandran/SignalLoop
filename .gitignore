@@ -24,3 +24,11 @@ build/
 .worktrees/
 __pycache__/
 *.py[cod]
+
+# Local agent, browser, generated-analysis, and test-database artifacts
+.playwright-mcp/
+.playwright-cli/
+graphify-out/
+apps/api/race_test.db
+after-login-emailvoice.yaml
+browser-baseline-emailvoice.yaml

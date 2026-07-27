@@ -1,7 +1,7 @@
 """add platform shared records
 
 Revision ID: 20260707_add_platform_shared_records
-Revises: w8l9m0n1o2p3
+Revises: vlen_20260726
 Create Date: 2026-07-07 00:00:00.000000
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20260707_add_platform_shared_records"
-down_revision: str | tuple[str, ...] | None = "w8l9m0n1o2p3"
+down_revision: str | tuple[str, ...] | None = "vlen_20260726"
 branch_labels: str | tuple[str, ...] | None = None
 depends_on: str | tuple[str, ...] | None = None
 

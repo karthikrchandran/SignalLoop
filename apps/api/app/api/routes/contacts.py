@@ -34,6 +34,7 @@ from app.domain.timeline.timeline_service import (
 )
 from app.domain_models import (
     Campaign,
+    Contact,
     ContactImportPublic,
     ContactPublic,
     ContactsPublic,
@@ -65,6 +66,11 @@ CONTACT_FIELD_ALIASES = {
     "phone": ["phone", "phoneNumber", "phone_number", "mobile", "mobile_phone"],
     "timezone": ["timezone", "timeZone", "time_zone", "tz"],
 }
+
+
+def _contact_public(contact: Contact) -> ContactPublic:
+    """Convert a stored contact to the route's public response model."""
+    return ContactPublic.model_validate(contact)
 
 
 def _default_mapping(headers: list[str]) -> dict[str, str]:
@@ -265,6 +271,7 @@ def _upsert_contacts(
                 account_id=account_id,
                 name=company,
                 account_key=account_key,
+                session=session,
             )
 
         contact_id = uuid.uuid5(
@@ -274,6 +281,7 @@ def _upsert_contacts(
         existing = shared_record_service.get_shared_contact(
             workspace_id=workspace_id,
             contact_id=contact_id,
+            session=session,
         )
         shared_record_service.upsert_shared_contact(
             workspace_id=workspace_id,
@@ -281,10 +289,11 @@ def _upsert_contacts(
             email=email,
             first_name=row.get("firstName") or None,
             last_name=row.get("lastName") or None,
-            company=account.name if account else company,
+            company=account.name if account else (company or (existing.company if existing else None)),
             phone=row.get("phone") or None,
             timezone=row.get("timezone") or "UTC",
-            parent_id=account.id if account else None,
+            parent_id=account.id if account else (existing.account_id if existing else None),
+            session=session,
         )
         if existing is None:
             created += 1

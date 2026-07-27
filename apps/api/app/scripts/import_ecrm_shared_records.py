@@ -107,7 +107,12 @@ def _report_skip(
     record_id: str | None,
     reason: str,
 ) -> None:
-    counter_key = "skipped_accounts" if entity_type == "CUSTOMER" else "skipped_contacts"
+    counter_key = {
+        "CUSTOMER": "skipped_accounts",
+        "CONTACT": "skipped_contacts",
+        "LEAD": "skipped_leads",
+        "ORDER": "skipped_orders",
+    }[entity_type]
     summary[counter_key] = int(summary[counter_key]) + 1
     issues = summary["issues"]
     assert isinstance(issues, list)
@@ -142,8 +147,12 @@ def run_import(
         "dry_run": dry_run,
         "accounts": 0,
         "contacts": 0,
+        "leads": 0,
+        "orders": 0,
         "skipped_accounts": 0,
         "skipped_contacts": 0,
+        "skipped_leads": 0,
+        "skipped_orders": 0,
         "issues": [],
     }
 
@@ -292,6 +301,55 @@ def run_import(
                     source_record_id=legacy_id.strip(),
                 )
             summary["contacts"] += 1
+
+        for entity_type, summary_key in (("LEAD", "leads"), ("ORDER", "orders")):
+            for record in fetch_records(entity_type):
+                if _record_workspace_id(record) != workspace_id:
+                    continue
+                source_record_id = _source_record_id(record)
+                if source_record_id is None:
+                    _report_skip(
+                        summary,
+                        entity_type=entity_type,
+                        record_id=None,
+                        reason="missing_source_id",
+                    )
+                    continue
+                identity = repo.upsert_identity(
+                    workspace_id=workspace_id,
+                    entity_type=entity_type,
+                    external_key=_external_key(
+                        record,
+                        fallback_prefix=f"ecrm:{entity_type.lower()}",
+                        workspace_id=workspace_id,
+                        source_record_id=source_record_id,
+                    ),
+                    display_name=str(record.get("displayName") or source_record_id),
+                    status=str(record.get("status") or "active"),
+                    data=_record_data(record),
+                    created_at=_timestamp(record, "createdAt", "created_at"),
+                    updated_at=_timestamp(
+                        record,
+                        "updatedAt",
+                        "updated_at",
+                        "createdAt",
+                        "created_at",
+                    ),
+                    source_app="ecrm",
+                    source_record_id=source_record_id,
+                )
+                legacy_id = record.get("emailVoiceLegacyId") or record.get(
+                    "email_voice_legacy_id"
+                )
+                if isinstance(legacy_id, str) and legacy_id.strip():
+                    repo.upsert_source_link(
+                        workspace_id=workspace_id,
+                        entity_type=entity_type,
+                        entity_id=identity.id,
+                        source_app="emailvoice",
+                        source_record_id=legacy_id.strip(),
+                    )
+                summary[summary_key] += 1
 
         if dry_run:
             active_session.rollback()

@@ -13,6 +13,7 @@ from app.domain.shared_records.models import (
     PlatformExternalLink,
     PlatformSharedAccount,
     PlatformSharedContact,
+    PlatformSharedIdentity,
 )
 from app.domain.shared_records.repository import PlatformSharedRepository
 
@@ -143,6 +144,45 @@ def test_upsert_contact_reuses_row_for_external_key_and_does_not_duplicate_link(
     assert len(contacts) == 1
     assert len(source_links) == 1
     assert source_links[0].entity_id == updated.id
+
+
+def test_upsert_lead_and_order_identity_preserves_source_links() -> None:
+    engine = _sqlite_engine()
+    SQLModel.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        repo = PlatformSharedRepository(session)
+        lead = repo.upsert_identity(
+            workspace_id="ws-1",
+            entity_type="LEAD",
+            external_key="ecrm:lead:ws-1:lead-1",
+            display_name="Qualified Acme lead",
+            status="OPEN",
+            source_app="ecrm",
+            source_record_id="lead-1",
+        )
+        order = repo.upsert_identity(
+            workspace_id="ws-1",
+            entity_type="ORDER",
+            external_key="ecrm:order:ws-1:order-1",
+            display_name="Acme order 1001",
+            status="OPEN",
+            source_app="ecrm",
+            source_record_id="order-1",
+        )
+        session.commit()
+
+        identities = session.exec(select(PlatformSharedIdentity)).all()
+        links = session.exec(select(PlatformExternalLink)).all()
+
+    assert {(identity.entity_type, identity.id) for identity in identities} == {
+        ("LEAD", lead.id),
+        ("ORDER", order.id),
+    }
+    assert {(link.entity_type, link.source_record_id) for link in links} == {
+        ("LEAD", "lead-1"),
+        ("ORDER", "order-1"),
+    }
 
 
 def test_upsert_contact_rejects_parent_account_from_different_workspace() -> None:

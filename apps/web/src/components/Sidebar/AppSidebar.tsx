@@ -6,6 +6,7 @@ import {
   BrainCircuit,
   Briefcase,
   Building2,
+  CalendarClock,
   Cog,
   FileText,
   Home,
@@ -49,12 +50,14 @@ const isChatbotAdmin = (user: UserWithRole | null | undefined) =>
   )
 
 const baseItems: Item[] = [
+  { icon: Home, title: "Revenue OS", path: "/revenue-os" },
   { icon: Home, title: "Dashboard", path: "/" },
   { icon: Briefcase, title: "Campaigns", path: "/campaigns" },
   { icon: BrainCircuit, title: "SignalLoop AI", path: "/signalloop-ai" },
   { icon: Building2, title: "Customer 360", path: "/customer-360" },
   { icon: ListOrdered, title: "Sequences", path: "/sequences" },
   { icon: Mic2, title: "Voice Agents", path: "/voice-agents" },
+  { icon: CalendarClock, title: "Meetings", path: "/scheduling" },
   { icon: Users, title: "Contacts", path: "/contacts" },
   { icon: SearchCheck, title: "Lead Preparation", path: "/prospecting" },
   { icon: BarChart3, title: "Analytics", path: "/analytics" },

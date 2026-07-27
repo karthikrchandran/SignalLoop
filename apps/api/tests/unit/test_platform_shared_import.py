@@ -284,7 +284,27 @@ def test_import_command_maps_ecrm_customer_and_contact_into_platform_rows(
                     "data": {"workspaceId": "ws-1"},
                 }
             ]
-        raise AssertionError(f"unexpected entity_type {entity_type}")
+        if entity_type == "LEAD":
+            return [
+                {
+                    "id": "lead-1",
+                    "externalKey": "ecrm:lead:ws-1:lead-1",
+                    "displayName": "Qualified lead",
+                    "status": "OPEN",
+                    "data": {"workspaceId": "ws-1", "score": 80},
+                }
+            ]
+        if entity_type == "ORDER":
+            return [
+                {
+                    "id": "order-1",
+                    "externalKey": "ecrm:order:ws-1:order-1",
+                    "displayName": "Acme order 1001",
+                    "status": "OPEN",
+                    "data": {"workspaceId": "ws-1", "value": 1200},
+                }
+            ]
+        return []
 
     monkeypatch.setattr(
         "app.scripts.import_ecrm_shared_records.fetch_records",
@@ -300,6 +320,10 @@ def test_import_command_maps_ecrm_customer_and_contact_into_platform_rows(
             calls.append(("CONTACT", kwargs["source_record_id"]))
             return type("Contact", (), {"id": uuid.uuid4()})()
 
+        def upsert_identity(self, **kwargs):
+            calls.append((kwargs["entity_type"], kwargs["source_record_id"]))
+            return type("Identity", (), {"id": uuid.uuid4()})()
+
     monkeypatch.setattr(
         "app.scripts.import_ecrm_shared_records.PlatformSharedRepository",
         lambda session: _Repo(),
@@ -311,8 +335,12 @@ def test_import_command_maps_ecrm_customer_and_contact_into_platform_rows(
 
     assert summary["accounts"] == 1
     assert summary["contacts"] == 1
+    assert summary["leads"] == 1
+    assert summary["orders"] == 1
     assert ("ACCOUNT", "customer-1") in calls
     assert ("CONTACT", "contact-1") in calls
+    assert ("LEAD", "lead-1") in calls
+    assert ("ORDER", "order-1") in calls
 
 
 def test_import_command_preserves_emailvoice_legacy_links_and_metadata(monkeypatch) -> None:
@@ -366,7 +394,7 @@ def test_import_command_preserves_emailvoice_legacy_links_and_metadata(monkeypat
                     },
                 }
             ]
-        raise AssertionError(f"unexpected entity_type {entity_type}")
+        return []
 
     monkeypatch.setattr(
         "app.scripts.import_ecrm_shared_records.fetch_records",
@@ -431,7 +459,7 @@ def test_import_command_reuses_preexisting_local_parent_when_customer_batch_omit
                     "data": {"workspaceId": "ws-1"},
                 }
             ]
-        raise AssertionError(f"unexpected entity_type {entity_type}")
+        return []
 
     monkeypatch.setattr(
         "app.scripts.import_ecrm_shared_records.fetch_records",
@@ -488,7 +516,7 @@ def test_import_command_skips_rows_missing_required_source_identity(
                     "data": {"workspaceId": "ws-1"},
                 }
             ]
-        raise AssertionError(f"unexpected entity_type {entity_type}")
+        return []
 
     monkeypatch.setattr(
         "app.scripts.import_ecrm_shared_records.fetch_records",
@@ -548,7 +576,7 @@ def test_import_command_skips_contact_when_parent_cannot_be_resolved(
                     "data": {"workspaceId": "ws-1"},
                 }
             ]
-        raise AssertionError(f"unexpected entity_type {entity_type}")
+        return []
 
     monkeypatch.setattr(
         "app.scripts.import_ecrm_shared_records.fetch_records",
@@ -615,7 +643,7 @@ def test_import_command_skips_records_from_other_workspaces(monkeypatch) -> None
                     "data": {"workspaceId": "ws-2"},
                 },
             ]
-        raise AssertionError(f"unexpected entity_type {entity_type}")
+        return []
 
     monkeypatch.setattr(
         "app.scripts.import_ecrm_shared_records.fetch_records",

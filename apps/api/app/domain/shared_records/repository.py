@@ -12,6 +12,7 @@ from app.domain.shared_records.models import (
     PlatformExternalLink,
     PlatformSharedAccount,
     PlatformSharedContact,
+    PlatformSharedIdentity,
 )
 
 
@@ -211,6 +212,66 @@ class PlatformSharedRepository:
             source_record_id=source_record_id,
         )
 
+    def upsert_identity(
+        self,
+        *,
+        workspace_id: str,
+        entity_type: str,
+        external_key: str,
+        display_name: str,
+        status: str = "active",
+        data: dict[str, object] | None = None,
+        created_at: datetime | None = None,
+        updated_at: datetime | None = None,
+        source_app: str,
+        source_record_id: str,
+    ) -> PlatformSharedIdentity:
+        normalized_entity_type = entity_type.strip().upper()
+        if normalized_entity_type not in {"LEAD", "ORDER"}:
+            raise ValueError("platform shared identities support LEAD and ORDER only")
+        identity = self._get_identity_by_external_key(
+            entity_type=normalized_entity_type,
+            external_key=external_key,
+        )
+        if identity is None:
+            identity = self._insert_identity(
+                workspace_id=workspace_id,
+                entity_type=normalized_entity_type,
+                external_key=external_key,
+                display_name=display_name,
+                status=status,
+                data=data,
+                created_at=created_at,
+                updated_at=updated_at,
+            )
+        self._validate_workspace_match(
+            row_workspace_id=identity.workspace_id,
+            workspace_id=workspace_id,
+            entity_label=normalized_entity_type.lower(),
+            external_key=external_key,
+        )
+        normalized_data = dict(data or {})
+        if (
+            identity.display_name != display_name
+            or identity.status != status
+            or identity.data_json != normalized_data
+            or (created_at is not None and identity.created_at != created_at)
+        ):
+            identity.display_name = display_name
+            identity.status = status
+            identity.data_json = normalized_data
+            if created_at is not None:
+                identity.created_at = created_at
+            identity.updated_at = updated_at or _utc_now()
+        self._upsert_link(
+            entity_type=normalized_entity_type,
+            entity_id=identity.id,
+            workspace_id=workspace_id,
+            source_app=source_app,
+            source_record_id=source_record_id,
+        )
+        return identity
+
     def find_entity_id_by_source_identity(
         self,
         *,
@@ -340,6 +401,41 @@ class PlatformSharedRepository:
         )
         return int(self.session.exec(statement).one())
 
+    def count_active_accounts(
+        self,
+        *,
+        workspace_id: str,
+    ) -> int:
+        statement = select(func.count()).select_from(PlatformSharedAccount).where(
+            PlatformSharedAccount.workspace_id == workspace_id,
+            func.lower(PlatformSharedAccount.status) == "active",
+        )
+        return int(self.session.exec(statement).one())
+
+    def count_active_contacts(
+        self,
+        *,
+        workspace_id: str,
+    ) -> int:
+        statement = select(func.count()).select_from(PlatformSharedContact).where(
+            PlatformSharedContact.workspace_id == workspace_id,
+            func.lower(PlatformSharedContact.status) == "active",
+        )
+        return int(self.session.exec(statement).one())
+
+    def count_active_identities(
+        self,
+        *,
+        workspace_id: str,
+        entity_type: str,
+    ) -> int:
+        statement = select(func.count()).select_from(PlatformSharedIdentity).where(
+            PlatformSharedIdentity.workspace_id == workspace_id,
+            PlatformSharedIdentity.entity_type == entity_type.strip().upper(),
+            func.lower(PlatformSharedIdentity.status) == "active",
+        )
+        return int(self.session.exec(statement).one())
+
     def _upsert_link(
         self,
         *,
@@ -419,6 +515,19 @@ class PlatformSharedRepository:
                 PlatformExternalLink.entity_type == entity_type,
                 PlatformExternalLink.source_app == source_app,
                 PlatformExternalLink.source_record_id == source_record_id,
+            )
+        ).first()
+
+    def _get_identity_by_external_key(
+        self,
+        *,
+        entity_type: str,
+        external_key: str,
+    ) -> PlatformSharedIdentity | None:
+        return self.session.exec(
+            select(PlatformSharedIdentity).where(
+                PlatformSharedIdentity.entity_type == entity_type,
+                PlatformSharedIdentity.external_key == external_key,
             )
         ).first()
 
@@ -526,6 +635,35 @@ class PlatformSharedRepository:
                 return existing
             raise
 
+    def _insert_identity(
+        self,
+        *,
+        workspace_id: str,
+        entity_type: str,
+        external_key: str,
+        display_name: str,
+        status: str,
+        data: dict[str, object] | None,
+        created_at: datetime | None,
+        updated_at: datetime | None,
+    ) -> PlatformSharedIdentity:
+        return self._insert_or_get_existing(
+            create_row=lambda: PlatformSharedIdentity(
+                workspace_id=workspace_id,
+                entity_type=entity_type,
+                external_key=external_key,
+                display_name=display_name,
+                status=status,
+                data_json=dict(data or {}),
+                created_at=created_at or _utc_now(),
+                updated_at=updated_at or created_at or _utc_now(),
+            ),
+            get_existing=lambda: self._get_identity_by_external_key(
+                entity_type=entity_type,
+                external_key=external_key,
+            ),
+        )
+
     def _validate_parent_account(
         self,
         *,
@@ -616,6 +754,7 @@ class PlatformSharedRepository:
             entity_type=entity_type,
             entity_id=entity_id,
         )
+
         for link in links:
             if link.source_app == "emailvoice":
                 try:

@@ -85,6 +85,41 @@ class PlatformSharedContact(SQLModel, table=True):
     )
 
 
+class PlatformSharedIdentity(SQLModel, table=True):
+    """Canonical platform identity for shared lead and order records.
+
+    Workflow-specific lead and order details remain in Sales Ops.  This model
+    establishes the stable, cross-application identity required by the
+    platform foundation.
+    """
+
+    __tablename__ = "platform_shared_identities"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id",
+            "entity_type",
+            "external_key",
+            name="uq_platform_shared_identities_workspace_type_key",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(sa_type=String(64), index=True)
+    entity_type: str = Field(sa_type=String(32), index=True)
+    external_key: str = Field(sa_type=String(255), index=True)
+    display_name: str = Field(sa_type=String(255))
+    status: str = Field(default="active", sa_type=String(32))
+    data_json: dict[str, object] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=utc_now,
+        sa_type=DateTime(timezone=True),
+    )
+    updated_at: datetime = Field(
+        default_factory=utc_now,
+        sa_type=DateTime(timezone=True),
+    )
+
+
 class PlatformExternalLink(SQLModel, table=True):
     __tablename__ = "platform_external_links"
     __table_args__ = (

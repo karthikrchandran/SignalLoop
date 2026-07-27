@@ -19,6 +19,7 @@ from app.api.routes import (
     private,
     prospecting,
     provider_credentials,
+    scheduling,
     scripts,
     sequences,
     signals,
@@ -56,6 +57,7 @@ api_router.include_router(contacts.router)
 api_router.include_router(platform_shared.router)
 api_router.include_router(prospecting.router)
 api_router.include_router(provider_credentials.router)
+api_router.include_router(scheduling.router)
 api_router.include_router(workspace_runtime_config.router)
 api_router.include_router(audit_log.router)
 api_router.include_router(kpis.router)

@@ -20,6 +20,8 @@ import { Route as LayoutTemplatesRouteImport } from './routes/_layout/templates'
 import { Route as LayoutSignalloopAiRouteImport } from './routes/_layout/signalloop-ai'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
 import { Route as LayoutSequencesRouteImport } from './routes/_layout/sequences'
+import { Route as LayoutSchedulingRouteImport } from './routes/_layout/scheduling'
+import { Route as LayoutRevenueOsRouteImport } from './routes/_layout/revenue-os'
 import { Route as LayoutReportingRouteImport } from './routes/_layout/reporting'
 import { Route as LayoutProspectingRouteImport } from './routes/_layout/prospecting'
 import { Route as LayoutOfferPacksRouteImport } from './routes/_layout/offer-packs'
@@ -96,6 +98,16 @@ const LayoutSettingsRoute = LayoutSettingsRouteImport.update({
 const LayoutSequencesRoute = LayoutSequencesRouteImport.update({
   id: '/sequences',
   path: '/sequences',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutSchedulingRoute = LayoutSchedulingRouteImport.update({
+  id: '/scheduling',
+  path: '/scheduling',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutRevenueOsRoute = LayoutRevenueOsRouteImport.update({
+  id: '/revenue-os',
+  path: '/revenue-os',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutReportingRoute = LayoutReportingRouteImport.update({
@@ -235,6 +247,8 @@ export interface FileRoutesByFullPath {
   '/offer-packs': typeof LayoutOfferPacksRoute
   '/prospecting': typeof LayoutProspectingRoute
   '/reporting': typeof LayoutReportingRoute
+  '/revenue-os': typeof LayoutRevenueOsRoute
+  '/scheduling': typeof LayoutSchedulingRoute
   '/sequences': typeof LayoutSequencesRoute
   '/settings': typeof LayoutSettingsRouteWithChildren
   '/signalloop-ai': typeof LayoutSignalloopAiRoute
@@ -269,6 +283,8 @@ export interface FileRoutesByTo {
   '/offer-packs': typeof LayoutOfferPacksRoute
   '/prospecting': typeof LayoutProspectingRoute
   '/reporting': typeof LayoutReportingRoute
+  '/revenue-os': typeof LayoutRevenueOsRoute
+  '/scheduling': typeof LayoutSchedulingRoute
   '/sequences': typeof LayoutSequencesRoute
   '/settings': typeof LayoutSettingsRouteWithChildren
   '/signalloop-ai': typeof LayoutSignalloopAiRoute
@@ -306,6 +322,8 @@ export interface FileRoutesById {
   '/_layout/offer-packs': typeof LayoutOfferPacksRoute
   '/_layout/prospecting': typeof LayoutProspectingRoute
   '/_layout/reporting': typeof LayoutReportingRoute
+  '/_layout/revenue-os': typeof LayoutRevenueOsRoute
+  '/_layout/scheduling': typeof LayoutSchedulingRoute
   '/_layout/sequences': typeof LayoutSequencesRoute
   '/_layout/settings': typeof LayoutSettingsRouteWithChildren
   '/_layout/signalloop-ai': typeof LayoutSignalloopAiRoute
@@ -344,6 +362,8 @@ export interface FileRouteTypes {
     | '/offer-packs'
     | '/prospecting'
     | '/reporting'
+    | '/revenue-os'
+    | '/scheduling'
     | '/sequences'
     | '/settings'
     | '/signalloop-ai'
@@ -378,6 +398,8 @@ export interface FileRouteTypes {
     | '/offer-packs'
     | '/prospecting'
     | '/reporting'
+    | '/revenue-os'
+    | '/scheduling'
     | '/sequences'
     | '/settings'
     | '/signalloop-ai'
@@ -414,6 +436,8 @@ export interface FileRouteTypes {
     | '/_layout/offer-packs'
     | '/_layout/prospecting'
     | '/_layout/reporting'
+    | '/_layout/revenue-os'
+    | '/_layout/scheduling'
     | '/_layout/sequences'
     | '/_layout/settings'
     | '/_layout/signalloop-ai'
@@ -519,6 +543,20 @@ declare module '@tanstack/react-router' {
       path: '/sequences'
       fullPath: '/sequences'
       preLoaderRoute: typeof LayoutSequencesRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/scheduling': {
+      id: '/_layout/scheduling'
+      path: '/scheduling'
+      fullPath: '/scheduling'
+      preLoaderRoute: typeof LayoutSchedulingRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/revenue-os': {
+      id: '/_layout/revenue-os'
+      path: '/revenue-os'
+      fullPath: '/revenue-os'
+      preLoaderRoute: typeof LayoutRevenueOsRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/reporting': {
@@ -779,6 +817,8 @@ interface LayoutRouteChildren {
   LayoutOfferPacksRoute: typeof LayoutOfferPacksRoute
   LayoutProspectingRoute: typeof LayoutProspectingRoute
   LayoutReportingRoute: typeof LayoutReportingRoute
+  LayoutRevenueOsRoute: typeof LayoutRevenueOsRoute
+  LayoutSchedulingRoute: typeof LayoutSchedulingRoute
   LayoutSequencesRoute: typeof LayoutSequencesRoute
   LayoutSettingsRoute: typeof LayoutSettingsRouteWithChildren
   LayoutSignalloopAiRoute: typeof LayoutSignalloopAiRoute
@@ -799,6 +839,8 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutOfferPacksRoute: LayoutOfferPacksRoute,
   LayoutProspectingRoute: LayoutProspectingRoute,
   LayoutReportingRoute: LayoutReportingRoute,
+  LayoutRevenueOsRoute: LayoutRevenueOsRoute,
+  LayoutSchedulingRoute: LayoutSchedulingRoute,
   LayoutSequencesRoute: LayoutSequencesRoute,
   LayoutSettingsRoute: LayoutSettingsRouteWithChildren,
   LayoutSignalloopAiRoute: LayoutSignalloopAiRoute,

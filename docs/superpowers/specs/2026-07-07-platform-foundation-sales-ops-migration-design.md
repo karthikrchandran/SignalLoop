@@ -239,6 +239,42 @@ Each slice should follow this pattern:
 - users do not need to switch back to `eCRM` for that slice
 - source-of-truth ambiguity is removed slice by slice
 
+## Shared Data Foundation Cutover Runbook
+
+The foundation makes `eMailVoice` canonical for shared account, contact, lead,
+and order identities. It deliberately does not migrate Sales Ops workflow
+tables, proposal bodies, or payment execution in this phase.
+
+### Preconditions
+
+- Deploy the eCRM read-only export route before the import.
+- Configure `ECRM_SHARED_API_BASE_URL` and `ECRM_SHARED_API_TOKEN` in the
+  `eMailVoice` runtime. The token must be accepted by eCRM's shared-data API.
+- Take a database backup and confirm the target database has a valid Alembic
+  baseline. Do not stamp a legacy database automatically when it has tables
+  but no `alembic_version` history.
+
+### Commands
+
+From `apps/api`, apply the schema and run a non-destructive import preview:
+
+```powershell
+uv run alembic upgrade head
+uv run python -m app.scripts.import_ecrm_shared_records --workspace-id <workspace-id> --dry-run
+```
+
+If the summary and reconciliation are clean, run the committed import and
+check the admin reconciliation surface:
+
+```powershell
+uv run python -m app.scripts.import_ecrm_shared_records --workspace-id <workspace-id>
+GET /api/v1/platform-shared/reconciliation?workspace_id=<workspace-id>
+```
+
+Set `USE_LOCAL_SHARED_RECORDS=true` only after reconciliation reports `ok` for
+the workspace. Roll back reads by setting it to `false`; do not write shared
+records back into eCRM after the cutover decision.
+
 ## Phase 3: Shared Shell and Login Consolidation
 
 ### Objective
