@@ -18,6 +18,7 @@ def _now() -> datetime:
 def enqueue_outbox_event(
     session: Session,
     *,
+    workspace_id: str,
     aggregate_id: uuid.UUID,
     aggregate_type: str,
     event_type: str,
@@ -26,12 +27,16 @@ def enqueue_outbox_event(
 ) -> OutboxEvent:
     """Enqueue outbox event."""
     existing = session.exec(
-        select(OutboxEvent).where(OutboxEvent.idempotency_key == idempotency_key)
+        select(OutboxEvent).where(
+            OutboxEvent.workspace_id == workspace_id,
+            OutboxEvent.idempotency_key == idempotency_key,
+        )
     ).first()
     if existing is not None:
         return existing
 
     event = OutboxEvent(
+        workspace_id=workspace_id,
         aggregate_id=aggregate_id,
         aggregate_type=aggregate_type,
         event_type=event_type,
@@ -45,21 +50,33 @@ def enqueue_outbox_event(
     return event
 
 
-def list_unpublished_events(session: Session, *, limit: int = 100) -> list[OutboxEvent]:
+def list_unpublished_events(
+    session: Session, *, workspace_id: str, limit: int = 100
+) -> list[OutboxEvent]:
     """Return a list of unpublished events."""
     return list(
         session.exec(
             select(OutboxEvent)
-            .where(OutboxEvent.published_at.is_(None))
+            .where(
+                OutboxEvent.workspace_id == workspace_id,
+                OutboxEvent.published_at.is_(None),
+            )
             .order_by(OutboxEvent.created_at)
             .limit(limit)
         ).all()
     )
 
 
-def mark_outbox_published(session: Session, *, event_id: uuid.UUID) -> OutboxEvent | None:
+def mark_outbox_published(
+    session: Session, *, workspace_id: str, event_id: uuid.UUID
+) -> OutboxEvent | None:
     """Mark outbox published."""
-    event = session.get(OutboxEvent, event_id)
+    event = session.exec(
+        select(OutboxEvent).where(
+            OutboxEvent.id == event_id,
+            OutboxEvent.workspace_id == workspace_id,
+        )
+    ).first()
     if event is None:
         return None
 

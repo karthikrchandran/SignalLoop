@@ -58,6 +58,7 @@ def _seed_call(session: Session, workspace_id: str, *, status: CallRequestStatus
         email=f"{workspace_id}@example.com",
         phone="+15551234567",
         timezone="UTC",
+        consent_voice=True,
     )
     session.add(campaign)
     session.add(contact)
@@ -206,3 +207,70 @@ def test_initiate_one_rejects_contact_from_another_workspace() -> None:
 
     assert result is False
     adapter.initiate_call.assert_not_awaited()
+
+
+def test_initiate_one_rejects_missing_campaign_and_cross_campaign_script() -> None:
+    engine = _database()
+    adapter = _adapter("CA-must-not-dispatch")
+    with Session(engine) as session:
+        request = _seed_call(session, "workspace-a")
+        campaign = session.get(Campaign, request.campaign_id)
+        assert campaign is not None
+        session.delete(campaign)
+        session.commit()
+        with patch.object(call_worker, "_is_within_call_hours", return_value=True):
+            result = asyncio.run(
+                call_worker._initiate_one(
+                    session, request, workspace_id="workspace-a", adapter=adapter
+                )
+            )
+        session.commit()
+        session.refresh(request)
+        assert request.status == CallRequestStatus.failed
+        assert result is False
+    adapter.initiate_call.assert_not_awaited()
+
+    engine = _database()
+    adapter = _adapter("CA-must-not-dispatch-script")
+    with Session(engine) as session:
+        request = _seed_call(session, "workspace-a")
+        other = _seed_call(session, "workspace-b")
+        request.voice_script_id = other.voice_script_id
+        session.add(request)
+        session.commit()
+        with patch.object(call_worker, "_is_within_call_hours", return_value=True):
+            result = asyncio.run(
+                call_worker._initiate_one(
+                    session, request, workspace_id="workspace-a", adapter=adapter
+                )
+            )
+        session.commit()
+        session.refresh(request)
+        assert request.status == CallRequestStatus.failed
+        assert result is False
+    adapter.initiate_call.assert_not_awaited()
+
+
+def test_poll_dispatch_denies_missing_voice_consent_before_provider_resolution() -> None:
+    engine = _database()
+    with Session(engine) as session:
+        request = _seed_call(session, "workspace-a")
+        contact = session.get(Contact, request.contact_id)
+        assert contact is not None
+        contact.consent_voice = False
+        session.add(contact)
+        session.commit()
+        request_id = request.id
+
+    with (
+        patch.object(call_worker, "_engine", engine),
+        patch.object(call_worker, "_is_within_call_hours", return_value=True),
+        patch.object(call_worker, "resolve_voice_adapter") as resolver,
+    ):
+        asyncio.run(call_worker.poll_and_dispatch())
+
+    with Session(engine) as session:
+        request = session.get(CallRequest, request_id)
+        assert request is not None
+        assert request.status == CallRequestStatus.failed
+    resolver.assert_not_called()

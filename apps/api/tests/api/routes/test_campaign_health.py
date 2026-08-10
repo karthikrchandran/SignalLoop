@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, select
 
 from app.core.config import settings
@@ -164,6 +165,50 @@ def test_dead_letter_list_returns_items(
     item = next((i for i in body["data"] if i["id"] == str(action.id)), None)
     assert item is not None
     assert item["retry_eligible"] is True  # retry_count=0 < MAX_RETRY_COUNT
+
+
+def test_campaign_health_and_dead_letter_actions_filter_direct_workspace_owner(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+    campaign_contact: tuple[uuid.UUID, uuid.UUID],
+) -> None:
+    campaign_id, contact_id = campaign_contact
+    cross_attached = ActionQueue(
+        workspace_id="workspace-b",
+        contact_id=contact_id,
+        campaign_id=campaign_id,
+        action_type="send_email",
+        channel="email",
+        status="dead_letter",
+        retry_count=0,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(cross_attached)
+    if db.get_bind().dialect.name == "postgresql":
+        with pytest.raises(SQLAlchemyError, match="workspace mismatch"):
+            db.commit()
+        db.rollback()
+        return
+    db.commit()
+
+    listed = client.get(
+        f"{settings.API_V1_STR}/campaigns/{campaign_id}/dead-letters",
+        headers=_headers(superuser_token_headers),
+    )
+    assert listed.status_code == 200
+    assert str(cross_attached.id) not in {row["id"] for row in listed.json()["data"]}
+
+    retried = client.post(
+        f"{settings.API_V1_STR}/campaigns/{campaign_id}/dead-letters/{cross_attached.id}/retry",
+        headers=_headers(superuser_token_headers),
+    )
+    dismissed = client.post(
+        f"{settings.API_V1_STR}/campaigns/{campaign_id}/dead-letters/{cross_attached.id}/dismiss",
+        headers=_headers(superuser_token_headers),
+    )
+    assert retried.status_code == 404
+    assert dismissed.status_code == 404
 
 
 # ---------------------------------------------------------------------------

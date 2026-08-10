@@ -22,7 +22,7 @@ from app.domain.voice.models import (
     CallSession,
     VoiceScript,
 )
-from app.domain_models import Campaign, CampaignStatus, Contact
+from app.domain_models import Campaign, CampaignStatus, Contact, GlobalControlState
 from worker_app import call_worker, sequence_worker  # type: ignore[import-untyped]
 
 
@@ -57,6 +57,8 @@ def _seed_contact(session: Session) -> Contact:
         last_name="Lovelace",
         company="Analytical Engines",
         phone="+15551234567",
+        consent_email=True,
+        consent_voice=True,
     )
     session.add(contact)
     session.commit()
@@ -196,6 +198,117 @@ def test_sequence_worker_does_not_apply_another_workspaces_suppression() -> None
                 )
             )
 
+    adapter.send_email.assert_awaited_once()
+
+
+def test_sequence_worker_rejects_cross_workspace_contact_before_send() -> None:
+    with _session() as session:
+        campaign = _seed_campaign(session)
+        contact = _seed_contact(session)
+        contact.workspace_id = "workspace-b"
+        session.add(contact)
+        session.commit()
+        state = _seed_sequence_state(session, contact=contact, campaign=campaign)
+        adapter = MagicMock()
+        adapter.send_email = AsyncMock(
+            return_value={"status_code": 202, "message_id": "cross-tenant"}
+        )
+
+        with patch.object(sequence_worker, "_in_quiet_hours", return_value=False):
+            _run(
+                sequence_worker._process_single(
+                    session,
+                    state,
+                    workspace_id=campaign.workspace_id,
+                    campaign_id=campaign.id,
+                    adapter=adapter,
+                )
+            )
+        session.commit()
+        session.refresh(state)
+
+    assert state.status == SequenceStatus.stopped
+    assert state.signal_type == "workspace_mismatch"
+    adapter.send_email.assert_not_awaited()
+
+
+def test_sequence_worker_denies_missing_email_consent_before_send() -> None:
+    with _session() as session:
+        campaign = _seed_campaign(session)
+        contact = _seed_contact(session)
+        contact.consent_email = False
+        session.add(contact)
+        session.commit()
+        state = _seed_sequence_state(session, contact=contact, campaign=campaign)
+        adapter = MagicMock()
+        adapter.send_email = AsyncMock(
+            return_value={"status_code": 202, "message_id": "must-not-send"}
+        )
+
+        with patch.object(sequence_worker, "_in_quiet_hours", return_value=False):
+            _run(
+                sequence_worker._process_single(
+                    session,
+                    state,
+                    workspace_id=campaign.workspace_id,
+                    campaign_id=campaign.id,
+                    adapter=adapter,
+                )
+            )
+        session.commit()
+        session.refresh(state)
+
+    assert state.status == SequenceStatus.stopped
+    assert state.signal_type == "CONSENT_MISSING"
+    adapter.send_email.assert_not_awaited()
+
+
+def test_sequence_batch_continues_past_paused_workspace() -> None:
+    with _session() as session:
+        engine = session.get_bind()
+        paused_campaign = _seed_campaign(session)
+        paused_campaign.workspace_id = "workspace-a"
+        paused_contact = _seed_contact(session)
+        paused_contact.workspace_id = "workspace-a"
+        paused_state = _seed_sequence_state(
+            session, contact=paused_contact, campaign=paused_campaign
+        )
+        paused_state.next_send_at = datetime.now(UTC) - timedelta(minutes=2)
+
+        active_campaign = _seed_campaign(session)
+        active_campaign.workspace_id = "workspace-b"
+        active_contact = _seed_contact(session)
+        active_contact.workspace_id = "workspace-b"
+        active_contact.email = "active@example.com"
+        active_state = _seed_sequence_state(
+            session, contact=active_contact, campaign=active_campaign
+        )
+        session.add(GlobalControlState(workspace_id="workspace-a", paused=True))
+        session.add(paused_campaign)
+        session.add(paused_contact)
+        session.add(paused_state)
+        session.add(active_campaign)
+        session.add(active_contact)
+        session.add(active_state)
+        session.commit()
+        active_state_id = active_state.id
+
+    adapter = MagicMock()
+    adapter.send_email = AsyncMock(
+        return_value={"status_code": 202, "message_id": "workspace-b-send"}
+    )
+    with (
+        patch.object(sequence_worker, "engine", engine),
+        patch.object(sequence_worker, "_in_quiet_hours", return_value=False),
+        patch.object(sequence_worker, "resolve_email_adapter", return_value=adapter),
+    ):
+        processed = _run(sequence_worker.process_batch())
+
+    with Session(engine) as session:
+        active_state = session.get(ContactSequenceState, active_state_id)
+        assert active_state is not None
+        assert active_state.status == SequenceStatus.completed
+    assert processed == 1
     adapter.send_email.assert_awaited_once()
 
 

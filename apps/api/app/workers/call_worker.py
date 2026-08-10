@@ -14,6 +14,7 @@ from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.db import engine
+from app.domain.policies.consent_sync_service import is_contact_actionable
 from app.domain.shared_records import service as shared_record_service
 
 # Timeline cache invalidation moved to route layer (invalidate_timeline_cache via Request object)
@@ -23,6 +24,7 @@ from app.domain.voice.models import (
     CallRequest,
     CallRequestStatus,
     CallSession,
+    VoiceScript,
 )
 from app.domain_models import (
     Campaign,
@@ -180,7 +182,9 @@ def _effective_daily_call_cap(
 def _should_skip_for_governance(session: Session, call_req: CallRequest) -> bool:
     campaign = session.get(Campaign, call_req.campaign_id)
     if not campaign:
-        return False
+        call_req.status = CallRequestStatus.failed
+        session.add(call_req)
+        return True
 
     if campaign.workspace_id != call_req.workspace_id:
         logger.error(
@@ -261,22 +265,15 @@ async def _process_batch() -> int:
                 .limit(BATCH_SIZE)
                 .with_for_update(skip_locked=True)
             ).all()
-            adapter: VoiceAdapter | None = None
             workspace_failed = False
             for call_req in due_requests:
                 try:
                     if _should_skip_for_governance(session, call_req):
                         continue
-                    if adapter is None:
-                        adapter = resolve_voice_adapter(
-                            session,
-                            workspace_id,
-                            default_factory=TwilioVoiceAdapter,
-                        )
                     if target := await _initiate_call(
                         session,
                         call_req,
-                        adapter=adapter,
+                        adapter=None,
                     ):
                         timeline_cache_targets.add(target)
                     processed += 1
@@ -308,6 +305,16 @@ async def _initiate_call(
     adapter: VoiceAdapter | None = None,
 ) -> tuple[uuid.UUID, uuid.UUID] | None:
     workspace_id = call_req.workspace_id
+    campaign = session.get(Campaign, call_req.campaign_id)
+    if campaign is None or campaign.workspace_id != workspace_id:
+        call_req.status = CallRequestStatus.failed
+        session.add(call_req)
+        return None
+    script = session.get(VoiceScript, call_req.voice_script_id)
+    if script is None or script.campaign_id != campaign.id:
+        call_req.status = CallRequestStatus.failed
+        session.add(call_req)
+        return None
     shared_contact = shared_record_service.get_shared_contact(
         workspace_id=workspace_id,
         contact_id=call_req.shared_contact_id,
@@ -323,6 +330,13 @@ async def _initiate_call(
             call_req.shared_contact_id,
             workspace_id,
         )
+        call_req.status = CallRequestStatus.failed
+        session.add(call_req)
+        return None
+
+    actionable, reason = is_contact_actionable(contact.model_dump(), "voice")
+    if not actionable:
+        logger.info("Call request %s denied: %s", call_req.id, reason)
         call_req.status = CallRequestStatus.failed
         session.add(call_req)
         return None

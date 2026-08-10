@@ -25,7 +25,7 @@ from app.domain.signals.models import SignalEvent
 from app.domain.signals.signal_detector import detect_email_signal
 from app.domain.signals.trigger_service import process_signal
 from app.domain.timeline.timeline_service import invalidate_timeline_cache
-from app.domain_models import NotificationProvider, ProviderEventLog
+from app.domain_models import Campaign, Contact, NotificationProvider, ProviderEventLog
 from app.infrastructure.providers.sendgrid import SendGridAdapter
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ async def handle_sendgrid_webhook(request: Request, session: SessionDep) -> dict
                 logger.warning("No SendRequest found for message_id=%s", provider_msg_id)
                 continue
 
-            workspace_id = send_request.workspace_id
+            workspace_id = _workspace_for_send_request(session, send_request)
             provider_event_key = (workspace_id, provider_event_id)
             if provider_event_id:
                 if provider_event_key in seen_provider_events or _provider_event_seen(
@@ -198,9 +198,22 @@ async def _process_event(
 
 
 def _workspace_for_send_request(
-    _session: Session,
+    session: Session,
     send_request: SendRequest,
 ) -> str:
+    state = session.get(ContactSequenceState, send_request.contact_sequence_state_id)
+    sequence = session.get(EmailSequence, state.sequence_id) if state else None
+    campaign = session.get(Campaign, sequence.campaign_id) if sequence else None
+    if (
+        state is None
+        or sequence is None
+        or campaign is None
+        or campaign.workspace_id != send_request.workspace_id
+    ):
+        raise ValueError("SendRequest workspace ownership chain is inconsistent")
+    contact = session.get(Contact, state.contact_id)
+    if contact is not None and contact.workspace_id != send_request.workspace_id:
+        raise ValueError("SendRequest contact workspace is inconsistent")
     return send_request.workspace_id
 
 
@@ -243,6 +256,7 @@ async def _emit_signal(
     if not seq:
         return None
     signal = SignalEvent(
+        workspace_id=send_request.workspace_id,
         contact_id=state.contact_id,
         campaign_id=seq.campaign_id,
         channel="email",

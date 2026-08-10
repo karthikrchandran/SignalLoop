@@ -67,6 +67,8 @@ def _make_contact(session: Session, **overrides) -> Contact:
         "first_name": "Alice",
         "last_name": "A",
         "company": "Acme",
+        "consent_email": True,
+        "consent_voice": True,
     }
     defaults.update(overrides)
     contact = Contact(**defaults)
@@ -97,9 +99,18 @@ def _make_signal(
     channel: str = "email",
     campaign_id: uuid.UUID | None = None,
 ) -> SignalEvent:
+    contact = session.get(Contact, contact_id)
+    workspace_id = contact.workspace_id if contact else "ws"
+    if campaign_id is None:
+        campaign_id = _make_campaign(session, workspace_id=workspace_id).id
+    else:
+        campaign = session.get(Campaign, campaign_id)
+        if campaign is not None:
+            workspace_id = campaign.workspace_id
     sig = SignalEvent(
+        workspace_id=workspace_id,
         contact_id=contact_id,
-        campaign_id=campaign_id or uuid.uuid4(),
+        campaign_id=campaign_id,
         channel=channel,
         signal_type=signal_type,
     )
@@ -387,6 +398,7 @@ def test_process_signal_resource_email_does_not_retry_unpublished_intent(
     )
     session.add(
         OutboxEvent(
+            workspace_id=sig.workspace_id,
             aggregate_id=sig.id,
             aggregate_type="signal",
             event_type="trigger.resource_email_send_requested",

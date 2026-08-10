@@ -225,10 +225,12 @@ def test_get_signal_summary_groups_counts(session: Session) -> None:
     contact = _make_contact(session)
     for _ in range(2):
         session.add(SignalEvent(
+            workspace_id=camp.workspace_id,
             contact_id=contact.id, campaign_id=camp.id,
             channel="email", signal_type="reply",
         ))
     session.add(SignalEvent(
+        workspace_id=camp.workspace_id,
         contact_id=contact.id, campaign_id=camp.id,
         channel="voice", signal_type="answered",
     ))

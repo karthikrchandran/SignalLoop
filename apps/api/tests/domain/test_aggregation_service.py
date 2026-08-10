@@ -36,6 +36,7 @@ def _make_signal(
     created_at: datetime | None = None,
 ) -> SignalEvent:
     sig = SignalEvent(
+        workspace_id="ws-test",
         contact_id=contact_id,
         campaign_id=campaign_id,
         channel=channel,

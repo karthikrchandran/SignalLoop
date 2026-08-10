@@ -14,6 +14,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.core.db import engine
+from app.domain.policies.consent_sync_service import is_contact_actionable
 from app.domain.sequences.models import (
     ContactSequenceState,
     EmailSequence,
@@ -205,7 +206,10 @@ def _should_skip_for_governance(
 ) -> bool:
     campaign = _campaign_for_state(session, state)
     if not campaign:
-        return False
+        state.status = SequenceStatus.stopped
+        state.signal_type = "campaign_not_found"
+        session.add(state)
+        return True
 
     if campaign.status == CampaignStatus.paused:
         logger.info("Campaign %s paused - skipping state=%s", campaign.id, state.id)
@@ -251,42 +255,53 @@ async def _process_batch() -> int:
     processed = 0
 
     with Session(engine) as session:
-        daily_count = _daily_send_count(session)
-        if daily_count >= DEFAULT_DAILY_CAP:
-            logger.warning("Daily cap reached (%d/%d)", daily_count, DEFAULT_DAILY_CAP)
-            return 0
-
-        remaining_cap = DEFAULT_DAILY_CAP - daily_count
-
-        # SELECT FOR UPDATE SKIP LOCKED prevents double-processing
-        due_states = session.exec(
-            select(ContactSequenceState)
+        now = datetime.now(timezone.utc)
+        workspace_ids = session.exec(
+            select(Campaign.workspace_id)
+            .join(EmailSequence, EmailSequence.campaign_id == Campaign.id)
+            .join(ContactSequenceState, ContactSequenceState.sequence_id == EmailSequence.id)
             .where(
                 ContactSequenceState.status == SequenceStatus.active,
-                ContactSequenceState.next_send_at <= datetime.now(timezone.utc),
+                ContactSequenceState.next_send_at <= now,
             )
-            .order_by(ContactSequenceState.next_send_at)
-            .limit(min(BATCH_SIZE, remaining_cap))
-            .with_for_update(skip_locked=True)
+            .distinct()
+            .order_by(Campaign.workspace_id)
         ).all()
-
-        if not due_states:
+        if not workspace_ids:
             return 0
 
-        for state in due_states:
-            try:
-                if _should_skip_for_governance(session, state):
-                    continue
-                await _process_single(session, state)
-                processed += 1
-            except Exception:
-                logger.exception(
-                    "Error processing contact_sequence_state=%s", state.id
+        for workspace_id in workspace_ids:
+            due_states = session.exec(
+                select(ContactSequenceState)
+                .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
+                .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+                .where(
+                    Campaign.workspace_id == workspace_id,
+                    ContactSequenceState.status == SequenceStatus.active,
+                    ContactSequenceState.next_send_at <= now,
                 )
-                session.rollback()
-                break
-
-        session.commit()
+                .order_by(ContactSequenceState.next_send_at)
+                .limit(BATCH_SIZE)
+                .with_for_update(skip_locked=True)
+            ).all()
+            workspace_failed = False
+            for state in due_states:
+                try:
+                    if _should_skip_for_governance(session, state):
+                        continue
+                    await _process_single(session, state)
+                    processed += 1
+                except Exception:
+                    logger.exception(
+                        "Error processing contact_sequence_state=%s workspace=%s",
+                        state.id,
+                        workspace_id,
+                    )
+                    session.rollback()
+                    workspace_failed = True
+                    break
+            if not workspace_failed:
+                session.commit()
 
     return processed
 
@@ -296,7 +311,12 @@ async def _process_single(
     state: ContactSequenceState,
 ) -> None:
     campaign = _campaign_for_state(session, state)
-    workspace_id = campaign.workspace_id if campaign else "system"
+    if campaign is None:
+        state.status = SequenceStatus.stopped
+        state.signal_type = "campaign_not_found"
+        session.add(state)
+        return
+    workspace_id = campaign.workspace_id
     shared_contact = shared_record_service.get_shared_contact(
         workspace_id=workspace_id,
         contact_id=state.shared_contact_id,
@@ -315,22 +335,35 @@ async def _process_single(
         session.add(state)
         return
 
+    if contact.workspace_id != workspace_id:
+        state.status = SequenceStatus.stopped
+        state.signal_type = "workspace_mismatch"
+        session.add(state)
+        return
+
+    actionable, reason = is_contact_actionable(contact.model_dump(), "email")
+    if not actionable:
+        state.status = SequenceStatus.stopped
+        state.signal_type = reason
+        session.add(state)
+        return
+
     # Resolve the email adapter for this contact's workspace.  Falls back to
     # SendGridAdapter() when the workspace hasn't opted into a custom
     # provider, which preserves the legacy single-tenant behaviour and lets
     # tests `patch.object(sequence_worker, "SendGridAdapter")` keep working.
-    adapter: EmailAdapter = resolve_email_adapter(
-        session,
-        contact.workspace_id,
-        default_factory=SendGridAdapter,
-    )
-
     if _is_suppressed(session, contact.workspace_id, contact.email):
         logger.info("Contact %s is suppressed, stopping sequence", contact.email)
         state.status = SequenceStatus.stopped
         state.signal_type = "suppressed"
         session.add(state)
         return
+
+    adapter: EmailAdapter = resolve_email_adapter(
+        session,
+        workspace_id,
+        default_factory=SendGridAdapter,
+    )
 
     # Get the current step
     step = session.exec(

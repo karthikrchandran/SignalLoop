@@ -191,6 +191,39 @@ def test_delivered_event_marks_send_sent(
     assert any(e.event_type == "delivered" for e in events)
 
 
+def test_sendgrid_event_rejects_cross_attached_sequence_campaign(
+    client: TestClient,
+    db: Session,
+) -> None:
+    sr, _state, _seq, _contact, campaign = _make_send_request(
+        db, provider_message_id=f"cross-{uuid.uuid4().hex[:8]}"
+    )
+    campaign.workspace_id = "workspace-b"
+    db.add(campaign)
+    db.commit()
+
+    response = client.post(
+        f"{settings.API_V1_STR}/webhooks/sendgrid",
+        json=[
+            {
+                "event": "delivered",
+                "sg_message_id": f"{sr.provider_message_id}.suffix",
+                "email": "addr@example.com",
+                "timestamp": _ts(),
+                "sg_event_id": str(uuid.uuid4()),
+                "workspace_id": WORKSPACE_ID,
+            }
+        ],
+    )
+
+    assert response.status_code == 200
+    db.refresh(sr)
+    assert sr.status == SendRequestStatus.pending
+    assert not db.exec(
+        select(EmailEvent).where(EmailEvent.send_request_id == sr.id)
+    ).all()
+
+
 def test_bounce_event_stops_sequence_and_emits_signal(
     client: TestClient,
     db: Session,

@@ -1,5 +1,6 @@
 import uuid
 from typing import Any, cast
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import UniqueConstraint, create_engine
@@ -11,7 +12,15 @@ from app.domain.outreach.action_queue_service import (
     update_action_status,
 )
 from app.domain.sequences.models import SendRequest
-from app.domain_models import ActionQueue, NotificationProvider, ProviderEventLog
+from app.domain.signals.models import SignalEvent
+from app.domain.signals.scheduling import SchedulingRequest
+from app.domain_models import (
+    ActionQueue,
+    Contact,
+    NotificationProvider,
+    OutboxEvent,
+    ProviderEventLog,
+)
 
 
 def _unique_columns(model: type) -> set[tuple[str, ...]]:
@@ -40,6 +49,25 @@ def test_action_queue_stores_non_nullable_workspace_ownership() -> None:
 
     assert workspace_column is not None, "ActionQueue must store workspace ownership"
     assert workspace_column.nullable is False
+
+
+def test_all_durable_dispatch_state_has_non_nullable_workspace_ownership() -> None:
+    for model in (OutboxEvent, SignalEvent, SchedulingRequest):
+        workspace_column = cast(Any, model).__table__.columns.get("workspace_id")
+        assert workspace_column is not None, f"{model.__name__} must store workspace"
+        assert workspace_column.nullable is False
+
+    assert ("workspace_id", "idempotency_key") in _unique_columns(OutboxEvent)
+    assert ("workspace_id", "source_event_id", "signal_type") in _unique_columns(
+        SignalEvent
+    )
+    assert ("workspace_id", "signal_event_id") in _unique_columns(SchedulingRequest)
+
+
+def test_contact_persists_channel_specific_consent() -> None:
+    table = cast(Any, Contact).__table__
+    assert table.columns["consent_email"].nullable is False
+    assert table.columns["consent_voice"].nullable is False
 
 
 def test_action_queue_list_and_update_are_workspace_scoped() -> None:
@@ -157,7 +185,7 @@ def test_sendgrid_provider_event_seen_is_workspace_scoped() -> None:
         )
 
 
-def test_sendgrid_event_uses_stored_job_workspace_without_relational_fallback() -> None:
+def test_sendgrid_event_rejects_missing_relational_ownership_chain() -> None:
     send_request = SendRequest(
         workspace_id="workspace-a",
         contact_sequence_state_id=uuid.uuid4(),
@@ -165,8 +193,8 @@ def test_sendgrid_event_uses_stored_job_workspace_without_relational_fallback() 
         idempotency_key="workspace-owned-event",
     )
 
-    with Session(create_engine("sqlite://")) as session:
-        assert (
-            webhooks._workspace_for_send_request(session, send_request)
-            == "workspace-a"
-        )
+    session = MagicMock()
+    session.get.return_value = None
+
+    with pytest.raises(ValueError, match="workspace ownership chain"):
+        webhooks._workspace_for_send_request(session, send_request)

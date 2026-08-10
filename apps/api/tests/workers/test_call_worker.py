@@ -39,9 +39,19 @@ def test_call_request_schema_requires_workspace_ownership() -> None:
     assert workspace_column.nullable is False
 
 
-def _seed_contact(session: Session, *, phone: str | None = "+15551234567") -> Contact:
+def _seed_contact(
+    session: Session,
+    *,
+    phone: str | None = "+15551234567",
+    consent_voice: bool = True,
+) -> Contact:
     """Create and persist a Contact."""
-    contact = Contact(workspace_id="ws-test", email="caller@example.com", phone=phone)
+    contact = Contact(
+        workspace_id="ws-test",
+        email="caller@example.com",
+        phone=phone,
+        consent_voice=consent_voice,
+    )
     session.add(contact)
     session.commit()
     session.refresh(contact)
@@ -93,7 +103,9 @@ def _seed_call_request(
     status: CallRequestStatus = CallRequestStatus.queued,
 ) -> CallRequest:
     """Create and persist a CallRequest plus its supporting Voice script."""
-    campaign_id = campaign_id or uuid.uuid4()
+    campaign_id = campaign_id or _seed_campaign(
+        session, workspace_id=workspace_id
+    ).id
     if voice_script_id is None:
         voice_script_id = _seed_voice_script(session, campaign_id).id
     cr = CallRequest(
@@ -305,6 +317,7 @@ def test_paused_workspace_does_not_fill_batch_and_block_another_workspace(
         workspace_id="ws-active",
         email="active@example.com",
         phone="+15559876543",
+        consent_voice=True,
     )
     memory_session.add(active_contact)
     memory_session.commit()
@@ -388,7 +401,7 @@ def test_initiate_call_marks_failed_when_contact_missing(memory_session: Session
     adapter.initiate_call.assert_not_called()
 
 
-def test_initiate_call_uses_stored_workspace_when_campaign_is_missing(
+def test_initiate_call_fails_when_campaign_is_missing(
     memory_session: Session,
 ) -> None:
     contact = _seed_contact(memory_session)
@@ -398,7 +411,7 @@ def test_initiate_call_uses_stored_workspace_when_campaign_is_missing(
         contact_id=contact.id,
         campaign_id=uuid.uuid4(),
     )
-    adapter = _make_adapter(call_sid="CA-stored-workspace")
+    adapter = _make_adapter(call_sid="CA-must-not-dispatch")
 
     with (
         patch.object(
@@ -410,10 +423,34 @@ def test_initiate_call_uses_stored_workspace_when_campaign_is_missing(
     ):
         asyncio.run(call_worker._initiate_call(memory_session, cr))
 
-    get_shared_contact.assert_called_once_with(
-        workspace_id=contact.workspace_id,
+    get_shared_contact.assert_not_called()
+    memory_session.commit()
+    memory_session.refresh(cr)
+    assert cr.status == CallRequestStatus.failed
+    adapter.initiate_call.assert_not_awaited()
+
+
+def test_initiate_call_denies_missing_voice_consent_before_adapter_resolution(
+    memory_session: Session,
+) -> None:
+    contact = _seed_contact(memory_session, consent_voice=False)
+    campaign = _seed_campaign(memory_session)
+    script = _seed_voice_script(memory_session, campaign.id)
+    cr = _seed_call_request(
+        memory_session,
         contact_id=contact.id,
+        campaign_id=campaign.id,
+        voice_script_id=script.id,
     )
+    adapter = _make_adapter(call_sid="CA-must-not-dispatch")
+    with patch.object(call_worker, "resolve_voice_adapter", return_value=adapter) as resolver:
+        asyncio.run(call_worker._initiate_call(memory_session, cr))
+
+    memory_session.commit()
+    memory_session.refresh(cr)
+    assert cr.status == CallRequestStatus.failed
+    resolver.assert_not_called()
+    adapter.initiate_call.assert_not_awaited()
 
 
 def test_initiate_call_marks_failed_when_no_phone(memory_session: Session) -> None:

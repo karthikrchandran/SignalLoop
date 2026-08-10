@@ -16,12 +16,12 @@ from app.domain.scheduling.models import (
     SchedulingRequestSource,
     SchedulingRequestStatus,
 )
-from app.integrations.ecrm_workflow_events import emit_event
 from app.domain.scheduling.schemas import (
     SchedulingRequestCreate,
     SchedulingRequestUpdate,
 )
-from app.domain_models import ContactProgressionState
+from app.domain_models import Campaign, Contact, ContactProgressionState
+from app.integrations.ecrm_workflow_events import emit_event
 
 
 def _now() -> datetime:
@@ -40,7 +40,14 @@ def create_scheduling_request(
     commit: bool = True,
 ) -> SchedulingRequest:
     """Create a new scheduling request."""
+    campaign = session.get(Campaign, data.campaign_id)
+    if campaign is None:
+        raise ValueError("scheduling campaign not found")
+    contact = session.get(Contact, data.contact_id)
+    if contact is not None and contact.workspace_id != campaign.workspace_id:
+        raise ValueError("scheduling contact workspace mismatch")
     req = SchedulingRequest(
+        workspace_id=campaign.workspace_id,
         contact_id=data.contact_id,
         campaign_id=data.campaign_id,
         signal_event_id=data.signal_event_id,
@@ -75,13 +82,14 @@ def list_scheduling_requests(
     limit: int = 50,
 ) -> tuple[list[SchedulingRequest], int]:
     """Return scheduling requests filtered by workspace, status, and campaign."""
-    from app.domain_models import Campaign, Contact
-
     base_query = (
         select(SchedulingRequest)
         .join(Contact, SchedulingRequest.contact_id == Contact.id)
         .join(Campaign, SchedulingRequest.campaign_id == Campaign.id)
-        .where(Campaign.workspace_id == workspace_id)
+        .where(
+            SchedulingRequest.workspace_id == workspace_id,
+            Campaign.workspace_id == workspace_id,
+        )
     )
 
     if status:

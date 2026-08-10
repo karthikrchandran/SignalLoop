@@ -12,6 +12,7 @@ class SchedulingRequestPublic(SQLModel):
     """API response model for a scheduling request."""
 
     id: uuid.UUID
+    workspace_id: str
     contact_id: uuid.UUID
     campaign_id: uuid.UUID
     signal_event_id: uuid.UUID | None

@@ -928,12 +928,14 @@ def test_operational_models_expose_shared_reference_attributes() -> None:
             sequence_id=uuid.uuid4(),
         ),
         SignalEvent(
+            workspace_id="ws-shared",
             shared_contact_id=shared_contact_id,
             campaign_id=uuid.uuid4(),
             channel="email",
             signal_type="reply",
         ),
         SchedulingRequest(
+            workspace_id="ws-shared",
             shared_contact_id=shared_contact_id,
             campaign_id=uuid.uuid4(),
             signal_event_id=uuid.uuid4(),

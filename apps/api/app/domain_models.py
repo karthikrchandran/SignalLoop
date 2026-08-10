@@ -486,6 +486,10 @@ class Contact(SQLModel, table=True):
     source_channel: str | None = Field(default=None, max_length=64)
     tags_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     intent_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    consent_email: bool = Field(default=False, nullable=False)
+    consent_voice: bool = Field(default=False, nullable=False)
+    do_not_contact: bool = Field(default=False, nullable=False)
+    suppressed: bool = Field(default=False, nullable=False)
     last_seen_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     created_at: datetime = Field(
         default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
@@ -570,13 +574,21 @@ class OutboxEvent(SQLModel, table=True):
     """Transactional outbox for reliable at-least-once event publishing."""
 
     __tablename__ = "outbox_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id",
+            "idempotency_key",
+            name="uq_outbox_workspace_idempotency",
+        ),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(max_length=64, index=True)
     aggregate_id: uuid.UUID = Field(index=True)
     aggregate_type: str = Field(max_length=64)  # "contact" | "campaign"
     event_type: str = Field(max_length=128)  # "contact.progressed" | "action.queued"
     event_data: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    idempotency_key: str = Field(unique=True, max_length=255, index=True)
+    idempotency_key: str = Field(max_length=255, index=True)
     created_at: datetime = Field(
         default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
     )
@@ -901,6 +913,10 @@ class ContactPublic(SQLModel):
     source_channel: str | None = None
     tags_json: list[str] = Field(default_factory=list)
     intent_json: list[str] = Field(default_factory=list)
+    consent_email: bool = False
+    consent_voice: bool = False
+    do_not_contact: bool = False
+    suppressed: bool = False
     last_seen_at: datetime | None = None
     created_at: datetime
 

@@ -36,8 +36,11 @@ from app.domain.voice.models import (
     CallRequest,
     CallRequestStatus,
     CallSession,
+    VoiceScript,
 )
+from app.domain.policies.consent_sync_service import is_contact_actionable
 from app.domain_models import (
+    Campaign,
     Contact,
     GlobalControlState,
     GovernancePolicy,
@@ -179,7 +182,7 @@ async def _initiate_one(
     session: Session,
     call_req: CallRequest,
     workspace_id: str,
-    adapter: VoiceAdapter,
+    adapter: VoiceAdapter | None = None,
 ) -> bool:
     """Attempt to initiate a single call.
 
@@ -204,6 +207,17 @@ async def _initiate_one(
         session.add(call_req)
         return False
 
+    campaign = session.get(Campaign, call_req.campaign_id)
+    if campaign is None or campaign.workspace_id != workspace_id:
+        call_req.status = CallRequestStatus.failed
+        session.add(call_req)
+        return False
+    script = session.get(VoiceScript, call_req.voice_script_id)
+    if script is None or script.campaign_id != campaign.id:
+        call_req.status = CallRequestStatus.failed
+        session.add(call_req)
+        return False
+
     contact = session.get(Contact, call_req.contact_id)
     if not contact or contact.workspace_id != workspace_id:
         logger.warning(
@@ -218,6 +232,19 @@ async def _initiate_one(
             call_req=call_req,
             call_sid="",
             error="contact_not_found_or_workspace_mismatch",
+        )
+        session.add(call_req)
+        return False
+
+    actionable, reason = is_contact_actionable(contact.model_dump(), "voice")
+    if not actionable:
+        call_req.status = CallRequestStatus.failed
+        _write_audit_event(
+            session,
+            workspace_id=workspace_id,
+            call_req=call_req,
+            call_sid="",
+            error=reason or "CONSENT_MISSING",
         )
         session.add(call_req)
         return False
@@ -270,6 +297,12 @@ async def _initiate_one(
         session.add(call_req)
         return False
 
+    if adapter is None:
+        adapter = resolve_voice_adapter(
+            session,
+            workspace_id,
+            default_factory=TwilioVoiceAdapter,
+        )
     account_sid = getattr(adapter, "_account_sid", "") or None
     if call_session is None:
         call_session = CallSession(
@@ -409,11 +442,6 @@ async def poll_and_dispatch() -> None:
             if not candidates:
                 continue
 
-            adapter = resolve_voice_adapter(
-                session,
-                workspace_id,
-                default_factory=TwilioVoiceAdapter,
-            )
             dispatched = 0
             batch_failed = False
             for call_req in candidates:
@@ -422,7 +450,7 @@ async def poll_and_dispatch() -> None:
                         session,
                         call_req,
                         workspace_id,
-                        adapter,
+                        adapter=None,
                     ):
                         dispatched += 1
                 except Exception:

@@ -60,7 +60,10 @@ def _prepare_postcall_summary_intent(
 ) -> OutboxEvent | None:
     intent_key = _postcall_summary_intent_key(sess.id)
     existing = session.exec(
-        select(OutboxEvent).where(OutboxEvent.idempotency_key == intent_key)
+        select(OutboxEvent).where(
+            OutboxEvent.workspace_id == req.workspace_id,
+            OutboxEvent.idempotency_key == intent_key,
+        )
     ).first()
     if existing is not None:
         if existing.published_at is None:
@@ -72,6 +75,7 @@ def _prepare_postcall_summary_intent(
 
     return enqueue_outbox_event(
         session,
+        workspace_id=req.workspace_id,
         aggregate_id=sess.id,
         aggregate_type="call_session",
         event_type="postcall.summary_email_requested",
@@ -256,7 +260,9 @@ async def _process_session(
                 raise RuntimeError(
                     f"Post-call summary provider rejected send for session {sess.id}"
                 )
-            mark_outbox_published(db, event_id=intent.id)
+            mark_outbox_published(
+                db, workspace_id=req.workspace_id, event_id=intent.id
+            )
             email_sent = True
             logger.info("Sent post-call summary for session=%s to %s", sess.id, to_email)
 

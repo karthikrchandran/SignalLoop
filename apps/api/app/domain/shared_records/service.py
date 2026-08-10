@@ -10,11 +10,11 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.db import engine
+from app.domain.shared_records import reconciliation as shared_reconciliation
 from app.domain.shared_records.models import (
     PlatformSharedAccount,
     PlatformSharedContact,
 )
-from app.domain.shared_records import reconciliation as shared_reconciliation
 from app.domain.shared_records.repository import PlatformSharedRepository
 from app.domain_models import (
     AccountPublic,
@@ -222,6 +222,10 @@ def shared_contact_to_public(
         intent_json=[intent for intent in intents if isinstance(intent, str)]
         if isinstance(intents, list)
         else [],
+        consent_email=bool(data.get("consentEmail") or data.get("consent_email")),
+        consent_voice=bool(data.get("consentVoice") or data.get("consent_voice")),
+        do_not_contact=bool(data.get("doNotContact") or data.get("do_not_contact")),
+        suppressed=bool(data.get("suppressed")),
         last_seen_at=last_seen_at,
         created_at=_created_at(record),
     )
@@ -241,6 +245,10 @@ def shared_contact_to_contact(contact: ContactPublic) -> Contact:
         source_channel=contact.source_channel,
         tags_json=list(contact.tags_json or []),
         intent_json=list(contact.intent_json or []),
+        consent_email=contact.consent_email,
+        consent_voice=contact.consent_voice,
+        do_not_contact=contact.do_not_contact,
+        suppressed=contact.suppressed,
         last_seen_at=contact.last_seen_at,
         created_at=contact.created_at,
     )

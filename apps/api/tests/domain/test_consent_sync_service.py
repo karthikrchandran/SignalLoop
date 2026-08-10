@@ -12,3 +12,7 @@ def test_channel_consent_must_be_explicit() -> None:
         False,
         "CONSENT_MISSING",
     )
+
+
+def test_explicit_channel_consent_is_sufficient_without_generic_consent() -> None:
+    assert is_contact_actionable({"consent_email": True}, "email") == (True, None)

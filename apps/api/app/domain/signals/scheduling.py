@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import ClassVar
 
-from sqlalchemy import Column, DateTime, Index, Uuid
+from sqlalchemy import Column, DateTime, Index, UniqueConstraint, Uuid
 from sqlalchemy.orm import Synonym, synonym
 from sqlmodel import Field, SQLModel
 
@@ -32,9 +32,15 @@ class SchedulingRequest(SQLModel, table=True):
     __table_args__ = (
         Index("idx_sched_contact", "contact_id"),
         Index("idx_sched_status", "status"),
+        UniqueConstraint(
+            "workspace_id",
+            "signal_event_id",
+            name="uq_scheduling_workspace_signal",
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(max_length=64, index=True)
     shared_contact_id: uuid.UUID = Field(
         alias="contact_id",
         sa_column=Column("contact_id", Uuid(), index=True, nullable=False)

@@ -318,6 +318,7 @@ def _raise_call_action_in_progress(action: str) -> None:
 def _prepare_call_action_intent(
     session: SessionDep,
     *,
+    workspace_id: str,
     call_request_id: uuid.UUID,
     contact_id: uuid.UUID,
     campaign_id: uuid.UUID,
@@ -327,7 +328,10 @@ def _prepare_call_action_intent(
 ) -> OutboxEvent | None:
     intent_key = _call_action_intent_key(call_request_id, action)
     existing = session.exec(
-        select(OutboxEvent).where(OutboxEvent.idempotency_key == intent_key)
+        select(OutboxEvent).where(
+            OutboxEvent.workspace_id == workspace_id,
+            OutboxEvent.idempotency_key == intent_key,
+        )
     ).first()
     if existing:
         if existing.published_at is not None:
@@ -336,6 +340,7 @@ def _prepare_call_action_intent(
 
     return enqueue_outbox_event(
         session,
+        workspace_id=workspace_id,
         aggregate_id=call_request_id,
         aggregate_type="call_request",
         event_type=event_type,
@@ -588,6 +593,7 @@ async def _send_demo_email_once(
     name = contact.first_name or "there"
     intent = _prepare_call_action_intent(
         session,
+        workspace_id=req.workspace_id,
         call_request_id=call_request_id,
         contact_id=contact.id,
         campaign_id=req.campaign_id,
@@ -625,7 +631,7 @@ async def _send_demo_email_once(
             "campaign_id": str(req.campaign_id),
         },
     )
-    mark_outbox_published(session, event_id=intent.id)
+    mark_outbox_published(session, workspace_id=req.workspace_id, event_id=intent.id)
     return {"message": "Demo email sent"}
 
 
@@ -680,6 +686,7 @@ async def _flag_for_sales_once(
     name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or "Unknown"
     intent = _prepare_call_action_intent(
         session,
+        workspace_id=req.workspace_id,
         call_request_id=call_request_id,
         contact_id=contact.id,
         campaign_id=req.campaign_id,
@@ -717,7 +724,7 @@ async def _flag_for_sales_once(
             "campaign_id": str(req.campaign_id),
         },
     )
-    mark_outbox_published(session, event_id=intent.id)
+    mark_outbox_published(session, workspace_id=req.workspace_id, event_id=intent.id)
     return {"message": "Contact flagged for sales team"}
 
 

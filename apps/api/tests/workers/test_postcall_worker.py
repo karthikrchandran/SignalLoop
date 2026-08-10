@@ -455,6 +455,7 @@ def test_send_summary_rejects_unpublished_intent_without_resend() -> None:
         call_session = _seed_answered_call(session)
         session.add(
             OutboxEvent(
+                workspace_id="ws",
                 aggregate_id=call_session.id,
                 aggregate_type="call_session",
                 event_type="postcall.summary_email_requested",

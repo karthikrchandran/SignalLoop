@@ -19,7 +19,7 @@ def suppression_reason(contact: dict[str, object]) -> str | None:
         return "SUPPRESSED_CONTACT"
     if _as_bool(contact.get("doNotContact")):
         return "DO_NOT_CONTACT"
-    if not _as_bool(contact.get("consent"), default=False):
+    if "consent" in contact and not _as_bool(contact.get("consent"), default=False):
         return "CONSENT_MISSING"
     return None
 

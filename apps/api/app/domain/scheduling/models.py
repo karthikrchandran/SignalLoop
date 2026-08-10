@@ -38,6 +38,7 @@ class SchedulingRequest(SQLModel, table=True):
     __table_args__ = ({"extend_existing": True},)
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(max_length=64)
     contact_id: uuid.UUID = Field(foreign_key="contacts.id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id")
     signal_event_id: uuid.UUID | None = Field(default=None, foreign_key="signal_events.id")
