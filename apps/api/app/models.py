@@ -61,6 +61,7 @@ class User(UserBase, table=True):
     """User."""
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     hashed_password: str
+    auth_session_version: int = Field(default=1, ge=1, nullable=False)
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
@@ -126,6 +127,8 @@ from app.domain_models import (  # noqa: E402
     ContactEvent,
     RoutingDecision,
 )
+
+from app.domain.identity.models import OidcIdentity  # noqa: E402, F401
 
 from app.domain.audit.audit_events import AuditEvent  # noqa: E402
 from app.domain.sequences.models import (  # noqa: E402
