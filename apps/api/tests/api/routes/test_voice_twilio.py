@@ -4,13 +4,12 @@ import asyncio
 import base64
 import hashlib
 import hmac
-import html
 import uuid
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
-from urllib.parse import parse_qs, urlparse
 
 import httpx
 import pytest
@@ -60,13 +59,14 @@ def _signed_headers(path: str, params: dict[str, str], auth_token: str) -> dict[
     return {"X-Twilio-Signature": _twilio_signature(url, params, auth_token)}
 
 
-def _media_token(call_sid: str, account_sid: str) -> str:
-    subject = f"{account_sid}:{call_sid}"
-    return hmac.new(
-        settings.SECRET_KEY.encode(),
-        subject.encode(),
-        hashlib.sha256,
-    ).hexdigest()
+def _media_stream_details(response: httpx.Response) -> tuple[str, dict[str, str]]:
+    stream = ET.fromstring(response.text).find("./Connect/Stream")
+    assert stream is not None
+    parameters = {
+        child.attrib["name"]: child.attrib["value"]
+        for child in stream.findall("Parameter")
+    }
+    return stream.attrib["url"].replace("ws://testserver", ""), parameters
 
 
 def _call_sid() -> str:
@@ -505,17 +505,16 @@ def test_twiml_includes_authenticated_media_stream_metadata(
 
     assert response.status_code == 200
     body = response.text
-    assert '<Stream url="ws://testserver/api/v1/voice/media-stream?' in body
+    assert '<Stream url="ws://testserver/api/v1/voice/media-stream">' in body
     assert f'<Parameter name="call_sid" value="{call_sid}" />' in body
     assert '<Parameter name="account_sid" value="ACglobalvoice0000000000000000000000" />' in body
 
-    stream_url = html.unescape(body.split('<Stream url="', 1)[1].split('">', 1)[0])
-    query = parse_qs(urlparse(stream_url).query)
-    assert query["call_sid"] == [call_sid]
-    assert query["account_sid"] == [GLOBAL_ACCOUNT_SID]
-    assert query["token"] != [_media_token(call_sid, GLOBAL_ACCOUNT_SID)]
+    path, custom = _media_stream_details(response)
+    assert path == f"{settings.API_V1_STR}/voice/media-stream"
+    assert custom["call_sid"] == call_sid
+    assert custom["account_sid"] == GLOBAL_ACCOUNT_SID
     db.refresh(call_session)
-    assert call_session.media_stream_nonce_hash == voice_routes._token_hash(query["token"][0])
+    assert call_session.media_stream_nonce_hash == voice_routes._token_hash(custom["media_token"])
     assert call_session.media_stream_token_expires_at is not None
 
 
@@ -525,8 +524,7 @@ def test_media_stream_rejects_mismatched_start_frame(client: TestClient, db: Ses
     twiml_path = f"{settings.API_V1_STR}/voice/twiml"
     params = {"CallSid": call_sid, "AccountSid": GLOBAL_ACCOUNT_SID}
     response = client.post(twiml_path, data=params, headers=_signed_headers(twiml_path, params, GLOBAL_AUTH_TOKEN))
-    stream_url = html.unescape(response.text.split('<Stream url="', 1)[1].split('">', 1)[0])
-    path = stream_url.replace("ws://testserver", "")
+    path, custom = _media_stream_details(response)
 
     with client.websocket_connect(path) as websocket:
         websocket.send_json(
@@ -536,7 +534,7 @@ def test_media_stream_rejects_mismatched_start_frame(client: TestClient, db: Ses
                     "callSid": "CAother000000000000000000000001",
                     "accountSid": GLOBAL_ACCOUNT_SID,
                     "streamSid": "MSstream0000000000000000000001",
-                    "customParameters": {},
+                    "customParameters": custom,
                 },
             }
         )
@@ -558,8 +556,7 @@ def test_media_stream_binds_account_when_loading_call(
     twiml_path = f"{settings.API_V1_STR}/voice/twiml"
     params = {"CallSid": call_sid, "AccountSid": GLOBAL_ACCOUNT_SID}
     response = client.post(twiml_path, data=params, headers=_signed_headers(twiml_path, params, GLOBAL_AUTH_TOKEN))
-    stream_url = html.unescape(response.text.split('<Stream url="', 1)[1].split('">', 1)[0])
-    path = stream_url.replace("ws://testserver", "")
+    path, custom = _media_stream_details(response)
 
     with client.websocket_connect(path) as websocket:
         websocket.send_json(
@@ -569,7 +566,7 @@ def test_media_stream_binds_account_when_loading_call(
                     "callSid": call_sid,
                     "accountSid": GLOBAL_ACCOUNT_SID,
                     "streamSid": "MSstream0000000000000000000002",
-                    "customParameters": {},
+                    "customParameters": custom,
                 },
             }
         )
@@ -588,16 +585,17 @@ def test_media_stream_nonce_is_one_time(
     twiml_path = f"{settings.API_V1_STR}/voice/twiml"
     params = {"CallSid": call_sid, "AccountSid": GLOBAL_ACCOUNT_SID}
     response = client.post(twiml_path, data=params, headers=_signed_headers(twiml_path, params, GLOBAL_AUTH_TOKEN))
-    path = html.unescape(response.text.split('<Stream url="', 1)[1].split('">', 1)[0]).replace("ws://testserver", "")
+    path, custom = _media_stream_details(response)
 
     with client.websocket_connect(path) as websocket:
-        websocket.send_json({"event": "start", "start": {"callSid": call_sid, "accountSid": GLOBAL_ACCOUNT_SID, "streamSid": "MS-one", "customParameters": {}}})
+        websocket.send_json({"event": "start", "start": {"callSid": call_sid, "accountSid": GLOBAL_ACCOUNT_SID, "streamSid": "MS-one", "customParameters": custom}})
         with pytest.raises(WebSocketDisconnect):
             websocket.receive_text()
 
-    with pytest.raises(WebSocketDisconnect) as replay:
-        with client.websocket_connect(path):
-            pass
+    with client.websocket_connect(path) as websocket:
+        websocket.send_json({"event": "start", "start": {"callSid": call_sid, "accountSid": GLOBAL_ACCOUNT_SID, "streamSid": "MS-replay", "customParameters": custom}})
+        with pytest.raises(WebSocketDisconnect) as replay:
+            websocket.receive_text()
     assert replay.value.code == 1008
 
 
@@ -610,7 +608,7 @@ def test_media_stream_nonce_rejects_expiry_and_terminal_call(
         twiml_path = f"{settings.API_V1_STR}/voice/twiml"
         params = {"CallSid": call_sid, "AccountSid": GLOBAL_ACCOUNT_SID}
         response = client.post(twiml_path, data=params, headers=_signed_headers(twiml_path, params, GLOBAL_AUTH_TOKEN))
-        path = html.unescape(response.text.split('<Stream url="', 1)[1].split('">', 1)[0]).replace("ws://testserver", "")
+        path, custom = _media_stream_details(response)
         if terminal:
             call_request.status = CallRequestStatus.completed
             db.add(call_request)
@@ -619,9 +617,10 @@ def test_media_stream_nonce_rejects_expiry_and_terminal_call(
             db.add(call_session)
         db.commit()
 
-        with pytest.raises(WebSocketDisconnect) as rejected:
-            with client.websocket_connect(path):
-                pass
+        with client.websocket_connect(path) as websocket:
+            websocket.send_json({"event": "start", "start": {"callSid": call_sid, "accountSid": GLOBAL_ACCOUNT_SID, "streamSid": "MS-rejected", "customParameters": custom}})
+            with pytest.raises(WebSocketDisconnect) as rejected:
+                websocket.receive_text()
         assert rejected.value.code == 1008
 
 

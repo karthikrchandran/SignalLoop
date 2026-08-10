@@ -20,6 +20,7 @@ Per cycle:
 from __future__ import annotations
 
 import logging
+import hmac
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -66,6 +67,29 @@ _CALL_END_HOUR: int = 18    # 18:00 exclusive  (local time)
 
 # Engine is created once at module load; the settings object reads from .env.
 _engine = create_engine(str(settings.SQLALCHEMY_DATABASE_URI), pool_pre_ping=True)
+
+
+def _lock_dispatch_state(
+    session: Session, call_request_id: Any
+) -> tuple[CallRequest, CallSession]:
+    """Reload provider-owned state after the unlocked network call."""
+    session.expire_all()
+    call_req = session.exec(
+        select(CallRequest)
+        .where(CallRequest.id == call_request_id)
+        .with_for_update()
+    ).one()
+    call_session = session.exec(
+        select(CallSession)
+        .where(CallSession.call_request_id == call_request_id)
+        .with_for_update()
+    ).one()
+    return call_req, call_session
+
+
+def _provider_sid_matches(call_session: CallSession, call_sid: str) -> bool:
+    stored_sid = call_session.twilio_call_sid or ""
+    return not stored_sid or hmac.compare_digest(stored_sid, call_sid)
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -346,26 +370,44 @@ async def _initiate_one(
         )
     except Exception as exc:
         logger.exception("Twilio exception for call_request=%s", call_req.id)
-        call_req.status = CallRequestStatus.failed
-        call_session.outcome = CallOutcome.failed
-        _write_audit_event(
-            session,
-            workspace_id=workspace_id,
-            call_req=call_req,
-            call_sid="",
-            error=exc.__class__.__name__,
-        )
+        call_req, call_session = _lock_dispatch_state(session, call_req.id)
+        if (
+            call_session.twilio_status in {None, "initiating"}
+            and call_req.status
+            not in {CallRequestStatus.completed, CallRequestStatus.failed}
+        ):
+            call_req.status = CallRequestStatus.failed
+            call_session.outcome = CallOutcome.failed
+            _write_audit_event(
+                session,
+                workspace_id=workspace_id,
+                call_req=call_req,
+                call_sid="",
+                error=exc.__class__.__name__,
+            )
         session.add(call_req)
         session.add(call_session)
         return False
 
+    call_req, call_session = _lock_dispatch_state(session, call_req.id)
     call_sid = result.get("call_sid", "")
     if call_sid:
-        call_session.twilio_call_sid = call_sid
-        call_session.twilio_account_sid = account_sid or call_session.twilio_account_sid
-        call_session.twilio_status = "initiated"
-        call_session.twilio_status_updated_at = datetime.now(UTC)
-        call_req.status = CallRequestStatus.in_progress  # INITIATED
+        if not _provider_sid_matches(call_session, call_sid):
+            logger.error(
+                "Provider SID conflicts with callback-bound CallSession %s",
+                call_session.id,
+            )
+            return False
+        if not call_session.twilio_call_sid:
+            call_session.twilio_call_sid = call_sid
+        if call_session.twilio_status in {None, "initiating"}:
+            call_session.twilio_status = "initiated"
+            call_session.twilio_status_updated_at = datetime.now(UTC)
+        if call_req.status not in {
+            CallRequestStatus.completed,
+            CallRequestStatus.failed,
+        }:
+            call_req.status = CallRequestStatus.in_progress  # INITIATED
         logger.info(
             "Call initiated — contact=%s phone=%s sid=%s trigger=%s",
             contact.id,
@@ -384,15 +426,20 @@ async def _initiate_one(
         logger.warning(
             "Twilio rejected call for contact=%s: %s", contact.id, error_detail
         )
-        call_req.status = CallRequestStatus.failed
-        call_session.outcome = CallOutcome.failed
-        _write_audit_event(
-            session,
-            workspace_id=workspace_id,
-            call_req=call_req,
-            call_sid="",
-            error=error_detail,
-        )
+        if (
+            call_session.twilio_status in {None, "initiating"}
+            and call_req.status
+            not in {CallRequestStatus.completed, CallRequestStatus.failed}
+        ):
+            call_req.status = CallRequestStatus.failed
+            call_session.outcome = CallOutcome.failed
+            _write_audit_event(
+                session,
+                workspace_id=workspace_id,
+                call_req=call_req,
+                call_sid="",
+                error=error_detail,
+            )
 
     session.add(call_req)
     session.add(call_session)

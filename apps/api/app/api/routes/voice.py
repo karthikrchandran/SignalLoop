@@ -13,7 +13,6 @@ import time
 import uuid
 from contextlib import suppress
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode
 from xml.sax.saxutils import quoteattr
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -65,9 +64,7 @@ MEDIA_STREAM_MAX_CALL_SECONDS = 30 * 60.0
 MEDIA_STREAM_CLOSE_TIMEOUT_SECONDS = 1.0
 TTS_FIRST_AUDIO_TIMEOUT_SECONDS = 0.1
 RESPONSE_LATENCY_BUDGET_SECONDS = 0.5
-MEDIA_TOKEN_QUERY_PARAM = "token"
-MEDIA_CALL_QUERY_PARAM = "call_sid"
-MEDIA_ACCOUNT_QUERY_PARAM = "account_sid"
+MEDIA_TOKEN_PARAMETER = "media_token"
 MEDIA_TOKEN_TTL_SECONDS = 300
 TERMINAL_TWILIO_STATUSES = {"busy", "canceled", "completed", "failed", "no-answer"}
 ACTIVE_TWILIO_STATUSES = {"answered", "in-progress", "initiated", "ringing"}
@@ -347,14 +344,7 @@ async def twiml_handler(request: Request, session: SessionDep) -> Response:
     ws_scheme = "wss" if request.url.scheme == "https" else "ws"
     token = _mint_media_stream_token(session, call_session)
     session.commit()
-    query = urlencode(
-        {
-            MEDIA_CALL_QUERY_PARAM: call_sid,
-            MEDIA_ACCOUNT_QUERY_PARAM: account_sid,
-            MEDIA_TOKEN_QUERY_PARAM: token,
-        }
-    )
-    stream_url = f"{ws_scheme}://{host}{settings.API_V1_STR}/voice/media-stream?{query}"
+    stream_url = f"{ws_scheme}://{host}{settings.API_V1_STR}/voice/media-stream"
 
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -362,6 +352,7 @@ async def twiml_handler(request: Request, session: SessionDep) -> Response:
         <Stream url={quoteattr(stream_url)}>
             <Parameter name="call_sid" value={quoteattr(call_sid)} />
             <Parameter name="account_sid" value={quoteattr(account_sid)} />
+            <Parameter name={quoteattr(MEDIA_TOKEN_PARAMETER)} value={quoteattr(token)} />
         </Stream>
     </Connect>
 </Response>"""
@@ -371,19 +362,11 @@ async def twiml_handler(request: Request, session: SessionDep) -> Response:
 @router.websocket("/media-stream")
 async def media_stream(websocket: WebSocket) -> None:
     """Handle Twilio Media Streams WebSocket for real-time audio."""
-    media_token = websocket.query_params.get(MEDIA_TOKEN_QUERY_PARAM, "")
-    expected_call_sid = websocket.query_params.get(MEDIA_CALL_QUERY_PARAM, "")
-    expected_account_sid = websocket.query_params.get(MEDIA_ACCOUNT_QUERY_PARAM, "")
-    if not expected_call_sid or not media_token or not _consume_media_stream_token(
-        expected_call_sid, expected_account_sid, media_token
-    ):
-        await websocket.close(code=1008)
-        return
-
     await websocket.accept()
 
     conv_engine: ConversationEngine | None = None
     call_sid = ""
+    expected_account_sid = ""
     stream_sid = ""
     stt_task: asyncio.Task | None = None
     connected_at = time.monotonic()
@@ -427,12 +410,20 @@ async def media_stream(websocket: WebSocket) -> None:
                 stream_sid = start_data.get("streamSid", "")
                 account_sid = start_data.get("accountSid", "")
                 custom_params = start_data.get("customParameters", {}) or {}
+                expected_call_sid = str(custom_params.get("call_sid", ""))
+                expected_account_sid = str(custom_params.get("account_sid", ""))
+                media_token = str(custom_params.get(MEDIA_TOKEN_PARAMETER, ""))
                 if (
-                    call_sid != expected_call_sid
+                    not expected_call_sid
+                    or call_sid != expected_call_sid
                     or account_sid != expected_account_sid
-                    or custom_params.get("call_sid") not in (None, "", expected_call_sid)
-                    or custom_params.get("account_sid") not in (None, "", expected_account_sid)
                     or not stream_sid
+                    or not media_token
+                    or not _consume_media_stream_token(
+                        expected_call_sid,
+                        expected_account_sid,
+                        media_token,
+                    )
                 ):
                     logger.warning("Rejected unauthorized media stream start")
                     await websocket.close(code=1008)

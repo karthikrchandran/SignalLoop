@@ -13,6 +13,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from app.domain.scheduling import service as scheduling_service
 from app.domain.scheduling.models import (
+    SchedulingRequest,
     SchedulingRequestSource,
     SchedulingRequestStatus,
 )
@@ -199,10 +200,26 @@ def test_handle_calendly_booking_marks_booked(session: Session) -> None:
 
     assert booked.status == SchedulingRequestStatus.booked
     assert booked.calendly_event_id == "https://api.calendly.com/scheduled_events/abc123"
-    # SQLite strips tz info — compare naive datetime components
     assert booked.meeting_datetime is not None
-    stored = booked.meeting_datetime.replace(tzinfo=None) if booked.meeting_datetime.tzinfo else booked.meeting_datetime
+    stored = (
+        booked.meeting_datetime.replace(tzinfo=None)
+        if booked.meeting_datetime.tzinfo
+        else booked.meeting_datetime
+    )
     assert stored == meeting_dt.replace(tzinfo=None)
+
+
+def test_calendly_event_id_is_unique_per_workspace() -> None:
+    constraints = {
+        constraint.name: tuple(column.name for column in constraint.columns)
+        for constraint in SchedulingRequest.__table__.constraints
+        if hasattr(constraint, "columns")
+    }
+    assert constraints["uq_scheduling_workspace_calendly_event"] == (
+        "workspace_id",
+        "calendly_event_id",
+    )
+    # SQLite strips tz info — compare naive datetime components
 
 
 def test_handle_calendly_booking_emits_a_stable_source_event_id(

@@ -297,6 +297,11 @@ def upgrade() -> None:
         "scheduling_requests",
         ["workspace_id", "signal_event_id"],
     )
+    op.create_unique_constraint(
+        "uq_scheduling_workspace_calendly_event",
+        "scheduling_requests",
+        ["workspace_id", "calendly_event_id"],
+    )
 
     op.create_foreign_key("fk_voice_script_campaign_workspace", "voice_scripts", "campaigns", ["campaign_id", "workspace_id"], ["id", "workspace_id"])
     op.create_foreign_key("fk_email_sequence_campaign_workspace", "email_sequences", "campaigns", ["campaign_id", "workspace_id"], ["id", "workspace_id"])
@@ -357,6 +362,11 @@ def downgrade() -> None:
         op.execute(f"DROP TRIGGER IF EXISTS ck_{table_name}_workspace ON {table_name}")
     op.execute("DROP FUNCTION IF EXISTS enforce_campaign_workspace()")
 
+    op.drop_constraint(
+        "uq_scheduling_workspace_calendly_event",
+        "scheduling_requests",
+        type_="unique",
+    )
     op.drop_constraint(
         "uq_scheduling_workspace_signal", "scheduling_requests", type_="unique"
     )

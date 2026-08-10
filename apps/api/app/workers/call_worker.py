@@ -5,6 +5,7 @@ Run as: python -m app.workers.call_worker
 from __future__ import annotations
 
 import asyncio
+import hmac
 import logging
 import uuid
 from datetime import datetime, time, timedelta, timezone
@@ -68,6 +69,29 @@ def _normalize_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def _lock_dispatch_state(
+    session: Session, call_request_id: uuid.UUID
+) -> tuple[CallRequest, CallSession]:
+    """Reload provider-owned state after the unlocked network call."""
+    session.expire_all()
+    call_req = session.exec(
+        select(CallRequest)
+        .where(CallRequest.id == call_request_id)
+        .with_for_update()
+    ).one()
+    call_session = session.exec(
+        select(CallSession)
+        .where(CallSession.call_request_id == call_request_id)
+        .with_for_update()
+    ).one()
+    return call_req, call_session
+
+
+def _provider_sid_matches(call_session: CallSession, call_sid: str) -> bool:
+    stored_sid = call_session.twilio_call_sid or ""
+    return not stored_sid or hmac.compare_digest(stored_sid, call_sid)
 
 
 def _daily_call_count(
@@ -414,28 +438,50 @@ async def _initiate_call(
     twiml_url = f"{api_base}/voice/twiml?correlation={correlation_token}"
     status_url = f"{api_base}/voice/status?correlation={correlation_token}"
 
-    result = await adapter.initiate_call(
-        to=phone,
-        twiml_url=twiml_url,
-        status_callback_url=status_url,
-    )
+    try:
+        result = await adapter.initiate_call(
+            to=phone,
+            twiml_url=twiml_url,
+            status_callback_url=status_url,
+        )
+    except Exception:
+        _lock_dispatch_state(session, call_req.id)
+        raise
+
+    call_req, call_session = _lock_dispatch_state(session, call_req.id)
 
     call_sid = result.get("call_sid", "")
     if call_sid:
-        call_session.twilio_call_sid = call_sid
-        call_session.twilio_account_sid = account_sid or call_session.twilio_account_sid
-        call_session.twilio_status = "initiated"
-        call_session.twilio_status_updated_at = datetime.now(timezone.utc)
-        call_req.status = CallRequestStatus.in_progress
+        if not _provider_sid_matches(call_session, call_sid):
+            logger.error(
+                "Provider SID conflicts with callback-bound CallSession %s",
+                call_session.id,
+            )
+            return None
+        if not call_session.twilio_call_sid:
+            call_session.twilio_call_sid = call_sid
+        if call_session.twilio_status in {None, "initiating"}:
+            call_session.twilio_status = "initiated"
+            call_session.twilio_status_updated_at = datetime.now(timezone.utc)
+        if call_req.status not in {
+            CallRequestStatus.completed,
+            CallRequestStatus.failed,
+        }:
+            call_req.status = CallRequestStatus.in_progress
         session.add(call_req)
         session.add(call_session)
         session.commit()
         logger.info("Call initiated: contact=%s phone=%s sid=%s", contact.id, _mask_phone(phone), call_sid)
     else:
-        call_req.status = CallRequestStatus.failed
-        call_session.outcome = CallOutcome.failed
-        call_session.twilio_status = "failed"
-        call_session.twilio_status_updated_at = datetime.now(timezone.utc)
+        if (
+            call_session.twilio_status in {None, "initiating"}
+            and call_req.status
+            not in {CallRequestStatus.completed, CallRequestStatus.failed}
+        ):
+            call_req.status = CallRequestStatus.failed
+            call_session.outcome = CallOutcome.failed
+            call_session.twilio_status = "failed"
+            call_session.twilio_status_updated_at = datetime.now(timezone.utc)
         session.add(call_req)
         session.add(call_session)
         session.commit()

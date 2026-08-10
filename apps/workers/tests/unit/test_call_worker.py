@@ -5,6 +5,7 @@ import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.domain.voice.models import (
@@ -307,3 +308,55 @@ def test_initiate_one_precommits_signed_callback_correlation() -> None:
             )
 
     assert result is True
+
+
+@pytest.mark.parametrize("provider_raises", [False, True])
+def test_initiate_one_does_not_regress_callback_state_after_provider_finishes(
+    provider_raises: bool,
+) -> None:
+    engine = _database()
+    with Session(engine) as session:
+        request = _seed_call(session, "workspace-a")
+        request_id = request.id
+
+        async def callback_before_provider_finishes(**_kwargs: object) -> dict[str, str]:
+            with Session(engine) as callback_session:
+                persisted_request = callback_session.get(CallRequest, request_id)
+                persisted_call = callback_session.exec(
+                    select(CallSession).where(CallSession.call_request_id == request_id)
+                ).one()
+                persisted_call.twilio_call_sid = "CA-callback"
+                persisted_call.twilio_status = "completed" if provider_raises else "ringing"
+                persisted_request.status = (
+                    CallRequestStatus.completed
+                    if provider_raises
+                    else CallRequestStatus.in_progress
+                )
+                callback_session.add(persisted_call)
+                callback_session.add(persisted_request)
+                callback_session.commit()
+            if provider_raises:
+                raise RuntimeError("provider returned after terminal callback")
+            return {"call_sid": "CA-callback"}
+
+        adapter = MagicMock()
+        adapter._account_sid = "AC-race"
+        adapter.initiate_call = AsyncMock(side_effect=callback_before_provider_finishes)
+        with patch.object(call_worker, "_is_within_call_hours", return_value=True):
+            result = asyncio.run(
+                call_worker._initiate_one(
+                    session, request, workspace_id="workspace-a", adapter=adapter
+                )
+            )
+        session.commit()
+        session.expire_all()
+        persisted_request = session.get(CallRequest, request_id)
+        persisted_call = session.exec(
+            select(CallSession).where(CallSession.call_request_id == request_id)
+        ).one()
+
+    assert result is (not provider_raises)
+    assert persisted_call.twilio_status == ("completed" if provider_raises else "ringing")
+    assert persisted_request.status == (
+        CallRequestStatus.completed if provider_raises else CallRequestStatus.in_progress
+    )

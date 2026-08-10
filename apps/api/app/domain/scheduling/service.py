@@ -153,7 +153,7 @@ def list_scheduling_requests(
     total = session.exec(count_query).one()
 
     rows = session.exec(
-        base_query.order_by(SchedulingRequest.created_at.desc())
+        base_query.order_by(SchedulingRequest.created_at.desc())  # type: ignore[attr-defined]
         .offset(skip)
         .limit(limit)
     ).all()
@@ -243,7 +243,7 @@ def handle_calendly_booking(
         select(SchedulingRequest).where(
             SchedulingRequest.id == request_id,
             SchedulingRequest.workspace_id == workspace_id,
-        )
+        ).with_for_update()
     ).first()
     if req is None:
         raise HTTPException(status_code=404, detail="Scheduling request not found")

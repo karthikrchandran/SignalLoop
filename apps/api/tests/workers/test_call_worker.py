@@ -571,6 +571,58 @@ def test_initiate_call_persists_session_before_provider_call(
     assert cs.twilio_status == "initiated"
 
 
+@pytest.mark.parametrize("provider_raises", [False, True])
+def test_initiate_call_does_not_regress_callback_state_after_provider_finishes(
+    memory_session: Session,
+    provider_raises: bool,
+) -> None:
+    contact = _seed_contact(memory_session)
+    cr = _seed_call_request(memory_session, contact_id=contact.id)
+    engine = memory_session.get_bind()
+
+    async def callback_before_provider_finishes(**_kwargs: object) -> dict[str, str]:
+        with Session(engine) as callback_session:
+            persisted_request = callback_session.get(CallRequest, cr.id)
+            persisted_call = callback_session.exec(
+                select(CallSession).where(CallSession.call_request_id == cr.id)
+            ).one()
+            persisted_call.twilio_call_sid = "CA-callback"
+            persisted_call.twilio_status = "completed" if provider_raises else "ringing"
+            persisted_request.status = (
+                CallRequestStatus.completed
+                if provider_raises
+                else CallRequestStatus.in_progress
+            )
+            callback_session.add(persisted_call)
+            callback_session.add(persisted_request)
+            callback_session.commit()
+        if provider_raises:
+            raise RuntimeError("provider returned after terminal callback")
+        return {"call_sid": "CA-callback"}
+
+    adapter = MagicMock()
+    adapter._account_sid = "AC-race"
+    adapter.initiate_call = AsyncMock(side_effect=callback_before_provider_finishes)
+
+    with patch.object(call_worker, "resolve_voice_adapter", return_value=adapter):
+        if provider_raises:
+            with pytest.raises(RuntimeError):
+                asyncio.run(call_worker._initiate_call(memory_session, cr))
+        else:
+            asyncio.run(call_worker._initiate_call(memory_session, cr))
+    memory_session.commit()
+    memory_session.expire_all()
+    persisted_request = memory_session.get(CallRequest, cr.id)
+    persisted_call = memory_session.exec(
+        select(CallSession).where(CallSession.call_request_id == cr.id)
+    ).one()
+
+    assert persisted_call.twilio_status == ("completed" if provider_raises else "ringing")
+    assert persisted_request.status == (
+        CallRequestStatus.completed if provider_raises else CallRequestStatus.in_progress
+    )
+
+
 def test_initiate_call_marks_failed_when_twilio_returns_no_sid(memory_session: Session) -> None:
     """Twilio failure (no call_sid) -> CallRequest failed and CallOutcome failed."""
     contact = _seed_contact(memory_session)
