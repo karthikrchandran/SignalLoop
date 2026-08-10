@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, replace
 from typing import Any, TypeVar, cast
 from uuid import UUID
 
-from .models import Intervention, KnowledgeRelease, Outcome, RevenueSignal
+from .models import DispatchResult, Intervention, KnowledgeRelease, Outcome, RevenueSignal
 
 T = TypeVar("T", RevenueSignal, Intervention, Outcome, KnowledgeRelease)
 
@@ -43,6 +43,7 @@ class RevenueIntelligenceService:
         self._outcomes: dict[UUID, Outcome] = {}
         self._releases: dict[UUID, KnowledgeRelease] = {}
         self._keys: dict[tuple[str, str], tuple[str, object]] = {}
+        self._dispatch_keys: dict[tuple[str, str], DispatchResult] = {}
 
     def _idempotent(self, tenant_key: str, key: str, record: T) -> T:
         existing = self._keys.get((tenant_key, key))
@@ -88,6 +89,40 @@ class RevenueIntelligenceService:
         record = self._idempotent(tenant_key, record.idempotency_key, record)
         self._interventions.setdefault(record.id, record)
         return record
+
+    def list_interventions(self, *, tenant_key: str) -> tuple[Intervention, ...]:
+        tenant_key = _require_text(tenant_key, "tenant_key")
+        return tuple(item for item in self._interventions.values() if item.tenant_key == tenant_key)
+
+    def get_intervention(self, *, tenant_key: str, intervention_id: UUID) -> Intervention:
+        item = self._interventions.get(intervention_id)
+        if item is None or item.tenant_key != tenant_key:
+            raise TenantScopeError("intervention is not in tenant scope")
+        return item
+
+    def transition_intervention(self, *, tenant_key: str, intervention_id: UUID, target: str, actor: str, idempotency_key: str) -> Intervention:
+        item = self.get_intervention(tenant_key=tenant_key, intervention_id=intervention_id)
+        _require_text(actor, "actor")
+        _require_text(idempotency_key, "idempotency_key")
+        allowed = {"proposed": {"approved", "rejected", "cancelled"}, "approved": {"cancelled", "dispatched"}, "dispatched": set()}
+        if target not in allowed.get(item.status, set()):
+            if item.status == target:
+                return item
+            raise ValueError(f"cannot transition intervention from {item.status} to {target}")
+        updated = replace(item, status=target)
+        self._interventions[item.id] = updated
+        return updated
+
+    def dispatch_approved(self, *, tenant_key: str, intervention_id: UUID, idempotency_key: str) -> DispatchResult:
+        existing = self._dispatch_keys.get((tenant_key, idempotency_key))
+        if existing is not None:
+            if existing.intervention_id != intervention_id:
+                raise IdempotencyConflictError("idempotency key reused with different intervention")
+            return existing
+        item = self.transition_intervention(tenant_key=tenant_key, intervention_id=intervention_id, target="dispatched", actor="fake-worker", idempotency_key=idempotency_key)
+        result = DispatchResult(tenant_key, item.id, provider="fake", status="accepted")
+        self._dispatch_keys[(tenant_key, idempotency_key)] = result
+        return result
 
     def record_outcome(self, *, tenant_key: str, intervention_id: UUID, status: str, evidence_refs: tuple[str, ...], idempotency_key: str) -> Outcome:
         tenant_key = _require_text(tenant_key, "tenant_key")

@@ -41,6 +41,15 @@ class Intervention:
 
 
 @dataclass(frozen=True, slots=True)
+class DispatchResult:
+    tenant_key: str
+    intervention_id: UUID
+    provider: str
+    status: str
+    attempted_at: datetime = field(default_factory=_now)
+
+
+@dataclass(frozen=True, slots=True)
 class Outcome:
     tenant_key: str
     intervention_id: UUID
