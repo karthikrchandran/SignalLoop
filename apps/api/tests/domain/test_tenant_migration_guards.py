@@ -5,7 +5,6 @@ from typing import Any
 
 import pytest
 
-
 migration = importlib.import_module(
     "app.alembic.versions.tenant_20260809_close_workspace_isolation"
 )
@@ -50,3 +49,28 @@ def test_migration_preflight_allows_clean_source_chain() -> None:
     )
 
     assert connection.statements == ["SELECT count(*) FROM call_requests WHERE false"]
+
+
+def test_migration_preflight_requires_existing_same_workspace_contacts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    checks: dict[str, str] = {}
+
+    monkeypatch.setattr(migration.op, "get_bind", lambda: object())
+    monkeypatch.setattr(
+        migration,
+        "_preflight_or_raise",
+        lambda _connection, label, sql: checks.setdefault(label, sql),
+    )
+
+    migration._preflight_source_chains()  # type: ignore[attr-defined]
+
+    for label in (
+        "inconsistent call request ownership",
+        "inconsistent action queue ownership",
+        "inconsistent send request ownership",
+        "inconsistent signal ownership",
+        "inconsistent scheduling ownership",
+    ):
+        assert "contact.id IS NULL" in checks[label]
+        assert "contact.workspace_id <> c.workspace_id" in checks[label]

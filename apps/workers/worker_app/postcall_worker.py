@@ -22,13 +22,13 @@ from typing import Any
 
 from sqlmodel import Session, select
 
-from app.core.config import settings
 from app.core.db import engine
 from app.domain.audit.audit_events import AuditEvent
 from app.domain.outreach.outbox_service import (
     enqueue_outbox_event,
     mark_outbox_published,
 )
+from app.domain.runtime_settings import resolve_team_notification_email
 from app.domain.voice.models import CallOutcome, CallRequest, CallRequestStatus, CallSession
 from app.domain_models import Campaign, Contact, OutboxEvent
 from app.infrastructure.providers.sendgrid import SendGridAdapter
@@ -206,26 +206,19 @@ async def _process_session(
     sess: CallSession,
 ) -> None:
     workspace_id = req.workspace_id
+    stored_request = db.get(CallRequest, req.id)
+    if stored_request is None or stored_request.workspace_id != workspace_id:
+        raise RuntimeError("post-call CallRequest missing or workspace mismatch")
     contact = db.get(Contact, req.contact_id)
-    if contact is not None and contact.workspace_id != workspace_id:
-        logger.error(
-            "Refusing cross-workspace post-call contact request=%s request_workspace=%s "
-            "contact_workspace=%s",
-            req.id,
-            workspace_id,
-            contact.workspace_id,
-        )
-        contact = None
+    if contact is None:
+        raise RuntimeError("post-call contact missing")
+    if contact.workspace_id != workspace_id:
+        raise RuntimeError("post-call contact workspace mismatch")
     campaign = db.get(Campaign, req.campaign_id)
-    if campaign is not None and campaign.workspace_id != workspace_id:
-        logger.error(
-            "Refusing cross-workspace post-call campaign request=%s "
-            "request_workspace=%s campaign_workspace=%s",
-            req.id,
-            workspace_id,
-            campaign.workspace_id,
-        )
-        campaign = None
+    if campaign is None:
+        raise RuntimeError("post-call campaign missing")
+    if campaign.workspace_id != workspace_id:
+        raise RuntimeError("post-call campaign workspace mismatch")
 
     summary = _build_summary(req, sess, contact, campaign)
     body_text, body_html = _render_email(summary)
@@ -234,7 +227,7 @@ async def _process_session(
     )
 
     email_sent = False
-    to_email = settings.TEAM_NOTIFICATION_EMAIL
+    to_email = resolve_team_notification_email(db, workspace_id)
     if to_email:
         intent = _prepare_postcall_summary_intent(
             db,

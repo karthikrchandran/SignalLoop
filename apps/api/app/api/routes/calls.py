@@ -21,6 +21,7 @@ from app.domain.outreach.outbox_service import (
     enqueue_outbox_event,
     mark_outbox_published,
 )
+from app.domain.policies.consent_sync_service import is_contact_actionable
 from app.domain.runtime_settings import resolve_team_notification_email
 from app.domain.sequences.models import (
     ContactSequenceState,
@@ -589,6 +590,13 @@ async def _send_demo_email_once(
     )
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
+
+    actionable, reason = is_contact_actionable(contact.model_dump(), "email")
+    if not actionable:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Contact not actionable for email: {reason}",
+        )
 
     name = contact.first_name or "there"
     intent = _prepare_call_action_intent(

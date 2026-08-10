@@ -141,18 +141,23 @@ def _twilio_provider_event_id(event_kind: str, params: dict[str, str]) -> str:
     return f"twilio:{event_kind}:{digest}"
 
 
-def _workspace_for_call_request(session: Session, call_request: CallRequest | None) -> str:
-    if not call_request:
-        return "system"
+def _resolve_call_ownership(
+    session: Session,
+    call_session: CallSession,
+) -> tuple[CallRequest, Campaign, VoiceScript, Contact] | None:
+    call_request = session.get(CallRequest, call_session.call_request_id)
+    if call_request is None:
+        return None
     campaign = session.get(Campaign, call_request.campaign_id)
-    if campaign is not None and campaign.workspace_id != call_request.workspace_id:
-        logger.error(
-            "Call request %s workspace %s does not match campaign workspace %s",
-            call_request.id,
-            call_request.workspace_id,
-            campaign.workspace_id,
-        )
-    return call_request.workspace_id
+    if campaign is None or campaign.workspace_id != call_request.workspace_id:
+        return None
+    voice_script = session.get(VoiceScript, call_request.voice_script_id)
+    if voice_script is None or voice_script.campaign_id != campaign.id:
+        return None
+    contact = session.get(Contact, call_request.contact_id)
+    if contact is None or contact.workspace_id != call_request.workspace_id:
+        return None
+    return call_request, campaign, voice_script, contact
 
 
 def _load_contact_for_workspace(
@@ -463,32 +468,13 @@ async def _load_engine_for_call(call_sid: str) -> ConversationEngine | None:
             logger.info("Skipping media stream for voicemail call: sid=%s", call_sid)
             return None
 
-        call_request = session.get(CallRequest, call_session.call_request_id)
-        if not call_request:
+        ownership = _resolve_call_ownership(session, call_session)
+        if ownership is None:
             return None
-
-        voice_script = session.get(VoiceScript, call_request.voice_script_id)
-        if not voice_script:
-            return None
-
-        campaign = session.get(Campaign, call_request.campaign_id)
+        call_request, _campaign, voice_script, contact = ownership
         workspace_id = call_request.workspace_id
-        if campaign is not None and campaign.workspace_id != workspace_id:
-            logger.error(
-                "Refusing cross-workspace voice stream request=%s "
-                "request_workspace=%s campaign_workspace=%s",
-                call_request.id,
-                workspace_id,
-                campaign.workspace_id,
-            )
-            return None
-        contact = _load_contact_for_workspace(
-            session,
-            workspace_id=workspace_id,
-            contact_id=call_request.contact_id,
-        )
-        contact_name = contact.first_name or "there" if contact else "there"
-        contact_company = contact.company or "" if contact else ""
+        contact_name = contact.first_name or "there"
+        contact_company = contact.company or ""
         runtime_config = resolve_workspace_runtime_config(session, workspace_id)
 
         # Resolve STT/TTS/LLM adapters per-workspace (multi-provider support).
@@ -612,7 +598,10 @@ def _save_conversation_results(call_sid: str, conv_engine: ConversationEngine) -
             select(CallSession).where(CallSession.twilio_call_sid == call_sid)
         ).first()
         if call_session:
-            call_request = session.get(CallRequest, call_session.call_request_id)
+            ownership = _resolve_call_ownership(session, call_session)
+            if ownership is None:
+                return
+            call_request, _campaign, _script, _contact = ownership
             state = conv_engine.state
             call_session.transcript = "\n".join(
                 f"{'User' if m['role'] == 'user' else 'AI'}: {m['content']}"
@@ -654,8 +643,11 @@ async def status_callback(request: Request, session: SessionDep) -> dict[str, st
         logger.warning("Status callback for unknown call_sid=%s", call_sid)
         return {"status": "ignored"}
 
-    call_request = session.get(CallRequest, call_session.call_request_id)
-    workspace_id = _workspace_for_call_request(session, call_request)
+    ownership = _resolve_call_ownership(session, call_session)
+    if ownership is None:
+        return {"status": "ignored"}
+    call_request, _campaign, _script, _contact = ownership
+    workspace_id = call_request.workspace_id
     provider_event_id = _twilio_provider_event_id("status", params)
     if not _record_twilio_provider_event(
         session,
@@ -720,8 +712,11 @@ async def recording_callback(request: Request, session: SessionDep) -> dict[str,
             select(CallSession).where(CallSession.twilio_call_sid == call_sid)
         ).first()
         if call_session:
-            call_request = session.get(CallRequest, call_session.call_request_id)
-            workspace_id = _workspace_for_call_request(session, call_request)
+            ownership = _resolve_call_ownership(session, call_session)
+            if ownership is None:
+                return {"status": "ignored"}
+            call_request, _campaign, _script, _contact = ownership
+            workspace_id = call_request.workspace_id
             provider_event_id = _twilio_provider_event_id("recording", params)
             if not _record_twilio_provider_event(
                 session,

@@ -14,12 +14,14 @@ def get_contact_signals(
     session: Session,
     shared_contact_id: uuid.UUID,
     *,
+    workspace_id: str,
     channel: str | None = None,
     signal_type: str | None = None,
     since: datetime | None = None,
 ) -> list[SignalEvent]:
     """Return contact signals."""
     query = select(SignalEvent).where(
+        SignalEvent.workspace_id == workspace_id,
         SignalEvent.shared_contact_id == shared_contact_id
     )
     if channel:
@@ -32,19 +34,22 @@ def get_contact_signals(
 
 
 def get_latest_signal(
-    session: Session, shared_contact_id: uuid.UUID
+    session: Session, shared_contact_id: uuid.UUID, *, workspace_id: str
 ) -> SignalEvent | None:
     """Return latest signal."""
     return session.exec(
         select(SignalEvent)
-        .where(SignalEvent.shared_contact_id == shared_contact_id)
+        .where(
+            SignalEvent.workspace_id == workspace_id,
+            SignalEvent.shared_contact_id == shared_contact_id,
+        )
         .order_by(SignalEvent.created_at.desc())
         .limit(1)
     ).first()
 
 
 def get_campaign_signal_summary(
-    session: Session, campaign_id: uuid.UUID
+    session: Session, campaign_id: uuid.UUID, *, workspace_id: str
 ) -> dict[str, dict[str, int]]:
     """Returns signal counts grouped by channel and type."""
     results = session.exec(
@@ -53,7 +58,10 @@ def get_campaign_signal_summary(
             SignalEvent.signal_type,
             func.count(SignalEvent.id),
         )
-        .where(SignalEvent.campaign_id == campaign_id)
+        .where(
+            SignalEvent.workspace_id == workspace_id,
+            SignalEvent.campaign_id == campaign_id,
+        )
         .group_by(SignalEvent.channel, SignalEvent.signal_type)
     ).all()
 

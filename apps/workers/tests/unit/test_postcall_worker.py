@@ -118,7 +118,11 @@ def test_process_session_uses_outbox_intent_before_send() -> None:
         adapter = _CapturingAdapter(session)
 
         with (
-            patch.object(postcall_worker.settings, "TEAM_NOTIFICATION_EMAIL", "ops@example.com"),
+            patch.object(
+                postcall_worker,
+                "resolve_team_notification_email",
+                return_value="ops@example.com",
+            ),
             patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
         ):
             _run(postcall_worker._process_session(session, request, call_session))
@@ -152,7 +156,11 @@ def test_process_session_rejects_unpublished_intent_without_resend() -> None:
         adapter = _CapturingAdapter(session)
 
         with (
-            patch.object(postcall_worker.settings, "TEAM_NOTIFICATION_EMAIL", "ops@example.com"),
+            patch.object(
+                postcall_worker,
+                "resolve_team_notification_email",
+                return_value="ops@example.com",
+            ),
             patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
             pytest.raises(RuntimeError, match="already in progress"),
         ):
@@ -172,7 +180,11 @@ def test_process_session_rejection_does_not_mark_processed() -> None:
         adapter.send_email = AsyncMock(return_value={"status_code": 500, "message_id": ""})
 
         with (
-            patch.object(postcall_worker.settings, "TEAM_NOTIFICATION_EMAIL", "ops@example.com"),
+            patch.object(
+                postcall_worker,
+                "resolve_team_notification_email",
+                return_value="ops@example.com",
+            ),
             patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
             pytest.raises(RuntimeError, match="rejected"),
         ):
@@ -183,3 +195,43 @@ def test_process_session_rejection_does_not_mark_processed() -> None:
     adapter.send_email.assert_awaited_once()
     assert outbox[0].published_at is None
     assert call_session.post_call_processed is False
+
+
+def test_process_session_uses_workspace_recipient_not_global_setting() -> None:
+    with _session() as session:
+        request, call_session = _seed_completed_call(session)
+        adapter = _CapturingAdapter(session)
+
+        with (
+            patch.object(
+                postcall_worker,
+                "resolve_team_notification_email",
+                create=True,
+                return_value="workspace@example.com",
+            ) as recipient_resolver,
+            patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
+        ):
+            _run(postcall_worker._process_session(session, request, call_session))
+
+        recipient_resolver.assert_called_once_with(session, "ws")
+        assert adapter.sent[0]["to"] == "workspace@example.com"
+        assert "Interested in a follow-up." in adapter.sent[0]["body_text"]
+
+
+def test_process_session_fails_closed_on_contact_workspace_mismatch() -> None:
+    with _session() as session:
+        request, call_session = _seed_completed_call(session)
+        contact = session.get(Contact, request.contact_id)
+        assert contact is not None
+        contact.workspace_id = "workspace-b"
+        session.add(contact)
+        session.commit()
+
+        with (
+            patch.object(postcall_worker, "resolve_email_adapter") as resolver,
+            pytest.raises(RuntimeError, match="contact workspace mismatch"),
+        ):
+            _run(postcall_worker._process_session(session, request, call_session))
+
+        resolver.assert_not_called()
+        assert call_session.post_call_processed is False

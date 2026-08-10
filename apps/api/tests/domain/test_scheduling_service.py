@@ -10,13 +10,15 @@ import pytest
 from fastapi import HTTPException
 from sqlmodel import Session, SQLModel, create_engine
 
+from app.domain.scheduling import service as scheduling_service
 from app.domain.scheduling.models import (
-    SchedulingRequest,
     SchedulingRequestSource,
     SchedulingRequestStatus,
 )
-from app.domain.scheduling import service as scheduling_service
-from app.domain.scheduling.schemas import SchedulingRequestCreate, SchedulingRequestUpdate
+from app.domain.scheduling.schemas import (
+    SchedulingRequestCreate,
+    SchedulingRequestUpdate,
+)
 from app.domain.scheduling.service import (
     create_from_call_session,
     create_scheduling_request,
@@ -25,7 +27,12 @@ from app.domain.scheduling.service import (
     update_scheduling_request,
     verify_calendly_signature,
 )
-from app.domain_models import Campaign, Contact, ContactProgression, ContactProgressionState
+from app.domain_models import (
+    Campaign,
+    Contact,
+    ContactProgression,
+    ContactProgressionState,
+)
 
 
 @pytest.fixture
@@ -183,6 +190,7 @@ def test_handle_calendly_booking_marks_booked(session: Session) -> None:
     meeting_dt = datetime(2026, 8, 15, 10, 0, 0, tzinfo=timezone.utc)
     booked = handle_calendly_booking(
         session,
+        workspace_id="ws_test",
         request_id=req.id,
         calendly_event_id="https://api.calendly.com/scheduled_events/abc123",
         meeting_datetime=meeting_dt,
@@ -211,6 +219,7 @@ def test_handle_calendly_booking_emits_a_stable_source_event_id(
 
     handle_calendly_booking(
         session,
+        workspace_id="ws_test",
         request_id=request.id,
         calendly_event_id="event_123",
         meeting_datetime=datetime(2026, 8, 15, 10, 0, 0, tzinfo=timezone.utc),
@@ -223,6 +232,7 @@ def test_handle_calendly_booking_raises_for_missing_request(session: Session) ->
     with pytest.raises(HTTPException) as exc:
         handle_calendly_booking(
             session,
+            workspace_id="ws_test",
             request_id=uuid.uuid4(),
             calendly_event_id="evt_123",
             meeting_datetime=datetime.now(timezone.utc),

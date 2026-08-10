@@ -172,6 +172,7 @@ def verify_calendly_signature(
 def handle_calendly_booking(
     session: Session,
     *,
+    workspace_id: str,
     request_id: uuid.UUID,
     calendly_event_id: str,
     meeting_datetime: datetime,
@@ -179,7 +180,14 @@ def handle_calendly_booking(
 ) -> SchedulingRequest:
     """Mark a scheduling request as booked from a Calendly webhook and advance
     the contact's campaign progression to the ``booked`` state."""
-    req = get_scheduling_request_or_404(session, request_id)
+    req = session.exec(
+        select(SchedulingRequest).where(
+            SchedulingRequest.id == request_id,
+            SchedulingRequest.workspace_id == workspace_id,
+        )
+    ).first()
+    if req is None:
+        raise HTTPException(status_code=404, detail="Scheduling request not found")
 
     req.status = SchedulingRequestStatus.booked
     req.calendly_event_id = calendly_event_id

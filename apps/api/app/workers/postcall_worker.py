@@ -77,7 +77,7 @@ def _prepare_postcall_summary_intent(
 
 
 def _provider_send_accepted(result: dict[str, object]) -> bool:
-    status_code = int(result.get("status_code") or 0)
+    status_code = int(str(result.get("status_code") or 0))
     return 200 <= status_code < 300
 
 
@@ -128,19 +128,14 @@ async def _send_summary(
     """Generate and send summary email for an answered call."""
     call_request = session.get(CallRequest, call_session.call_request_id)
     if not call_request:
-        return
+        raise RuntimeError("post-call CallRequest missing")
 
     workspace_id = call_request.workspace_id
     campaign = session.get(Campaign, call_request.campaign_id)
-    if campaign is not None and campaign.workspace_id != workspace_id:
-        logger.error(
-            "Refusing cross-workspace post-call campaign request=%s "
-            "request_workspace=%s campaign_workspace=%s",
-            call_request.id,
-            workspace_id,
-            campaign.workspace_id,
-        )
-        campaign = None
+    if campaign is None:
+        raise RuntimeError("post-call campaign missing")
+    if campaign.workspace_id != workspace_id:
+        raise RuntimeError("post-call campaign workspace mismatch")
     shared_contact = shared_record_service.get_shared_contact(
         workspace_id=workspace_id,
         contact_id=call_request.shared_contact_id,
@@ -150,18 +145,13 @@ async def _send_summary(
         if shared_contact
         else None
     )
-    if contact is not None and contact.workspace_id != workspace_id:
-        logger.error(
-            "Refusing cross-workspace post-call contact request=%s "
-            "request_workspace=%s contact_workspace=%s",
-            call_request.id,
-            workspace_id,
-            contact.workspace_id,
-        )
-        contact = None
-    contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() if contact else "Unknown"
-    contact_company = contact.company or "" if contact else ""
-    contact_email = contact.email if contact else ""
+    if contact is None:
+        raise RuntimeError("post-call contact missing")
+    if contact.workspace_id != workspace_id:
+        raise RuntimeError("post-call contact workspace mismatch")
+    contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip()
+    contact_company = contact.company or ""
+    contact_email = contact.email
 
     summary = generate_summary(
         call_session,

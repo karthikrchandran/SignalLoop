@@ -58,13 +58,17 @@ def _preflight_source_chains() -> None:
             """SELECT count(*) FROM call_requests cr
             LEFT JOIN campaigns c ON c.id = cr.campaign_id
             LEFT JOIN voice_scripts vs ON vs.id = cr.voice_script_id
-            WHERE c.id IS NULL OR vs.id IS NULL OR vs.campaign_id <> c.id""",
+            LEFT JOIN contacts contact ON contact.id = cr.contact_id
+            WHERE c.id IS NULL OR vs.id IS NULL OR vs.campaign_id <> c.id
+               OR contact.id IS NULL OR contact.workspace_id <> c.workspace_id""",
         ),
         (
             "inconsistent action queue ownership",
             """SELECT count(*) FROM action_queue aq
             LEFT JOIN campaigns c ON c.id = aq.campaign_id
-            WHERE c.id IS NULL""",
+            LEFT JOIN contacts contact ON contact.id = aq.contact_id
+            WHERE c.id IS NULL OR contact.id IS NULL
+               OR contact.workspace_id <> c.workspace_id""",
         ),
         (
             "inconsistent send request ownership",
@@ -74,7 +78,7 @@ def _preflight_source_chains() -> None:
             LEFT JOIN campaigns c ON c.id = es.campaign_id
             LEFT JOIN contacts contact ON contact.id = css.contact_id
             WHERE css.id IS NULL OR es.id IS NULL OR c.id IS NULL
-               OR (contact.id IS NOT NULL AND contact.workspace_id <> c.workspace_id)""",
+               OR contact.id IS NULL OR contact.workspace_id <> c.workspace_id""",
         ),
         (
             "unattributable outbox ownership",
@@ -85,14 +89,19 @@ def _preflight_source_chains() -> None:
             "inconsistent signal ownership",
             """SELECT count(*) FROM signal_events se
             LEFT JOIN campaigns c ON c.id = se.campaign_id
-            WHERE c.id IS NULL""",
+            LEFT JOIN contacts contact ON contact.id = se.contact_id
+            WHERE c.id IS NULL OR contact.id IS NULL
+               OR contact.workspace_id <> c.workspace_id""",
         ),
         (
             "inconsistent scheduling ownership",
             """SELECT count(*) FROM scheduling_requests sr
             LEFT JOIN campaigns c ON c.id = sr.campaign_id
             LEFT JOIN signal_events se ON se.id = sr.signal_event_id
-            WHERE c.id IS NULL OR (se.id IS NOT NULL AND se.campaign_id <> c.id)""",
+            LEFT JOIN contacts contact ON contact.id = sr.contact_id
+            WHERE c.id IS NULL OR contact.id IS NULL
+               OR contact.workspace_id <> c.workspace_id
+               OR (se.id IS NOT NULL AND se.campaign_id <> c.id)""",
         ),
     )
     for label, sql in checks:
@@ -260,6 +269,12 @@ def upgrade() -> None:
               IF owner_workspace IS NULL OR owner_workspace <> NEW.workspace_id THEN
                 RAISE EXCEPTION 'workspace mismatch for % campaign %', TG_TABLE_NAME, NEW.campaign_id;
               END IF;
+              IF NOT EXISTS (
+                SELECT 1 FROM contacts
+                WHERE id = NEW.contact_id AND workspace_id = NEW.workspace_id
+              ) THEN
+                RAISE EXCEPTION 'contact workspace mismatch for % contact %', TG_TABLE_NAME, NEW.contact_id;
+              END IF;
               IF TG_TABLE_NAME = 'call_requests' THEN
                 IF NOT EXISTS (
                   SELECT 1 FROM voice_scripts
@@ -308,10 +323,10 @@ def upgrade() -> None:
               FROM contact_sequence_state css
               JOIN email_sequences es ON es.id = css.sequence_id
               JOIN campaigns c ON c.id = es.campaign_id
-              LEFT JOIN contacts contact ON contact.id = css.contact_id
+              JOIN contacts contact ON contact.id = css.contact_id
               WHERE css.id = NEW.contact_sequence_state_id;
               IF owner_workspace IS NULL OR owner_workspace <> NEW.workspace_id
-                 OR (contact_workspace IS NOT NULL AND contact_workspace <> NEW.workspace_id) THEN
+                 OR contact_workspace IS NULL OR contact_workspace <> NEW.workspace_id THEN
                 RAISE EXCEPTION 'workspace mismatch for send request %', NEW.id;
               END IF;
               RETURN NEW;

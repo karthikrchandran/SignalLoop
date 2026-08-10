@@ -238,8 +238,7 @@ def test_process_completed_calls_sets_error_status_on_exception() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_send_summary_returns_early_when_call_request_missing() -> None:
-    """Missing ``CallRequest`` short-circuits before generating a summary."""
+def test_send_summary_fails_closed_when_call_request_missing() -> None:
     session = MagicMock()
     session.get.return_value = None  # CallRequest not found
     adapter = MagicMock()
@@ -247,15 +246,15 @@ def test_send_summary_returns_early_when_call_request_missing() -> None:
     cs = _build_call_session()
 
     with patch("app.workers.postcall_worker.generate_summary") as gen, \
-         patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter):
+         patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter), \
+         pytest.raises(RuntimeError, match="CallRequest missing"):
         _run(postcall_worker._send_summary(session, cs))
 
     gen.assert_not_called()
     adapter.send_email.assert_not_awaited()
 
 
-def test_send_summary_uses_contact_defaults_when_contact_missing() -> None:
-    """When contact lookup returns None, defaults ('Unknown'/empty) are used."""
+def test_send_summary_fails_closed_when_contact_missing() -> None:
     session = MagicMock()
     call_request = MagicMock(
         workspace_id="ws-stored",
@@ -263,7 +262,7 @@ def test_send_summary_uses_contact_defaults_when_contact_missing() -> None:
         shared_contact_id=99,
         campaign_id=uuid.uuid4(),
     )
-    session.get.side_effect = [call_request, None]
+    session.get.side_effect = [call_request, MagicMock(workspace_id="ws-stored")]
 
     adapter = MagicMock()
     adapter.send_email = AsyncMock(return_value={"status_code": 202, "message_id": "summary-1"})
@@ -293,23 +292,15 @@ def test_send_summary_uses_contact_defaults_when_contact_missing() -> None:
             return_value=SimpleNamespace(id=uuid.uuid4(), idempotency_key="postcall:1:summary_email"),
         ),
         patch.object(postcall_worker, "mark_outbox_published"),
+        pytest.raises(RuntimeError, match="contact missing"),
     ):
         _run(postcall_worker._send_summary(session, cs))
 
-    _, kwargs = gen.call_args
-    assert kwargs["contact_name"] == "Unknown"
-    assert kwargs["contact_company"] == ""
-    assert kwargs["contact_email"] == ""
+    gen.assert_not_called()
+    adapter.send_email.assert_not_awaited()
     shared_contact_lookup.assert_called_once_with(
         workspace_id="ws-stored",
         contact_id=99,
-    )
-    adapter.send_email.assert_awaited_once_with(
-        to="ops@x.io",
-        subject="s",
-        body_html="<p/>",
-        body_text="t",
-        idempotency_key="postcall:1:summary_email",
     )
 
 
@@ -329,7 +320,7 @@ def test_send_summary_uses_contact_fields_when_present() -> None:
         shared_contact_id=1,
         campaign_id=uuid.uuid4(),
     )
-    session.get.side_effect = [call_request, None]
+    session.get.side_effect = [call_request, MagicMock(workspace_id="ws-a")]
     _SHARED_CONTACTS[1] = contact
 
     adapter = MagicMock()
@@ -526,7 +517,7 @@ def test_send_summary_skips_send_when_team_email_unset() -> None:
         email="e@e.io",
         workspace_id="ws-a",
     )
-    session.get.side_effect = [call_request, None]
+    session.get.side_effect = [call_request, MagicMock(workspace_id="ws-a")]
     _SHARED_CONTACTS[1] = contact
 
     adapter = MagicMock()
@@ -544,8 +535,26 @@ def test_send_summary_skips_send_when_team_email_unset() -> None:
     ):
         _run(postcall_worker._send_summary(session, cs))
 
-    adapter.send_email.assert_not_awaited()
 
+def test_send_summary_fails_closed_on_campaign_workspace_mismatch() -> None:
+    with _session() as session:
+        call_session = _seed_answered_call(session)
+        request = session.get(CallRequest, call_session.call_request_id)
+        assert request is not None
+        campaign = session.get(Campaign, request.campaign_id)
+        assert campaign is not None
+        campaign.workspace_id = "workspace-b"
+        session.add(campaign)
+        session.commit()
+
+        with (
+            patch.object(postcall_worker, "resolve_email_adapter") as resolver,
+            pytest.raises(RuntimeError, match="campaign workspace mismatch"),
+        ):
+            _run(postcall_worker._send_summary(session, call_session))
+
+        resolver.assert_not_called()
+        assert session.exec(select(OutboxEvent)).all() == []
 
 # ---------------------------------------------------------------------------
 # run_worker / main

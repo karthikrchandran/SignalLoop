@@ -15,6 +15,7 @@ from app.domain.outreach.outbox_service import (
     enqueue_outbox_event,
     mark_outbox_published,
 )
+from app.domain.policies.consent_sync_service import is_contact_actionable
 from app.domain.runtime_settings import resolve_team_notification_email
 from app.domain.shared_records import service as shared_record_service
 from app.domain.signals.models import SignalEvent
@@ -86,12 +87,17 @@ async def process_signal(
                     or timeline_cache_dirty
                 )
             elif action == "send_demo_email":
+                contact = _load_signal_contact(session, signal)
+                if contact is None or not is_contact_actionable(
+                    contact.model_dump(), "email"
+                )[0]:
+                    continue
                 email_adapter = email_adapter or resolve_email_adapter(
                     session,
                     workspace_id,
                     default_factory=SendGridAdapter,
                 )
-                await _send_demo_email(email_adapter, session, signal)
+                await _send_demo_email(email_adapter, session, signal, contact)
             elif action == "create_scheduling_request":
                 timeline_cache_dirty = _create_scheduling_request(session, signal) or timeline_cache_dirty
             elif action == "email_sales_team":
@@ -102,12 +108,17 @@ async def process_signal(
                 )
                 await _email_sales_team(email_adapter, session, signal)
             elif action == "send_resource_email":
+                contact = _load_signal_contact(session, signal)
+                if contact is None or not is_contact_actionable(
+                    contact.model_dump(), "email"
+                )[0]:
+                    continue
                 email_adapter = email_adapter or resolve_email_adapter(
                     session,
                     workspace_id,
                     default_factory=SendGridAdapter,
                 )
-                await _send_resource_email(email_adapter, session, signal)
+                await _send_resource_email(email_adapter, session, signal, contact)
 
             executed.append(action)
             await append_audit_event(
@@ -243,11 +254,12 @@ def _queue_followup_call(
     return True
 
 
-async def _send_demo_email(adapter: EmailAdapter, session: Session, signal: SignalEvent) -> None:
-    contact = _load_signal_contact(session, signal)
-    if not contact:
-        return
-
+async def _send_demo_email(
+    adapter: EmailAdapter,
+    session: Session,
+    signal: SignalEvent,
+    contact: Contact,
+) -> None:
     intent = _prepare_signal_action_intent(
         session,
         signal=signal,
@@ -327,11 +339,12 @@ async def _email_sales_team(adapter: EmailAdapter, session: Session, signal: Sig
     )
 
 
-async def _send_resource_email(adapter: EmailAdapter, session: Session, signal: SignalEvent) -> None:
-    contact = _load_signal_contact(session, signal)
-    if not contact:
-        return
-
+async def _send_resource_email(
+    adapter: EmailAdapter,
+    session: Session,
+    signal: SignalEvent,
+    contact: Contact,
+) -> None:
     intent = _prepare_signal_action_intent(
         session,
         signal=signal,

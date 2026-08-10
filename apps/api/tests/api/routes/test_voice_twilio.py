@@ -396,7 +396,7 @@ def test_media_stream_rejects_mismatched_start_frame(client: TestClient) -> None
     assert exc_info.value.code == 1008
 
 
-def test_load_engine_for_call_uses_stored_workspace_when_campaign_is_missing(
+def test_load_engine_for_call_rejects_missing_campaign_without_adapter_resolution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(voice_routes.settings, "USE_ECRM_SHARED_RECORDS", True)
@@ -511,7 +511,42 @@ def test_load_engine_for_call_uses_stored_workspace_when_campaign_is_missing(
 
     engine = asyncio.run(voice_routes._load_engine_for_call(call_session.twilio_call_sid))
 
-    assert engine is not None
-    assert requested_workspaces == [WORKSPACE_ID]
-    assert engine._contact_name == "Avery"
-    assert engine._contact_company == "SharedCo"
+    assert engine is None
+    assert requested_workspaces == []
+
+
+def test_status_callback_ignores_mismatched_campaign_without_writes(
+    client: TestClient,
+    db: Session,
+) -> None:
+    call_request, call_session = _seed_call(db, call_sid=_call_sid())
+    campaign = db.get(Campaign, call_request.campaign_id)
+    assert campaign is not None
+    campaign.workspace_id = "workspace-b"
+    db.add(campaign)
+    db.commit()
+    path = f"{settings.API_V1_STR}/voice/status"
+    params = {
+        "CallSid": call_session.twilio_call_sid,
+        "AccountSid": GLOBAL_ACCOUNT_SID,
+        "CallStatus": "completed",
+    }
+    provider_event_ids_before = {
+        event.id for event in db.exec(select(ProviderEventLog)).all()
+    }
+
+    response = client.post(
+        path,
+        data=params,
+        headers=_signed_headers(path, params, GLOBAL_AUTH_TOKEN),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ignored"}
+    db.refresh(call_session)
+    db.refresh(call_request)
+    assert call_session.twilio_status is None
+    assert call_request.status == CallRequestStatus.queued
+    assert {
+        event.id for event in db.exec(select(ProviderEventLog)).all()
+    } == provider_event_ids_before

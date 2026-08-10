@@ -171,6 +171,7 @@ class Settings(BaseSettings):
     DEEPGRAM_API_KEY: str = ""
     GROQ_API_KEY: str = ""
     TEAM_NOTIFICATION_EMAIL: str = ""
+    CALENDLY_WEBHOOK_SIGNING_KEY: str = ""
     MAX_RETRY_COUNT: int = 3  # Dead-letter retry cap (Story 5.3)
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:

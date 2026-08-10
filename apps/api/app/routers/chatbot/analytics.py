@@ -26,9 +26,9 @@ from app.domain.chatbot.schemas import (
     ChatbotAnalyticsSeriesPointPublic,
     ChatbotAnalyticsTotalsPublic,
 )
-from app.domain.sequences.models import ContactSequenceState
+from app.domain.sequences.models import ContactSequenceState, EmailSequence
 from app.domain.voice.models import CallRequest
-from app.domain_models import ContactProgression, ProspectingSnapshot
+from app.domain_models import Campaign, ContactProgression, ProspectingSnapshot
 from app.models import User
 from app.routers.chatbot.router import WorkspaceId, require_chatbot_agent
 
@@ -118,14 +118,24 @@ def _conversion_funnel(
     )
     added_to_campaign = _distinct_contact_count(
         session.exec(
-            select(ContactProgression.contact_id).where(
+            select(ContactProgression.contact_id)
+            .join(Campaign, ContactProgression.campaign_id == Campaign.id)
+            .where(
+                Campaign.workspace_id == workspace_id,
                 ContactProgression.shared_contact_id.in_(contact_ids),
             )
         ).all()
     )
     sequence_enrolled = _distinct_contact_count(
         session.exec(
-            select(ContactSequenceState.contact_id).where(
+            select(ContactSequenceState.contact_id)
+            .join(
+                EmailSequence,
+                ContactSequenceState.sequence_id == EmailSequence.id,
+            )
+            .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+            .where(
+                Campaign.workspace_id == workspace_id,
                 ContactSequenceState.shared_contact_id.in_(contact_ids),
             )
         ).all()
@@ -133,6 +143,7 @@ def _conversion_funnel(
     voice_followups = _distinct_contact_count(
         session.exec(
             select(CallRequest.contact_id).where(
+                CallRequest.workspace_id == workspace_id,
                 CallRequest.shared_contact_id.in_(contact_ids),
             )
         ).all()
@@ -239,7 +250,7 @@ def get_chatbot_analytics(
             contained += 1
             channel["bot_resolved"] += 1
 
-    bot_messages_by_day = defaultdict(int)
+    bot_messages_by_day: defaultdict[date, int] = defaultdict(int)
     if conversation_ids:
         bot_messages = session.exec(
             select(ChatbotMessage.created_at).where(
