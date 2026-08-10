@@ -36,3 +36,29 @@ class OidcIdentity(SQLModel, table=True):
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
+
+
+class OidcSession(SQLModel, table=True):
+    """Server-side session metadata; only a digest of the cookie is stored."""
+
+    __tablename__ = "oidc_session"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    token_digest: str = Field(
+        sa_column=Column(String(64), nullable=False, unique=True, index=True)
+    )
+    user_id: uuid.UUID = Field(
+        sa_column=Column(ForeignKey("user.id", ondelete="CASCADE"), nullable=False, index=True)
+    )
+    session_version: int = Field(nullable=False, ge=1)
+    created_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    expires_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    revoked_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )

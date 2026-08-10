@@ -128,7 +128,7 @@ from app.domain_models import (  # noqa: E402
     RoutingDecision,
 )
 
-from app.domain.identity.models import OidcIdentity  # noqa: E402, F401
+from app.domain.identity.models import OidcIdentity, OidcSession  # noqa: E402, F401
 
 from app.domain.audit.audit_events import AuditEvent  # noqa: E402
 from app.domain.sequences.models import (  # noqa: E402
