@@ -20,6 +20,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { LoadingButton } from "@/components/ui/loading-button"
 import { PasswordInput } from "@/components/ui/password-input"
+import { OidcLoginButton } from "@/features/auth/OidcLoginButton"
 import useAuth, { isLoggedIn } from "@/hooks/useAuth"
 
 const formSchema = z.object({
@@ -52,6 +53,8 @@ export const Route = createFileRoute("/login")({
 
 function Login() {
   const { loginMutation } = useAuth()
+  const returnTo =
+    new URLSearchParams(window.location.search).get("returnTo") || "/"
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     mode: "onBlur",
@@ -127,6 +130,12 @@ function Login() {
             <LoadingButton type="submit" loading={loginMutation.isPending}>
               Log In
             </LoadingButton>
+
+            <div className="relative py-1 text-center text-xs text-muted-foreground">
+              <span className="relative z-10 bg-background px-2">or</span>
+              <span className="absolute inset-x-0 top-1/2 border-t" aria-hidden="true" />
+            </div>
+            <OidcLoginButton returnTo={returnTo} />
           </div>
 
           <div className="text-center text-sm">
