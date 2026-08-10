@@ -22,13 +22,13 @@ from typing import Any
 
 from sqlmodel import Session, select
 
-from app.core.config import settings
 from app.core.db import engine
 from app.domain.audit.audit_events import AuditEvent
 from app.domain.outreach.outbox_service import (
     enqueue_outbox_event,
     mark_outbox_published,
 )
+from app.domain.runtime_settings import resolve_team_notification_email
 from app.domain.voice.models import CallOutcome, CallRequest, CallRequestStatus, CallSession
 from app.domain_models import Campaign, Contact, OutboxEvent
 from app.infrastructure.providers.sendgrid import SendGridAdapter
@@ -60,7 +60,10 @@ def _prepare_postcall_summary_intent(
 ) -> OutboxEvent | None:
     intent_key = _postcall_summary_intent_key(sess.id)
     existing = session.exec(
-        select(OutboxEvent).where(OutboxEvent.idempotency_key == intent_key)
+        select(OutboxEvent).where(
+            OutboxEvent.workspace_id == req.workspace_id,
+            OutboxEvent.idempotency_key == intent_key,
+        )
     ).first()
     if existing is not None:
         if existing.published_at is None:
@@ -72,10 +75,12 @@ def _prepare_postcall_summary_intent(
 
     return enqueue_outbox_event(
         session,
+        workspace_id=req.workspace_id,
         aggregate_id=sess.id,
         aggregate_type="call_session",
         event_type="postcall.summary_email_requested",
         event_data={
+            "workspace_id": req.workspace_id,
             "call_session_id": str(sess.id),
             "call_request_id": str(req.id),
             "contact_id": str(req.contact_id),
@@ -129,7 +134,7 @@ def _build_summary(
         "phone": (contact.phone if contact else None) or "N/A",
         "campaign_name": campaign.name if campaign else str(req.campaign_id),
         "campaign_id": str(req.campaign_id),
-        "workspace_id": campaign.workspace_id if campaign else settings.DEFAULT_WORKSPACE_ID,
+        "workspace_id": req.workspace_id,
         "call_duration_seconds": sess.duration_seconds,
         "outcome": _outcome_label(sess.outcome),
         "transcript": sess.transcript or "",
@@ -200,11 +205,20 @@ async def _process_session(
     req: CallRequest,
     sess: CallSession,
 ) -> None:
+    workspace_id = req.workspace_id
+    stored_request = db.get(CallRequest, req.id)
+    if stored_request is None or stored_request.workspace_id != workspace_id:
+        raise RuntimeError("post-call CallRequest missing or workspace mismatch")
     contact = db.get(Contact, req.contact_id)
+    if contact is None:
+        raise RuntimeError("post-call contact missing")
+    if contact.workspace_id != workspace_id:
+        raise RuntimeError("post-call contact workspace mismatch")
     campaign = db.get(Campaign, req.campaign_id)
-    workspace_id: str = (
-        campaign.workspace_id if campaign else settings.DEFAULT_WORKSPACE_ID
-    )
+    if campaign is None:
+        raise RuntimeError("post-call campaign missing")
+    if campaign.workspace_id != workspace_id:
+        raise RuntimeError("post-call campaign workspace mismatch")
 
     summary = _build_summary(req, sess, contact, campaign)
     body_text, body_html = _render_email(summary)
@@ -213,7 +227,7 @@ async def _process_session(
     )
 
     email_sent = False
-    to_email = settings.TEAM_NOTIFICATION_EMAIL
+    to_email = resolve_team_notification_email(db, workspace_id)
     if to_email:
         intent = _prepare_postcall_summary_intent(
             db,
@@ -239,7 +253,9 @@ async def _process_session(
                 raise RuntimeError(
                     f"Post-call summary provider rejected send for session {sess.id}"
                 )
-            mark_outbox_published(db, event_id=intent.id)
+            mark_outbox_published(
+                db, workspace_id=req.workspace_id, event_id=intent.id
+            )
             email_sent = True
             logger.info("Sent post-call summary for session=%s to %s", sess.id, to_email)
 

@@ -231,6 +231,7 @@ def _seed_account(
     session.add(script)
     session.flush()
     call_request = CallRequest(
+        workspace_id=workspace_id,
         contact_id=ada.id,
         campaign_id=campaign.id,
         voice_script_id=script.id,
@@ -263,6 +264,7 @@ def _seed_account(
     session.add(sequence_state)
     session.flush()
     send_request = SendRequest(
+        workspace_id=workspace_id,
         contact_sequence_state_id=sequence_state.id,
         step_order=1,
         idempotency_key=f"{workspace_id}-grace-step-1",
@@ -453,6 +455,7 @@ def test_customer_360_excludes_cross_workspace_voice_and_email_rows() -> None:
         session.flush()
 
         foreign_call_request = CallRequest(
+            workspace_id="ws-b",
             contact_id=ada.id,
             campaign_id=foreign_campaign.id,
             voice_script_id=foreign_script.id,
@@ -487,6 +490,7 @@ def test_customer_360_excludes_cross_workspace_voice_and_email_rows() -> None:
         session.add(foreign_state)
         session.flush()
         foreign_send = SendRequest(
+            workspace_id="ws-b",
             contact_sequence_state_id=foreign_state.id,
             step_order=1,
             idempotency_key="ws-b-ada-foreign-step-1",

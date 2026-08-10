@@ -9,7 +9,6 @@ import logging
 
 from sqlmodel import Session, select
 
-from app.core.config import settings
 from app.core.db import engine
 from app.domain.outreach.outbox_service import (
     enqueue_outbox_event,
@@ -43,7 +42,10 @@ def _prepare_postcall_summary_intent(
 ) -> OutboxEvent | None:
     intent_key = _postcall_summary_intent_key(call_session.id)
     existing = session.exec(
-        select(OutboxEvent).where(OutboxEvent.idempotency_key == intent_key)
+        select(OutboxEvent).where(
+            OutboxEvent.workspace_id == call_request.workspace_id,
+            OutboxEvent.idempotency_key == intent_key,
+        )
     ).first()
     if existing is not None:
         if existing.published_at is None:
@@ -58,10 +60,12 @@ def _prepare_postcall_summary_intent(
 
     return enqueue_outbox_event(
         session,
+        workspace_id=call_request.workspace_id,
         aggregate_id=call_session.id,
         aggregate_type="call_session",
         event_type="postcall.summary_email_requested",
         event_data={
+            "workspace_id": call_request.workspace_id,
             "call_session_id": str(call_session.id),
             "call_request_id": str(call_request.id),
             "contact_id": str(call_request.shared_contact_id),
@@ -73,7 +77,7 @@ def _prepare_postcall_summary_intent(
 
 
 def _provider_send_accepted(result: dict[str, object]) -> bool:
-    status_code = int(result.get("status_code") or 0)
+    status_code = int(str(result.get("status_code") or 0))
     return 200 <= status_code < 300
 
 
@@ -124,12 +128,14 @@ async def _send_summary(
     """Generate and send summary email for an answered call."""
     call_request = session.get(CallRequest, call_session.call_request_id)
     if not call_request:
-        return
+        raise RuntimeError("post-call CallRequest missing")
 
-    workspace_id = settings.DEFAULT_WORKSPACE_ID
+    workspace_id = call_request.workspace_id
     campaign = session.get(Campaign, call_request.campaign_id)
-    if campaign is not None:
-        workspace_id = campaign.workspace_id
+    if campaign is None:
+        raise RuntimeError("post-call campaign missing")
+    if campaign.workspace_id != workspace_id:
+        raise RuntimeError("post-call campaign workspace mismatch")
     shared_contact = shared_record_service.get_shared_contact(
         workspace_id=workspace_id,
         contact_id=call_request.shared_contact_id,
@@ -139,9 +145,13 @@ async def _send_summary(
         if shared_contact
         else None
     )
-    contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() if contact else "Unknown"
-    contact_company = contact.company or "" if contact else ""
-    contact_email = contact.email if contact else ""
+    if contact is None:
+        raise RuntimeError("post-call contact missing")
+    if contact.workspace_id != workspace_id:
+        raise RuntimeError("post-call contact workspace mismatch")
+    contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip()
+    contact_company = contact.company or ""
+    contact_email = contact.email
 
     summary = generate_summary(
         call_session,
@@ -150,7 +160,6 @@ async def _send_summary(
         contact_email=contact_email,
     )
 
-    workspace_id = contact.workspace_id if contact else workspace_id
     team_email = resolve_team_notification_email(session, workspace_id)
     if not team_email:
         logger.warning("TEAM_NOTIFICATION_EMAIL not configured, skipping send")
@@ -184,7 +193,9 @@ async def _send_summary(
         raise RuntimeError(
             f"Post-call summary provider rejected send for call session {call_session.id}"
         )
-    mark_outbox_published(session, event_id=intent.id)
+    mark_outbox_published(
+        session, workspace_id=call_request.workspace_id, event_id=intent.id
+    )
     logger.info("Summary email sent for call session %s → %s", call_session.id, team_email)
 
 

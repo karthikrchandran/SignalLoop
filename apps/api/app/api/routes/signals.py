@@ -5,12 +5,12 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, select
 
 from app.api.deps import SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep
-from app.domain.signals import aggregation_service
 from app.domain.shared_records import service as shared_record_service
+from app.domain.signals import aggregation_service
 from app.domain_models import Campaign
 
 router = APIRouter(prefix="/signals", tags=["signals"], dependencies=[Depends(require_admin)])
@@ -34,7 +34,7 @@ class SignalListPublic(SQLModel):
 
 
 def _ensure_contact_in_workspace(
-    session: SessionDep,
+    _session: SessionDep,
     contact_id: uuid.UUID,
     workspace_id: str,
 ) -> None:
@@ -72,7 +72,11 @@ def get_contact_signals(
     """Return contact signals."""
     _ensure_contact_in_workspace(session, contact_id, workspace_id)
     signals = aggregation_service.get_contact_signals(
-        session, contact_id, channel=channel, signal_type=signal_type
+        session,
+        contact_id,
+        workspace_id=workspace_id,
+        channel=channel,
+        signal_type=signal_type,
     )
     return SignalListPublic(
         data=[
@@ -99,4 +103,6 @@ def get_campaign_signal_summary(
 ) -> dict:
     """Return campaign signal summary."""
     _ensure_campaign_in_workspace(session, campaign_id, workspace_id)
-    return aggregation_service.get_campaign_signal_summary(session, campaign_id)
+    return aggregation_service.get_campaign_signal_summary(
+        session, campaign_id, workspace_id=workspace_id
+    )

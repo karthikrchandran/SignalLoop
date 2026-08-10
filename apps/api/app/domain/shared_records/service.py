@@ -10,11 +10,11 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.db import engine
+from app.domain.shared_records import reconciliation as shared_reconciliation
 from app.domain.shared_records.models import (
     PlatformSharedAccount,
     PlatformSharedContact,
 )
-from app.domain.shared_records import reconciliation as shared_reconciliation
 from app.domain.shared_records.repository import PlatformSharedRepository
 from app.domain_models import (
     AccountPublic,
@@ -191,6 +191,20 @@ def _data(record: dict[str, object]) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _strict_bool(data: dict[str, Any], *keys: str) -> bool:
+    """Accept only explicit JSON booleans or true/false strings; deny otherwise."""
+    value = next((data[key] for key in keys if key in data), None)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized == "true":
+            return True
+        if normalized == "false":
+            return False
+    return False
+
+
 def shared_contact_to_public(
     record: dict[str, object], *, workspace_id: str
 ) -> ContactPublic:
@@ -222,6 +236,10 @@ def shared_contact_to_public(
         intent_json=[intent for intent in intents if isinstance(intent, str)]
         if isinstance(intents, list)
         else [],
+        consent_email=_strict_bool(data, "consentEmail", "consent_email"),
+        consent_voice=_strict_bool(data, "consentVoice", "consent_voice"),
+        do_not_contact=_strict_bool(data, "doNotContact", "do_not_contact"),
+        suppressed=_strict_bool(data, "suppressed"),
         last_seen_at=last_seen_at,
         created_at=_created_at(record),
     )
@@ -241,6 +259,10 @@ def shared_contact_to_contact(contact: ContactPublic) -> Contact:
         source_channel=contact.source_channel,
         tags_json=list(contact.tags_json or []),
         intent_json=list(contact.intent_json or []),
+        consent_email=contact.consent_email,
+        consent_voice=contact.consent_voice,
+        do_not_contact=contact.do_not_contact,
+        suppressed=contact.suppressed,
         last_seen_at=contact.last_seen_at,
         created_at=contact.created_at,
     )

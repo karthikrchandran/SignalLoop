@@ -15,6 +15,7 @@ from app.domain.outreach.outbox_service import (
     enqueue_outbox_event,
     mark_outbox_published,
 )
+from app.domain.policies.consent_sync_service import is_contact_actionable
 from app.domain.runtime_settings import resolve_team_notification_email
 from app.domain.shared_records import service as shared_record_service
 from app.domain.signals.models import SignalEvent
@@ -72,6 +73,8 @@ async def process_signal(
         return []
 
     workspace_id = _workspace_for_campaign(session, signal.campaign_id)
+    if workspace_id != signal.workspace_id:
+        raise ValueError("signal workspace does not match campaign")
     executed: list[str] = []
     email_adapter: EmailAdapter | None = None
     timeline_cache_dirty = False
@@ -79,14 +82,22 @@ async def process_signal(
     for action in rules:
         try:
             if action == "queue_followup_call":
-                timeline_cache_dirty = _queue_followup_call(session, signal) or timeline_cache_dirty
+                timeline_cache_dirty = (
+                    _queue_followup_call(session, signal, workspace_id)
+                    or timeline_cache_dirty
+                )
             elif action == "send_demo_email":
+                contact = _load_signal_contact(session, signal)
+                if contact is None or not is_contact_actionable(
+                    contact.model_dump(), "email"
+                )[0]:
+                    continue
                 email_adapter = email_adapter or resolve_email_adapter(
                     session,
                     workspace_id,
                     default_factory=SendGridAdapter,
                 )
-                await _send_demo_email(email_adapter, session, signal)
+                await _send_demo_email(email_adapter, session, signal, contact)
             elif action == "create_scheduling_request":
                 timeline_cache_dirty = _create_scheduling_request(session, signal) or timeline_cache_dirty
             elif action == "email_sales_team":
@@ -97,12 +108,17 @@ async def process_signal(
                 )
                 await _email_sales_team(email_adapter, session, signal)
             elif action == "send_resource_email":
+                contact = _load_signal_contact(session, signal)
+                if contact is None or not is_contact_actionable(
+                    contact.model_dump(), "email"
+                )[0]:
+                    continue
                 email_adapter = email_adapter or resolve_email_adapter(
                     session,
                     workspace_id,
                     default_factory=SendGridAdapter,
                 )
-                await _send_resource_email(email_adapter, session, signal)
+                await _send_resource_email(email_adapter, session, signal, contact)
 
             executed.append(action)
             await append_audit_event(
@@ -139,7 +155,9 @@ async def process_signal(
 
 def _workspace_for_campaign(session: Session, campaign_id: uuid.UUID) -> str:
     campaign = session.get(Campaign, campaign_id)
-    return campaign.workspace_id if campaign else "system"
+    if campaign is None:
+        raise ValueError("signal campaign not found")
+    return campaign.workspace_id
 
 
 def _signal_action_intent_key(signal_id: uuid.UUID, action: str) -> str:
@@ -156,7 +174,10 @@ def _prepare_signal_action_intent(
 ) -> OutboxEvent | None:
     intent_key = _signal_action_intent_key(signal.id, action)
     existing = session.exec(
-        select(OutboxEvent).where(OutboxEvent.idempotency_key == intent_key)
+        select(OutboxEvent).where(
+            OutboxEvent.workspace_id == signal.workspace_id,
+            OutboxEvent.idempotency_key == intent_key,
+        )
     ).first()
     if existing is not None:
         if existing.published_at is None:
@@ -170,6 +191,7 @@ def _prepare_signal_action_intent(
 
     return enqueue_outbox_event(
         session,
+        workspace_id=signal.workspace_id,
         aggregate_id=signal.id,
         aggregate_type="signal",
         event_type=event_type,
@@ -195,7 +217,11 @@ def _raise_provider_rejected(action: str, result: dict[str, Any]) -> None:
     )
 
 
-def _queue_followup_call(session: Session, signal: SignalEvent) -> bool:
+def _queue_followup_call(
+    session: Session,
+    signal: SignalEvent,
+    workspace_id: str,
+) -> bool:
     """Queue a followup call for a positive email signal."""
     from sqlmodel import select
 
@@ -217,6 +243,7 @@ def _queue_followup_call(session: Session, signal: SignalEvent) -> bool:
     scheduled_at = now + timedelta(hours=1)
 
     call_req = CallRequest(
+        workspace_id=workspace_id,
         shared_contact_id=signal.shared_contact_id,
         campaign_id=signal.campaign_id,
         voice_script_id=script.id,
@@ -227,11 +254,12 @@ def _queue_followup_call(session: Session, signal: SignalEvent) -> bool:
     return True
 
 
-async def _send_demo_email(adapter: EmailAdapter, session: Session, signal: SignalEvent) -> None:
-    contact = _load_signal_contact(session, signal)
-    if not contact:
-        return
-
+async def _send_demo_email(
+    adapter: EmailAdapter,
+    session: Session,
+    signal: SignalEvent,
+    contact: Contact,
+) -> None:
     intent = _prepare_signal_action_intent(
         session,
         signal=signal,
@@ -253,11 +281,22 @@ async def _send_demo_email(adapter: EmailAdapter, session: Session, signal: Sign
     )
     if not _provider_send_accepted(result):
         _raise_provider_rejected("send_demo_email", result)
-    mark_outbox_published(session, event_id=intent.id)
+    mark_outbox_published(
+        session, workspace_id=signal.workspace_id, event_id=intent.id
+    )
 
 
 def _create_scheduling_request(session: Session, signal: SignalEvent) -> bool:
+    existing = session.exec(
+        select(SchedulingRequest).where(
+            SchedulingRequest.workspace_id == signal.workspace_id,
+            SchedulingRequest.signal_event_id == signal.id,
+        )
+    ).first()
+    if existing is not None:
+        return False
     req = SchedulingRequest(
+        workspace_id=signal.workspace_id,
         shared_contact_id=signal.shared_contact_id,
         campaign_id=signal.campaign_id,
         signal_event_id=signal.id,
@@ -295,14 +334,17 @@ async def _email_sales_team(adapter: EmailAdapter, session: Session, signal: Sig
     )
     if not _provider_send_accepted(result):
         _raise_provider_rejected("email_sales_team", result)
-    mark_outbox_published(session, event_id=intent.id)
+    mark_outbox_published(
+        session, workspace_id=signal.workspace_id, event_id=intent.id
+    )
 
 
-async def _send_resource_email(adapter: EmailAdapter, session: Session, signal: SignalEvent) -> None:
-    contact = _load_signal_contact(session, signal)
-    if not contact:
-        return
-
+async def _send_resource_email(
+    adapter: EmailAdapter,
+    session: Session,
+    signal: SignalEvent,
+    contact: Contact,
+) -> None:
     intent = _prepare_signal_action_intent(
         session,
         signal=signal,
@@ -324,7 +366,9 @@ async def _send_resource_email(adapter: EmailAdapter, session: Session, signal: 
     )
     if not _provider_send_accepted(result):
         _raise_provider_rejected("send_resource_email", result)
-    mark_outbox_published(session, event_id=intent.id)
+    mark_outbox_published(
+        session, workspace_id=signal.workspace_id, event_id=intent.id
+    )
 
 
 def get_trigger_rules() -> list[dict]:

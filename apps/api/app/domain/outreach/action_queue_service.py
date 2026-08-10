@@ -18,6 +18,7 @@ def _now() -> datetime:
 def enqueue_action(
     session: Session,
     *,
+    workspace_id: str,
     contact_id: uuid.UUID,
     campaign_id: uuid.UUID,
     action_type: str,
@@ -26,6 +27,7 @@ def enqueue_action(
 ) -> ActionQueue:
     """Enqueue action."""
     action = ActionQueue(
+        workspace_id=workspace_id,
         contact_id=contact_id,
         campaign_id=campaign_id,
         action_type=action_type,
@@ -40,12 +42,20 @@ def enqueue_action(
     return action
 
 
-def list_pending_actions(session: Session, *, limit: int = 100) -> list[ActionQueue]:
+def list_pending_actions(
+    session: Session,
+    *,
+    workspace_id: str,
+    limit: int = 100,
+) -> list[ActionQueue]:
     """Return a list of pending actions."""
     return list(
         session.exec(
             select(ActionQueue)
-            .where(ActionQueue.status == "pending")
+            .where(
+                ActionQueue.workspace_id == workspace_id,
+                ActionQueue.status == "pending",
+            )
             .order_by(ActionQueue.created_at)
             .limit(limit)
         ).all()
@@ -55,12 +65,18 @@ def list_pending_actions(session: Session, *, limit: int = 100) -> list[ActionQu
 def update_action_status(
     session: Session,
     *,
+    workspace_id: str,
     action_id: uuid.UUID,
     status: str,
     next_retry_at: datetime | None = None,
 ) -> ActionQueue | None:
     """Update action status."""
-    action = session.get(ActionQueue, action_id)
+    action = session.exec(
+        select(ActionQueue).where(
+            ActionQueue.workspace_id == workspace_id,
+            ActionQueue.id == action_id,
+        )
+    ).first()
     if action is None:
         return None
 
@@ -83,6 +99,8 @@ def write_dead_letter(
 ) -> ActionQueue:
     """Move an action queue item to dead-letter status and write a DeadLetterEvent row
     synchronously inside the same transaction (NFR8: visible within 60 s)."""
+    if action.workspace_id != workspace_id:
+        raise ValueError("Action queue workspace does not match dead-letter workspace")
     now = _now()
     action.status = "dead_letter"
     action.failure_reason = failure_reason

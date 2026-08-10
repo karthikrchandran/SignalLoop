@@ -109,6 +109,7 @@ def _create_script_once(
 ) -> ScriptPublic:
     _ensure_campaign_in_workspace(session, body.campaign_id, workspace_id)
     script = VoiceScript(
+        workspace_id=workspace_id,
         campaign_id=body.campaign_id,
         name=body.name,
         content=body.content,

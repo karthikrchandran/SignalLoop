@@ -33,7 +33,7 @@ _SHARED_CONTACTS: dict[uuid.UUID, Contact] = {}
 # ---------------------------------------------------------------------------
 
 def _seed_contact(session: Session, *, email: str = "lead@example.com",
-                  first_name: str | None = "Ada") -> Contact:
+                  first_name: str | None = "Ada", consent_email: bool = True) -> Contact:
     """Create and persist a Contact."""
     contact = Contact(
         workspace_id="ws-test",
@@ -41,6 +41,7 @@ def _seed_contact(session: Session, *, email: str = "lead@example.com",
         first_name=first_name,
         last_name="Lovelace",
         company="Analytical Engines",
+        consent_email=consent_email,
     )
     session.add(contact)
     session.commit()
@@ -75,8 +76,9 @@ def _seed_sequence(
     campaign_id: uuid.UUID | None = None,
 ) -> EmailSequence:
     """Create an EmailSequence and N steps starting at order=1."""
+    campaign_id = campaign_id or _seed_campaign(session).id
     seq = EmailSequence(
-        campaign_id=campaign_id or uuid.uuid4(),
+        campaign_id=campaign_id,
         name="welcome",
         created_by=uuid.uuid4(),
     )
@@ -216,12 +218,14 @@ def test_daily_send_count_excludes_failed(memory_session: Session) -> None:
     seq = _seed_sequence(memory_session)
     state = _seed_state(memory_session, contact=contact, sequence=seq)
     memory_session.add(SendRequest(
+        workspace_id="ws-test",
         contact_sequence_state_id=state.id,
         step_order=1,
         idempotency_key="ok",
         status=SendRequestStatus.sent,
     ))
     memory_session.add(SendRequest(
+        workspace_id="ws-test",
         contact_sequence_state_id=state.id,
         step_order=2,
         idempotency_key="bad",
@@ -233,14 +237,54 @@ def test_daily_send_count_excludes_failed(memory_session: Session) -> None:
 
 def test_is_suppressed_true_when_email_listed(memory_session: Session) -> None:
     """An email with a suppression row returns True."""
-    memory_session.add(EmailSuppression(email="block@example.com", reason="bounce"))
+    memory_session.add(
+        EmailSuppression(
+            workspace_id="ws-test",
+            email="block@example.com",
+            reason="bounce",
+        )
+    )
     memory_session.commit()
-    assert sequence_worker._is_suppressed(memory_session, "block@example.com") is True
+    assert (
+        sequence_worker._is_suppressed(
+            memory_session,
+            "ws-test",
+            "block@example.com",
+        )
+        is True
+    )
 
 
 def test_is_suppressed_false_when_email_unknown(memory_session: Session) -> None:
     """No suppression row -> False."""
-    assert sequence_worker._is_suppressed(memory_session, "ok@example.com") is False
+    assert (
+        sequence_worker._is_suppressed(
+            memory_session,
+            "ws-test",
+            "ok@example.com",
+        )
+        is False
+    )
+
+
+def test_is_suppressed_does_not_cross_workspaces(memory_session: Session) -> None:
+    memory_session.add(
+        EmailSuppression(
+            workspace_id="workspace-a",
+            email="shared@example.com",
+            reason="unsubscribe",
+        )
+    )
+    memory_session.commit()
+
+    assert (
+        sequence_worker._is_suppressed(
+            memory_session,
+            "workspace-b",
+            "shared@example.com",
+        )
+        is False
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -266,6 +310,39 @@ def test_process_batch_returns_zero_when_daily_cap_reached(memory_session: Sessi
          patch.object(sequence_worker, "SendGridAdapter"):
         result = asyncio.run(sequence_worker._process_batch())
     assert result == 0
+
+
+def test_process_batch_does_not_apply_global_cap_across_workspaces(
+    memory_session: Session,
+) -> None:
+    contact = _seed_contact(memory_session)
+    campaign = _seed_campaign(memory_session)
+    sequence = _seed_sequence(memory_session, campaign_id=campaign.id)
+    _seed_state(memory_session, contact=contact, sequence=sequence)
+    adapter = MagicMock()
+    adapter.send_email = AsyncMock(
+        return_value={"status_code": 202, "message_id": "workspace-send"}
+    )
+
+    def count_for_scope(
+        _session: Session,
+        *,
+        workspace_id: str | None = None,
+        campaign_id: uuid.UUID | None = None,
+    ) -> int:
+        del campaign_id
+        return sequence_worker.DEFAULT_DAILY_CAP if workspace_id is None else 0
+
+    with (
+        _patch_engine(memory_session.get_bind()),
+        patch.object(sequence_worker, "_is_quiet_hours", return_value=False),
+        patch.object(sequence_worker, "_daily_send_count", side_effect=count_for_scope),
+        patch.object(sequence_worker, "resolve_email_adapter", return_value=adapter),
+    ):
+        processed = asyncio.run(sequence_worker._process_batch())
+
+    assert processed == 1
+    adapter.send_email.assert_awaited_once()
 
 
 def test_process_batch_returns_zero_when_no_due(memory_session: Session) -> None:
@@ -362,7 +439,13 @@ def test_process_single_stops_when_contact_suppressed(memory_session: Session) -
     contact = _seed_contact(memory_session)
     seq = _seed_sequence(memory_session)
     state = _seed_state(memory_session, contact=contact, sequence=seq)
-    memory_session.add(EmailSuppression(email=contact.email, reason="bounce"))
+    memory_session.add(
+        EmailSuppression(
+            workspace_id=contact.workspace_id,
+            email=contact.email,
+            reason="bounce",
+        )
+    )
     memory_session.commit()
 
     adapter = MagicMock()
@@ -374,6 +457,33 @@ def test_process_single_stops_when_contact_suppressed(memory_session: Session) -
     assert state.status == SequenceStatus.stopped
     assert state.signal_type == "suppressed"
     adapter.send_email.assert_not_called()
+
+
+def test_process_single_denies_missing_email_consent_before_adapter_resolution(
+    memory_session: Session,
+) -> None:
+    contact = _seed_contact(
+        memory_session, email="no-consent@example.com", consent_email=False
+    )
+    campaign = _seed_campaign(memory_session)
+    sequence = _seed_sequence(memory_session, campaign_id=campaign.id)
+    state = _seed_state(memory_session, contact=contact, sequence=sequence)
+    adapter = MagicMock()
+    adapter.send_email = AsyncMock(
+        return_value={"status_code": 202, "message_id": "must-not-send"}
+    )
+
+    with patch.object(
+        sequence_worker, "resolve_email_adapter", return_value=adapter
+    ) as resolver:
+        asyncio.run(sequence_worker._process_single(memory_session, state))
+
+    memory_session.commit()
+    memory_session.refresh(state)
+    assert state.status == SequenceStatus.stopped
+    assert state.signal_type == "CONSENT_MISSING"
+    resolver.assert_not_called()
+    adapter.send_email.assert_not_awaited()
 
 
 def test_process_single_completes_when_no_step_found(memory_session: Session) -> None:
@@ -399,6 +509,7 @@ def test_process_single_advances_when_existing_send_already_sent(memory_session:
     state = _seed_state(memory_session, contact=contact, sequence=seq)
     idem = f"{state.contact_id}:{state.sequence_id}:{state.current_step}"
     memory_session.add(SendRequest(
+        workspace_id="ws-test",
         contact_sequence_state_id=state.id,
         step_order=1,
         idempotency_key=idem,
@@ -423,6 +534,7 @@ def test_process_single_stops_when_max_retries_exceeded(memory_session: Session)
     state = _seed_state(memory_session, contact=contact, sequence=seq)
     idem = f"{state.contact_id}:{state.sequence_id}:{state.current_step}"
     memory_session.add(SendRequest(
+        workspace_id="ws-test",
         contact_sequence_state_id=state.id,
         step_order=1,
         idempotency_key=idem,
@@ -449,6 +561,7 @@ def test_process_single_skips_when_retry_window_open(memory_session: Session) ->
     state = _seed_state(memory_session, contact=contact, sequence=seq)
     idem = f"{state.contact_id}:{state.sequence_id}:{state.current_step}"
     sr = SendRequest(
+        workspace_id="ws-test",
         contact_sequence_state_id=state.id,
         step_order=1,
         idempotency_key=idem,
@@ -483,6 +596,7 @@ def test_process_single_does_not_resend_stale_pending_unknown_outcome(
     state = _seed_state(memory_session, contact=contact, sequence=seq)
     idem = f"{state.contact_id}:{state.sequence_id}:{state.current_step}"
     old_sr = SendRequest(
+        workspace_id="ws-test",
         contact_sequence_state_id=state.id,
         step_order=1,
         idempotency_key=idem,
@@ -574,6 +688,7 @@ def test_process_single_retries_after_window_elapses(memory_session: Session) ->
     state = _seed_state(memory_session, contact=contact, sequence=seq)
     idem = f"{state.contact_id}:{state.sequence_id}:{state.current_step}"
     old_sr = SendRequest(
+        workspace_id="ws-test",
         contact_sequence_state_id=state.id,
         step_order=1,
         idempotency_key=idem,

@@ -18,6 +18,25 @@ export type ProviderCapability =
   | "tts"
   | "llm"
 
+export type SuiteProduct = {
+  visible: boolean
+  mode?: "ESSENTIALS" | "FULL" | null
+  href?: string | null
+  capabilities: string[]
+}
+
+export type SuiteContext = {
+  tenant: { key: string; display_name: string }
+  roles: string[]
+  capabilities: string[]
+  products: {
+    commitarc: SuiteProduct
+    revenueos: SuiteProduct
+    signalloop: SuiteProduct
+  }
+  default_route: string
+}
+
 export type ProviderOption = {
   provider: string
   label: string
@@ -106,6 +125,12 @@ const getAuthToken = () => localStorage.getItem("access_token") || ""
 export const getWorkspaceId = () =>
   localStorage.getItem("workspace_id") || "default"
 
+export function getSuiteContext(tenantKey = getWorkspaceId()) {
+  return signalloopRequest<SuiteContext>("/api/v1/me/suite-context", {
+    workspaceId: tenantKey,
+  })
+}
+
 const isAuthFailure = (status: number, message: string) => {
   return status === 401 || (status === 404 && message === "User not found")
 }
@@ -144,6 +169,9 @@ export async function signalloopRequest<T>(
   const headers = new Headers()
   headers.set("Authorization", `Bearer ${getAuthToken()}`)
   headers.set("X-Workspace-Id", options?.workspaceId || getWorkspaceId())
+  if (path === "/api/v1/me/suite-context") {
+    headers.set("X-Tenant-Key", options?.workspaceId || getWorkspaceId())
+  }
 
   if (options?.idempotent) {
     headers.set("Idempotency-Key", crypto.randomUUID())

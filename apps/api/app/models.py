@@ -61,6 +61,7 @@ class User(UserBase, table=True):
     """User."""
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     hashed_password: str
+    auth_session_version: int = Field(default=1, ge=1, nullable=False)
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
@@ -125,6 +126,24 @@ from app.domain_models import (  # noqa: E402
     TemplateVersion,
     ContactEvent,
     RoutingDecision,
+)
+
+from app.domain.identity.models import OidcIdentity, OidcSession  # noqa: E402, F401
+from app.domain.tenants.models import (  # noqa: E402, F401
+    NativeProjectionCursor,
+    NativeProjectionReceipt,
+    NativeWorkloadReplay,
+    ProductInstallation,
+    SuiteMembership,
+    SuiteRoleAssignment,
+    SupportAccessGrant,
+    Tenant,
+    TenantEntitlement,
+    TenantInvitation,
+)
+from app.domain.branding.models import (  # noqa: E402, F401
+    TenantBrandAsset,
+    TenantBrandingVersion,
 )
 
 from app.domain.audit.audit_events import AuditEvent  # noqa: E402

@@ -130,6 +130,7 @@ def _seed_workspace(session: Session, *, workspace_id: str = "ws-a") -> None:
     session.add(script)
     session.flush()
     call_request = CallRequest(
+        workspace_id=workspace_id,
         shared_contact_id=ada.id,
         campaign_id=campaign.id,
         voice_script_id=script.id,
@@ -167,6 +168,7 @@ def _seed_workspace(session: Session, *, workspace_id: str = "ws-a") -> None:
     session.flush()
     session.add(
         SendRequest(
+            workspace_id=workspace_id,
             contact_sequence_state_id=sequence_state.id,
             step_order=1,
             idempotency_key=f"{workspace_id}-ada-step-1",

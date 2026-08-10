@@ -81,9 +81,14 @@ def _make_state(
 
 
 def _make_send(
-    session: Session, state_id: uuid.UUID, status: SendRequestStatus, idem: str
+    session: Session,
+    state_id: uuid.UUID,
+    status: SendRequestStatus,
+    idem: str,
+    workspace_id: str = "ws-a",
 ) -> SendRequest:
     sr = SendRequest(
+        workspace_id=workspace_id,
         contact_sequence_state_id=state_id,
         step_order=1,
         idempotency_key=idem,
@@ -153,8 +158,10 @@ def _make_call_request(
     contact_id: uuid.UUID,
     voice_script_id: uuid.UUID,
     status: CallRequestStatus,
+    workspace_id: str = "ws-a",
 ) -> CallRequest:
     cr = CallRequest(
+        workspace_id=workspace_id,
         contact_id=contact_id,
         campaign_id=campaign_id,
         voice_script_id=voice_script_id,
@@ -218,10 +225,12 @@ def test_get_signal_summary_groups_counts(session: Session) -> None:
     contact = _make_contact(session)
     for _ in range(2):
         session.add(SignalEvent(
+            workspace_id=camp.workspace_id,
             contact_id=contact.id, campaign_id=camp.id,
             channel="email", signal_type="reply",
         ))
     session.add(SignalEvent(
+        workspace_id=camp.workspace_id,
         contact_id=contact.id, campaign_id=camp.id,
         channel="voice", signal_type="answered",
     ))
@@ -250,6 +259,7 @@ def test_get_daily_cap_status_counts_today_only(session: Session) -> None:
     yesterday = today - timedelta(days=1)
 
     sent_today = SendRequest(
+        workspace_id="ws-a",
         contact_sequence_state_id=state.id, step_order=1,
         idempotency_key="t1", status=SendRequestStatus.sent,
     )
@@ -257,6 +267,7 @@ def test_get_daily_cap_status_counts_today_only(session: Session) -> None:
     session.add(sent_today)
 
     sent_yesterday = SendRequest(
+        workspace_id="ws-a",
         contact_sequence_state_id=state.id, step_order=1,
         idempotency_key="y1", status=SendRequestStatus.sent,
     )
@@ -264,6 +275,7 @@ def test_get_daily_cap_status_counts_today_only(session: Session) -> None:
     session.add(sent_yesterday)
 
     pending_today = SendRequest(
+        workspace_id="ws-a",
         contact_sequence_state_id=state.id, step_order=1,
         idempotency_key="p1", status=SendRequestStatus.pending,
     )
@@ -272,6 +284,7 @@ def test_get_daily_cap_status_counts_today_only(session: Session) -> None:
 
     vs = _make_voice_script(session, camp.id)
     call_today = CallRequest(
+        workspace_id="ws-a",
         contact_id=contact.id, campaign_id=camp.id, voice_script_id=vs.id,
         trigger_reason="t", scheduled_at=today, status=CallRequestStatus.completed,
     )
@@ -279,6 +292,7 @@ def test_get_daily_cap_status_counts_today_only(session: Session) -> None:
     session.add(call_today)
 
     call_in_progress = CallRequest(
+        workspace_id="ws-a",
         contact_id=contact.id, campaign_id=camp.id, voice_script_id=vs.id,
         trigger_reason="t", scheduled_at=today, status=CallRequestStatus.in_progress,
     )
@@ -286,6 +300,7 @@ def test_get_daily_cap_status_counts_today_only(session: Session) -> None:
     session.add(call_in_progress)
 
     call_yesterday = CallRequest(
+        workspace_id="ws-a",
         contact_id=contact.id, campaign_id=camp.id, voice_script_id=vs.id,
         trigger_reason="t", scheduled_at=yesterday, status=CallRequestStatus.completed,
     )
@@ -293,6 +308,7 @@ def test_get_daily_cap_status_counts_today_only(session: Session) -> None:
     session.add(call_yesterday)
 
     queued_call = CallRequest(
+        workspace_id="ws-a",
         contact_id=contact.id, campaign_id=camp.id, voice_script_id=vs.id,
         trigger_reason="t", scheduled_at=today, status=CallRequestStatus.queued,
     )
@@ -320,8 +336,9 @@ def test_get_daily_cap_status_filters_by_workspace(session: Session) -> None:
     state_b = _make_state(session, c_b.id, seq_b.id, SequenceStatus.active)
     today = datetime.now(timezone.utc).replace(hour=12)
 
-    for state in (state_a, state_b):
+    for state, workspace_id in ((state_a, "ws-a"), (state_b, "ws-b")):
         sr = SendRequest(
+            workspace_id=workspace_id,
             contact_sequence_state_id=state.id, step_order=1,
             idempotency_key=f"k-{state.id}", status=SendRequestStatus.sent,
         )

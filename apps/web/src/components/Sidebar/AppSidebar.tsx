@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import {
   AlertTriangle,
   BarChart3,
@@ -33,6 +34,7 @@ import {
 } from "@/components/ui/sidebar"
 import useAuth from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
+import { getSuiteContext } from "@/lib/signalloop-api"
 import type { LucideIcon } from "lucide-react"
 import { type Item, type ItemGroup, Main } from "./Main"
 import { User } from "./User"
@@ -95,6 +97,13 @@ export function AppSidebar() {
   const { user: currentUser } = useAuth()
   const userWithRole = currentUser as UserWithRole | null | undefined
   const [activeSection, setActiveSection] = useState<SectionId>("outreach")
+  const suiteContext = useQuery({
+    queryKey: ["suite-context"],
+    queryFn: () => getSuiteContext(),
+    enabled: Boolean(currentUser),
+    retry: false,
+  })
+  const canSignalLoop = suiteContext.data?.products.signalloop.visible ?? true
 
   const chatbotItems = isChatbotAdmin(userWithRole)
     ? adminChatbotItems
@@ -108,12 +117,15 @@ export function AppSidebar() {
   }
 
   const sections = useMemo<SectionDef[]>(() => {
+    const filteredBaseItems = canSignalLoop
+      ? baseItems
+      : baseItems.filter((item) => ["Revenue OS", "Dashboard", "Contacts"].includes(item.title))
     const base: SectionDef[] = [
       {
         id: "outreach",
         label: "Outreach",
         icon: Briefcase,
-        group: { items: baseItems },
+        group: { items: filteredBaseItems },
       },
       {
         id: "messaging",
@@ -131,7 +143,7 @@ export function AppSidebar() {
       })
     }
     return base
-  }, [chatbotItems, currentUser?.is_superuser])
+  }, [canSignalLoop, chatbotItems, currentUser?.is_superuser])
 
   const activeGroup =
     sections.find((s) => s.id === activeSection)?.group ??

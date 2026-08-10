@@ -28,8 +28,8 @@ router = APIRouter(prefix="/campaigns", tags=["campaign-health"])
 _HEALTH_CACHE_TTL = 30  # seconds
 
 
-def _health_cache_key(campaign_id: uuid.UUID) -> str:
-    return f"campaign_health:{campaign_id.hex}"
+def _health_cache_key(campaign_id: uuid.UUID, workspace_id: str = "") -> str:
+    return f"campaign_health:{workspace_id}:{campaign_id.hex}"
 
 
 def _ensure_campaign_in_workspace(
@@ -70,7 +70,9 @@ async def _cache_health(request: Request, key: str, health: CampaignHealthPublic
         pass
 
 
-def _compute_health(session: Session, campaign_id: uuid.UUID) -> CampaignHealthPublic:
+def _compute_health(
+    session: Session, campaign_id: uuid.UUID, workspace_id: str
+) -> CampaignHealthPublic:
     now = _now()
     one_hour_ago = now - timedelta(hours=1)
     twenty_four_hours_ago = now - timedelta(hours=24)
@@ -79,6 +81,7 @@ def _compute_health(session: Session, campaign_id: uuid.UUID) -> CampaignHealthP
     active_count = session.exec(
         select(func.count(ActionQueue.id)).where(
             ActionQueue.campaign_id == campaign_id,
+            ActionQueue.workspace_id == workspace_id,
             ActionQueue.status == "pending",
         )
     ).one()
@@ -87,6 +90,7 @@ def _compute_health(session: Session, campaign_id: uuid.UUID) -> CampaignHealthP
     dead_letter_count = session.exec(
         select(func.count(ActionQueue.id)).where(
             ActionQueue.campaign_id == campaign_id,
+            ActionQueue.workspace_id == workspace_id,
             ActionQueue.status == "dead_letter",
         )
     ).one()
@@ -95,6 +99,7 @@ def _compute_health(session: Session, campaign_id: uuid.UUID) -> CampaignHealthP
     success_count_1h = session.exec(
         select(func.count(ActionQueue.id)).where(
             ActionQueue.campaign_id == campaign_id,
+            ActionQueue.workspace_id == workspace_id,
             ActionQueue.status == "completed",
             ActionQueue.executed_at >= one_hour_ago,
         )
@@ -102,6 +107,7 @@ def _compute_health(session: Session, campaign_id: uuid.UUID) -> CampaignHealthP
     success_count_24h = session.exec(
         select(func.count(ActionQueue.id)).where(
             ActionQueue.campaign_id == campaign_id,
+            ActionQueue.workspace_id == workspace_id,
             ActionQueue.status == "completed",
             ActionQueue.executed_at >= twenty_four_hours_ago,
         )
@@ -109,6 +115,7 @@ def _compute_health(session: Session, campaign_id: uuid.UUID) -> CampaignHealthP
     failure_count_24h = session.exec(
         select(func.count(ActionQueue.id)).where(
             ActionQueue.campaign_id == campaign_id,
+            ActionQueue.workspace_id == workspace_id,
             ActionQueue.status.in_(["failed", "dead_letter"]),
             ActionQueue.created_at >= twenty_four_hours_ago,
         )
@@ -119,6 +126,7 @@ def _compute_health(session: Session, campaign_id: uuid.UUID) -> CampaignHealthP
         select(RoutingDecision.reason_code, func.count(RoutingDecision.id))
         .where(
             RoutingDecision.campaign_id == campaign_id,
+            RoutingDecision.workspace_id == workspace_id,
             RoutingDecision.outcome == "failed",
             RoutingDecision.created_at >= twenty_four_hours_ago,
         )
@@ -152,12 +160,12 @@ async def get_campaign_health(
 ) -> CampaignHealthPublic:
     """Return a live health snapshot for a campaign (Redis-cached 30 s, NFR8)."""
     _ensure_campaign_in_workspace(session, campaign_id, workspace_id)
-    cache_key = _health_cache_key(campaign_id)
+    cache_key = _health_cache_key(campaign_id, workspace_id)
     cached = await _get_cached_health(request, cache_key)
     if cached is not None:
         return cached
 
-    health = _compute_health(session, campaign_id)
+    health = _compute_health(session, campaign_id, workspace_id)
     await _cache_health(request, cache_key, health)
     return health
 
@@ -182,6 +190,7 @@ def list_dead_letters(
     total = session.exec(
         select(func.count(ActionQueue.id)).where(
             ActionQueue.campaign_id == campaign_id,
+            ActionQueue.workspace_id == workspace_id,
             ActionQueue.status == "dead_letter",
         )
     ).one()
@@ -190,6 +199,7 @@ def list_dead_letters(
         select(ActionQueue)
         .where(
             ActionQueue.campaign_id == campaign_id,
+            ActionQueue.workspace_id == workspace_id,
             ActionQueue.status == "dead_letter",
         )
         .order_by(ActionQueue.dead_lettered_at)
@@ -232,6 +242,7 @@ async def retry_dead_letter(
         select(ActionQueue).where(
             ActionQueue.id == item_id,
             ActionQueue.campaign_id == campaign_id,
+            ActionQueue.workspace_id == workspace_id,
             ActionQueue.status == "dead_letter",
         )
     ).first()
@@ -279,7 +290,7 @@ async def retry_dead_letter(
     try:
         redis = request.app.state.redis_manager.client
         if redis is not None:
-            await redis.delete(_health_cache_key(campaign_id))
+                await redis.delete(_health_cache_key(campaign_id, workspace_id))
     except Exception:  # noqa: BLE001
         pass
 
@@ -313,6 +324,7 @@ async def dismiss_dead_letter(
         select(ActionQueue).where(
             ActionQueue.id == item_id,
             ActionQueue.campaign_id == campaign_id,
+            ActionQueue.workspace_id == workspace_id,
             ActionQueue.status == "dead_letter",
         )
     ).first()
@@ -342,7 +354,7 @@ async def dismiss_dead_letter(
     try:
         redis = request.app.state.redis_manager.client
         if redis is not None:
-            await redis.delete(_health_cache_key(campaign_id))
+            await redis.delete(_health_cache_key(campaign_id, workspace_id))
     except Exception:  # noqa: BLE001
         pass
 

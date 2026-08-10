@@ -82,12 +82,23 @@ def _agg_snapshots(
 # ---------------------------------------------------------------------------
 
 
+def _ensure_campaign_workspace(
+    session: Session, workspace_id: str, campaign_id: uuid.UUID | None
+) -> None:
+    if campaign_id is None:
+        return
+    campaign = session.get(Campaign, campaign_id)
+    if campaign is None or campaign.workspace_id != workspace_id:
+        raise ValueError("campaign workspace mismatch")
+
+
 def _agg_today_live(
     session: Session,
     workspace_id: str,
     campaign_id: uuid.UUID | None,
 ) -> dict:
     """Compute today's partial KPIs live from operational tables."""
+    _ensure_campaign_workspace(session, workspace_id, campaign_id)
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = datetime.now(timezone.utc)
 
@@ -95,6 +106,7 @@ def _agg_today_live(
     contacts_stmt = select(func.count(func.distinct(ActionQueue.contact_id))).where(
         ActionQueue.created_at >= today_start,
         ActionQueue.created_at <= today_end,
+        ActionQueue.workspace_id == workspace_id,
     )
     if campaign_id is not None:
         contacts_stmt = contacts_stmt.where(ActionQueue.campaign_id == campaign_id)
@@ -144,6 +156,7 @@ def _agg_today_live(
         Campaign, ActionQueue.campaign_id == Campaign.id
     ).where(
         Campaign.workspace_id == workspace_id,
+        ActionQueue.workspace_id == workspace_id,
         ActionQueue.status == "failed",
         ActionQueue.created_at >= today_start,
         ActionQueue.created_at <= today_end,
@@ -263,6 +276,7 @@ def compute_daily_snapshot(
     campaign_id: uuid.UUID | None,
 ) -> KpiDailySnapshot:
     """Aggregate one day's KPIs from operational tables and return a snapshot row."""
+    _ensure_campaign_workspace(session, workspace_id, campaign_id)
     day_start = datetime(target_date.year, target_date.month, target_date.day, 0, 0, 0, tzinfo=timezone.utc)
     day_end = datetime(target_date.year, target_date.month, target_date.day, 23, 59, 59, 999999, tzinfo=timezone.utc)
 
@@ -270,6 +284,7 @@ def compute_daily_snapshot(
         Campaign, ActionQueue.campaign_id == Campaign.id
     ).where(
         Campaign.workspace_id == workspace_id,
+        ActionQueue.workspace_id == workspace_id,
         ActionQueue.created_at >= day_start,
         ActionQueue.created_at <= day_end,
     )
@@ -311,6 +326,7 @@ def compute_daily_snapshot(
         Campaign, ActionQueue.campaign_id == Campaign.id
     ).where(
         Campaign.workspace_id == workspace_id,
+        ActionQueue.workspace_id == workspace_id,
         ActionQueue.status == "failed",
         ActionQueue.created_at >= day_start,
         ActionQueue.created_at <= day_end,

@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import DateTime, Text
+from sqlalchemy import DateTime, ForeignKeyConstraint, Text, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -31,13 +31,36 @@ class SchedulingRequestSource(str, Enum):
     manual = "manual"
 
 
-class SchedulingRequest(SQLModel, table=True):
+class SchedulingRequest(SQLModel, table=True):  # type: ignore[call-arg]
     """A scheduling request created when a contact expresses meeting intent."""
 
     __tablename__ = "scheduling_requests"
-    __table_args__ = ({"extend_existing": True},)
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["campaign_id", "workspace_id"],
+            ["campaigns.id", "campaigns.workspace_id"],
+            name="fk_scheduling_campaign_workspace",
+        ),
+        ForeignKeyConstraint(
+            ["contact_id", "workspace_id"],
+            ["contacts.id", "contacts.workspace_id"],
+            name="fk_scheduling_contact_workspace",
+        ),
+        ForeignKeyConstraint(
+            ["signal_event_id", "workspace_id"],
+            ["signal_events.id", "signal_events.workspace_id"],
+            name="fk_scheduling_signal_workspace",
+        ),
+        UniqueConstraint(
+            "workspace_id",
+            "calendly_event_id",
+            name="uq_scheduling_workspace_calendly_event",
+        ),
+        {"extend_existing": True},
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(max_length=64)
     contact_id: uuid.UUID = Field(foreign_key="contacts.id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id")
     signal_event_id: uuid.UUID | None = Field(default=None, foreign_key="signal_events.id")

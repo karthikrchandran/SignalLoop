@@ -326,11 +326,12 @@ def test_setup_overview_returns_workspace_setup_summary(
     assert integrations["tts"]["configured"] is True
     assert integrations["llm"]["provider"] == "groq"
     assert integrations["llm"]["configured"] is True
-    assert integrations["team_notifications"]["configured"] is True
+    assert integrations["team_notifications"]["configured"] is False
+    assert integrations["team_notifications"]["source"] == "missing"
     worker_readiness = {item["key"]: item for item in body["worker_readiness"]}
     assert worker_readiness["sequence_worker"]["ready"] is True
     assert worker_readiness["call_worker"]["ready"] is True
-    assert worker_readiness["postcall_worker"]["ready"] is True
+    assert worker_readiness["postcall_worker"]["ready"] is False
 
 
 def test_setup_overview_reports_missing_runtime_dependencies(

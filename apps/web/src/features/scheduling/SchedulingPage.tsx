@@ -45,6 +45,7 @@ import {
   type SchedulingRequestStatus,
   listSchedulingRequests,
   updateSchedulingRequest,
+  withCalendlyState,
 } from "./api"
 
 const STATUS_LABELS: Record<SchedulingRequestStatus, string> = {
@@ -139,7 +140,10 @@ export default function SchedulingPage() {
     setSaving(true)
     setSaveError(null)
     try {
-      await updateSchedulingRequest(selected.id, { meeting_link: linkInput.trim() })
+      const meetingLink = selected.calendly_state
+        ? withCalendlyState(linkInput.trim(), selected.calendly_state)
+        : linkInput.trim()
+      await updateSchedulingRequest(selected.id, { meeting_link: meetingLink })
       setSelected(null)
       await load()
     } catch {
@@ -303,18 +307,23 @@ export default function SchedulingPage() {
                       />
                       {linkInput && (
                         <Button variant="outline" size="icon" asChild>
-                          <a href={linkInput} target="_blank" rel="noreferrer">
+                          <a
+                            href={
+                              selected.calendly_state
+                                ? withCalendlyState(linkInput, selected.calendly_state)
+                                : linkInput
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                          >
                             <ExternalLink className="size-4" />
                           </a>
                         </Button>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Append{" "}
-                      <code className="rounded bg-muted px-1 py-0.5 text-xs">
-                        ?utm_content={selected.id}
-                      </code>{" "}
-                      to your link so Calendly webhooks auto-confirm this request.
+                      The secure booking state is appended when this link opens so
+                      Calendly can confirm only this workspace request.
                     </p>
                   </div>
 

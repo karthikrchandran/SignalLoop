@@ -19,8 +19,10 @@ Per cycle:
 """
 from __future__ import annotations
 
+import hmac
 import logging
-from datetime import UTC, date, datetime
+import uuid
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -31,17 +33,20 @@ from sqlmodel import Session, create_engine, select
 
 from app.core.config import settings
 from app.domain.audit.audit_events import AuditEvent
-from app.domain.providers.credential_resolver import resolve_provider_credentials
 from app.domain.voice.models import (
     CallOutcome,
     CallRequest,
     CallRequestStatus,
     CallSession,
+    VoiceScript,
 )
+from app.domain.voice.correlation import mint_correlation_token, token_hash
+from app.domain.policies.consent_sync_service import is_contact_actionable
 from app.domain_models import (
+    Campaign,
     Contact,
+    GlobalControlState,
     GovernancePolicy,
-    NotificationProvider,
     PolicyStatus,
     PolicyType,
 )
@@ -64,6 +69,56 @@ _CALL_END_HOUR: int = 18    # 18:00 exclusive  (local time)
 # Engine is created once at module load; the settings object reads from .env.
 _engine = create_engine(str(settings.SQLALCHEMY_DATABASE_URI), pool_pre_ping=True)
 
+
+def _lock_dispatch_state(
+    session: Session, call_request_id: uuid.UUID
+) -> tuple[CallRequest, CallSession]:
+    """Reload provider-owned state after the unlocked network call."""
+    session.expire_all()
+    call_session = session.exec(
+        select(CallSession)
+        .where(CallSession.call_request_id == call_request_id)
+        .with_for_update()
+    ).one()
+    call_req = session.exec(
+        select(CallRequest)
+        .where(CallRequest.id == call_request_id)
+        .with_for_update()
+    ).one()
+    return call_req, call_session
+
+
+def _lock_call_candidate(
+    session: Session,
+    call_request_id: uuid.UUID,
+) -> tuple[CallRequest, CallSession | None] | None:
+    """Claim rows without ever acquiring CallRequest before an existing session."""
+    call_session = session.exec(
+        select(CallSession)
+        .where(CallSession.call_request_id == call_request_id)
+        .with_for_update()
+    ).first()
+    call_req = session.exec(
+        select(CallRequest)
+        .where(CallRequest.id == call_request_id)
+        .with_for_update()
+    ).first()
+    if call_req is None:
+        return None
+    if call_session is None:
+        # The request lock serializes session creation; recheck after acquiring it.
+        call_session = session.exec(
+            select(CallSession)
+            .where(CallSession.call_request_id == call_request_id)
+            .with_for_update()
+        ).first()
+    return call_req, call_session
+
+
+def _provider_sid_matches(call_session: CallSession, call_sid: str) -> bool:
+    stored_sid = call_session.twilio_call_sid or ""
+    return not stored_sid or hmac.compare_digest(stored_sid, call_sid)
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -84,6 +139,12 @@ def _is_within_call_hours(tz: ZoneInfo) -> bool:
     """Return True if the current moment in *tz* falls in [09:00, 18:00)."""
     local_hour = datetime.now(tz).hour
     return _CALL_START_HOUR <= local_hour < _CALL_END_HOUR
+
+
+def _normalize_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _get_daily_cap(session: Session, workspace_id: str) -> int:
@@ -109,18 +170,30 @@ def _get_daily_cap(session: Session, workspace_id: str) -> int:
 
 
 def _today_call_count(session: Session, workspace_id: str) -> int:
-    """Count non-failed calls initiated today (UTC) for *workspace_id*."""
+    """Count calls initiated today (UTC) for *workspace_id*."""
     today: date = datetime.now(UTC).date()
     count_val = session.exec(
-        select(func.count(CallRequest.id))
-        .join(Contact, Contact.id == CallRequest.contact_id)
+        select(func.count())
+        .select_from(CallRequest)
         .where(
-            Contact.workspace_id == workspace_id,
+            CallRequest.workspace_id == workspace_id,
             func.date(CallRequest.created_at) == today,
+            CallRequest.status != CallRequestStatus.queued,
             CallRequest.status != CallRequestStatus.failed,
         )
     ).one()
     return int(count_val or 0)
+
+
+def _workspace_is_paused(session: Session, workspace_id: str) -> bool:
+    """Return whether outbound work is paused for *workspace_id*."""
+    return session.exec(
+        select(GlobalControlState.id).where(
+            GlobalControlState.workspace_id == workspace_id,
+            GlobalControlState.campaign_id == None,  # noqa: E711
+            GlobalControlState.paused == True,  # noqa: E712
+        )
+    ).first() is not None
 
 
 def _write_audit_event(
@@ -166,25 +239,107 @@ def _mask_phone(phone: str) -> str:
 
 async def _initiate_one(
     session: Session,
-    call_req: CallRequest,
+    call_request: CallRequest | uuid.UUID,
     workspace_id: str,
-    adapter: VoiceAdapter,
+    adapter: VoiceAdapter | None = None,
 ) -> bool:
     """Attempt to initiate a single call.
 
     Mutates *session* objects; the caller is responsible for committing or
     rolling back.  Returns True if the call was successfully handed to Twilio.
     """
+    call_request_id = (
+        call_request.id if isinstance(call_request, CallRequest) else call_request
+    )
+    claimed = _lock_call_candidate(session, call_request_id)
+    if claimed is None:
+        return False
+    call_req, call_session = claimed
+    if call_req.workspace_id != workspace_id:
+        call_req.status = CallRequestStatus.failed
+        _write_audit_event(
+            session,
+            workspace_id=call_req.workspace_id,
+            call_req=call_req,
+            call_sid="",
+            error="workspace_mismatch",
+        )
+        session.add(call_req)
+        return False
+    if (
+        call_req.status != CallRequestStatus.queued
+        or _normalize_utc(call_req.scheduled_at) > datetime.now(UTC)
+    ):
+        logger.info("Call request %s is no longer claimable", call_req.id)
+        return False
+
+    if call_session and call_session.twilio_call_sid:
+        logger.info(
+            "Call request already dispatched: call_request=%s sid=%s",
+            call_req.id,
+            call_session.twilio_call_sid,
+        )
+        call_req.status = CallRequestStatus.in_progress
+        session.add(call_req)
+        session.commit()
+        return False
+
+    if call_session and call_session.twilio_status == "initiating":
+        logger.warning(
+            "CallSession %s is initiating; skipping automatic redial because provider outcome is unknown",
+            call_session.id,
+        )
+        call_req.status = CallRequestStatus.in_progress
+        session.add(call_req)
+        session.commit()
+        return False
+
+    if _workspace_is_paused(session, workspace_id):
+        return False
+    if _today_call_count(session, workspace_id) >= _get_daily_cap(
+        session,
+        workspace_id,
+    ):
+        return False
+
+    campaign = session.get(Campaign, call_req.campaign_id)
+    if campaign is None or campaign.workspace_id != workspace_id:
+        call_req.status = CallRequestStatus.failed
+        session.add(call_req)
+        return False
+    script = session.get(VoiceScript, call_req.voice_script_id)
+    if script is None or script.campaign_id != campaign.id:
+        call_req.status = CallRequestStatus.failed
+        session.add(call_req)
+        return False
+
     contact = session.get(Contact, call_req.contact_id)
-    if not contact:
-        logger.warning("Contact %s not found — marking FAILED", call_req.contact_id)
+    if not contact or contact.workspace_id != workspace_id:
+        logger.warning(
+            "Contact %s not found in workspace %s — marking FAILED",
+            call_req.contact_id,
+            workspace_id,
+        )
         call_req.status = CallRequestStatus.failed
         _write_audit_event(
             session,
             workspace_id=workspace_id,
             call_req=call_req,
             call_sid="",
-            error="contact_not_found",
+            error="contact_not_found_or_workspace_mismatch",
+        )
+        session.add(call_req)
+        return False
+
+    actionable, reason = is_contact_actionable(contact.model_dump(), "voice")
+    if not actionable:
+        call_req.status = CallRequestStatus.failed
+        _write_audit_event(
+            session,
+            workspace_id=workspace_id,
+            call_req=call_req,
+            call_sid="",
+            error=reason or "CONSENT_MISSING",
         )
         session.add(call_req)
         return False
@@ -213,30 +368,12 @@ async def _initiate_one(
         session.add(call_req)
         return False
 
-    call_session = session.exec(
-        select(CallSession)
-        .where(CallSession.call_request_id == call_req.id)
-        .with_for_update()
-    ).first()
-    if call_session and call_session.twilio_call_sid:
-        logger.info(
-            "Call request already dispatched: call_request=%s sid=%s",
-            call_req.id,
-            call_session.twilio_call_sid,
+    if adapter is None:
+        adapter = resolve_voice_adapter(
+            session,
+            workspace_id,
+            default_factory=TwilioVoiceAdapter,
         )
-        call_req.status = CallRequestStatus.in_progress
-        session.add(call_req)
-        return False
-
-    if call_session and call_session.twilio_status == "initiating":
-        logger.warning(
-            "CallSession %s is initiating; skipping automatic redial because provider outcome is unknown",
-            call_session.id,
-        )
-        call_req.status = CallRequestStatus.in_progress
-        session.add(call_req)
-        return False
-
     account_sid = getattr(adapter, "_account_sid", "") or None
     if call_session is None:
         call_session = CallSession(
@@ -248,11 +385,29 @@ async def _initiate_one(
     else:
         call_session.twilio_account_sid = account_sid or call_session.twilio_account_sid
 
+    correlation_expires_at = datetime.now(UTC) + timedelta(minutes=15)
+    correlation_token = mint_correlation_token(
+        call_session.id,
+        settings.SECRET_KEY,
+        expires_at=int(correlation_expires_at.timestamp()),
+    )
+    call_session.callback_correlation_hash = token_hash(correlation_token)
+    call_session.callback_correlation_expires_at = correlation_expires_at
+    call_session.twilio_status = "initiating"
+    call_session.twilio_status_updated_at = datetime.now(UTC)
+    call_req.status = CallRequestStatus.in_progress
+    session.add(call_req)
+    session.add(call_session)
+    session.commit()
+    session.refresh(call_session)
+
     twiml_url = (
         f"https://{settings.SERVER_HOST}{settings.API_V1_STR}/voice/twiml"
+        f"?correlation={correlation_token}"
     )
     status_callback_url = (
         f"https://{settings.SERVER_HOST}{settings.API_V1_STR}/voice/status"
+        f"?correlation={correlation_token}"
     )
 
     try:
@@ -263,26 +418,44 @@ async def _initiate_one(
         )
     except Exception as exc:
         logger.exception("Twilio exception for call_request=%s", call_req.id)
-        call_req.status = CallRequestStatus.failed
-        call_session.outcome = CallOutcome.failed
-        _write_audit_event(
-            session,
-            workspace_id=workspace_id,
-            call_req=call_req,
-            call_sid="",
-            error=exc.__class__.__name__,
-        )
+        call_req, call_session = _lock_dispatch_state(session, call_req.id)
+        if (
+            call_session.twilio_status in {None, "initiating"}
+            and call_req.status
+            not in {CallRequestStatus.completed, CallRequestStatus.failed}
+        ):
+            call_req.status = CallRequestStatus.failed
+            call_session.outcome = CallOutcome.failed
+            _write_audit_event(
+                session,
+                workspace_id=workspace_id,
+                call_req=call_req,
+                call_sid="",
+                error=exc.__class__.__name__,
+            )
         session.add(call_req)
         session.add(call_session)
         return False
 
+    call_req, call_session = _lock_dispatch_state(session, call_req.id)
     call_sid = result.get("call_sid", "")
     if call_sid:
-        call_session.twilio_call_sid = call_sid
-        call_session.twilio_account_sid = account_sid or call_session.twilio_account_sid
-        call_session.twilio_status = "initiated"
-        call_session.twilio_status_updated_at = datetime.now(UTC)
-        call_req.status = CallRequestStatus.in_progress  # INITIATED
+        if not _provider_sid_matches(call_session, call_sid):
+            logger.error(
+                "Provider SID conflicts with callback-bound CallSession %s",
+                call_session.id,
+            )
+            return False
+        if not call_session.twilio_call_sid:
+            call_session.twilio_call_sid = call_sid
+        if call_session.twilio_status in {None, "initiating"}:
+            call_session.twilio_status = "initiated"
+            call_session.twilio_status_updated_at = datetime.now(UTC)
+        if call_req.status not in {
+            CallRequestStatus.completed,
+            CallRequestStatus.failed,
+        }:
+            call_req.status = CallRequestStatus.in_progress  # INITIATED
         logger.info(
             "Call initiated — contact=%s phone=%s sid=%s trigger=%s",
             contact.id,
@@ -301,15 +474,20 @@ async def _initiate_one(
         logger.warning(
             "Twilio rejected call for contact=%s: %s", contact.id, error_detail
         )
-        call_req.status = CallRequestStatus.failed
-        call_session.outcome = CallOutcome.failed
-        _write_audit_event(
-            session,
-            workspace_id=workspace_id,
-            call_req=call_req,
-            call_sid="",
-            error=error_detail,
-        )
+        if (
+            call_session.twilio_status in {None, "initiating"}
+            and call_req.status
+            not in {CallRequestStatus.completed, CallRequestStatus.failed}
+        ):
+            call_req.status = CallRequestStatus.failed
+            call_session.outcome = CallOutcome.failed
+            _write_audit_event(
+                session,
+                workspace_id=workspace_id,
+                call_req=call_req,
+                call_sid="",
+                error=error_detail,
+            )
 
     session.add(call_req)
     session.add(call_session)
@@ -322,82 +500,90 @@ async def _initiate_one(
 
 
 async def poll_and_dispatch() -> None:
-    """One poll cycle: enforce caps, fetch a batch of QUEUED calls, dispatch."""
-    workspace_id = settings.DEFAULT_WORKSPACE_ID
-
+    """Dispatch queued calls independently for each stored workspace."""
     with Session(_engine) as session:
-        # ------------------------------------------------------------------
-        # 1. Daily cap check (skip entire cycle if reached)
-        # ------------------------------------------------------------------
-        daily_cap = _get_daily_cap(session, workspace_id)
-        today_count = _today_call_count(session, workspace_id)
-
-        if today_count >= daily_cap:
-            logger.warning(
-                "Daily call cap reached (%d/%d) — skipping poll cycle",
-                today_count,
-                daily_cap,
-            )
-            return
-
-        remaining_budget = min(BATCH_SIZE, daily_cap - today_count)
-
-        # ------------------------------------------------------------------
-        # 2. Fetch candidates ordered by trigger_reason priority, then FIFO.
-        #    No 'priority' column exists; map trigger_reason to an ordinal.
-        # ------------------------------------------------------------------
         priority_expr = case(
             (CallRequest.trigger_reason == "manual_queue", 1),
             (CallRequest.trigger_reason == "positive_email_signal", 2),
             else_=3,
         )
-
-        candidates = session.exec(
-            select(CallRequest)
-            .where(CallRequest.status == CallRequestStatus.queued)
-            .order_by(priority_expr, CallRequest.created_at.asc())
-            .limit(remaining_budget)
-            .with_for_update(skip_locked=True)
+        workspace_ids = session.exec(
+            select(CallRequest.workspace_id)
+            .where(
+                CallRequest.status == CallRequestStatus.queued,
+                CallRequest.scheduled_at <= datetime.now(UTC),
+            )
+            .distinct()
+            .order_by(CallRequest.workspace_id)
         ).all()
-
-        if not candidates:
+        if not workspace_ids:
             logger.debug("No QUEUED call requests in this cycle")
             return
 
-        # ------------------------------------------------------------------
-        # 3. Resolve voice adapter for the workspace (once per cycle).
-        # Falls back to TwilioVoiceAdapter() when no opt-in selection exists.
-        # ------------------------------------------------------------------
-        adapter = resolve_voice_adapter(
-            session,
-            workspace_id,
-            default_factory=TwilioVoiceAdapter,
-        )
-
-        # ------------------------------------------------------------------
-        # 4. Dispatch each candidate
-        # ------------------------------------------------------------------
-        dispatched = 0
-        for call_req in candidates:
-            try:
-                ok = await _initiate_one(session, call_req, workspace_id, adapter)
-                if ok:
-                    dispatched += 1
-            except Exception:
-                logger.exception(
-                    "Unexpected error processing call_request=%s — aborting batch",
-                    call_req.id,
+        for workspace_id in workspace_ids:
+            if _workspace_is_paused(session, workspace_id):
+                logger.info(
+                    "Workspace %s is paused — leaving queued calls safe",
+                    workspace_id,
                 )
-                session.rollback()
-                return  # let the next cycle retry
+                continue
 
-        session.commit()
-        logger.debug(
-            "Poll cycle complete — dispatched=%d cap=%d/%d",
-            dispatched,
-            today_count + dispatched,
-            daily_cap,
-        )
+            daily_cap = _get_daily_cap(session, workspace_id)
+            today_count = _today_call_count(session, workspace_id)
+            if today_count >= daily_cap:
+                logger.warning(
+                    "Daily call cap reached for workspace=%s (%d/%d)",
+                    workspace_id,
+                    today_count,
+                    daily_cap,
+                )
+                continue
+
+            remaining_budget = min(BATCH_SIZE, daily_cap - today_count)
+            candidate_ids = session.exec(
+                select(CallRequest.id)
+                .where(
+                    CallRequest.workspace_id == workspace_id,
+                    CallRequest.status == CallRequestStatus.queued,
+                    CallRequest.scheduled_at <= datetime.now(UTC),
+                )
+                .order_by(priority_expr, CallRequest.created_at.asc())
+                .limit(remaining_budget)
+            ).all()
+            if not candidate_ids:
+                continue
+
+            dispatched = 0
+            batch_failed = False
+            for call_request_id in candidate_ids:
+                try:
+                    if await _initiate_one(
+                        session,
+                        call_request_id,
+                        workspace_id,
+                        adapter=None,
+                    ):
+                        dispatched += 1
+                except Exception:
+                    logger.exception(
+                        "Unexpected error processing call_request=%s in workspace=%s",
+                        call_request_id,
+                        workspace_id,
+                    )
+                    session.rollback()
+                    batch_failed = True
+                    break
+
+            if batch_failed:
+                continue
+            session.commit()
+            logger.debug(
+                "Workspace poll complete — workspace=%s dispatched=%d cap=%d/%d",
+                workspace_id,
+                dispatched,
+                today_count + dispatched,
+                daily_cap,
+            )
 
 
 # ---------------------------------------------------------------------------

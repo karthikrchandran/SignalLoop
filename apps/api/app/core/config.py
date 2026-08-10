@@ -171,7 +171,21 @@ class Settings(BaseSettings):
     DEEPGRAM_API_KEY: str = ""
     GROQ_API_KEY: str = ""
     TEAM_NOTIFICATION_EMAIL: str = ""
+    CALENDLY_WEBHOOK_SIGNING_KEY: str = ""
+    CALENDLY_STATE_TTL_SECONDS: int = 24 * 60 * 60
+    CALENDLY_WEBHOOK_MAX_AGE_SECONDS: int = 5 * 60
     MAX_RETRY_COUNT: int = 3  # Dead-letter retry cap (Story 5.3)
+    AUTH_MODE: Literal["oidc", "local-test"] = "local-test"
+    OIDC_ISSUER: str = ""
+    OIDC_CLIENT_ID: str = ""
+    OIDC_CLIENT_SECRET: str = ""
+    OIDC_REDIRECT_URI: str = ""
+    OIDC_AUDIENCE: str = ""
+    OIDC_SCOPES: str = "openid profile email"
+    OIDC_TRANSACTION_TTL_SECONDS: int = 300
+    TENANT_PUBLIC_HOSTS: str = "ara.localhost=ara-global,ai-consulting.localhost=ai-consulting"
+    TRUSTED_PROXY_CIDRS: str = ""
+    TRUSTED_ENTRY_ORIGINS: str = ""
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":

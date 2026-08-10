@@ -34,12 +34,8 @@ if str(_API_SRC) not in sys.path:
 from sqlalchemy import func  # noqa: E402
 from sqlmodel import Session, select  # noqa: E402
 
-from app.core.config import settings  # noqa: E402  (loaded once at import time)
 from app.core.db import engine  # noqa: E402
 from app.domain.audit.audit_events import AuditEvent  # noqa: E402
-from app.domain.providers.credential_resolver import (  # noqa: E402
-    resolve_provider_credentials,
-)
 from app.domain.sequences.models import (  # noqa: E402
     ContactSequenceState,
     EmailSequence,
@@ -48,13 +44,13 @@ from app.domain.sequences.models import (  # noqa: E402
     SequenceStatus,
     SequenceStep,
 )
-from app.domain.sequences.suppression import EmailSuppression  # noqa: E402
+from app.domain.sequences.suppression import is_email_suppressed  # noqa: E402
+from app.domain.policies.consent_sync_service import is_contact_actionable  # noqa: E402
 from app.domain_models import (  # noqa: E402
     Campaign,
     Contact,
     GlobalControlState,
     GovernancePolicy,
-    NotificationProvider,
     PolicyStatus,
     PolicyType,
 )
@@ -222,12 +218,25 @@ async def _process_single(
     state: ContactSequenceState,
     workspace_id: str,
     campaign_id: uuid.UUID,
-    adapter: EmailAdapter,
+    adapter: EmailAdapter | None = None,
 ) -> None:
     """Process one due ``ContactSequenceState`` row.
 
     All DB writes happen on *session*; caller commits/rolls back.
     """
+    sequence = session.get(EmailSequence, state.sequence_id)
+    campaign = session.get(Campaign, campaign_id)
+    if (
+        sequence is None
+        or campaign is None
+        or sequence.campaign_id != campaign.id
+        or campaign.workspace_id != workspace_id
+    ):
+        state.status = SequenceStatus.stopped
+        state.signal_type = "campaign_workspace_mismatch"
+        session.add(state)
+        return
+
     # -- Contact lookup -------------------------------------------------------
     contact = session.get(Contact, state.contact_id)
     if contact is None:
@@ -238,11 +247,23 @@ async def _process_single(
         session.add(state)
         return
 
+    if contact.workspace_id != workspace_id:
+        state.status = SequenceStatus.stopped
+        state.signal_type = "workspace_mismatch"
+        state.updated_at = datetime.now(UTC)
+        session.add(state)
+        return
+
+    actionable, reason = is_contact_actionable(contact.model_dump(), "email")
+    if not actionable:
+        state.status = SequenceStatus.stopped
+        state.signal_type = reason
+        state.updated_at = datetime.now(UTC)
+        session.add(state)
+        return
+
     # -- Suppression check ----------------------------------------------------
-    suppressed = session.exec(
-        select(EmailSuppression.id).where(EmailSuppression.email == contact.email)
-    ).first()
-    if suppressed:
+    if is_email_suppressed(session, workspace_id, contact.email):
         logger.info("Contact %s suppressed — stopping sequence %s", contact.email, state.id)
         state.status = SequenceStatus.stopped
         state.signal_type = "suppressed"
@@ -278,7 +299,10 @@ async def _process_single(
 
     # -- Exactly-once guard ---------------------------------------------------
     existing: SendRequest | None = session.exec(
-        select(SendRequest).where(SendRequest.idempotency_key == idempotency_key)
+        select(SendRequest).where(
+            SendRequest.workspace_id == workspace_id,
+            SendRequest.idempotency_key == idempotency_key,
+        )
     ).first()
 
     if existing and existing.status == SendRequestStatus.sent:
@@ -316,6 +340,7 @@ async def _process_single(
 
     # -- Create or reuse SendRequest ------------------------------------------
     send_request: SendRequest = existing or SendRequest(
+        workspace_id=workspace_id,
         contact_sequence_state_id=state.id,
         step_order=state.current_step,
         idempotency_key=idempotency_key,
@@ -327,6 +352,12 @@ async def _process_single(
     body_text = re.sub(r"<[^>]+>", "", body_html)
 
     # -- Send -----------------------------------------------------------------
+    if adapter is None:
+        adapter = resolve_email_adapter(
+            session,
+            workspace_id,
+            default_factory=SendGridAdapter,
+        )
     result = await adapter.send_email(
         to=contact.email,
         subject=subject,
@@ -334,6 +365,7 @@ async def _process_single(
         body_text=body_text,
         idempotency_key=idempotency_key,
         custom_args={
+            "workspace_id": workspace_id,
             "css_id": str(state.id),
             "step": str(state.current_step),
         },
@@ -429,16 +461,37 @@ async def process_batch() -> int:
     now = datetime.now(UTC)
 
     with Session(engine) as session:
-        due_states = session.exec(
-            select(ContactSequenceState)
+        workspace_ids = session.exec(
+            select(Campaign.workspace_id)
+            .join(EmailSequence, EmailSequence.campaign_id == Campaign.id)
+            .join(ContactSequenceState, ContactSequenceState.sequence_id == EmailSequence.id)
             .where(
                 ContactSequenceState.status == SequenceStatus.active,
                 ContactSequenceState.next_send_at <= now,
             )
-            .order_by(ContactSequenceState.next_send_at)
-            .limit(BATCH_SIZE)
-            .with_for_update(skip_locked=True)
+            .distinct()
+            .order_by(Campaign.workspace_id)
         ).all()
+        due_states: list[ContactSequenceState] = []
+        for due_workspace_id in workspace_ids:
+            due_states.extend(
+                session.exec(
+                    select(ContactSequenceState)
+                    .join(
+                        EmailSequence,
+                        ContactSequenceState.sequence_id == EmailSequence.id,
+                    )
+                    .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+                    .where(
+                        Campaign.workspace_id == due_workspace_id,
+                        ContactSequenceState.status == SequenceStatus.active,
+                        ContactSequenceState.next_send_at <= now,
+                    )
+                    .order_by(ContactSequenceState.next_send_at)
+                    .limit(BATCH_SIZE)
+                    .with_for_update(skip_locked=True)
+                ).all()
+            )
 
         if not due_states:
             return 0
@@ -465,7 +518,7 @@ async def process_batch() -> int:
             # -- Global-pause check -------------------------------------------
             if _workspace_is_globally_paused(session, workspace_id):
                 logger.debug("Workspace %s globally paused — skipping batch", workspace_id)
-                break  # if global pause, skip the whole remaining batch for this workspace
+                continue
 
             # -- Daily-cap check (load once per workspace per batch) ----------
             if workspace_id not in _cap_cache:
@@ -479,6 +532,19 @@ async def process_batch() -> int:
                     workspace_id, _count_cache[workspace_id], cap,
                 )
                 continue  # skip remaining contacts for this workspace
+
+            contact = session.get(Contact, state.contact_id)
+            if contact is None or contact.workspace_id != workspace_id:
+                state.status = SequenceStatus.stopped
+                state.signal_type = "workspace_mismatch"
+                session.add(state)
+                continue
+            actionable, reason = is_contact_actionable(contact.model_dump(), "email")
+            if not actionable:
+                state.status = SequenceStatus.stopped
+                state.signal_type = reason
+                session.add(state)
+                continue
 
             # -- Build (or reuse) email adapter (per-workspace registry) ----
             if workspace_id not in _adapter_cache:

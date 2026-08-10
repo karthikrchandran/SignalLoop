@@ -232,6 +232,7 @@ def test_normalize_webhook_event_full_payload() -> None:
         "email": "x@e.io",
         "timestamp": 123,
         "sg_message_id": "abc.filter0001p3las1-12345",
+        "workspace_id": "workspace-a",
     }))
     assert out == {
         "event_type": "delivered",
@@ -239,6 +240,7 @@ def test_normalize_webhook_event_full_payload() -> None:
         "contact_identifier": "x@e.io",
         "occurred_at": 123,
         "provider_message_id": "abc",
+        "workspace_id": "workspace-a",
     }
 
 
@@ -251,6 +253,7 @@ def test_normalize_webhook_event_defaults_for_missing_fields() -> None:
     assert out["contact_identifier"] == ""
     assert out["occurred_at"] == ""
     assert out["provider_message_id"] == ""
+    assert out["workspace_id"] == ""
 
 
 def test_verify_webhook_signature_no_secret_returns_false(

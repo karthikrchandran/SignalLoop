@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 
 def _as_bool(value: object, default: bool = False) -> bool:
     if value is None:
@@ -13,26 +15,37 @@ def _as_bool(value: object, default: bool = False) -> bool:
     return bool(value)
 
 
-def suppression_reason(contact: dict[str, object]) -> str | None:
+def _first(contact: Mapping[str, object], *keys: str) -> tuple[bool, object | None]:
+    for key in keys:
+        if key in contact:
+            return True, contact[key]
+    return False, None
+
+
+def suppression_reason(contact: Mapping[str, object]) -> str | None:
     """Suppression reason."""
     if _as_bool(contact.get("suppressed")):
         return "SUPPRESSED_CONTACT"
-    if _as_bool(contact.get("doNotContact")):
+    _, do_not_contact = _first(contact, "do_not_contact", "doNotContact")
+    if _as_bool(do_not_contact):
         return "DO_NOT_CONTACT"
-    if not _as_bool(contact.get("consent"), default=True):
+    if "consent" in contact and not _as_bool(contact.get("consent"), default=False):
         return "CONSENT_MISSING"
     return None
 
 
-def check_channel_consent(contact: dict[str, object], channel: str) -> bool:
+def check_channel_consent(contact: Mapping[str, object], channel: str) -> bool:
     """Check channel consent."""
-    channel_key = f"consent_{channel}"
-    if channel_key in contact:
-        return _as_bool(contact[channel_key])
-    return _as_bool(contact.get("consent"), default=True)
+    camel_key = f"consent{channel.title()}"
+    found, value = _first(contact, f"consent_{channel}", camel_key)
+    if found:
+        return _as_bool(value)
+    return False
 
 
-def is_contact_actionable(contact: dict[str, object], channel: str) -> tuple[bool, str | None]:
+def is_contact_actionable(
+    contact: Mapping[str, object], channel: str
+) -> tuple[bool, str | None]:
     """Return ``True`` when contact actionable."""
     reason = suppression_reason(contact)
     if reason is not None:

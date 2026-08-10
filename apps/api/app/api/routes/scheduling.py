@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -15,19 +13,32 @@ from sqlmodel import select
 from app.api.deps import CurrentUser, SessionDep
 from app.api.request_context import WorkspaceIdDep
 from app.core.config import settings
-from app.domain.audit.audit_events import append_audit_event_to_session, audit_actor_role
+from app.domain.audit.audit_events import (
+    append_audit_event_to_session,
+    audit_actor_role,
+)
 from app.domain.scheduling import service as scheduling_service
-from app.domain.scheduling.models import SchedulingRequestStatus
 from app.domain.scheduling.schemas import (
     SchedulingRequestCreate,
     SchedulingRequestPublic,
     SchedulingRequestsPublic,
     SchedulingRequestUpdate,
 )
-from app.domain_models import Campaign, Contact
+from app.domain_models import Campaign
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/scheduling", tags=["scheduling"])
+
+
+def _public_request(req: object) -> SchedulingRequestPublic:
+    public = SchedulingRequestPublic.model_validate(req)
+    public.calendly_state = scheduling_service.mint_calendly_state(
+        public.id,
+        public.workspace_id,
+        settings.SECRET_KEY,
+        ttl_seconds=settings.CALENDLY_STATE_TTL_SECONDS,
+    )
+    return public
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +49,7 @@ router = APIRouter(prefix="/scheduling", tags=["scheduling"])
 @router.get("/requests", response_model=SchedulingRequestsPublic)
 def list_requests(
     session: SessionDep,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
     status_filter: str | None = Query(default=None, alias="status"),
     campaign_id: uuid.UUID | None = Query(default=None),
@@ -55,7 +66,7 @@ def list_requests(
         limit=limit,
     )
     return SchedulingRequestsPublic(
-        data=[SchedulingRequestPublic.model_validate(r) for r in rows],
+        data=[_public_request(r) for r in rows],
         count=total,
     )
 
@@ -64,7 +75,7 @@ def list_requests(
 def get_request(
     request_id: uuid.UUID,
     session: SessionDep,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
 ) -> SchedulingRequestPublic:
     """Get a single scheduling request."""
@@ -73,7 +84,7 @@ def get_request(
     campaign = session.get(Campaign, req.campaign_id)
     if not campaign or campaign.workspace_id != workspace_id:
         raise HTTPException(status_code=404, detail="Scheduling request not found")
-    return SchedulingRequestPublic.model_validate(req)
+    return _public_request(req)
 
 
 @router.post("/requests", response_model=SchedulingRequestPublic, status_code=status.HTTP_201_CREATED)
@@ -106,7 +117,7 @@ def create_request(
     )
     session.commit()
     session.refresh(req)
-    return SchedulingRequestPublic.model_validate(req)
+    return _public_request(req)
 
 
 @router.patch("/requests/{request_id}", response_model=SchedulingRequestPublic)
@@ -138,7 +149,7 @@ def update_request(
     )
     session.commit()
     session.refresh(updated)
-    return SchedulingRequestPublic.model_validate(updated)
+    return _public_request(updated)
 
 
 # ---------------------------------------------------------------------------
@@ -155,9 +166,16 @@ async def calendly_webhook(
     body = await request.body()
     signature = request.headers.get("Calendly-Webhook-Signature", "")
 
-    signing_key = getattr(settings, "CALENDLY_WEBHOOK_SIGNING_KEY", None)
-    if signing_key and not scheduling_service.verify_calendly_signature(
-        body, signature, signing_key
+    signing_key = settings.CALENDLY_WEBHOOK_SIGNING_KEY
+    if not signing_key:
+        raise HTTPException(
+            status_code=503, detail="Calendly webhook signing key is not configured"
+        )
+    if not scheduling_service.verify_calendly_signature(
+        body,
+        signature,
+        signing_key,
+        max_age_seconds=settings.CALENDLY_WEBHOOK_MAX_AGE_SECONDS,
     ):
         raise HTTPException(status_code=403, detail="Invalid Calendly webhook signature")
 
@@ -174,16 +192,14 @@ async def calendly_webhook(
     event_payload = payload.get("payload", {})
     tracking = event_payload.get("tracking", {})
 
-    # We embed the scheduling_request_id in the Calendly link as utm_content
-    request_id_str = tracking.get("utm_content")
-    if not request_id_str:
+    state_token = str(tracking.get("utm_content") or "").strip()
+    if not state_token:
         logger.warning("Calendly webhook: no utm_content in tracking, cannot link request")
         return {"status": "unlinked"}
-
-    try:
-        request_id = uuid.UUID(request_id_str)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid scheduling request id in utm_content")
+    state = scheduling_service.verify_calendly_state(state_token, settings.SECRET_KEY)
+    if state is None:
+        raise HTTPException(status_code=403, detail="Invalid or expired scheduling state")
+    request_id, workspace_id = state
 
     calendly_event = event_payload.get("event", {})
     event_uri = calendly_event.get("uri", "")
@@ -195,6 +211,7 @@ async def calendly_webhook(
 
     scheduling_service.handle_calendly_booking(
         session,
+        workspace_id=workspace_id,
         request_id=request_id,
         calendly_event_id=event_uri,
         meeting_datetime=meeting_dt,

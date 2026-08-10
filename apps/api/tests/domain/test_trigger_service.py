@@ -67,6 +67,8 @@ def _make_contact(session: Session, **overrides) -> Contact:
         "first_name": "Alice",
         "last_name": "A",
         "company": "Acme",
+        "consent_email": True,
+        "consent_voice": True,
     }
     defaults.update(overrides)
     contact = Contact(**defaults)
@@ -97,9 +99,18 @@ def _make_signal(
     channel: str = "email",
     campaign_id: uuid.UUID | None = None,
 ) -> SignalEvent:
+    contact = session.get(Contact, contact_id)
+    workspace_id = contact.workspace_id if contact else "ws"
+    if campaign_id is None:
+        campaign_id = _make_campaign(session, workspace_id=workspace_id).id
+    else:
+        campaign = session.get(Campaign, campaign_id)
+        if campaign is not None:
+            workspace_id = campaign.workspace_id
     sig = SignalEvent(
+        workspace_id=workspace_id,
         contact_id=contact_id,
-        campaign_id=campaign_id or uuid.uuid4(),
+        campaign_id=campaign_id,
         channel=channel,
         signal_type=signal_type,
     )
@@ -193,17 +204,17 @@ def test_process_signal_no_active_script_skips_call(session: Session) -> None:
 
 
 def test_process_signal_send_demo_email_missing_contact(session: Session) -> None:
-    """If contact is missing, send_demo_email returns silently."""
+    """If contact is missing, send_demo_email is not reported as executed."""
     sig = _make_signal(session, uuid.uuid4(), signal_type="email_positive_reply")
     executed = _run(process_signal(session, sig))
-    assert "send_demo_email" in executed
+    assert "send_demo_email" not in executed
 
 
 def test_process_signal_send_demo_email_uses_shared_contact_when_enabled(
     session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Shared contact lookup should still allow demo emails without a local Contact row."""
+    """A shared contact without explicit email consent is denied by default."""
     contact_id = uuid.uuid4()
     monkeypatch.setattr(trigger_service.settings, "USE_ECRM_SHARED_RECORDS", True)
     monkeypatch.setattr(
@@ -224,7 +235,7 @@ def test_process_signal_send_demo_email_uses_shared_contact_when_enabled(
     )
     sig = _make_signal(session, contact_id, signal_type="email_positive_reply")
     executed = _run(process_signal(session, sig))
-    assert "send_demo_email" in executed
+    assert "send_demo_email" not in executed
 
 
 def test_process_signal_scheduling_creates_request_and_emails_team(
@@ -272,6 +283,32 @@ def test_process_signal_voice_positive_interest_sends_resource(
     )
     executed = _run(process_signal(session, sig))
     assert executed == ["send_resource_email"]
+
+
+@pytest.mark.parametrize(
+    "contact_overrides",
+    [
+        {"consent_email": False},
+        {"consent_email": False, "consent_voice": True},
+        {"consent_email": True, "do_not_contact": True},
+        {"consent_email": True, "suppressed": True},
+    ],
+)
+def test_contact_email_trigger_denial_precedes_adapter_and_outbox(
+    session: Session,
+    contact_overrides: dict[str, bool],
+) -> None:
+    contact = _make_contact(session, **contact_overrides)
+    sig = _make_signal(
+        session, contact.id, signal_type="voice_positive_interest", channel="voice"
+    )
+
+    with patch.object(trigger_service, "resolve_email_adapter") as resolver:
+        executed = _run(process_signal(session, sig))
+
+    assert executed == []
+    resolver.assert_not_called()
+    assert session.exec(select(OutboxEvent)).all() == []
 
 
 def test_process_signal_resolves_workspace_email_adapter(session: Session) -> None:
@@ -387,6 +424,7 @@ def test_process_signal_resource_email_does_not_retry_unpublished_intent(
     )
     session.add(
         OutboxEvent(
+            workspace_id=sig.workspace_id,
             aggregate_id=sig.id,
             aggregate_type="signal",
             event_type="trigger.resource_email_send_requested",
@@ -428,12 +466,12 @@ def test_process_signal_resource_email_rejection_leaves_intent_unpublished(
 
 
 def test_process_signal_send_resource_missing_contact(session: Session) -> None:
-    """send_resource_email returns silently when contact missing."""
+    """send_resource_email is not reported as executed when contact is missing."""
     sig = _make_signal(
         session, uuid.uuid4(), signal_type="voice_positive_interest", channel="voice"
     )
     executed = _run(process_signal(session, sig))
-    assert executed == ["send_resource_email"]
+    assert executed == []
 
 
 def test_process_signal_action_exception_logged_not_raised(

@@ -10,6 +10,7 @@ from starlette.middleware.cors import CORSMiddleware
 from app.api.main import api_router
 from app.core.config import settings
 from app.core.db import engine, init_db
+from app.core.log_redaction import install_sensitive_query_redaction
 from app.core.middleware import RequestTracingMiddleware, SecurityHeadersMiddleware
 from app.core.rate_limit import (
     RateLimitExceeded,
@@ -18,6 +19,8 @@ from app.core.rate_limit import (
     limiter,
 )
 from app.infrastructure.db.redis.connection import RedisConnectionManager
+
+install_sensitive_query_redaction()
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:

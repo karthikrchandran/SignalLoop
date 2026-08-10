@@ -221,6 +221,7 @@ def test_chatbot_analytics_tracks_conversion_funnel_to_campaign_and_voice_follow
         session.add(ContactSequenceState(contact_id=contact.id, sequence_id=sequence.id))
         session.add(
             CallRequest(
+                workspace_id="ws-a",
                 contact_id=contact.id,
                 campaign_id=campaign.id,
                 voice_script_id=script.id,
@@ -244,6 +245,64 @@ def test_chatbot_analytics_tracks_conversion_funnel_to_campaign_and_voice_follow
         assert result.conversion_funnel.added_to_campaign == 1
         assert result.conversion_funnel.sequence_enrolled == 1
         assert result.conversion_funnel.voice_followups == 1
+
+
+def test_chatbot_conversion_funnel_rejects_cross_workspace_operational_rows() -> None:
+    now = datetime(2026, 6, 7, 12, 0, tzinfo=timezone.utc)
+    with _session() as session:
+        contact = Contact(workspace_id="ws-a", email="shared-id@example.com")
+        campaign = Campaign(
+            name="Other tenant", workspace_id="ws-b", created_by=uuid.uuid4()
+        )
+        session.add(contact)
+        session.add(campaign)
+        session.flush()
+        sequence = EmailSequence(
+            campaign_id=campaign.id, name="Other sequence", created_by=uuid.uuid4()
+        )
+        script = VoiceScript(
+            campaign_id=campaign.id,
+            name="Other script",
+            content="Other",
+            created_by=uuid.uuid4(),
+        )
+        session.add(sequence)
+        session.add(script)
+        session.flush()
+        _conversation(
+            session,
+            channel_type=ChatbotChannelType.whatsapp_business,
+            outcome=ChatbotConversationOutcome.lead_captured,
+            contact_id=contact.id,
+            last_message_at=now,
+        )
+        session.add(
+            ContactProgression(
+                contact_id=contact.id,
+                campaign_id=campaign.id,
+                current_state=ContactProgressionState.inbox,
+            )
+        )
+        session.add(ContactSequenceState(contact_id=contact.id, sequence_id=sequence.id))
+        session.add(
+            CallRequest(
+                workspace_id="ws-b",
+                contact_id=contact.id,
+                campaign_id=campaign.id,
+                voice_script_id=script.id,
+                trigger_reason="cross-tenant",
+                scheduled_at=now,
+            )
+        )
+        session.commit()
+
+        result = get_chatbot_analytics(
+            "ws-a", session, _user(), date_from=now.date(), date_to=now.date()
+        )
+
+        assert result.conversion_funnel.added_to_campaign == 0
+        assert result.conversion_funnel.sequence_enrolled == 0
+        assert result.conversion_funnel.voice_followups == 0
 
 
 def test_refresh_chatbot_analytics_snapshots_materializes_workspace_channel_metrics() -> None:

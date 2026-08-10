@@ -29,7 +29,12 @@ from app.domain.sequences.service import (
     get_sequence_or_404,
     update_sequence,
 )
-from app.domain_models import Contact, ContactProgression, ContactProgressionState
+from app.domain_models import (
+    Campaign,
+    Contact,
+    ContactProgression,
+    ContactProgressionState,
+)
 
 
 @pytest.fixture
@@ -49,6 +54,14 @@ def _seed_contact(session: Session, email: str = "c@example.com") -> uuid.UUID:
     return contact.id
 
 
+def _seed_campaign(session: Session) -> uuid.UUID:
+    campaign = Campaign(name="Sequence campaign", workspace_id="ws", created_by=uuid.uuid4())
+    session.add(campaign)
+    session.commit()
+    session.refresh(campaign)
+    return campaign.id
+
+
 def _seed_progression(
     session: Session, contact_id: uuid.UUID, campaign_id: uuid.UUID
 ) -> None:
@@ -64,7 +77,7 @@ def _seed_progression(
 
 def test_create_sequence_persists_record(session: Session) -> None:
     """create_sequence inserts row and returns refreshed model."""
-    data = SequenceCreate(name="Welcome", campaign_id=uuid.uuid4())
+    data = SequenceCreate(name="Welcome", campaign_id=_seed_campaign(session))
     seq = create_sequence(session, data=data, created_by=uuid.uuid4())
     assert seq.id is not None
     assert seq.name == "Welcome"
@@ -75,7 +88,7 @@ def test_get_sequence_or_404_returns_existing(session: Session) -> None:
     """get_sequence_or_404 returns model when present."""
     seq = create_sequence(
         session,
-        data=SequenceCreate(name="X", campaign_id=uuid.uuid4()),
+        data=SequenceCreate(name="X", campaign_id=_seed_campaign(session)),
         created_by=uuid.uuid4(),
     )
     found = get_sequence_or_404(session, seq.id)
@@ -93,7 +106,7 @@ def test_get_sequence_detail_includes_steps_in_order(session: Session) -> None:
     """get_sequence_detail returns steps sorted by step_order."""
     seq = create_sequence(
         session,
-        data=SequenceCreate(name="X", campaign_id=uuid.uuid4()),
+        data=SequenceCreate(name="X", campaign_id=_seed_campaign(session)),
         created_by=uuid.uuid4(),
     )
     session.add(SequenceStep(sequence_id=seq.id, step_order=2, subject_template="s2", body_template="b2"))
@@ -109,7 +122,7 @@ def test_get_sequence_detail_empty_steps(session: Session) -> None:
     """get_sequence_detail returns empty list when no steps exist."""
     seq = create_sequence(
         session,
-        data=SequenceCreate(name="X", campaign_id=uuid.uuid4()),
+        data=SequenceCreate(name="X", campaign_id=_seed_campaign(session)),
         created_by=uuid.uuid4(),
     )
     detail = get_sequence_detail(session, seq.id)
@@ -120,7 +133,7 @@ def test_update_sequence_modifies_only_provided_fields(session: Session) -> None
     """update_sequence applies partial update via exclude_unset."""
     seq = create_sequence(
         session,
-        data=SequenceCreate(name="Old", campaign_id=uuid.uuid4()),
+        data=SequenceCreate(name="Old", campaign_id=_seed_campaign(session)),
         created_by=uuid.uuid4(),
     )
     updated = update_sequence(
@@ -134,7 +147,7 @@ def test_update_sequence_can_deactivate(session: Session) -> None:
     """update_sequence can flip active flag."""
     seq = create_sequence(
         session,
-        data=SequenceCreate(name="N", campaign_id=uuid.uuid4()),
+        data=SequenceCreate(name="N", campaign_id=_seed_campaign(session)),
         created_by=uuid.uuid4(),
     )
     updated = update_sequence(
@@ -155,7 +168,7 @@ def test_batch_upsert_steps_replaces_existing(session: Session) -> None:
     """batch_upsert_steps deletes existing and creates new sorted set."""
     seq = create_sequence(
         session,
-        data=SequenceCreate(name="X", campaign_id=uuid.uuid4()),
+        data=SequenceCreate(name="X", campaign_id=_seed_campaign(session)),
         created_by=uuid.uuid4(),
     )
     # Pre-populate with stale step
@@ -180,7 +193,7 @@ def test_batch_upsert_steps_empty_payload_clears_steps(session: Session) -> None
     """Passing empty list deletes existing without creating new ones."""
     seq = create_sequence(
         session,
-        data=SequenceCreate(name="X", campaign_id=uuid.uuid4()),
+        data=SequenceCreate(name="X", campaign_id=_seed_campaign(session)),
         created_by=uuid.uuid4(),
     )
     session.add(SequenceStep(sequence_id=seq.id, step_order=1, subject_template="s", body_template="b"))
@@ -204,7 +217,7 @@ def test_delete_sequence_cascades_steps_and_states(session: Session) -> None:
     """delete_sequence removes sequence, steps, and contact states."""
     seq = create_sequence(
         session,
-        data=SequenceCreate(name="X", campaign_id=uuid.uuid4()),
+        data=SequenceCreate(name="X", campaign_id=_seed_campaign(session)),
         created_by=uuid.uuid4(),
     )
     contact_id = _seed_contact(session)
@@ -234,7 +247,7 @@ def test_delete_sequence_missing_raises(session: Session) -> None:
 
 def test_enroll_campaign_contacts_creates_states(session: Session) -> None:
     """enroll_campaign_contacts adds a state per progression contact."""
-    campaign_id = uuid.uuid4()
+    campaign_id = _seed_campaign(session)
     seq = create_sequence(
         session,
         data=SequenceCreate(name="X", campaign_id=campaign_id),
@@ -259,7 +272,7 @@ def test_enroll_campaign_contacts_creates_states(session: Session) -> None:
 
 def test_enroll_campaign_contacts_skips_already_enrolled(session: Session) -> None:
     """Re-enrolling does not duplicate existing states."""
-    campaign_id = uuid.uuid4()
+    campaign_id = _seed_campaign(session)
     seq = create_sequence(
         session,
         data=SequenceCreate(name="X", campaign_id=campaign_id),
@@ -280,13 +293,14 @@ def test_enroll_campaign_contacts_skips_already_enrolled(session: Session) -> No
 
 def test_enroll_campaign_contacts_no_progressions(session: Session) -> None:
     """Returns 0 when no contacts exist for the campaign."""
+    campaign_id = _seed_campaign(session)
     seq = create_sequence(
         session,
-        data=SequenceCreate(name="X", campaign_id=uuid.uuid4()),
+        data=SequenceCreate(name="X", campaign_id=campaign_id),
         created_by=uuid.uuid4(),
     )
     enrolled = enroll_campaign_contacts(
-        session, campaign_id=uuid.uuid4(), sequence_id=seq.id
+        session, campaign_id=campaign_id, sequence_id=seq.id
     )
     assert enrolled == 0
 

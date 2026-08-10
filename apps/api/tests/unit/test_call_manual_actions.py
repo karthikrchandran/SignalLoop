@@ -6,7 +6,9 @@ import asyncio
 import uuid
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from unittest.mock import Mock
 
+import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.api.routes import calls
@@ -53,6 +55,7 @@ def _seed_call(
         last_name="Call",
         company="ExampleCo",
         phone="+15551234567",
+        consent_email=True,
     )
     session.add(contact)
     session.flush()
@@ -67,6 +70,7 @@ def _seed_call(
     session.flush()
 
     call_request = CallRequest(
+        workspace_id=workspace_id,
         contact_id=contact.id,
         campaign_id=campaign.id,
         voice_script_id=script.id,
@@ -91,7 +95,19 @@ def test_send_demo_email_once_uses_provider_resolver_and_outbox(monkeypatch) -> 
     )
 
     with _session() as session:
-        _, call_request = _seed_call(session)
+        contact, call_request = _seed_call(session)
+        action_contact = Contact(
+            id=contact.id,
+            workspace_id=contact.workspace_id,
+            email=contact.email,
+            first_name=contact.first_name,
+            consent_email=True,
+        )
+        monkeypatch.setattr(
+            calls,
+            "_load_contact_for_workspace",
+            lambda *_args, **_kwargs: action_contact,
+        )
 
         result = _run(
             calls._send_demo_email_once(
@@ -121,6 +137,47 @@ def test_send_demo_email_once_uses_provider_resolver_and_outbox(monkeypatch) -> 
     assert outbox[0].published_at is not None
 
 
+@pytest.mark.parametrize(
+    "contact_fields",
+    [
+        {"consent_email": False},
+        {"consent_email": True, "do_not_contact": True},
+        {"consent_email": True, "suppressed": True},
+    ],
+)
+def test_send_demo_email_denial_precedes_outbox_and_adapter(
+    monkeypatch,
+    contact_fields: dict[str, bool],
+) -> None:
+    adapter_resolver = Mock()
+    monkeypatch.setattr(calls, "_email_adapter", adapter_resolver)
+
+    with _session() as session:
+        contact, call_request = _seed_call(session)
+        for field, value in contact_fields.items():
+            setattr(contact, field, value)
+        session.add(contact)
+        session.commit()
+        monkeypatch.setattr(
+            calls,
+            "_load_contact_for_workspace",
+            lambda *_args, **_kwargs: contact,
+        )
+
+        with pytest.raises(Exception, match="not actionable"):
+            _run(
+                calls._send_demo_email_once(
+                    session=session,
+                    current_user=_user(),
+                    workspace_id="ws",
+                    call_request_id=call_request.id,
+                )
+            )
+
+        assert session.exec(select(OutboxEvent)).all() == []
+    adapter_resolver.assert_not_called()
+
+
 def test_flag_for_sales_once_uses_provider_resolver_and_outbox(monkeypatch) -> None:
     adapter = _FakeEmailAdapter()
     monkeypatch.setattr(
@@ -133,7 +190,12 @@ def test_flag_for_sales_once_uses_provider_resolver_and_outbox(monkeypatch) -> N
     )
 
     with _session() as session:
-        _, call_request = _seed_call(session)
+        contact, call_request = _seed_call(session)
+        monkeypatch.setattr(
+            calls,
+            "_load_contact_for_workspace",
+            lambda *_args, **_kwargs: contact,
+        )
 
         result = _run(
             calls._flag_for_sales_once(
@@ -164,9 +226,14 @@ def test_flag_for_sales_once_uses_provider_resolver_and_outbox(monkeypatch) -> N
     assert outbox[0].published_at is not None
 
 
-def test_queue_test_call_creates_queued_request_and_audit_event() -> None:
+def test_queue_test_call_creates_queued_request_and_audit_event(monkeypatch) -> None:
     with _session() as session:
         contact, source_call = _seed_call(session)
+        monkeypatch.setattr(
+            calls,
+            "_load_contact_for_workspace",
+            lambda *_args, **_kwargs: contact,
+        )
         expected_campaign_id = source_call.campaign_id
         expected_script_id = source_call.voice_script_id
 

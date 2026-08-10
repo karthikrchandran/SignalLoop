@@ -9,9 +9,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.core.config import settings
+from app.domain.shared_records import service as shared_record_service
 from app.domain.signals.models import SignalEvent
 from app.domain.signals.scheduling import SchedulingRequest, SchedulingStatus
 from app.domain.voice.models import CallOutcome, CallRequest, CallSession, VoiceScript
@@ -20,12 +21,34 @@ from app.domain_models import (
     Contact,
     ContactEvent,
     ContactProgressionState,
+    ContactPublic,
     ContactStateHistory,
     RoutingDecision,
 )
 
 WORKSPACE_ID = "ws-story-5-1"
 OTHER_WORKSPACE_ID = "ws-story-5-1-other"
+
+
+@pytest.fixture(autouse=True)
+def legacy_contact_source(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Make timeline fixtures explicit about their legacy-contact test source."""
+
+    def get_shared_contact(
+        *, workspace_id: str, contact_id: uuid.UUID, **_kwargs: object
+    ) -> ContactPublic | None:
+        contact = db.exec(
+            select(Contact).where(
+                Contact.id == contact_id, Contact.workspace_id == workspace_id
+            )
+        ).first()
+        return ContactPublic.model_validate(contact) if contact else None
+
+    monkeypatch.setattr(
+        shared_record_service, "get_shared_contact", get_shared_contact
+    )
 
 
 def _headers(token_headers: dict[str, str]) -> dict[str, str]:
@@ -134,6 +157,7 @@ def seeded_timeline(db: Session, campaign_and_contact: tuple[uuid.UUID, uuid.UUI
         db.add(e)
 
     signal = SignalEvent(
+        workspace_id=WORKSPACE_ID,
         contact_id=contact_id,
         campaign_id=campaign_id,
         channel="email",
@@ -147,6 +171,7 @@ def seeded_timeline(db: Session, campaign_and_contact: tuple[uuid.UUID, uuid.UUI
 
     db.add(
         SchedulingRequest(
+            workspace_id=WORKSPACE_ID,
             contact_id=contact_id,
             campaign_id=campaign_id,
             signal_event_id=signal.id,
@@ -166,6 +191,7 @@ def seeded_timeline(db: Session, campaign_and_contact: tuple[uuid.UUID, uuid.UUI
     db.add(script)
     db.flush()
     call_request = CallRequest(
+        workspace_id=WORKSPACE_ID,
         contact_id=contact_id,
         campaign_id=campaign_id,
         voice_script_id=script.id,

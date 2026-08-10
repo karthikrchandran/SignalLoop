@@ -8,6 +8,8 @@ from __future__ import annotations
 import asyncio
 import uuid
 from datetime import datetime, time, timedelta, timezone
+from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -26,13 +28,80 @@ from app.workers import call_worker
 
 _SHARED_CONTACTS: dict[uuid.UUID, Contact] = {}
 
+
+def test_dispatch_reconciliation_uses_callback_lock_order() -> None:
+    statements: list[str] = []
+
+    class _Result:
+        def one(self) -> object:
+            return object()
+
+    class _Session:
+        def expire_all(self) -> None:
+            return None
+
+        def exec(self, statement: object) -> _Result:
+            statements.append(str(statement))
+            return _Result()
+
+    call_worker._lock_dispatch_state(_Session(), uuid.uuid4())  # type: ignore[arg-type]
+
+    assert "call_sessions" in statements[0]
+    assert "call_requests" in statements[1]
+
+
+def test_claim_existing_session_uses_session_first() -> None:
+    statements: list[str] = []
+    request_id = uuid.uuid4()
+
+    class _Result:
+        def __init__(self, value: object) -> None:
+            self.value = value
+
+        def first(self) -> object:
+            return self.value
+
+    class _Session:
+        def exec(self, statement: object) -> _Result:
+            rendered = str(statement)
+            statements.append(rendered)
+            value = (
+                SimpleNamespace(call_request_id=request_id)
+                if "call_sessions" in rendered
+                else SimpleNamespace(id=request_id)
+            )
+            return _Result(value)
+
+    call_worker._lock_call_candidate(_Session(), request_id)  # type: ignore[arg-type]
+
+    assert "call_sessions" in statements[0]
+    assert "call_requests" in statements[1]
+
 # ---------------------------------------------------------------------------
 # Helpers / seed factories
 # ---------------------------------------------------------------------------
 
-def _seed_contact(session: Session, *, phone: str | None = "+15551234567") -> Contact:
+
+def test_call_request_schema_requires_workspace_ownership() -> None:
+    workspace_column = cast(Any, CallRequest).__table__.columns.get("workspace_id")
+
+    assert workspace_column is not None, "CallRequest must store workspace ownership"
+    assert workspace_column.nullable is False
+
+
+def _seed_contact(
+    session: Session,
+    *,
+    phone: str | None = "+15551234567",
+    consent_voice: bool = True,
+) -> Contact:
     """Create and persist a Contact."""
-    contact = Contact(workspace_id="ws-test", email="caller@example.com", phone=phone)
+    contact = Contact(
+        workspace_id="ws-test",
+        email="caller@example.com",
+        phone=phone,
+        consent_voice=consent_voice,
+    )
     session.add(contact)
     session.commit()
     session.refresh(contact)
@@ -59,9 +128,13 @@ def _seed_campaign(
     return campaign
 
 
-def _seed_voice_script(session: Session, campaign_id: uuid.UUID) -> VoiceScript:
+def _seed_voice_script(
+    session: Session, campaign_id: uuid.UUID, *, workspace_id: str = "ws-test"
+) -> VoiceScript:
     """Create and persist a VoiceScript."""
+    campaign = session.get(Campaign, campaign_id)
     script = VoiceScript(
+        workspace_id=campaign.workspace_id if campaign is not None else workspace_id,
         campaign_id=campaign_id,
         name="default",
         content="Hello",
@@ -77,16 +150,20 @@ def _seed_call_request(
     session: Session,
     *,
     contact_id: uuid.UUID,
+    workspace_id: str = "ws-test",
     campaign_id: uuid.UUID | None = None,
     voice_script_id: uuid.UUID | None = None,
     scheduled_at: datetime | None = None,
     status: CallRequestStatus = CallRequestStatus.queued,
 ) -> CallRequest:
     """Create and persist a CallRequest plus its supporting Voice script."""
-    campaign_id = campaign_id or uuid.uuid4()
+    campaign_id = campaign_id or _seed_campaign(
+        session, workspace_id=workspace_id
+    ).id
     if voice_script_id is None:
         voice_script_id = _seed_voice_script(session, campaign_id).id
     cr = CallRequest(
+        workspace_id=workspace_id,
         contact_id=contact_id,
         campaign_id=campaign_id,
         voice_script_id=voice_script_id,
@@ -189,7 +266,11 @@ def test_daily_call_count_returns_zero_for_empty_db(memory_session: Session) -> 
 def test_daily_call_count_excludes_failed_and_other_dates(memory_session: Session) -> None:
     """Only non-failed requests created today are counted."""
     contact = _seed_contact(memory_session)
-    _seed_call_request(memory_session, contact_id=contact.id)
+    _seed_call_request(
+        memory_session,
+        contact_id=contact.id,
+        status=CallRequestStatus.in_progress,
+    )
     _seed_call_request(memory_session, contact_id=contact.id, status=CallRequestStatus.failed)
     assert call_worker._daily_call_count(memory_session) == 1
 
@@ -267,6 +348,59 @@ def test_process_batch_skips_when_global_pause_active(memory_session: Session) -
     adapter_inst.initiate_call.assert_not_awaited()
 
 
+def test_paused_workspace_does_not_fill_batch_and_block_another_workspace(
+    memory_session: Session,
+) -> None:
+    paused_contact = _seed_contact(memory_session)
+    paused_campaign = _seed_campaign(
+        memory_session,
+        workspace_id=paused_contact.workspace_id,
+    )
+    for offset in range(call_worker.BATCH_SIZE):
+        _seed_call_request(
+            memory_session,
+            contact_id=paused_contact.id,
+            campaign_id=paused_campaign.id,
+            scheduled_at=datetime.now(timezone.utc) - timedelta(minutes=10 - offset),
+        )
+    memory_session.add(
+        GlobalControlState(workspace_id=paused_contact.workspace_id, paused=True)
+    )
+
+    active_contact = Contact(
+        workspace_id="ws-active",
+        email="active@example.com",
+        phone="+15559876543",
+        consent_voice=True,
+    )
+    memory_session.add(active_contact)
+    memory_session.commit()
+    memory_session.refresh(active_contact)
+    _SHARED_CONTACTS[active_contact.id] = active_contact
+    active_campaign = _seed_campaign(memory_session, workspace_id="ws-active")
+    active_request = _seed_call_request(
+        memory_session,
+        workspace_id="ws-active",
+        contact_id=active_contact.id,
+        campaign_id=active_campaign.id,
+        scheduled_at=datetime.now(timezone.utc),
+    )
+    memory_session.commit()
+
+    active_adapter = _make_adapter(call_sid="CA-active")
+    with (
+        _patch_engine(memory_session.bind),
+        patch.object(call_worker, "_is_quiet_hours", return_value=False),
+        patch.object(call_worker, "resolve_voice_adapter", return_value=active_adapter),
+    ):
+        processed = asyncio.run(call_worker._process_batch())
+
+    memory_session.refresh(active_request)
+    assert processed == 1
+    assert active_request.status == CallRequestStatus.in_progress
+    active_adapter.initiate_call.assert_awaited_once()
+
+
 def test_process_batch_handles_exception_and_breaks(memory_session: Session) -> None:
     """If `_initiate_call` raises, the loop rolls back and breaks."""
     contact = _seed_contact(memory_session)
@@ -302,6 +436,7 @@ def test_initiate_call_marks_failed_when_contact_missing(memory_session: Session
     """Missing contact -> CallRequest moved to failed."""
     bogus_contact_id = uuid.uuid4()
     cr = CallRequest(
+        workspace_id="ws-test",
         contact_id=bogus_contact_id,
         campaign_id=uuid.uuid4(),
         voice_script_id=_seed_voice_script(memory_session, uuid.uuid4()).id,
@@ -318,6 +453,58 @@ def test_initiate_call_marks_failed_when_contact_missing(memory_session: Session
 
     assert cr.status == CallRequestStatus.failed
     adapter.initiate_call.assert_not_called()
+
+
+def test_initiate_call_fails_when_campaign_is_missing(
+    memory_session: Session,
+) -> None:
+    contact = _seed_contact(memory_session)
+    cr = _seed_call_request(
+        memory_session,
+        workspace_id=contact.workspace_id,
+        contact_id=contact.id,
+        campaign_id=uuid.uuid4(),
+    )
+    adapter = _make_adapter(call_sid="CA-must-not-dispatch")
+
+    with (
+        patch.object(
+            shared_record_service,
+            "get_shared_contact",
+            return_value=contact,
+        ) as get_shared_contact,
+        patch.object(call_worker, "resolve_voice_adapter", return_value=adapter),
+    ):
+        asyncio.run(call_worker._initiate_call(memory_session, cr))
+
+    get_shared_contact.assert_not_called()
+    memory_session.commit()
+    memory_session.refresh(cr)
+    assert cr.status == CallRequestStatus.failed
+    adapter.initiate_call.assert_not_awaited()
+
+
+def test_initiate_call_denies_missing_voice_consent_before_adapter_resolution(
+    memory_session: Session,
+) -> None:
+    contact = _seed_contact(memory_session, consent_voice=False)
+    campaign = _seed_campaign(memory_session)
+    script = _seed_voice_script(memory_session, campaign.id)
+    cr = _seed_call_request(
+        memory_session,
+        contact_id=contact.id,
+        campaign_id=campaign.id,
+        voice_script_id=script.id,
+    )
+    adapter = _make_adapter(call_sid="CA-must-not-dispatch")
+    with patch.object(call_worker, "resolve_voice_adapter", return_value=adapter) as resolver:
+        asyncio.run(call_worker._initiate_call(memory_session, cr))
+
+    memory_session.commit()
+    memory_session.refresh(cr)
+    assert cr.status == CallRequestStatus.failed
+    resolver.assert_not_called()
+    adapter.initiate_call.assert_not_awaited()
 
 
 def test_initiate_call_marks_failed_when_no_phone(memory_session: Session) -> None:
@@ -406,12 +593,18 @@ def test_initiate_call_persists_session_before_provider_call(
     contact = _seed_contact(memory_session)
     cr = _seed_call_request(memory_session, contact_id=contact.id)
 
-    async def _initiate_call(**_kwargs: object) -> dict[str, str]:
+    async def _initiate_call(**kwargs: object) -> dict[str, str]:
         cs = memory_session.exec(
             select(CallSession).where(CallSession.call_request_id == cr.id)
         ).first()
         assert cs is not None
         assert cs.twilio_status == "initiating"
+        assert cs.callback_correlation_hash
+        assert cs.callback_correlation_expires_at is not None
+        assert "?correlation=" in str(kwargs["twiml_url"])
+        assert str(kwargs["twiml_url"]).split("?correlation=", 1)[1] == str(
+            kwargs["status_callback_url"]
+        ).split("?correlation=", 1)[1]
         return {"call_sid": "CAfreshSid"}
 
     adapter = MagicMock()
@@ -426,6 +619,58 @@ def test_initiate_call_persists_session_before_provider_call(
     ).first()
     assert cs is not None
     assert cs.twilio_status == "initiated"
+
+
+@pytest.mark.parametrize("provider_raises", [False, True])
+def test_initiate_call_does_not_regress_callback_state_after_provider_finishes(
+    memory_session: Session,
+    provider_raises: bool,
+) -> None:
+    contact = _seed_contact(memory_session)
+    cr = _seed_call_request(memory_session, contact_id=contact.id)
+    engine = memory_session.get_bind()
+
+    async def callback_before_provider_finishes(**_kwargs: object) -> dict[str, str]:
+        with Session(engine) as callback_session:
+            persisted_request = callback_session.get(CallRequest, cr.id)
+            persisted_call = callback_session.exec(
+                select(CallSession).where(CallSession.call_request_id == cr.id)
+            ).one()
+            persisted_call.twilio_call_sid = "CA-callback"
+            persisted_call.twilio_status = "completed" if provider_raises else "ringing"
+            persisted_request.status = (
+                CallRequestStatus.completed
+                if provider_raises
+                else CallRequestStatus.in_progress
+            )
+            callback_session.add(persisted_call)
+            callback_session.add(persisted_request)
+            callback_session.commit()
+        if provider_raises:
+            raise RuntimeError("provider returned after terminal callback")
+        return {"call_sid": "CA-callback"}
+
+    adapter = MagicMock()
+    adapter._account_sid = "AC-race"
+    adapter.initiate_call = AsyncMock(side_effect=callback_before_provider_finishes)
+
+    with patch.object(call_worker, "resolve_voice_adapter", return_value=adapter):
+        if provider_raises:
+            with pytest.raises(RuntimeError):
+                asyncio.run(call_worker._initiate_call(memory_session, cr))
+        else:
+            asyncio.run(call_worker._initiate_call(memory_session, cr))
+    memory_session.commit()
+    memory_session.expire_all()
+    persisted_request = memory_session.get(CallRequest, cr.id)
+    persisted_call = memory_session.exec(
+        select(CallSession).where(CallSession.call_request_id == cr.id)
+    ).one()
+
+    assert persisted_call.twilio_status == ("completed" if provider_raises else "ringing")
+    assert persisted_request.status == (
+        CallRequestStatus.completed if provider_raises else CallRequestStatus.in_progress
+    )
 
 
 def test_initiate_call_marks_failed_when_twilio_returns_no_sid(memory_session: Session) -> None:

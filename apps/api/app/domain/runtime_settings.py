@@ -53,7 +53,11 @@ def resolve_workspace_runtime_config(
         ),
         team_notification_email=_resolve_plain_value(
             row.team_notification_email if row else None,
-            settings.TEAM_NOTIFICATION_EMAIL,
+            (
+                settings.TEAM_NOTIFICATION_EMAIL
+                if workspace_id == settings.DEFAULT_WORKSPACE_ID
+                else ""
+            ),
         ),
     )
 

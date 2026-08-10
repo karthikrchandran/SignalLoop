@@ -10,6 +10,8 @@ export type SchedulingRequestSource = "voice_call" | "email_reply" | "manual"
 
 export type SchedulingRequest = {
   id: string
+  workspace_id: string
+  calendly_state: string | null
   contact_id: string
   campaign_id: string
   signal_event_id: string | null
@@ -22,6 +24,16 @@ export type SchedulingRequest = {
   notes: string | null
   created_at: string
   updated_at: string
+}
+
+export function withCalendlyState(url: string, state: string): string {
+  try {
+    const parsed = new URL(url)
+    parsed.searchParams.set("utm_content", state)
+    return parsed.toString()
+  } catch {
+    return url
+  }
 }
 
 export type SchedulingRequestsResponse = {

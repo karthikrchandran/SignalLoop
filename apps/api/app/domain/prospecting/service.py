@@ -168,7 +168,8 @@ def list_ready_contacts(
     shared_contacts = shared_record_service.list_shared_contacts(
         workspace_id=workspace_id,
         search=search,
-        limit=200,
+        # eCRM's shared-records endpoint caps a single request at 100 rows.
+        limit=100,
     )
     contacts = [
         contact if isinstance(contact, Contact) else _contact_from_public(contact)
@@ -566,6 +567,7 @@ def enroll_selected_prospects(
         else:
             session.add(
                 ContactSequenceState(
+                    workspace_id=workspace_id,
                     shared_contact_id=contact.id,
                     sequence_id=sequence.id,
                     status=SequenceStatus.active,

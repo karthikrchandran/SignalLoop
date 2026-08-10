@@ -17,7 +17,7 @@ from fastapi import (
     Request,
     UploadFile,
 )
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep

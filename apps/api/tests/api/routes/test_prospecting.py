@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 import uuid
+from typing import cast
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.domain.audit.audit_events import AuditEvent
+from app.domain.prospecting import service as prospecting_service
 from app.domain.sequences.models import ContactSequenceState, EmailSequence
+from app.domain.shared_records import service as shared_record_service
 from app.domain_models import (
     Campaign,
     Contact,
     ContactProgression,
     ContactProgressionState,
+    ContactPublic,
     ProspectingSnapshot,
 )
 from app.infrastructure.rag.crawler import CrawledPage
@@ -25,6 +30,66 @@ def _headers(token_headers: dict[str, str], workspace_id: str, *, idempotency: b
     return headers
 
 
+@pytest.fixture(autouse=True)
+def legacy_contact_source(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Make legacy-contact route fixtures independent of a live eCRM instance."""
+
+    def get_shared_contact(
+        *, workspace_id: str, contact_id: uuid.UUID, **_kwargs: object
+    ) -> ContactPublic | None:
+        contact = db.exec(
+            select(Contact).where(
+                Contact.id == contact_id, Contact.workspace_id == workspace_id
+            )
+        ).first()
+        return ContactPublic.model_validate(contact) if contact else None
+
+    def list_shared_contacts(
+        *,
+        workspace_id: str,
+        search: str | None = None,
+        limit: int = 50,
+        **_kwargs: object,
+    ) -> list[ContactPublic]:
+        statement = select(Contact).where(Contact.workspace_id == workspace_id)
+        contacts = db.exec(statement.limit(limit)).all()
+        public_contacts = [ContactPublic.model_validate(contact) for contact in contacts]
+        if search:
+            query = search.lower()
+            return [contact for contact in public_contacts if query in contact.email.lower()]
+        return public_contacts
+
+    monkeypatch.setattr(
+        shared_record_service, "get_shared_contact", get_shared_contact
+    )
+    monkeypatch.setattr(
+        shared_record_service, "list_shared_contacts", list_shared_contacts
+    )
+
+
+def test_ready_contacts_caps_shared_records_request_at_ecrm_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The eCRM shared-records API accepts at most 100 contacts per request."""
+    captured: dict[str, int] = {}
+
+    def fake_list_shared_contacts(**kwargs: object) -> list[ContactPublic]:
+        captured["limit"] = cast(int, kwargs["limit"])
+        return []
+
+    monkeypatch.setattr(
+        shared_record_service,
+        "list_shared_contacts",
+        fake_list_shared_contacts,
+    )
+
+    prospecting_service.list_ready_contacts(cast(Session, None), workspace_id="ws-limit")
+
+    assert captured["limit"] == 100
+
+
 def test_run_prospecting_research_persists_snapshot_and_audit_event(
     client: TestClient,
     superuser_token_headers: dict[str, str],
@@ -32,6 +97,7 @@ def test_run_prospecting_research_persists_snapshot_and_audit_event(
     monkeypatch,
 ) -> None:
     async def fake_crawl_website(url: str, *, depth: int = 1, max_pages: int = 10) -> list[CrawledPage]:
+        del depth, max_pages
         return [
             CrawledPage(
                 url=url,

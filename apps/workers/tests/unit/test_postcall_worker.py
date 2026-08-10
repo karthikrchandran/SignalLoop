@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from app.core.config import settings
 from app.domain.audit.audit_events import AuditEvent
 from app.domain.voice.models import (
     CallOutcome,
@@ -17,7 +18,7 @@ from app.domain.voice.models import (
     VoiceScript,
 )
 from app.domain_models import Campaign, Contact, OutboxEvent
-from worker_app import postcall_worker
+from worker_app import postcall_worker  # type: ignore[import-untyped]
 
 
 def _run(coro):
@@ -48,6 +49,7 @@ def _seed_completed_call(session: Session) -> tuple[CallRequest, CallSession]:
     session.flush()
 
     script = VoiceScript(
+        workspace_id=campaign.workspace_id,
         campaign_id=campaign.id,
         name="Script",
         content="Say hello.",
@@ -57,6 +59,7 @@ def _seed_completed_call(session: Session) -> tuple[CallRequest, CallSession]:
     session.flush()
 
     request = CallRequest(
+        workspace_id=campaign.workspace_id,
         contact_id=contact.id,
         campaign_id=campaign.id,
         voice_script_id=script.id,
@@ -97,13 +100,31 @@ class _CapturingAdapter:
         return {"status_code": 202, "message_id": "summary-1"}
 
 
+def test_build_summary_uses_stored_workspace_without_campaign() -> None:
+    with _session() as session:
+        request, call_session = _seed_completed_call(session)
+
+        summary = postcall_worker._build_summary(
+            request,
+            call_session,
+            contact=None,
+            campaign=None,
+        )
+
+    assert summary["workspace_id"] == request.workspace_id
+
+
 def test_process_session_uses_outbox_intent_before_send() -> None:
     with _session() as session:
         request, call_session = _seed_completed_call(session)
         adapter = _CapturingAdapter(session)
 
         with (
-            patch.object(postcall_worker.settings, "TEAM_NOTIFICATION_EMAIL", "ops@example.com"),
+            patch.object(
+                postcall_worker,
+                "resolve_team_notification_email",
+                return_value="ops@example.com",
+            ),
             patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
         ):
             _run(postcall_worker._process_session(session, request, call_session))
@@ -125,6 +146,7 @@ def test_process_session_rejects_unpublished_intent_without_resend() -> None:
         request, call_session = _seed_completed_call(session)
         session.add(
             OutboxEvent(
+                workspace_id=request.workspace_id,
                 aggregate_id=call_session.id,
                 aggregate_type="call_session",
                 event_type="postcall.summary_email_requested",
@@ -136,7 +158,11 @@ def test_process_session_rejects_unpublished_intent_without_resend() -> None:
         adapter = _CapturingAdapter(session)
 
         with (
-            patch.object(postcall_worker.settings, "TEAM_NOTIFICATION_EMAIL", "ops@example.com"),
+            patch.object(
+                postcall_worker,
+                "resolve_team_notification_email",
+                return_value="ops@example.com",
+            ),
             patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
             pytest.raises(RuntimeError, match="already in progress"),
         ):
@@ -156,7 +182,11 @@ def test_process_session_rejection_does_not_mark_processed() -> None:
         adapter.send_email = AsyncMock(return_value={"status_code": 500, "message_id": ""})
 
         with (
-            patch.object(postcall_worker.settings, "TEAM_NOTIFICATION_EMAIL", "ops@example.com"),
+            patch.object(
+                postcall_worker,
+                "resolve_team_notification_email",
+                return_value="ops@example.com",
+            ),
             patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
             pytest.raises(RuntimeError, match="rejected"),
         ):
@@ -167,3 +197,69 @@ def test_process_session_rejection_does_not_mark_processed() -> None:
     adapter.send_email.assert_awaited_once()
     assert outbox[0].published_at is None
     assert call_session.post_call_processed is False
+
+
+def test_process_session_uses_workspace_recipient_not_global_setting() -> None:
+    with _session() as session:
+        request, call_session = _seed_completed_call(session)
+        adapter = _CapturingAdapter(session)
+
+        with (
+            patch.object(
+                postcall_worker,
+                "resolve_team_notification_email",
+                create=True,
+                return_value="workspace@example.com",
+            ) as recipient_resolver,
+            patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
+        ):
+            _run(postcall_worker._process_session(session, request, call_session))
+
+        recipient_resolver.assert_called_once_with(session, "ws")
+        assert adapter.sent[0]["to"] == "workspace@example.com"
+        assert "Interested in a follow-up." in adapter.sent[0]["body_text"]
+
+
+def test_process_session_fails_closed_on_contact_workspace_mismatch() -> None:
+    with _session() as session:
+        request, call_session = _seed_completed_call(session)
+        contact = session.get(Contact, request.contact_id)
+        assert contact is not None
+        contact.workspace_id = "workspace-b"
+        session.add(contact)
+        session.commit()
+
+        with (
+            patch.object(postcall_worker, "resolve_email_adapter") as resolver,
+            pytest.raises(RuntimeError, match="contact workspace mismatch"),
+        ):
+            _run(postcall_worker._process_session(session, request, call_session))
+
+        resolver.assert_not_called()
+        assert call_session.post_call_processed is False
+
+
+def test_process_session_real_resolver_does_not_use_global_recipient(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _session() as session:
+        request, call_session = _seed_completed_call(session)
+        monkeypatch.setattr(
+            settings,
+            "TEAM_NOTIFICATION_EMAIL",
+            "global@example.com",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            settings,
+            "DEFAULT_WORKSPACE_ID",
+            "singleton",
+            raising=False,
+        )
+        resolver = MagicMock()
+        monkeypatch.setattr(postcall_worker, "resolve_email_adapter", resolver)
+
+        _run(postcall_worker._process_session(session, request, call_session))
+
+        resolver.assert_not_called()
+        assert session.exec(select(OutboxEvent)).all() == []

@@ -11,6 +11,7 @@ from sqlalchemy import (
     JSON,
     Column,
     DateTime,
+    ForeignKeyConstraint,
     Index,
     String,
     Text,
@@ -152,6 +153,7 @@ class Campaign(SQLModel, table=True):
 
     __tablename__ = "campaigns"
     __table_args__ = (
+        UniqueConstraint("id", "workspace_id", name="uq_campaign_id_workspace"),
         Index("idx_campaign_workspace_status", "workspace_id", "status"),
         Index("idx_campaign_workspace_created_by", "workspace_id", "created_by"),
     )
@@ -468,6 +470,9 @@ class Contact(SQLModel, table=True):
     """Contact."""
 
     __tablename__ = "contacts"
+    __table_args__ = (
+        UniqueConstraint("id", "workspace_id", name="uq_contact_id_workspace"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
@@ -486,6 +491,10 @@ class Contact(SQLModel, table=True):
     source_channel: str | None = Field(default=None, max_length=64)
     tags_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     intent_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    consent_email: bool = Field(default=False, nullable=False)
+    consent_voice: bool = Field(default=False, nullable=False)
+    do_not_contact: bool = Field(default=False, nullable=False)
+    suppressed: bool = Field(default=False, nullable=False)
     last_seen_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
     created_at: datetime = Field(
         default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
@@ -570,13 +579,21 @@ class OutboxEvent(SQLModel, table=True):
     """Transactional outbox for reliable at-least-once event publishing."""
 
     __tablename__ = "outbox_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id",
+            "idempotency_key",
+            name="uq_outbox_workspace_idempotency",
+        ),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(max_length=64, index=True)
     aggregate_id: uuid.UUID = Field(index=True)
     aggregate_type: str = Field(max_length=64)  # "contact" | "campaign"
     event_type: str = Field(max_length=128)  # "contact.progressed" | "action.queued"
     event_data: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    idempotency_key: str = Field(unique=True, max_length=255, index=True)
+    idempotency_key: str = Field(max_length=255, index=True)
     created_at: datetime = Field(
         default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
     )
@@ -587,8 +604,21 @@ class ActionQueue(SQLModel, table=True):
     """Work item for the delivery worker — one outbound action per row."""
 
     __tablename__ = "action_queue"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["campaign_id", "workspace_id"],
+            ["campaigns.id", "campaigns.workspace_id"],
+            name="fk_action_queue_campaign_workspace",
+        ),
+        ForeignKeyConstraint(
+            ["contact_id", "workspace_id"],
+            ["contacts.id", "contacts.workspace_id"],
+            name="fk_action_queue_contact_workspace",
+        ),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(max_length=64, index=True)
     shared_contact_id: uuid.UUID = Field(
         alias="contact_id",
         sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
@@ -709,9 +739,10 @@ class ProviderEventLog(SQLModel, table=True):
     __tablename__ = "provider_event_logs"
     __table_args__ = (
         UniqueConstraint(
+            "workspace_id",
             "provider",
             "provider_event_id",
-            name="uq_provider_event_provider_event_id",
+            name="uq_provider_event_workspace_provider_event_id",
         ),
     )
 
@@ -899,6 +930,10 @@ class ContactPublic(SQLModel):
     source_channel: str | None = None
     tags_json: list[str] = Field(default_factory=list)
     intent_json: list[str] = Field(default_factory=list)
+    consent_email: bool = False
+    consent_voice: bool = False
+    do_not_contact: bool = False
+    suppressed: bool = False
     last_seen_at: datetime | None = None
     created_at: datetime
 
@@ -1492,8 +1527,8 @@ class CampaignHealthPublic(SQLModel):
     provider_errors_by_type: dict[str, int]
 
 
-from app.domain.shared_records.models import (  # noqa: E402
-    PlatformExternalLink,
-    PlatformSharedAccount,
-    PlatformSharedContact,
+from app.domain.shared_records.models import (  # noqa: E402, F401
+    PlatformExternalLink,  # noqa: F401
+    PlatformSharedAccount,  # noqa: F401
+    PlatformSharedContact,  # noqa: F401
 )

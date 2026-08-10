@@ -25,7 +25,7 @@ from app.domain.signals.models import SignalEvent
 from app.domain.signals.signal_detector import detect_email_signal
 from app.domain.signals.trigger_service import process_signal
 from app.domain.timeline.timeline_service import invalidate_timeline_cache
-from app.domain_models import Campaign, NotificationProvider, ProviderEventLog
+from app.domain_models import Campaign, Contact, NotificationProvider, ProviderEventLog
 from app.infrastructure.providers.sendgrid import SendGridAdapter
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ async def handle_sendgrid_webhook(request: Request, session: SessionDep) -> dict
     events: list[dict[str, Any]] = await request.json()
     adapter = SendGridAdapter()
     timeline_cache_targets: set[tuple[uuid.UUID, uuid.UUID]] = set()
-    seen_provider_events: set[str] = set()
+    seen_provider_events: set[tuple[str, str]] = set()
 
     for raw_event in events:
         try:
@@ -60,26 +60,31 @@ async def handle_sendgrid_webhook(request: Request, session: SessionDep) -> dict
 
             if not provider_msg_id:
                 continue
-            if provider_event_id:
-                if provider_event_id in seen_provider_events or _provider_event_seen(
-                    session,
-                    provider_event_id,
-                ):
-                    logger.info("Skipping replayed SendGrid event %s", provider_event_id)
-                    continue
-
-            # Find matching SendRequest
-            send_request = session.exec(
-                select(SendRequest).where(
-                    SendRequest.provider_message_id == provider_msg_id
-                )
-            ).first()
+            event_workspace_id = str(normalized.get("workspace_id") or "")
+            send_request = _find_send_request_for_webhook(
+                session,
+                provider_message_id=provider_msg_id,
+                workspace_id=event_workspace_id or None,
+            )
 
             if not send_request:
                 logger.warning("No SendRequest found for message_id=%s", provider_msg_id)
                 continue
 
             workspace_id = _workspace_for_send_request(session, send_request)
+            provider_event_key = (workspace_id, provider_event_id)
+            if provider_event_id:
+                if provider_event_key in seen_provider_events or _provider_event_seen(
+                    session,
+                    workspace_id,
+                    provider_event_id,
+                ):
+                    logger.info(
+                        "Skipping replayed SendGrid event %s in workspace %s",
+                        provider_event_id,
+                        workspace_id,
+                    )
+                    continue
 
             # Store the event
             email_event = EmailEvent(
@@ -107,7 +112,7 @@ async def handle_sendgrid_webhook(request: Request, session: SessionDep) -> dict
                         normalized_event=normalized,
                     )
                 )
-                seen_provider_events.add(provider_event_id)
+                seen_provider_events.add(provider_event_key)
         except Exception:
             logger.exception("Error processing webhook event: %s", raw_event.get("sg_event_id", "unknown"))
 
@@ -117,9 +122,36 @@ async def handle_sendgrid_webhook(request: Request, session: SessionDep) -> dict
     return {"status": "ok"}
 
 
-def _provider_event_seen(session: Session, provider_event_id: str) -> bool:
+def _find_send_request_for_webhook(
+    session: Session,
+    *,
+    provider_message_id: str,
+    workspace_id: str | None,
+) -> SendRequest | None:
+    statement = select(SendRequest).where(
+        SendRequest.provider_message_id == provider_message_id
+    )
+    if workspace_id is not None:
+        statement = statement.where(SendRequest.workspace_id == workspace_id)
+    matches = session.exec(statement.limit(2)).all()
+    if len(matches) != 1:
+        logger.warning(
+            "Webhook message_id=%s matched %d send requests; refusing ambiguous event",
+            provider_message_id,
+            len(matches),
+        )
+        return None
+    return matches[0]
+
+
+def _provider_event_seen(
+    session: Session,
+    workspace_id: str,
+    provider_event_id: str,
+) -> bool:
     return session.exec(
         select(ProviderEventLog.id).where(
+            ProviderEventLog.workspace_id == workspace_id,
             ProviderEventLog.provider == NotificationProvider.sendgrid,
             ProviderEventLog.provider_event_id == provider_event_id,
         )
@@ -165,15 +197,24 @@ async def _process_event(
     return timeline_cache_targets
 
 
-def _workspace_for_send_request(session: Session, send_request: SendRequest) -> str:
+def _workspace_for_send_request(
+    session: Session,
+    send_request: SendRequest,
+) -> str:
     state = session.get(ContactSequenceState, send_request.contact_sequence_state_id)
-    if not state:
-        return "system"
-    seq = session.get(EmailSequence, state.sequence_id)
-    if not seq:
-        return "system"
-    campaign = session.get(Campaign, seq.campaign_id)
-    return campaign.workspace_id if campaign else "system"
+    sequence = session.get(EmailSequence, state.sequence_id) if state else None
+    campaign = session.get(Campaign, sequence.campaign_id) if sequence else None
+    if (
+        state is None
+        or sequence is None
+        or campaign is None
+        or campaign.workspace_id != send_request.workspace_id
+    ):
+        raise ValueError("SendRequest workspace ownership chain is inconsistent")
+    contact = session.get(Contact, state.contact_id)
+    if contact is not None and contact.workspace_id != send_request.workspace_id:
+        raise ValueError("SendRequest contact workspace is inconsistent")
+    return send_request.workspace_id
 
 
 def _stop_contact_sequence(
@@ -215,6 +256,7 @@ async def _emit_signal(
     if not seq:
         return None
     signal = SignalEvent(
+        workspace_id=send_request.workspace_id,
         contact_id=state.contact_id,
         campaign_id=seq.campaign_id,
         channel="email",
@@ -230,12 +272,19 @@ async def _emit_signal(
 def _add_suppression(session: Session, email: str, reason: str, workspace_id: str) -> None:
     existing = session.exec(
         select(EmailSuppression).where(
+            EmailSuppression.workspace_id == workspace_id,
             EmailSuppression.email == email,
             EmailSuppression.reason == reason,
         )
     ).first()
     if not existing:
-        session.add(EmailSuppression(email=email, reason=reason))
+        session.add(
+            EmailSuppression(
+                workspace_id=workspace_id,
+                email=email,
+                reason=reason,
+            )
+        )
         append_audit_event_to_session(
             session,
             event_name="suppression_added",

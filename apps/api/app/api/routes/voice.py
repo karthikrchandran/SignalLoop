@@ -8,11 +8,11 @@ import hashlib
 import hmac
 import json
 import logging
+import secrets
 import time
 import uuid
 from contextlib import suppress
-from datetime import datetime, timezone
-from urllib.parse import urlencode
+from datetime import datetime, timedelta, timezone
 from xml.sax.saxutils import quoteattr
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -30,6 +30,7 @@ from app.domain.timeline.timeline_service import (
     invalidate_timeline_cache_from_url_sync,
 )
 from app.domain.voice.conversation_engine import ConversationEngine
+from app.domain.voice.correlation import token_hash, verify_correlation_token
 from app.domain.voice.models import (
     CallOutcome,
     CallRequest,
@@ -63,9 +64,8 @@ MEDIA_STREAM_MAX_CALL_SECONDS = 30 * 60.0
 MEDIA_STREAM_CLOSE_TIMEOUT_SECONDS = 1.0
 TTS_FIRST_AUDIO_TIMEOUT_SECONDS = 0.1
 RESPONSE_LATENCY_BUDGET_SECONDS = 0.5
-MEDIA_TOKEN_QUERY_PARAM = "token"
-MEDIA_CALL_QUERY_PARAM = "call_sid"
-MEDIA_ACCOUNT_QUERY_PARAM = "account_sid"
+MEDIA_TOKEN_PARAMETER = "media_token"
+MEDIA_TOKEN_TTL_SECONDS = 300
 TERMINAL_TWILIO_STATUSES = {"busy", "canceled", "completed", "failed", "no-answer"}
 ACTIVE_TWILIO_STATUSES = {"answered", "in-progress", "initiated", "ringing"}
 TWILIO_STATUS_RANK = {
@@ -94,13 +94,31 @@ def _verify_twilio_webhook(
     request: Request,
     params: dict[str, str],
     session: Session,
-) -> None:
+) -> tuple[CallSession, CallRequest, Campaign, VoiceScript, Contact]:
     signature = request.headers.get("X-Twilio-Signature", "")
     if not signature:
         raise HTTPException(status_code=403, detail="Invalid Twilio signature")
 
+    call_sid = params.get("CallSid", "").strip()
+    account_sid = params.get("AccountSid", "").strip()
+    correlation = request.query_params.get("correlation", "")
+    call_context = _resolve_twilio_call_context(
+        session, call_sid=call_sid, account_sid=account_sid
+    )
+    if call_context is None and correlation:
+        call_context = _resolve_twilio_correlation_context(
+            session, correlation=correlation, account_sid=account_sid
+        )
+    if call_context is None:
+        raise HTTPException(status_code=403, detail="Invalid Twilio call binding")
+
+    call_session, call_request, _campaign, _script, _contact = call_context
     url = str(request.url)
-    auth_tokens = _twilio_auth_tokens_for_request(session, params)
+    auth_tokens = _twilio_auth_tokens_for_workspace(
+        session,
+        workspace_id=call_request.workspace_id,
+        account_sid=call_session.twilio_account_sid or "",
+    )
     if not any(
         TwilioVoiceAdapter.verify_request_signature(
             url,
@@ -111,6 +129,46 @@ def _verify_twilio_webhook(
         for auth_token in auth_tokens
     ):
         raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+    if not call_session.twilio_call_sid:
+        call_session.twilio_call_sid = call_sid
+        session.add(call_session)
+        session.flush()
+    elif not hmac.compare_digest(call_session.twilio_call_sid, call_sid):
+        raise HTTPException(status_code=403, detail="Invalid Twilio call binding")
+    return call_context
+
+
+def _resolve_twilio_correlation_context(
+    session: Session,
+    *,
+    correlation: str,
+    account_sid: str,
+) -> tuple[CallSession, CallRequest, Campaign, VoiceScript, Contact] | None:
+    session_id = verify_correlation_token(correlation, settings.SECRET_KEY)
+    if session_id is None or not account_sid:
+        return None
+    call_session = session.exec(
+        select(CallSession).where(CallSession.id == session_id).with_for_update()
+    ).first()
+    if call_session is None:
+        return None
+    ownership = _resolve_call_ownership(session, call_session)
+    if ownership is None:
+        return None
+    if (
+        not call_session.twilio_account_sid
+        or not call_session.callback_correlation_hash
+        or call_session.callback_correlation_expires_at is None
+        or call_session.callback_correlation_expires_at <= datetime.now(timezone.utc)
+        or not hmac.compare_digest(call_session.twilio_account_sid, account_sid)
+        or not hmac.compare_digest(
+            call_session.callback_correlation_hash,
+            token_hash(correlation),
+        )
+    ):
+        return None
+    call_request, campaign, voice_script, contact = ownership
+    return call_session, call_request, campaign, voice_script, contact
 
 
 def _twilio_provider_event_id(event_kind: str, params: dict[str, str]) -> str:
@@ -141,17 +199,54 @@ def _twilio_provider_event_id(event_kind: str, params: dict[str, str]) -> str:
     return f"twilio:{event_kind}:{digest}"
 
 
-def _workspace_for_call_request(session: Session, call_request: CallRequest | None) -> str:
-    if not call_request:
-        return "system"
+def _resolve_call_ownership(
+    session: Session,
+    call_session: CallSession,
+) -> tuple[CallRequest, Campaign, VoiceScript, Contact] | None:
+    call_request = session.exec(
+        select(CallRequest)
+        .where(CallRequest.id == call_session.call_request_id)
+        .with_for_update()
+    ).first()
+    if call_request is None:
+        return None
     campaign = session.get(Campaign, call_request.campaign_id)
-    if campaign:
-        return campaign.workspace_id
-    shared_contact = shared_record_service.get_shared_contact(
-        workspace_id="system",
-        contact_id=call_request.contact_id,
-    )
-    return shared_contact.workspace_id if shared_contact else "system"
+    if campaign is None or campaign.workspace_id != call_request.workspace_id:
+        return None
+    voice_script = session.get(VoiceScript, call_request.voice_script_id)
+    if voice_script is None or voice_script.campaign_id != campaign.id:
+        return None
+    contact = session.get(Contact, call_request.contact_id)
+    if contact is None or contact.workspace_id != call_request.workspace_id:
+        return None
+    return call_request, campaign, voice_script, contact
+
+
+def _resolve_twilio_call_context(
+    session: Session,
+    *,
+    call_sid: str,
+    account_sid: str,
+) -> tuple[CallSession, CallRequest, Campaign, VoiceScript, Contact] | None:
+    if not call_sid or not account_sid:
+        return None
+    call_session = session.exec(
+        select(CallSession)
+        .where(CallSession.twilio_call_sid == call_sid)
+        .with_for_update()
+    ).first()
+    if call_session is None:
+        return None
+    ownership = _resolve_call_ownership(session, call_session)
+    if ownership is None:
+        return None
+    if not call_session.twilio_account_sid or not hmac.compare_digest(
+        call_session.twilio_account_sid,
+        account_sid,
+    ):
+        return None
+    call_request, campaign, voice_script, contact = ownership
+    return call_session, call_request, campaign, voice_script, contact
 
 
 def _load_contact_for_workspace(
@@ -180,6 +275,7 @@ def _record_twilio_provider_event(
 ) -> bool:
     existing = session.exec(
         select(ProviderEventLog.id).where(
+            ProviderEventLog.workspace_id == workspace_id,
             ProviderEventLog.provider == NotificationProvider.twilio,
             ProviderEventLog.provider_event_id == provider_event_id,
         )
@@ -200,25 +296,25 @@ def _record_twilio_provider_event(
     return True
 
 
-def _twilio_auth_tokens_for_request(
+def _twilio_auth_tokens_for_workspace(
     session: Session,
-    params: dict[str, str],
+    *,
+    workspace_id: str,
+    account_sid: str,
 ) -> list[str]:
-    account_sid = params.get("AccountSid", "").strip()
-    call_sid = params.get("CallSid", "").strip()
-    if not account_sid and call_sid:
-        call_session = session.exec(
-            select(CallSession).where(CallSession.twilio_call_sid == call_sid)
-        ).first()
-        account_sid = call_session.twilio_account_sid if call_session else ""
-
     tokens: list[str] = []
-    if account_sid == settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN:
+    if (
+        workspace_id == settings.DEFAULT_WORKSPACE_ID
+        and account_sid
+        and hmac.compare_digest(account_sid, settings.TWILIO_ACCOUNT_SID)
+        and settings.TWILIO_AUTH_TOKEN
+    ):
         tokens.append(settings.TWILIO_AUTH_TOKEN)
 
     if account_sid:
         rows = session.exec(
             select(ProviderCredential).where(
+                ProviderCredential.workspace_id == workspace_id,
                 ProviderCredential.provider == NotificationProvider.twilio,
                 ProviderCredential.channel == "voice",
                 ProviderCredential.is_active == True,  # noqa: E712
@@ -226,11 +322,12 @@ def _twilio_auth_tokens_for_request(
         ).all()
         for row in rows:
             row_account_sid, row_auth_token = _decrypt_twilio_credential(row)
-            if row_account_sid == account_sid and row_auth_token:
+            if (
+                row_account_sid
+                and hmac.compare_digest(row_account_sid, account_sid)
+                and row_auth_token
+            ):
                 tokens.append(row_auth_token)
-
-    if not tokens and not account_sid and settings.TWILIO_AUTH_TOKEN:
-        tokens.append(settings.TWILIO_AUTH_TOKEN)
     return list(dict.fromkeys(tokens))
 
 
@@ -249,24 +346,18 @@ async def twiml_handler(request: Request, session: SessionDep) -> Response:
     """Return TwiML to connect the call to our WebSocket media stream."""
     form_data = await request.form()
     params = {k: str(v) for k, v in form_data.items()}
-    _verify_twilio_webhook(request, params, session)
+    call_session, _request, _campaign, _script, _contact = _verify_twilio_webhook(
+        request, params, session
+    )
 
-    call_sid = params.get("CallSid", "")
-    if not call_sid:
-        raise HTTPException(status_code=400, detail="Missing CallSid")
-    account_sid = params.get("AccountSid", "")
+    call_sid = call_session.twilio_call_sid or ""
+    account_sid = call_session.twilio_account_sid or ""
 
     host = settings.SERVER_HOST
     ws_scheme = "wss" if request.url.scheme == "https" else "ws"
-    token = _build_media_stream_token(call_sid, account_sid)
-    query = urlencode(
-        {
-            MEDIA_CALL_QUERY_PARAM: call_sid,
-            MEDIA_ACCOUNT_QUERY_PARAM: account_sid,
-            MEDIA_TOKEN_QUERY_PARAM: token,
-        }
-    )
-    stream_url = f"{ws_scheme}://{host}{settings.API_V1_STR}/voice/media-stream?{query}"
+    token = _mint_media_stream_token(session, call_session)
+    session.commit()
+    stream_url = f"{ws_scheme}://{host}{settings.API_V1_STR}/voice/media-stream"
 
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -274,6 +365,7 @@ async def twiml_handler(request: Request, session: SessionDep) -> Response:
         <Stream url={quoteattr(stream_url)}>
             <Parameter name="call_sid" value={quoteattr(call_sid)} />
             <Parameter name="account_sid" value={quoteattr(account_sid)} />
+            <Parameter name={quoteattr(MEDIA_TOKEN_PARAMETER)} value={quoteattr(token)} />
         </Stream>
     </Connect>
 </Response>"""
@@ -283,21 +375,11 @@ async def twiml_handler(request: Request, session: SessionDep) -> Response:
 @router.websocket("/media-stream")
 async def media_stream(websocket: WebSocket) -> None:
     """Handle Twilio Media Streams WebSocket for real-time audio."""
-    media_token = websocket.query_params.get(MEDIA_TOKEN_QUERY_PARAM, "")
-    expected_call_sid = websocket.query_params.get(MEDIA_CALL_QUERY_PARAM, "")
-    expected_account_sid = websocket.query_params.get(MEDIA_ACCOUNT_QUERY_PARAM, "")
-    if not expected_call_sid or not media_token or not _verify_media_stream_token(
-        expected_call_sid,
-        expected_account_sid,
-        media_token,
-    ):
-        await websocket.close(code=1008)
-        return
-
     await websocket.accept()
 
     conv_engine: ConversationEngine | None = None
     call_sid = ""
+    expected_account_sid = ""
     stream_sid = ""
     stt_task: asyncio.Task | None = None
     connected_at = time.monotonic()
@@ -341,12 +423,20 @@ async def media_stream(websocket: WebSocket) -> None:
                 stream_sid = start_data.get("streamSid", "")
                 account_sid = start_data.get("accountSid", "")
                 custom_params = start_data.get("customParameters", {}) or {}
+                expected_call_sid = str(custom_params.get("call_sid", ""))
+                expected_account_sid = str(custom_params.get("account_sid", ""))
+                media_token = str(custom_params.get(MEDIA_TOKEN_PARAMETER, ""))
                 if (
-                    call_sid != expected_call_sid
+                    not expected_call_sid
+                    or call_sid != expected_call_sid
                     or account_sid != expected_account_sid
-                    or custom_params.get("call_sid") not in (None, "", expected_call_sid)
-                    or custom_params.get("account_sid") not in (None, "", expected_account_sid)
                     or not stream_sid
+                    or not media_token
+                    or not _consume_media_stream_token(
+                        expected_call_sid,
+                        expected_account_sid,
+                        media_token,
+                    )
                 ):
                     logger.warning("Rejected unauthorized media stream start")
                     await websocket.close(code=1008)
@@ -356,7 +446,7 @@ async def media_stream(websocket: WebSocket) -> None:
                 logger.info("Media stream started: call=%s stream=%s", call_sid, stream_sid)
 
                 # Load script for this call
-                conv_engine = await _load_engine_for_call(call_sid)
+                conv_engine = await _load_engine_for_call(call_sid, account_sid)
                 if conv_engine is None:
                     await websocket.close(code=1008)
                     save_results = False
@@ -414,24 +504,71 @@ async def media_stream(websocket: WebSocket) -> None:
                 import functools
                 loop = asyncio.get_event_loop()
                 await loop.run_in_executor(
-                    None, functools.partial(_save_conversation_results, call_sid, conv_engine)
+                    None,
+                    functools.partial(
+                        _save_conversation_results,
+                        call_sid,
+                        expected_account_sid,
+                        conv_engine,
+                    ),
                 )
 
 
-def _build_media_stream_token(call_sid: str, account_sid: str) -> str:
-    """Return a per-call HMAC token for Twilio Media Stream binding."""
-    token_subject = f"{account_sid}:{call_sid}"
-    return hmac.new(
-        settings.SECRET_KEY.encode("utf-8"),
-        token_subject.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
+def _token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def _verify_media_stream_token(call_sid: str, account_sid: str, token: str) -> bool:
-    """Verify that a media stream token was minted for the Twilio call SID."""
-    expected = _build_media_stream_token(call_sid, account_sid)
-    return hmac.compare_digest(expected, token)
+def _mint_media_stream_token(session: Session, call_session: CallSession) -> str:
+    """Mint a short-lived opaque nonce and persist only its digest."""
+    token = secrets.token_urlsafe(32)
+    call_session.media_stream_nonce_hash = _token_hash(token)
+    call_session.media_stream_token_expires_at = datetime.now(timezone.utc) + timedelta(
+        seconds=MEDIA_TOKEN_TTL_SECONDS
+    )
+    call_session.media_stream_token_consumed_at = None
+    session.add(call_session)
+    return token
+
+
+def _consume_media_stream_token(call_sid: str, account_sid: str, token: str) -> bool:
+    """Atomically consume the nonce for an active, fully owned call."""
+    if not call_sid or not account_sid or not token:
+        return False
+    with Session(engine) as session:
+        call_session = session.exec(
+            select(CallSession)
+            .where(CallSession.twilio_call_sid == call_sid)
+            .with_for_update()
+        ).first()
+        if call_session is None:
+            return False
+        ownership = _resolve_call_ownership(session, call_session)
+        if ownership is None:
+            return False
+        if not call_session.twilio_account_sid or not hmac.compare_digest(
+            call_session.twilio_account_sid,
+            account_sid,
+        ):
+            return False
+        call_request, _campaign, _script, _contact = ownership
+        if call_request.status not in {
+            CallRequestStatus.queued,
+            CallRequestStatus.in_progress,
+        }:
+            return False
+        expires_at = call_session.media_stream_token_expires_at
+        if (
+            not call_session.media_stream_nonce_hash
+            or call_session.media_stream_token_consumed_at is not None
+            or expires_at is None
+            or expires_at <= datetime.now(timezone.utc)
+            or not hmac.compare_digest(call_session.media_stream_nonce_hash, _token_hash(token))
+        ):
+            return False
+        call_session.media_stream_token_consumed_at = datetime.now(timezone.utc)
+        session.add(call_session)
+        session.commit()
+        return True
 
 
 async def _cancel_task(task: asyncio.Task | None) -> None:
@@ -448,36 +585,26 @@ async def _close_stt_safely(conv_engine: ConversationEngine) -> None:
         await asyncio.wait_for(conv_engine.close_stt(), timeout=MEDIA_STREAM_CLOSE_TIMEOUT_SECONDS)
 
 
-async def _load_engine_for_call(call_sid: str) -> ConversationEngine | None:
+async def _load_engine_for_call(
+    call_sid: str,
+    account_sid: str,
+) -> ConversationEngine | None:
     """Load the voice script and contact info for a call."""
     with Session(engine) as session:
-        call_session = session.exec(
-            select(CallSession).where(CallSession.twilio_call_sid == call_sid)
-        ).first()
-        if not call_session:
+        call_context = _resolve_twilio_call_context(
+            session, call_sid=call_sid, account_sid=account_sid
+        )
+        if call_context is None:
             logger.warning("No CallSession for sid=%s", call_sid)
             return None
+        call_session, call_request, _campaign, voice_script, contact = call_context
         if call_session.outcome == CallOutcome.voicemail:
             logger.info("Skipping media stream for voicemail call: sid=%s", call_sid)
             return None
 
-        call_request = session.get(CallRequest, call_session.call_request_id)
-        if not call_request:
-            return None
-
-        voice_script = session.get(VoiceScript, call_request.voice_script_id)
-        if not voice_script:
-            return None
-
-        campaign = session.get(Campaign, call_request.campaign_id)
-        workspace_id = campaign.workspace_id if campaign else settings.DEFAULT_WORKSPACE_ID
-        contact = _load_contact_for_workspace(
-            session,
-            workspace_id=workspace_id,
-            contact_id=call_request.contact_id,
-        )
-        contact_name = contact.first_name or "there" if contact else "there"
-        contact_company = contact.company or "" if contact else ""
+        workspace_id = call_request.workspace_id
+        contact_name = contact.first_name or "there"
+        contact_company = contact.company or ""
         runtime_config = resolve_workspace_runtime_config(session, workspace_id)
 
         # Resolve STT/TTS/LLM adapters per-workspace (multi-provider support).
@@ -594,14 +721,18 @@ async def _send_audio_chunk_to_twilio(
     await websocket.send_text(msg)
 
 
-def _save_conversation_results(call_sid: str, conv_engine: ConversationEngine) -> None:
+def _save_conversation_results(
+    call_sid: str,
+    account_sid: str,
+    conv_engine: ConversationEngine,
+) -> None:
     """Save conversation state to CallSession after call ends."""
     with Session(engine) as session:
-        call_session = session.exec(
-            select(CallSession).where(CallSession.twilio_call_sid == call_sid)
-        ).first()
-        if call_session:
-            call_request = session.get(CallRequest, call_session.call_request_id)
+        call_context = _resolve_twilio_call_context(
+            session, call_sid=call_sid, account_sid=account_sid
+        )
+        if call_context:
+            call_session, call_request, _campaign, _script, _contact = call_context
             state = conv_engine.state
             call_session.transcript = "\n".join(
                 f"{'User' if m['role'] == 'user' else 'AI'}: {m['content']}"
@@ -628,23 +759,16 @@ async def status_callback(request: Request, session: SessionDep) -> dict[str, st
     """Handle Twilio call status callbacks."""
     form = await request.form()
     params = {k: str(v) for k, v in form.items()}
-    _verify_twilio_webhook(request, params, session)
+    call_session, call_request, _campaign, _script, _contact = (
+        _verify_twilio_webhook(request, params, session)
+    )
 
     call_sid = str(form.get("CallSid", ""))
     call_status = str(form.get("CallStatus", "")).lower()
     if not call_sid or not call_status:
         raise HTTPException(status_code=400, detail="Missing CallSid or CallStatus")
 
-    call_session = session.exec(
-        select(CallSession).where(CallSession.twilio_call_sid == call_sid)
-    ).first()
-
-    if not call_session:
-        logger.warning("Status callback for unknown call_sid=%s", call_sid)
-        return {"status": "ignored"}
-
-    call_request = session.get(CallRequest, call_session.call_request_id)
-    workspace_id = _workspace_for_call_request(session, call_request)
+    workspace_id = call_request.workspace_id
     provider_event_id = _twilio_provider_event_id("status", params)
     if not _record_twilio_provider_event(
         session,
@@ -666,11 +790,9 @@ async def status_callback(request: Request, session: SessionDep) -> dict[str, st
         return {"status": "ignored"}
 
     duration = _parse_positive_int(str(form.get("CallDuration", "0")))
-    account_sid = str(form.get("AccountSid", ""))
     answered_by = str(form.get("AnsweredBy", "")).lower()
 
     call_session.twilio_status = call_status
-    call_session.twilio_account_sid = account_sid or call_session.twilio_account_sid
     call_session.twilio_status_updated_at = datetime.now(timezone.utc)
     call_session.duration_seconds = duration
 
@@ -699,44 +821,39 @@ async def recording_callback(request: Request, session: SessionDep) -> dict[str,
     """Handle Twilio recording callbacks."""
     form = await request.form()
     params = {k: str(v) for k, v in form.items()}
-    _verify_twilio_webhook(request, params, session)
+    call_session, call_request, _campaign, _script, _contact = (
+        _verify_twilio_webhook(request, params, session)
+    )
 
     call_sid = str(form.get("CallSid", ""))
     recording_url = str(form.get("RecordingUrl", ""))
 
     if recording_url:
-        call_session = session.exec(
-            select(CallSession).where(CallSession.twilio_call_sid == call_sid)
-        ).first()
-        if call_session:
-            call_request = session.get(CallRequest, call_session.call_request_id)
-            workspace_id = _workspace_for_call_request(session, call_request)
-            provider_event_id = _twilio_provider_event_id("recording", params)
-            if not _record_twilio_provider_event(
-                session,
-                workspace_id=workspace_id,
-                provider_event_id=provider_event_id,
-                event_type="twilio_recording",
-                raw_payload=params,
-                normalized_event={
-                    "call_sid": call_sid,
-                    "recording_url": recording_url,
-                    "recording_sid": str(form.get("RecordingSid", "")),
-                },
-            ):
-                logger.info("Ignoring replayed Twilio recording event: %s", provider_event_id)
-                return {"status": "ignored"}
-            call_session.twilio_account_sid = str(form.get("AccountSid", "")) or call_session.twilio_account_sid
-            if not call_session.recording_url or call_session.recording_url == recording_url:
-                call_session.recording_url = recording_url
-            session.add(call_session)
-            session.commit()
-            if call_request:
-                await invalidate_timeline_cache(
-                    request,
-                    call_request.contact_id,
-                    call_request.campaign_id,
-                )
+        workspace_id = call_request.workspace_id
+        provider_event_id = _twilio_provider_event_id("recording", params)
+        if not _record_twilio_provider_event(
+            session,
+            workspace_id=workspace_id,
+            provider_event_id=provider_event_id,
+            event_type="twilio_recording",
+            raw_payload=params,
+            normalized_event={
+                "call_sid": call_sid,
+                "recording_url": recording_url,
+                "recording_sid": str(form.get("RecordingSid", "")),
+            },
+        ):
+            logger.info("Ignoring replayed Twilio recording event: %s", provider_event_id)
+            return {"status": "ignored"}
+        if not call_session.recording_url or call_session.recording_url == recording_url:
+            call_session.recording_url = recording_url
+        session.add(call_session)
+        session.commit()
+        await invalidate_timeline_cache(
+            request,
+            call_request.contact_id,
+            call_request.campaign_id,
+        )
 
     return {"status": "ok"}
 

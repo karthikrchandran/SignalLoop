@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import uuid
 from collections.abc import Generator
 from datetime import datetime, timezone
@@ -10,13 +11,16 @@ import pytest
 from fastapi import HTTPException
 from sqlmodel import Session, SQLModel, create_engine
 
+from app.domain.scheduling import service as scheduling_service
 from app.domain.scheduling.models import (
     SchedulingRequest,
     SchedulingRequestSource,
     SchedulingRequestStatus,
 )
-from app.domain.scheduling import service as scheduling_service
-from app.domain.scheduling.schemas import SchedulingRequestCreate, SchedulingRequestUpdate
+from app.domain.scheduling.schemas import (
+    SchedulingRequestCreate,
+    SchedulingRequestUpdate,
+)
 from app.domain.scheduling.service import (
     create_from_call_session,
     create_scheduling_request,
@@ -25,7 +29,12 @@ from app.domain.scheduling.service import (
     update_scheduling_request,
     verify_calendly_signature,
 )
-from app.domain_models import Campaign, Contact, ContactProgression, ContactProgressionState
+from app.domain_models import (
+    Campaign,
+    Contact,
+    ContactProgression,
+    ContactProgressionState,
+)
 
 
 @pytest.fixture
@@ -183,6 +192,7 @@ def test_handle_calendly_booking_marks_booked(session: Session) -> None:
     meeting_dt = datetime(2026, 8, 15, 10, 0, 0, tzinfo=timezone.utc)
     booked = handle_calendly_booking(
         session,
+        workspace_id="ws_test",
         request_id=req.id,
         calendly_event_id="https://api.calendly.com/scheduled_events/abc123",
         meeting_datetime=meeting_dt,
@@ -190,10 +200,26 @@ def test_handle_calendly_booking_marks_booked(session: Session) -> None:
 
     assert booked.status == SchedulingRequestStatus.booked
     assert booked.calendly_event_id == "https://api.calendly.com/scheduled_events/abc123"
-    # SQLite strips tz info — compare naive datetime components
     assert booked.meeting_datetime is not None
-    stored = booked.meeting_datetime.replace(tzinfo=None) if booked.meeting_datetime.tzinfo else booked.meeting_datetime
+    stored = (
+        booked.meeting_datetime.replace(tzinfo=None)
+        if booked.meeting_datetime.tzinfo
+        else booked.meeting_datetime
+    )
     assert stored == meeting_dt.replace(tzinfo=None)
+
+
+def test_calendly_event_id_is_unique_per_workspace() -> None:
+    constraints = {
+        constraint.name: tuple(column.name for column in constraint.columns)
+        for constraint in SchedulingRequest.__table__.constraints
+        if hasattr(constraint, "columns")
+    }
+    assert constraints["uq_scheduling_workspace_calendly_event"] == (
+        "workspace_id",
+        "calendly_event_id",
+    )
+    # SQLite strips tz info — compare naive datetime components
 
 
 def test_handle_calendly_booking_emits_a_stable_source_event_id(
@@ -211,6 +237,7 @@ def test_handle_calendly_booking_emits_a_stable_source_event_id(
 
     handle_calendly_booking(
         session,
+        workspace_id="ws_test",
         request_id=request.id,
         calendly_event_id="event_123",
         meeting_datetime=datetime(2026, 8, 15, 10, 0, 0, tzinfo=timezone.utc),
@@ -223,6 +250,7 @@ def test_handle_calendly_booking_raises_for_missing_request(session: Session) ->
     with pytest.raises(HTTPException) as exc:
         handle_calendly_booking(
             session,
+            workspace_id="ws_test",
             request_id=uuid.uuid4(),
             calendly_event_id="evt_123",
             meeting_datetime=datetime.now(timezone.utc),
@@ -241,7 +269,7 @@ def test_verify_calendly_signature_valid() -> None:
 
     signing_key = "test_signing_key"
     body = b'{"event": "invitee.created"}'
-    timestamp = "1720400000"
+    timestamp = str(int(time.time()))
     signed_message = f"{timestamp}.{body.decode()}"
     v1 = _hmac.new(
         signing_key.encode(), signed_message.encode(), hashlib.sha256

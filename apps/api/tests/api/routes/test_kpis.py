@@ -6,9 +6,14 @@ from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
-from app.domain_models import Campaign, Contact, ActionQueue
+from app.domain.reporting.kpi_aggregation_service import (
+    _agg_today_live,
+    compute_daily_snapshot,
+)
+from app.domain_models import ActionQueue, Campaign, Contact
 
 WORKSPACE_ID = "ws-story-5-4"
 OTHER_WORKSPACE_ID = "ws-other-5-4"
@@ -51,6 +56,7 @@ def contact(db: Session) -> Contact:
 @pytest.fixture()
 def action(db: Session, campaign: Campaign, contact: Contact) -> ActionQueue:
     a = ActionQueue(
+        workspace_id=WORKSPACE_ID,
         contact_id=contact.id,
         campaign_id=campaign.id,
         action_type="send_email",
@@ -64,6 +70,57 @@ def action(db: Session, campaign: Campaign, contact: Contact) -> ActionQueue:
     db.commit()
     db.refresh(a)
     return a
+
+
+def test_kpi_action_queue_uses_direct_workspace_and_rejects_campaign_mismatch(
+    db: Session,
+    campaign: Campaign,
+    contact: Contact,
+) -> None:
+    cross_attached = ActionQueue(
+        workspace_id=OTHER_WORKSPACE_ID,
+        contact_id=contact.id,
+        campaign_id=campaign.id,
+        action_type="send_email",
+        channel="email",
+        status="failed",
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(cross_attached)
+    if db.get_bind().dialect.name == "postgresql":
+        with pytest.raises(SQLAlchemyError):
+            db.commit()
+        db.rollback()
+    else:
+        db.commit()
+
+    other_campaign = Campaign(
+        name="Other workspace campaign",
+        workspace_id=OTHER_WORKSPACE_ID,
+        created_by=uuid.uuid4(),
+    )
+    db.add(other_campaign)
+    db.commit()
+
+    live = _agg_today_live(db, WORKSPACE_ID, campaign.id)
+    snapshot = compute_daily_snapshot(
+        db, datetime.now(timezone.utc).date(), WORKSPACE_ID, campaign.id
+    )
+    if db.get_bind().dialect.name != "postgresql":
+        assert live["contacts_processed"] == 0
+        assert live["provider_errors"] == 0
+        assert snapshot.contacts_processed == 0
+        assert snapshot.provider_errors == 0
+
+    with pytest.raises(ValueError, match="campaign workspace mismatch"):
+        _agg_today_live(db, WORKSPACE_ID, other_campaign.id)
+    with pytest.raises(ValueError, match="campaign workspace mismatch"):
+        compute_daily_snapshot(
+            db,
+            datetime.now(timezone.utc).date(),
+            WORKSPACE_ID,
+            other_campaign.id,
+        )
 
 
 # ---------------------------------------------------------------------------
