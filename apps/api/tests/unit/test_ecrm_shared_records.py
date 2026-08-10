@@ -15,17 +15,6 @@ from app.integrations.ecrm_shared_records import (
 )
 
 
-def _make_settings() -> Settings:
-    return Settings(
-        PROJECT_NAME="Test",
-        SECRET_KEY="test-secret",
-        POSTGRES_SERVER="localhost",
-        POSTGRES_USER="postgres",
-        FIRST_SUPERUSER="admin@example.com",
-        FIRST_SUPERUSER_PASSWORD="test-password",
-    )
-
-
 class _Recorder:
     def __init__(self, response: httpx.Response) -> None:
         self.response = response
@@ -37,11 +26,11 @@ class _Recorder:
 
 
 def test_settings_include_ecrm_shared_records_defaults() -> None:
-    app_settings = _make_settings()
+    fields = Settings.model_fields
 
-    assert app_settings.ECRM_SHARED_API_BASE_URL == "http://localhost:5050"
-    assert app_settings.ECRM_SHARED_API_TOKEN == ""
-    assert app_settings.USE_ECRM_SHARED_RECORDS is True
+    assert fields["ECRM_SHARED_API_BASE_URL"].default == "http://localhost:5050"
+    assert fields["ECRM_SHARED_API_TOKEN"].default == ""
+    assert fields["USE_ECRM_SHARED_RECORDS"].default is True
 
 
 def test_list_shared_records_sends_bearer_token_and_query_params(

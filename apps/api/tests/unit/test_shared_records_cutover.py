@@ -779,7 +779,7 @@ def test_prospecting_ready_contacts_read_from_shared_layer_when_enabled(
     contact_id = uuid.uuid4()
 
     def list_shared_contacts(**kwargs: Any) -> list[Contact]:
-        assert kwargs == {"workspace_id": "ws-shared", "search": "ada", "limit": 200}
+        assert kwargs == {"workspace_id": "ws-shared", "search": "ada", "limit": 100}
         return [
             Contact(
                 id=contact_id,
