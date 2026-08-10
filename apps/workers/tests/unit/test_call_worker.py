@@ -26,6 +26,27 @@ from app.domain_models import (
 from worker_app import call_worker  # type: ignore[import-untyped]
 
 
+def test_dispatch_reconciliation_uses_callback_lock_order() -> None:
+    statements: list[str] = []
+
+    class _Result:
+        def one(self) -> object:
+            return object()
+
+    class _Session:
+        def expire_all(self) -> None:
+            return None
+
+        def exec(self, statement: object) -> _Result:
+            statements.append(str(statement))
+            return _Result()
+
+    call_worker._lock_dispatch_state(_Session(), uuid.uuid4())  # type: ignore[arg-type]
+
+    assert "call_sessions" in statements[0]
+    assert "call_requests" in statements[1]
+
+
 def _database():  # noqa: ANN202
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)

@@ -27,6 +27,27 @@ from app.workers import call_worker
 
 _SHARED_CONTACTS: dict[uuid.UUID, Contact] = {}
 
+
+def test_dispatch_reconciliation_uses_callback_lock_order() -> None:
+    statements: list[str] = []
+
+    class _Result:
+        def one(self) -> object:
+            return object()
+
+    class _Session:
+        def expire_all(self) -> None:
+            return None
+
+        def exec(self, statement: object) -> _Result:
+            statements.append(str(statement))
+            return _Result()
+
+    call_worker._lock_dispatch_state(_Session(), uuid.uuid4())  # type: ignore[arg-type]
+
+    assert "call_sessions" in statements[0]
+    assert "call_requests" in statements[1]
+
 # ---------------------------------------------------------------------------
 # Helpers / seed factories
 # ---------------------------------------------------------------------------

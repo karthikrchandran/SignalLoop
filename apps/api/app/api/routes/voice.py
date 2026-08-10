@@ -150,18 +150,22 @@ def _resolve_twilio_correlation_context(
     call_session = session.exec(
         select(CallSession).where(CallSession.id == session_id).with_for_update()
     ).first()
+    if call_session is None:
+        return None
+    ownership = _resolve_call_ownership(session, call_session)
+    if ownership is None:
+        return None
     if (
-        call_session is None
-        or not call_session.twilio_account_sid
+        not call_session.twilio_account_sid
         or not call_session.callback_correlation_hash
         or call_session.callback_correlation_expires_at is None
         or call_session.callback_correlation_expires_at <= datetime.now(timezone.utc)
         or not hmac.compare_digest(call_session.twilio_account_sid, account_sid)
-        or not hmac.compare_digest(call_session.callback_correlation_hash, token_hash(correlation))
+        or not hmac.compare_digest(
+            call_session.callback_correlation_hash,
+            token_hash(correlation),
+        )
     ):
-        return None
-    ownership = _resolve_call_ownership(session, call_session)
-    if ownership is None:
         return None
     call_request, campaign, voice_script, contact = ownership
     return call_session, call_request, campaign, voice_script, contact
@@ -199,7 +203,11 @@ def _resolve_call_ownership(
     session: Session,
     call_session: CallSession,
 ) -> tuple[CallRequest, Campaign, VoiceScript, Contact] | None:
-    call_request = session.get(CallRequest, call_session.call_request_id)
+    call_request = session.exec(
+        select(CallRequest)
+        .where(CallRequest.id == call_session.call_request_id)
+        .with_for_update()
+    ).first()
     if call_request is None:
         return None
     campaign = session.get(Campaign, call_request.campaign_id)
@@ -223,14 +231,19 @@ def _resolve_twilio_call_context(
     if not call_sid or not account_sid:
         return None
     call_session = session.exec(
-        select(CallSession).where(CallSession.twilio_call_sid == call_sid)
+        select(CallSession)
+        .where(CallSession.twilio_call_sid == call_sid)
+        .with_for_update()
     ).first()
-    if call_session is None or not call_session.twilio_account_sid:
-        return None
-    if not hmac.compare_digest(call_session.twilio_account_sid, account_sid):
+    if call_session is None:
         return None
     ownership = _resolve_call_ownership(session, call_session)
     if ownership is None:
+        return None
+    if not call_session.twilio_account_sid or not hmac.compare_digest(
+        call_session.twilio_account_sid,
+        account_sid,
+    ):
         return None
     call_request, campaign, voice_script, contact = ownership
     return call_session, call_request, campaign, voice_script, contact
@@ -527,12 +540,15 @@ def _consume_media_stream_token(call_sid: str, account_sid: str, token: str) -> 
             .where(CallSession.twilio_call_sid == call_sid)
             .with_for_update()
         ).first()
-        if call_session is None or not call_session.twilio_account_sid:
-            return False
-        if not hmac.compare_digest(call_session.twilio_account_sid, account_sid):
+        if call_session is None:
             return False
         ownership = _resolve_call_ownership(session, call_session)
         if ownership is None:
+            return False
+        if not call_session.twilio_account_sid or not hmac.compare_digest(
+            call_session.twilio_account_sid,
+            account_sid,
+        ):
             return False
         call_request, _campaign, _script, _contact = ownership
         if call_request.status not in {

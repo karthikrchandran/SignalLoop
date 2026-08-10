@@ -74,14 +74,14 @@ def _lock_dispatch_state(
 ) -> tuple[CallRequest, CallSession]:
     """Reload provider-owned state after the unlocked network call."""
     session.expire_all()
-    call_req = session.exec(
-        select(CallRequest)
-        .where(CallRequest.id == call_request_id)
-        .with_for_update()
-    ).one()
     call_session = session.exec(
         select(CallSession)
         .where(CallSession.call_request_id == call_request_id)
+        .with_for_update()
+    ).one()
+    call_req = session.exec(
+        select(CallRequest)
+        .where(CallRequest.id == call_request_id)
         .with_for_update()
     ).one()
     return call_req, call_session
