@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -42,6 +43,8 @@ GLOBAL_ACCOUNT_SID = "ACglobalvoice0000000000000000000000"
 GLOBAL_AUTH_TOKEN = "global-auth-token"
 TENANT_ACCOUNT_SID = "ACtenantvoice0000000000000000000000"
 TENANT_AUTH_TOKEN = "tenant-auth-token"
+CROSS_ACCOUNT_SID = "ACcrossvoice00000000000000000000000"
+CROSS_AUTH_TOKEN = "cross-auth-token"
 
 
 def _twilio_signature(url: str, params: dict[str, str], auth_token: str) -> str:
@@ -129,6 +132,7 @@ def _seed_call(
 def twilio_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "TWILIO_ACCOUNT_SID", GLOBAL_ACCOUNT_SID)
     monkeypatch.setattr(settings, "TWILIO_AUTH_TOKEN", GLOBAL_AUTH_TOKEN)
+    monkeypatch.setattr(settings, "DEFAULT_WORKSPACE_ID", WORKSPACE_ID)
     monkeypatch.setattr(settings, "SERVER_HOST", "testserver")
 
 
@@ -264,6 +268,97 @@ def test_recording_callback_persists_recording_url(client: TestClient, db: Sessi
     assert duplicate_response.json() == {"status": "ignored"}
 
 
+@pytest.mark.parametrize("endpoint", ["twiml", "status", "recording"])
+def test_twilio_endpoints_reject_signed_cross_account_call_attachment(
+    client: TestClient,
+    db: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    endpoint: str,
+) -> None:
+    call_request, call_session = _seed_call(db, call_sid=_call_sid())
+    db.add(
+        ProviderCredential(
+            workspace_id="workspace-b",
+            provider=NotificationProvider.twilio,
+            channel="voice",
+            encrypted_api_key=encrypt(CROSS_ACCOUNT_SID),
+            encrypted_api_secret=encrypt(CROSS_AUTH_TOKEN),
+            config_json={"account_sid": CROSS_ACCOUNT_SID},
+            is_active=True,
+        )
+    )
+    db.commit()
+    credential_reads: list[uuid.UUID] = []
+    original_decrypt = voice_routes._decrypt_twilio_credential
+
+    def capture_credential_read(row: ProviderCredential) -> tuple[str, str]:
+        credential_reads.append(row.id)
+        return original_decrypt(row)
+
+    monkeypatch.setattr(
+        voice_routes, "_decrypt_twilio_credential", capture_credential_read
+    )
+    path = f"{settings.API_V1_STR}/voice/{endpoint}"
+    params = {
+        "CallSid": call_session.twilio_call_sid,
+        "AccountSid": CROSS_ACCOUNT_SID,
+    }
+    if endpoint == "status":
+        params["CallStatus"] = "completed"
+    if endpoint == "recording":
+        params["RecordingUrl"] = "https://api.twilio.com/recordings/cross"
+    event_ids_before = {
+        event.id for event in db.exec(select(ProviderEventLog)).all()
+    }
+
+    response = client.post(
+        path,
+        data=params,
+        headers=_signed_headers(path, params, CROSS_AUTH_TOKEN),
+    )
+
+    assert response.status_code == 403
+    assert credential_reads == []
+    db.refresh(call_request)
+    db.refresh(call_session)
+    assert call_session.twilio_account_sid == GLOBAL_ACCOUNT_SID
+    assert call_session.twilio_status is None
+    assert call_session.recording_url is None
+    assert call_request.status == CallRequestStatus.queued
+    assert {
+        event.id for event in db.exec(select(ProviderEventLog)).all()
+    } == event_ids_before
+
+
+def test_twilio_callback_rejects_missing_stored_account_binding(
+    client: TestClient,
+    db: Session,
+) -> None:
+    call_request, call_session = _seed_call(db, call_sid=_call_sid())
+    call_session.twilio_account_sid = None
+    db.add(call_session)
+    db.commit()
+    path = f"{settings.API_V1_STR}/voice/status"
+    params = {
+        "CallSid": call_session.twilio_call_sid,
+        "AccountSid": GLOBAL_ACCOUNT_SID,
+        "CallStatus": "completed",
+    }
+
+    response = client.post(
+        path,
+        data=params,
+        headers=_signed_headers(path, params, GLOBAL_AUTH_TOKEN),
+    )
+
+    assert response.status_code == 403
+    db.refresh(call_request)
+    db.refresh(call_session)
+    assert call_session.twilio_account_sid is None
+    assert call_session.twilio_status is None
+    assert call_request.status == CallRequestStatus.queued
+
+
 def test_adapter_enables_machine_detection(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 
@@ -396,6 +491,68 @@ def test_media_stream_rejects_mismatched_start_frame(client: TestClient) -> None
     assert exc_info.value.code == 1008
 
 
+def test_media_stream_binds_account_when_loading_call(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    call_sid = _call_sid()
+    token = _media_token(call_sid, CROSS_ACCOUNT_SID)
+    loader = AsyncMock(return_value=None)
+    monkeypatch.setattr(voice_routes, "_load_engine_for_call", loader)
+    path = (
+        f"{settings.API_V1_STR}/voice/media-stream"
+        f"?call_sid={call_sid}&account_sid={CROSS_ACCOUNT_SID}&token={token}"
+    )
+
+    with client.websocket_connect(path) as websocket:
+        websocket.send_json(
+            {
+                "event": "start",
+                "start": {
+                    "callSid": call_sid,
+                    "accountSid": CROSS_ACCOUNT_SID,
+                    "streamSid": "MSstream0000000000000000000002",
+                    "customParameters": {},
+                },
+            }
+        )
+        with pytest.raises(WebSocketDisconnect):
+            websocket.receive_text()
+
+    loader.assert_awaited_once_with(call_sid, CROSS_ACCOUNT_SID)
+
+
+def test_save_conversation_results_rejects_cross_account(
+    db: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, call_session = _seed_call(db, call_sid=_call_sid())
+    engine_state = SimpleNamespace(
+        messages=[{"role": "user", "content": "tenant-b transcript"}],
+        unanswered_questions=[],
+        scheduling_interest=False,
+    )
+    conversation_engine = SimpleNamespace(state=engine_state)
+
+    class _SessionContext:
+        def __enter__(self) -> Session:
+            return db
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+    monkeypatch.setattr(voice_routes, "Session", lambda _engine: _SessionContext())
+
+    voice_routes._save_conversation_results(
+        call_session.twilio_call_sid,
+        CROSS_ACCOUNT_SID,
+        conversation_engine,
+    )
+
+    db.refresh(call_session)
+    assert call_session.transcript is None
+
+
 def test_load_engine_for_call_rejects_missing_campaign_without_adapter_resolution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -509,7 +666,12 @@ def test_load_engine_for_call_rejects_missing_campaign_without_adapter_resolutio
 
     monkeypatch.setattr(voice_routes, "Session", lambda *args, **kwargs: _FakeSession())
 
-    engine = asyncio.run(voice_routes._load_engine_for_call(call_session.twilio_call_sid))
+    engine = asyncio.run(
+        voice_routes._load_engine_for_call(
+            call_session.twilio_call_sid,
+            GLOBAL_ACCOUNT_SID,
+        )
+    )
 
     assert engine is None
     assert requested_workspaces == []
@@ -541,8 +703,7 @@ def test_status_callback_ignores_mismatched_campaign_without_writes(
         headers=_signed_headers(path, params, GLOBAL_AUTH_TOKEN),
     )
 
-    assert response.status_code == 200
-    assert response.json() == {"status": "ignored"}
+    assert response.status_code == 403
     db.refresh(call_session)
     db.refresh(call_request)
     assert call_session.twilio_status is None

@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from app.core.config import settings
 from app.domain.shared_records import service as shared_record_service
 from app.domain.voice.models import CallOutcome, CallRequest, CallSession, VoiceScript
 from app.domain_models import Campaign, Contact, OutboxEvent
@@ -554,6 +555,32 @@ def test_send_summary_fails_closed_on_campaign_workspace_mismatch() -> None:
             _run(postcall_worker._send_summary(session, call_session))
 
         resolver.assert_not_called()
+        assert session.exec(select(OutboxEvent)).all() == []
+
+
+def test_send_summary_real_resolver_does_not_use_global_recipient(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _session() as session:
+        call_session = _seed_answered_call(session, workspace_id="workspace-a")
+        monkeypatch.setattr(
+            settings,
+            "TEAM_NOTIFICATION_EMAIL",
+            "global@example.com",
+        )
+        monkeypatch.setattr(
+            settings,
+            "DEFAULT_WORKSPACE_ID",
+            "singleton",
+        )
+        adapter_resolver = MagicMock()
+        monkeypatch.setattr(
+            postcall_worker, "resolve_email_adapter", adapter_resolver
+        )
+
+        _run(postcall_worker._send_summary(session, call_session))
+
+        adapter_resolver.assert_not_called()
         assert session.exec(select(OutboxEvent)).all() == []
 
 # ---------------------------------------------------------------------------

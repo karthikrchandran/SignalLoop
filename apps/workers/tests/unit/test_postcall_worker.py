@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from app.core.config import settings
 from app.domain.audit.audit_events import AuditEvent
 from app.domain.voice.models import (
     CallOutcome,
@@ -235,3 +236,29 @@ def test_process_session_fails_closed_on_contact_workspace_mismatch() -> None:
 
         resolver.assert_not_called()
         assert call_session.post_call_processed is False
+
+
+def test_process_session_real_resolver_does_not_use_global_recipient(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _session() as session:
+        request, call_session = _seed_completed_call(session)
+        monkeypatch.setattr(
+            settings,
+            "TEAM_NOTIFICATION_EMAIL",
+            "global@example.com",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            settings,
+            "DEFAULT_WORKSPACE_ID",
+            "singleton",
+            raising=False,
+        )
+        resolver = MagicMock()
+        monkeypatch.setattr(postcall_worker, "resolve_email_adapter", resolver)
+
+        _run(postcall_worker._process_session(session, request, call_session))
+
+        resolver.assert_not_called()
+        assert session.exec(select(OutboxEvent)).all() == []
