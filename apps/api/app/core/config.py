@@ -172,6 +172,8 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     TEAM_NOTIFICATION_EMAIL: str = ""
     CALENDLY_WEBHOOK_SIGNING_KEY: str = ""
+    CALENDLY_STATE_TTL_SECONDS: int = 24 * 60 * 60
+    CALENDLY_WEBHOOK_MAX_AGE_SECONDS: int = 5 * 60
     MAX_RETRY_COUNT: int = 3  # Dead-letter retry cap (Story 5.3)
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:

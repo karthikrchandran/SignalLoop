@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.api.routes import accounts as account_routes
@@ -533,6 +534,39 @@ def test_shared_contact_service_maps_records_without_local_contact_lookup(
     assert contacts[0].email == "ada@example.com"
     assert contacts[0].first_name == "Ada"
     assert contacts[0].company == "Analytical"
+
+
+@pytest.mark.parametrize(
+    ("raw_value", "expected"),
+    [
+        (True, True),
+        (False, False),
+        ("true", True),
+        ("TRUE", True),
+        ("false", False),
+        ("FALSE", False),
+        (None, False),
+        ("yes", False),
+        (1, False),
+        ({"value": True}, False),
+    ],
+)
+def test_shared_contact_consent_is_strict_and_defaults_to_denied(
+    raw_value: object,
+    expected: bool,
+) -> None:
+    contact = shared_service.shared_contact_to_public(
+        {
+            "id": "shared-contact-consent",
+            "entityType": "CONTACT",
+            "email": "consent@example.com",
+            "data": {"workspaceId": "ws-shared", "consentEmail": raw_value},
+            "createdAt": "2026-06-30T12:00:00Z",
+        },
+        workspace_id="ws-shared",
+    )
+
+    assert contact.consent_email is expected
 
 
 def test_shared_account_service_maps_customer_and_child_contacts(monkeypatch) -> None:

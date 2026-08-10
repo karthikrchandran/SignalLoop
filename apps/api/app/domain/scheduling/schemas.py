@@ -13,6 +13,7 @@ class SchedulingRequestPublic(SQLModel):
 
     id: uuid.UUID
     workspace_id: str
+    calendly_state: str | None = None
     contact_id: uuid.UUID
     campaign_id: uuid.UUID
     signal_event_id: uuid.UUID | None

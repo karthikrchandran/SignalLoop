@@ -20,7 +20,7 @@ Per cycle:
 from __future__ import annotations
 
 import logging
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -38,6 +38,7 @@ from app.domain.voice.models import (
     CallSession,
     VoiceScript,
 )
+from app.domain.voice.correlation import mint_correlation_token, token_hash
 from app.domain.policies.consent_sync_service import is_contact_actionable
 from app.domain_models import (
     Campaign,
@@ -314,11 +315,27 @@ async def _initiate_one(
     else:
         call_session.twilio_account_sid = account_sid or call_session.twilio_account_sid
 
+    correlation_expires_at = datetime.now(UTC) + timedelta(minutes=15)
+    correlation_token = mint_correlation_token(
+        call_session.id,
+        settings.SECRET_KEY,
+        expires_at=int(correlation_expires_at.timestamp()),
+    )
+    call_session.callback_correlation_hash = token_hash(correlation_token)
+    call_session.callback_correlation_expires_at = correlation_expires_at
+    call_session.twilio_status = "initiating"
+    call_session.twilio_status_updated_at = datetime.now(UTC)
+    session.add(call_session)
+    session.commit()
+    session.refresh(call_session)
+
     twiml_url = (
         f"https://{settings.SERVER_HOST}{settings.API_V1_STR}/voice/twiml"
+        f"?correlation={correlation_token}"
     )
     status_callback_url = (
         f"https://{settings.SERVER_HOST}{settings.API_V1_STR}/voice/status"
+        f"?correlation={correlation_token}"
     )
 
     try:

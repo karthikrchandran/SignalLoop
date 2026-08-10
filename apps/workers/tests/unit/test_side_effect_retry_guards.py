@@ -70,6 +70,7 @@ def _seed_sequence_state(
     session: Session, *, contact: Contact, campaign: Campaign
 ) -> ContactSequenceState:
     sequence = EmailSequence(
+        workspace_id=campaign.workspace_id,
         campaign_id=campaign.id,
         name="Sequence",
         status=SequenceStatus.active,
@@ -88,6 +89,7 @@ def _seed_sequence_state(
     )
     session.flush()
     state = ContactSequenceState(
+        workspace_id=campaign.workspace_id,
         contact_id=contact.id,
         sequence_id=sequence.id,
         status=SequenceStatus.active,
@@ -104,6 +106,7 @@ def _seed_call_request(
     session: Session, *, contact: Contact, campaign: Campaign
 ) -> CallRequest:
     script = VoiceScript(
+        workspace_id=campaign.workspace_id,
         campaign_id=campaign.id,
         name="Script",
         content="Say hello.",

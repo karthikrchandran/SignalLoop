@@ -78,9 +78,13 @@ def _seed_campaign(
     return campaign
 
 
-def _seed_voice_script(session: Session, campaign_id: uuid.UUID) -> VoiceScript:
+def _seed_voice_script(
+    session: Session, campaign_id: uuid.UUID, *, workspace_id: str = "ws-test"
+) -> VoiceScript:
     """Create and persist a VoiceScript."""
+    campaign = session.get(Campaign, campaign_id)
     script = VoiceScript(
+        workspace_id=campaign.workspace_id if campaign is not None else workspace_id,
         campaign_id=campaign_id,
         name="default",
         content="Hello",
@@ -539,12 +543,18 @@ def test_initiate_call_persists_session_before_provider_call(
     contact = _seed_contact(memory_session)
     cr = _seed_call_request(memory_session, contact_id=contact.id)
 
-    async def _initiate_call(**_kwargs: object) -> dict[str, str]:
+    async def _initiate_call(**kwargs: object) -> dict[str, str]:
         cs = memory_session.exec(
             select(CallSession).where(CallSession.call_request_id == cr.id)
         ).first()
         assert cs is not None
         assert cs.twilio_status == "initiating"
+        assert cs.callback_correlation_hash
+        assert cs.callback_correlation_expires_at is not None
+        assert "?correlation=" in str(kwargs["twiml_url"])
+        assert str(kwargs["twiml_url"]).split("?correlation=", 1)[1] == str(
+            kwargs["status_callback_url"]
+        ).split("?correlation=", 1)[1]
         return {"call_sid": "CAfreshSid"}
 
     adapter = MagicMock()

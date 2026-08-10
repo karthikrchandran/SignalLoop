@@ -124,6 +124,44 @@ def upgrade() -> None:
         )
         op.alter_column("contacts", column_name, server_default=None)
 
+    op.create_unique_constraint(
+        "uq_campaign_id_workspace", "campaigns", ["id", "workspace_id"]
+    )
+    op.create_unique_constraint(
+        "uq_contact_id_workspace", "contacts", ["id", "workspace_id"]
+    )
+
+    _add_workspace_column("voice_scripts")
+    op.execute(sa.text("""UPDATE voice_scripts AS script SET workspace_id = campaign.workspace_id
+        FROM campaigns AS campaign WHERE campaign.id = script.campaign_id"""))
+    _finish_workspace_column("voice_scripts", "ix_voice_scripts_workspace_id")
+    op.create_unique_constraint(
+        "uq_voice_script_id_workspace", "voice_scripts", ["id", "workspace_id"]
+    )
+
+    _add_workspace_column("email_sequences")
+    op.execute(sa.text("""UPDATE email_sequences AS sequence SET workspace_id = campaign.workspace_id
+        FROM campaigns AS campaign WHERE campaign.id = sequence.campaign_id"""))
+    _finish_workspace_column("email_sequences", "ix_email_sequences_workspace_id")
+    op.create_unique_constraint(
+        "uq_email_sequence_id_workspace", "email_sequences", ["id", "workspace_id"]
+    )
+
+    _add_workspace_column("contact_sequence_state")
+    op.execute(sa.text("""UPDATE contact_sequence_state AS state SET workspace_id = sequence.workspace_id
+        FROM email_sequences AS sequence WHERE sequence.id = state.sequence_id"""))
+    _finish_workspace_column("contact_sequence_state", "ix_css_workspace_id")
+    op.create_unique_constraint(
+        "uq_css_id_workspace", "contact_sequence_state", ["id", "workspace_id"]
+    )
+
+    op.add_column("call_sessions", sa.Column("callback_correlation_hash", sa.String(64), nullable=True))
+    op.add_column("call_sessions", sa.Column("callback_correlation_expires_at", sa.DateTime(timezone=True), nullable=True))
+    op.add_column("call_sessions", sa.Column("media_stream_nonce_hash", sa.String(64), nullable=True))
+    op.add_column("call_sessions", sa.Column("media_stream_token_expires_at", sa.DateTime(timezone=True), nullable=True))
+    op.add_column("call_sessions", sa.Column("media_stream_token_consumed_at", sa.DateTime(timezone=True), nullable=True))
+    op.create_index("ix_call_sessions_callback_correlation_hash", "call_sessions", ["callback_correlation_hash"])
+
     _add_workspace_column("email_suppressions")
     _finish_workspace_column(
         "email_suppressions",
@@ -260,92 +298,54 @@ def upgrade() -> None:
         ["workspace_id", "signal_event_id"],
     )
 
-    op.execute(
-        sa.text(
-            """CREATE FUNCTION enforce_campaign_workspace() RETURNS trigger AS $$
-            DECLARE owner_workspace varchar(64);
-            BEGIN
-              SELECT workspace_id INTO owner_workspace FROM campaigns WHERE id = NEW.campaign_id;
-              IF owner_workspace IS NULL OR owner_workspace <> NEW.workspace_id THEN
-                RAISE EXCEPTION 'workspace mismatch for % campaign %', TG_TABLE_NAME, NEW.campaign_id;
-              END IF;
-              IF NOT EXISTS (
-                SELECT 1 FROM contacts
-                WHERE id = NEW.contact_id AND workspace_id = NEW.workspace_id
-              ) THEN
-                RAISE EXCEPTION 'contact workspace mismatch for % contact %', TG_TABLE_NAME, NEW.contact_id;
-              END IF;
-              IF TG_TABLE_NAME = 'call_requests' THEN
-                IF NOT EXISTS (
-                  SELECT 1 FROM voice_scripts
-                  WHERE id = NEW.voice_script_id AND campaign_id = NEW.campaign_id
-                ) THEN
-                  RAISE EXCEPTION 'voice script campaign mismatch for call request %', NEW.id;
-                END IF;
-              END IF;
-              IF TG_TABLE_NAME = 'scheduling_requests' THEN
-                IF NEW.signal_event_id IS NOT NULL AND NOT EXISTS (
-                  SELECT 1 FROM signal_events
-                  WHERE id = NEW.signal_event_id
-                    AND campaign_id = NEW.campaign_id
-                    AND workspace_id = NEW.workspace_id
-                ) THEN
-                  RAISE EXCEPTION 'signal workspace mismatch for scheduling request %', NEW.id;
-                END IF;
-              END IF;
-              RETURN NEW;
-            END;
-            $$ LANGUAGE plpgsql"""
-        )
-    )
-    for table_name in (
-        "call_requests",
-        "action_queue",
-        "signal_events",
-        "scheduling_requests",
-    ):
-        op.execute(
-            sa.text(
-                f"""CREATE CONSTRAINT TRIGGER ck_{table_name}_workspace
-                AFTER INSERT OR UPDATE ON {table_name}
-                DEFERRABLE INITIALLY IMMEDIATE
-                FOR EACH ROW EXECUTE FUNCTION enforce_campaign_workspace()"""
-            )
-        )
-
-    op.execute(
-        sa.text(
-            """CREATE FUNCTION enforce_send_request_workspace() RETURNS trigger AS $$
-            DECLARE owner_workspace varchar(64); contact_workspace varchar(64);
-            BEGIN
-              SELECT c.workspace_id, contact.workspace_id
-              INTO owner_workspace, contact_workspace
-              FROM contact_sequence_state css
-              JOIN email_sequences es ON es.id = css.sequence_id
-              JOIN campaigns c ON c.id = es.campaign_id
-              JOIN contacts contact ON contact.id = css.contact_id
-              WHERE css.id = NEW.contact_sequence_state_id;
-              IF owner_workspace IS NULL OR owner_workspace <> NEW.workspace_id
-                 OR contact_workspace IS NULL OR contact_workspace <> NEW.workspace_id THEN
-                RAISE EXCEPTION 'workspace mismatch for send request %', NEW.id;
-              END IF;
-              RETURN NEW;
-            END;
-            $$ LANGUAGE plpgsql"""
-        )
-    )
-    op.execute(
-        sa.text(
-            """CREATE CONSTRAINT TRIGGER ck_send_requests_workspace
-            AFTER INSERT OR UPDATE ON send_requests
-            DEFERRABLE INITIALLY IMMEDIATE
-            FOR EACH ROW EXECUTE FUNCTION enforce_send_request_workspace()"""
-        )
-    )
+    op.create_foreign_key("fk_voice_script_campaign_workspace", "voice_scripts", "campaigns", ["campaign_id", "workspace_id"], ["id", "workspace_id"])
+    op.create_foreign_key("fk_email_sequence_campaign_workspace", "email_sequences", "campaigns", ["campaign_id", "workspace_id"], ["id", "workspace_id"])
+    op.create_foreign_key("fk_css_sequence_workspace", "contact_sequence_state", "email_sequences", ["sequence_id", "workspace_id"], ["id", "workspace_id"])
+    op.create_foreign_key("fk_css_contact_workspace", "contact_sequence_state", "contacts", ["contact_id", "workspace_id"], ["id", "workspace_id"])
+    for table_name, prefix in (("call_requests", "call_request"), ("action_queue", "action_queue"), ("signal_events", "signal_event"), ("scheduling_requests", "scheduling")):
+        op.create_foreign_key(f"fk_{prefix}_campaign_workspace", table_name, "campaigns", ["campaign_id", "workspace_id"], ["id", "workspace_id"])
+        op.create_foreign_key(f"fk_{prefix}_contact_workspace", table_name, "contacts", ["contact_id", "workspace_id"], ["id", "workspace_id"])
+    op.create_foreign_key("fk_call_request_script_workspace", "call_requests", "voice_scripts", ["voice_script_id", "workspace_id"], ["id", "workspace_id"])
+    op.create_unique_constraint("uq_signal_event_id_workspace", "signal_events", ["id", "workspace_id"])
+    op.create_foreign_key("fk_scheduling_signal_workspace", "scheduling_requests", "signal_events", ["signal_event_id", "workspace_id"], ["id", "workspace_id"])
+    op.create_foreign_key("fk_send_request_state_workspace", "send_requests", "contact_sequence_state", ["contact_sequence_state_id", "workspace_id"], ["id", "workspace_id"])
 
 
 def downgrade() -> None:
     """Restore the pre-isolation schema when no cross-workspace duplicates exist."""
+    op.drop_constraint("fk_send_request_state_workspace", "send_requests", type_="foreignkey")
+    op.drop_constraint("fk_scheduling_signal_workspace", "scheduling_requests", type_="foreignkey")
+    op.drop_constraint("uq_signal_event_id_workspace", "signal_events", type_="unique")
+    op.drop_constraint("fk_call_request_script_workspace", "call_requests", type_="foreignkey")
+    for table_name, prefix in (("call_requests", "call_request"), ("action_queue", "action_queue"), ("signal_events", "signal_event"), ("scheduling_requests", "scheduling")):
+        op.drop_constraint(f"fk_{prefix}_contact_workspace", table_name, type_="foreignkey")
+        op.drop_constraint(f"fk_{prefix}_campaign_workspace", table_name, type_="foreignkey")
+    op.drop_constraint("fk_css_contact_workspace", "contact_sequence_state", type_="foreignkey")
+    op.drop_constraint("fk_css_sequence_workspace", "contact_sequence_state", type_="foreignkey")
+    op.drop_constraint("fk_email_sequence_campaign_workspace", "email_sequences", type_="foreignkey")
+    op.drop_constraint("fk_voice_script_campaign_workspace", "voice_scripts", type_="foreignkey")
+
+    op.drop_index("ix_call_sessions_callback_correlation_hash", table_name="call_sessions")
+    for column_name in (
+        "media_stream_token_consumed_at",
+        "media_stream_token_expires_at",
+        "media_stream_nonce_hash",
+        "callback_correlation_expires_at",
+        "callback_correlation_hash",
+    ):
+        op.drop_column("call_sessions", column_name)
+
+    op.drop_constraint("uq_css_id_workspace", "contact_sequence_state", type_="unique")
+    op.drop_index("ix_css_workspace_id", table_name="contact_sequence_state")
+    op.drop_column("contact_sequence_state", "workspace_id")
+    op.drop_constraint("uq_email_sequence_id_workspace", "email_sequences", type_="unique")
+    op.drop_index("ix_email_sequences_workspace_id", table_name="email_sequences")
+    op.drop_column("email_sequences", "workspace_id")
+    op.drop_constraint("uq_voice_script_id_workspace", "voice_scripts", type_="unique")
+    op.drop_index("ix_voice_scripts_workspace_id", table_name="voice_scripts")
+    op.drop_column("voice_scripts", "workspace_id")
+    op.drop_constraint("uq_contact_id_workspace", "contacts", type_="unique")
+    op.drop_constraint("uq_campaign_id_workspace", "campaigns", type_="unique")
     op.execute("DROP TRIGGER IF EXISTS ck_send_requests_workspace ON send_requests")
     op.execute("DROP FUNCTION IF EXISTS enforce_send_request_workspace()")
     for table_name in (

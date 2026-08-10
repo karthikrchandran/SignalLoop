@@ -49,6 +49,7 @@ def _seed_completed_call(session: Session) -> tuple[CallRequest, CallSession]:
     session.flush()
 
     script = VoiceScript(
+        workspace_id=campaign.workspace_id,
         campaign_id=campaign.id,
         name="Script",
         content="Say hello.",

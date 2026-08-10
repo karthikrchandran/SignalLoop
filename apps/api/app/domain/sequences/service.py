@@ -21,14 +21,18 @@ from app.domain.sequences.schemas import (
     StepPayload,
     StepPublic,
 )
-from app.domain_models import ContactProgression
+from app.domain_models import Campaign, ContactProgression
 
 
 def create_sequence(
     session: Session, *, data: SequenceCreate, created_by: uuid.UUID, commit: bool = True
 ) -> EmailSequence:
     """Create sequence."""
+    campaign = session.get(Campaign, data.campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campaign not found")
     seq = EmailSequence(
+        workspace_id=campaign.workspace_id,
         campaign_id=data.campaign_id,
         name=data.name,
         created_by=created_by,
@@ -152,7 +156,7 @@ def enroll_campaign_contacts(
     session: Session, *, campaign_id: uuid.UUID, sequence_id: uuid.UUID, commit: bool = True
 ) -> int:
     """Enroll all campaign contacts into a sequence with next_send_at = now."""
-    get_sequence_or_404(session, sequence_id)
+    sequence = get_sequence_or_404(session, sequence_id)
     # Get all contact IDs linked to this campaign via contact_progression
     shared_contact_ids = session.exec(
         select(ContactProgression.shared_contact_id).where(
@@ -173,6 +177,7 @@ def enroll_campaign_contacts(
         if existing:
             continue
         state = ContactSequenceState(
+            workspace_id=sequence.workspace_id,
             shared_contact_id=shared_contact_id,
             sequence_id=sequence_id,
             current_step=1,

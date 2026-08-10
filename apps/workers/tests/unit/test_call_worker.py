@@ -10,6 +10,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 from app.domain.voice.models import (
     CallRequest,
     CallRequestStatus,
+    CallSession,
     VoiceScript,
 )
 from app.domain_models import (
@@ -64,6 +65,7 @@ def _seed_call(session: Session, workspace_id: str, *, status: CallRequestStatus
     session.add(contact)
     session.flush()
     script = VoiceScript(
+        workspace_id=workspace_id,
         campaign_id=campaign.id,
         name="Script",
         content="Hello",
@@ -274,3 +276,34 @@ def test_poll_dispatch_denies_missing_voice_consent_before_provider_resolution()
         assert request is not None
         assert request.status == CallRequestStatus.failed
     resolver.assert_not_called()
+
+
+def test_initiate_one_precommits_signed_callback_correlation() -> None:
+    engine = _database()
+    with Session(engine) as session:
+        request = _seed_call(session, "workspace-a")
+
+        async def provider_callback_race(**kwargs: object) -> dict[str, str]:
+            with Session(engine) as observer:
+                persisted = observer.exec(
+                    select(CallSession).where(CallSession.call_request_id == request.id)
+                ).one()
+                assert persisted.twilio_status == "initiating"
+                assert persisted.callback_correlation_hash
+                assert persisted.callback_correlation_expires_at is not None
+            twiml_token = str(kwargs["twiml_url"]).split("?correlation=", 1)[1]
+            status_token = str(kwargs["status_callback_url"]).split("?correlation=", 1)[1]
+            assert twiml_token == status_token
+            return {"call_sid": "CA-race"}
+
+        adapter = MagicMock()
+        adapter._account_sid = "AC-race"
+        adapter.initiate_call = AsyncMock(side_effect=provider_callback_race)
+        with patch.object(call_worker, "_is_within_call_hours", return_value=True):
+            result = asyncio.run(
+                call_worker._initiate_one(
+                    session, request, workspace_id="workspace-a", adapter=adapter
+                )
+            )
+
+    assert result is True

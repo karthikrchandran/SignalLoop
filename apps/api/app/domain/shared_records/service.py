@@ -191,6 +191,20 @@ def _data(record: dict[str, object]) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _strict_bool(data: dict[str, Any], *keys: str) -> bool:
+    """Accept only explicit JSON booleans or true/false strings; deny otherwise."""
+    value = next((data[key] for key in keys if key in data), None)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized == "true":
+            return True
+        if normalized == "false":
+            return False
+    return False
+
+
 def shared_contact_to_public(
     record: dict[str, object], *, workspace_id: str
 ) -> ContactPublic:
@@ -222,10 +236,10 @@ def shared_contact_to_public(
         intent_json=[intent for intent in intents if isinstance(intent, str)]
         if isinstance(intents, list)
         else [],
-        consent_email=bool(data.get("consentEmail") or data.get("consent_email")),
-        consent_voice=bool(data.get("consentVoice") or data.get("consent_voice")),
-        do_not_contact=bool(data.get("doNotContact") or data.get("do_not_contact")),
-        suppressed=bool(data.get("suppressed")),
+        consent_email=_strict_bool(data, "consentEmail", "consent_email"),
+        consent_voice=_strict_bool(data, "consentVoice", "consent_voice"),
+        do_not_contact=_strict_bool(data, "doNotContact", "do_not_contact"),
+        suppressed=_strict_bool(data, "suppressed"),
         last_seen_at=last_seen_at,
         created_at=_created_at(record),
     )

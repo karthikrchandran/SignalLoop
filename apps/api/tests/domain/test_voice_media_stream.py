@@ -5,19 +5,15 @@ import base64
 import json
 
 from app.api.routes.voice import (
-    _build_media_stream_token,
     _cancel_task,
     _stream_text_to_twilio,
-    _verify_media_stream_token,
+    _token_hash,
 )
 
 
-def test_media_stream_token_binds_to_call_sid() -> None:
-    token = _build_media_stream_token("CA123", "AC123")
-
-    assert _verify_media_stream_token("CA123", "AC123", token) is True
-    assert _verify_media_stream_token("CA999", "AC123", token) is False
-    assert _verify_media_stream_token("CA123", "AC999", token) is False
+def test_media_stream_nonce_is_stored_as_a_hash() -> None:
+    assert _token_hash("opaque-token") != "opaque-token"
+    assert _token_hash("opaque-token") != _token_hash("different-token")
 
 
 def test_cancel_task_awaits_cancellation_cleanup() -> None:

@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.core.db import engine
 from app.domain.policies.consent_sync_service import is_contact_actionable
 from app.domain.shared_records import service as shared_record_service
+from app.domain.voice.correlation import mint_correlation_token, token_hash
 
 # Timeline cache invalidation moved to route layer (invalidate_timeline_cache via Request object)
 # from app.domain.timeline.timeline_service import invalidate_timeline_cache_from_url
@@ -395,6 +396,14 @@ async def _initiate_call(
         call_session.twilio_account_sid = account_sid or call_session.twilio_account_sid
     call_session.twilio_status = "initiating"
     call_session.twilio_status_updated_at = datetime.now(timezone.utc)
+    correlation_expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+    correlation_token = mint_correlation_token(
+        call_session.id,
+        settings.SECRET_KEY,
+        expires_at=int(correlation_expires_at.timestamp()),
+    )
+    call_session.callback_correlation_hash = token_hash(correlation_token)
+    call_session.callback_correlation_expires_at = correlation_expires_at
     session.add(call_session)
     session.commit()
     session.refresh(call_session)
@@ -402,8 +411,8 @@ async def _initiate_call(
     # Build callback URLs
     base_url = f"https://{settings.SERVER_HOST.rstrip('/')}"
     api_base = f"{base_url}{settings.API_V1_STR}"
-    twiml_url = f"{api_base}/voice/twiml"
-    status_url = f"{api_base}/voice/status"
+    twiml_url = f"{api_base}/voice/twiml?correlation={correlation_token}"
+    status_url = f"{api_base}/voice/status?correlation={correlation_token}"
 
     result = await adapter.initiate_call(
         to=phone,

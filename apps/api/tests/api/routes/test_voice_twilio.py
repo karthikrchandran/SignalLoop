@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import html
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
@@ -15,12 +15,14 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 from starlette.websockets import WebSocketDisconnect
 
 from app.api.routes import voice as voice_routes
 from app.core.config import settings
 from app.core.encryption import encrypt
+from app.domain.voice.correlation import mint_correlation_token, token_hash
 from app.domain.voice.models import (
     CallOutcome,
     CallRequest,
@@ -97,6 +99,7 @@ def _seed_call(
     db.flush()
 
     script = VoiceScript(
+        workspace_id=WORKSPACE_ID,
         campaign_id=campaign.id,
         name="Voice Script",
         content="Say hello and ask one qualifying question.",
@@ -330,6 +333,54 @@ def test_twilio_endpoints_reject_signed_cross_account_call_attachment(
     } == event_ids_before
 
 
+def test_status_callback_atomically_binds_first_sid_from_precommitted_correlation(
+    client: TestClient,
+    db: Session,
+) -> None:
+    call_request, call_session = _seed_call(db, call_sid="")
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+    correlation = mint_correlation_token(
+        call_session.id,
+        settings.SECRET_KEY,
+        expires_at=int(expires_at.timestamp()),
+    )
+    call_session.callback_correlation_hash = token_hash(correlation)
+    call_session.callback_correlation_expires_at = expires_at
+    call_session.twilio_status = "initiating"
+    db.add(call_session)
+    db.commit()
+
+    call_sid = _call_sid()
+    path = f"{settings.API_V1_STR}/voice/status?correlation={correlation}"
+    params = {
+        "CallSid": call_sid,
+        "AccountSid": GLOBAL_ACCOUNT_SID,
+        "CallStatus": "ringing",
+    }
+    response = client.post(
+        path,
+        data=params,
+        headers=_signed_headers(path, params, GLOBAL_AUTH_TOKEN),
+    )
+
+    assert response.status_code == 200
+    db.refresh(call_request)
+    db.refresh(call_session)
+    assert call_session.twilio_call_sid == call_sid
+    assert call_request.status == CallRequestStatus.in_progress
+
+    attacker_sid = _call_sid()
+    attacker_params = {**params, "CallSid": attacker_sid}
+    attacker = client.post(
+        path,
+        data=attacker_params,
+        headers=_signed_headers(path, attacker_params, GLOBAL_AUTH_TOKEN),
+    )
+    assert attacker.status_code == 403
+    db.refresh(call_session)
+    assert call_session.twilio_call_sid == call_sid
+
+
 def test_twilio_callback_rejects_missing_stored_account_binding(
     client: TestClient,
     db: Session,
@@ -443,7 +494,7 @@ def test_twiml_includes_authenticated_media_stream_metadata(
     db: Session,
 ) -> None:
     call_sid = _call_sid()
-    _seed_call(db, call_sid=call_sid)
+    _, call_session = _seed_call(db, call_sid=call_sid)
     path = f"{settings.API_V1_STR}/voice/twiml"
     params = {
         "CallSid": call_sid,
@@ -462,16 +513,20 @@ def test_twiml_includes_authenticated_media_stream_metadata(
     query = parse_qs(urlparse(stream_url).query)
     assert query["call_sid"] == [call_sid]
     assert query["account_sid"] == [GLOBAL_ACCOUNT_SID]
-    assert query["token"] == [_media_token(call_sid, GLOBAL_ACCOUNT_SID)]
+    assert query["token"] != [_media_token(call_sid, GLOBAL_ACCOUNT_SID)]
+    db.refresh(call_session)
+    assert call_session.media_stream_nonce_hash == voice_routes._token_hash(query["token"][0])
+    assert call_session.media_stream_token_expires_at is not None
 
 
-def test_media_stream_rejects_mismatched_start_frame(client: TestClient) -> None:
+def test_media_stream_rejects_mismatched_start_frame(client: TestClient, db: Session) -> None:
     call_sid = _call_sid()
-    token = _media_token(call_sid, GLOBAL_ACCOUNT_SID)
-    path = (
-        f"{settings.API_V1_STR}/voice/media-stream"
-        f"?call_sid={call_sid}&account_sid={GLOBAL_ACCOUNT_SID}&token={token}"
-    )
+    _seed_call(db, call_sid=call_sid)
+    twiml_path = f"{settings.API_V1_STR}/voice/twiml"
+    params = {"CallSid": call_sid, "AccountSid": GLOBAL_ACCOUNT_SID}
+    response = client.post(twiml_path, data=params, headers=_signed_headers(twiml_path, params, GLOBAL_AUTH_TOKEN))
+    stream_url = html.unescape(response.text.split('<Stream url="', 1)[1].split('">', 1)[0])
+    path = stream_url.replace("ws://testserver", "")
 
     with client.websocket_connect(path) as websocket:
         websocket.send_json(
@@ -493,16 +548,18 @@ def test_media_stream_rejects_mismatched_start_frame(client: TestClient) -> None
 
 def test_media_stream_binds_account_when_loading_call(
     client: TestClient,
+    db: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     call_sid = _call_sid()
-    token = _media_token(call_sid, CROSS_ACCOUNT_SID)
+    _seed_call(db, call_sid=call_sid)
     loader = AsyncMock(return_value=None)
     monkeypatch.setattr(voice_routes, "_load_engine_for_call", loader)
-    path = (
-        f"{settings.API_V1_STR}/voice/media-stream"
-        f"?call_sid={call_sid}&account_sid={CROSS_ACCOUNT_SID}&token={token}"
-    )
+    twiml_path = f"{settings.API_V1_STR}/voice/twiml"
+    params = {"CallSid": call_sid, "AccountSid": GLOBAL_ACCOUNT_SID}
+    response = client.post(twiml_path, data=params, headers=_signed_headers(twiml_path, params, GLOBAL_AUTH_TOKEN))
+    stream_url = html.unescape(response.text.split('<Stream url="', 1)[1].split('">', 1)[0])
+    path = stream_url.replace("ws://testserver", "")
 
     with client.websocket_connect(path) as websocket:
         websocket.send_json(
@@ -510,7 +567,7 @@ def test_media_stream_binds_account_when_loading_call(
                 "event": "start",
                 "start": {
                     "callSid": call_sid,
-                    "accountSid": CROSS_ACCOUNT_SID,
+                    "accountSid": GLOBAL_ACCOUNT_SID,
                     "streamSid": "MSstream0000000000000000000002",
                     "customParameters": {},
                 },
@@ -519,7 +576,53 @@ def test_media_stream_binds_account_when_loading_call(
         with pytest.raises(WebSocketDisconnect):
             websocket.receive_text()
 
-    loader.assert_awaited_once_with(call_sid, CROSS_ACCOUNT_SID)
+    loader.assert_awaited_once_with(call_sid, GLOBAL_ACCOUNT_SID)
+
+
+def test_media_stream_nonce_is_one_time(
+    client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    call_sid = _call_sid()
+    _seed_call(db, call_sid=call_sid)
+    monkeypatch.setattr(voice_routes, "_load_engine_for_call", AsyncMock(return_value=None))
+    twiml_path = f"{settings.API_V1_STR}/voice/twiml"
+    params = {"CallSid": call_sid, "AccountSid": GLOBAL_ACCOUNT_SID}
+    response = client.post(twiml_path, data=params, headers=_signed_headers(twiml_path, params, GLOBAL_AUTH_TOKEN))
+    path = html.unescape(response.text.split('<Stream url="', 1)[1].split('">', 1)[0]).replace("ws://testserver", "")
+
+    with client.websocket_connect(path) as websocket:
+        websocket.send_json({"event": "start", "start": {"callSid": call_sid, "accountSid": GLOBAL_ACCOUNT_SID, "streamSid": "MS-one", "customParameters": {}}})
+        with pytest.raises(WebSocketDisconnect):
+            websocket.receive_text()
+
+    with pytest.raises(WebSocketDisconnect) as replay:
+        with client.websocket_connect(path):
+            pass
+    assert replay.value.code == 1008
+
+
+def test_media_stream_nonce_rejects_expiry_and_terminal_call(
+    client: TestClient, db: Session
+) -> None:
+    for terminal in (False, True):
+        call_sid = _call_sid()
+        call_request, call_session = _seed_call(db, call_sid=call_sid)
+        twiml_path = f"{settings.API_V1_STR}/voice/twiml"
+        params = {"CallSid": call_sid, "AccountSid": GLOBAL_ACCOUNT_SID}
+        response = client.post(twiml_path, data=params, headers=_signed_headers(twiml_path, params, GLOBAL_AUTH_TOKEN))
+        path = html.unescape(response.text.split('<Stream url="', 1)[1].split('">', 1)[0]).replace("ws://testserver", "")
+        if terminal:
+            call_request.status = CallRequestStatus.completed
+            db.add(call_request)
+        else:
+            call_session.media_stream_token_expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+            db.add(call_session)
+        db.commit()
+
+        with pytest.raises(WebSocketDisconnect) as rejected:
+            with client.websocket_connect(path):
+                pass
+        assert rejected.value.code == 1008
 
 
 def test_save_conversation_results_rejects_cross_account(
@@ -677,37 +780,14 @@ def test_load_engine_for_call_rejects_missing_campaign_without_adapter_resolutio
     assert requested_workspaces == []
 
 
-def test_status_callback_ignores_mismatched_campaign_without_writes(
-    client: TestClient,
+def test_parent_campaign_workspace_move_is_denied_by_relational_constraint(
     db: Session,
 ) -> None:
-    call_request, call_session = _seed_call(db, call_sid=_call_sid())
+    call_request, _call_session = _seed_call(db, call_sid=_call_sid())
     campaign = db.get(Campaign, call_request.campaign_id)
     assert campaign is not None
     campaign.workspace_id = "workspace-b"
     db.add(campaign)
-    db.commit()
-    path = f"{settings.API_V1_STR}/voice/status"
-    params = {
-        "CallSid": call_session.twilio_call_sid,
-        "AccountSid": GLOBAL_ACCOUNT_SID,
-        "CallStatus": "completed",
-    }
-    provider_event_ids_before = {
-        event.id for event in db.exec(select(ProviderEventLog)).all()
-    }
-
-    response = client.post(
-        path,
-        data=params,
-        headers=_signed_headers(path, params, GLOBAL_AUTH_TOKEN),
-    )
-
-    assert response.status_code == 403
-    db.refresh(call_session)
-    db.refresh(call_request)
-    assert call_session.twilio_status is None
-    assert call_request.status == CallRequestStatus.queued
-    assert {
-        event.id for event in db.exec(select(ProviderEventLog)).all()
-    } == provider_event_ids_before
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()

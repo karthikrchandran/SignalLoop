@@ -88,7 +88,7 @@ def test_kpi_action_queue_uses_direct_workspace_and_rejects_campaign_mismatch(
     )
     db.add(cross_attached)
     if db.get_bind().dialect.name == "postgresql":
-        with pytest.raises(SQLAlchemyError, match="workspace mismatch"):
+        with pytest.raises(SQLAlchemyError):
             db.commit()
         db.rollback()
     else:

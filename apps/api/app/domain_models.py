@@ -11,6 +11,7 @@ from sqlalchemy import (
     JSON,
     Column,
     DateTime,
+    ForeignKeyConstraint,
     Index,
     String,
     Text,
@@ -152,6 +153,7 @@ class Campaign(SQLModel, table=True):
 
     __tablename__ = "campaigns"
     __table_args__ = (
+        UniqueConstraint("id", "workspace_id", name="uq_campaign_id_workspace"),
         Index("idx_campaign_workspace_status", "workspace_id", "status"),
         Index("idx_campaign_workspace_created_by", "workspace_id", "created_by"),
     )
@@ -468,6 +470,9 @@ class Contact(SQLModel, table=True):
     """Contact."""
 
     __tablename__ = "contacts"
+    __table_args__ = (
+        UniqueConstraint("id", "workspace_id", name="uq_contact_id_workspace"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(sa_type=String(64), index=True)
@@ -599,6 +604,18 @@ class ActionQueue(SQLModel, table=True):
     """Work item for the delivery worker — one outbound action per row."""
 
     __tablename__ = "action_queue"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["campaign_id", "workspace_id"],
+            ["campaigns.id", "campaigns.workspace_id"],
+            name="fk_action_queue_campaign_workspace",
+        ),
+        ForeignKeyConstraint(
+            ["contact_id", "workspace_id"],
+            ["contacts.id", "contacts.workspace_id"],
+            name="fk_action_queue_contact_workspace",
+        ),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(max_length=64, index=True)

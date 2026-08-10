@@ -186,7 +186,7 @@ def test_campaign_health_and_dead_letter_actions_filter_direct_workspace_owner(
     )
     db.add(cross_attached)
     if db.get_bind().dialect.name == "postgresql":
-        with pytest.raises(SQLAlchemyError, match="workspace mismatch"):
+        with pytest.raises(SQLAlchemyError):
             db.commit()
         db.rollback()
         return

@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, select
 
 from app.core.config import settings
@@ -200,6 +201,11 @@ def test_sendgrid_event_rejects_cross_attached_sequence_campaign(
     )
     campaign.workspace_id = "workspace-b"
     db.add(campaign)
+    if db.get_bind().dialect.name == "postgresql":
+        with pytest.raises(SQLAlchemyError):
+            db.commit()
+        db.rollback()
+        return
     db.commit()
 
     response = client.post(

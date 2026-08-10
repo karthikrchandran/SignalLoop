@@ -8,10 +8,11 @@ import hashlib
 import hmac
 import json
 import logging
+import secrets
 import time
 import uuid
 from contextlib import suppress
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 from xml.sax.saxutils import quoteattr
 
@@ -30,6 +31,7 @@ from app.domain.timeline.timeline_service import (
     invalidate_timeline_cache_from_url_sync,
 )
 from app.domain.voice.conversation_engine import ConversationEngine
+from app.domain.voice.correlation import token_hash, verify_correlation_token
 from app.domain.voice.models import (
     CallOutcome,
     CallRequest,
@@ -66,6 +68,7 @@ RESPONSE_LATENCY_BUDGET_SECONDS = 0.5
 MEDIA_TOKEN_QUERY_PARAM = "token"
 MEDIA_CALL_QUERY_PARAM = "call_sid"
 MEDIA_ACCOUNT_QUERY_PARAM = "account_sid"
+MEDIA_TOKEN_TTL_SECONDS = 300
 TERMINAL_TWILIO_STATUSES = {"busy", "canceled", "completed", "failed", "no-answer"}
 ACTIVE_TWILIO_STATUSES = {"answered", "in-progress", "initiated", "ringing"}
 TWILIO_STATUS_RANK = {
@@ -99,11 +102,16 @@ def _verify_twilio_webhook(
     if not signature:
         raise HTTPException(status_code=403, detail="Invalid Twilio signature")
 
+    call_sid = params.get("CallSid", "").strip()
+    account_sid = params.get("AccountSid", "").strip()
+    correlation = request.query_params.get("correlation", "")
     call_context = _resolve_twilio_call_context(
-        session,
-        call_sid=params.get("CallSid", "").strip(),
-        account_sid=params.get("AccountSid", "").strip(),
+        session, call_sid=call_sid, account_sid=account_sid
     )
+    if call_context is None and correlation:
+        call_context = _resolve_twilio_correlation_context(
+            session, correlation=correlation, account_sid=account_sid
+        )
     if call_context is None:
         raise HTTPException(status_code=403, detail="Invalid Twilio call binding")
 
@@ -124,7 +132,42 @@ def _verify_twilio_webhook(
         for auth_token in auth_tokens
     ):
         raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+    if not call_session.twilio_call_sid:
+        call_session.twilio_call_sid = call_sid
+        session.add(call_session)
+        session.flush()
+    elif not hmac.compare_digest(call_session.twilio_call_sid, call_sid):
+        raise HTTPException(status_code=403, detail="Invalid Twilio call binding")
     return call_context
+
+
+def _resolve_twilio_correlation_context(
+    session: Session,
+    *,
+    correlation: str,
+    account_sid: str,
+) -> tuple[CallSession, CallRequest, Campaign, VoiceScript, Contact] | None:
+    session_id = verify_correlation_token(correlation, settings.SECRET_KEY)
+    if session_id is None or not account_sid:
+        return None
+    call_session = session.exec(
+        select(CallSession).where(CallSession.id == session_id).with_for_update()
+    ).first()
+    if (
+        call_session is None
+        or not call_session.twilio_account_sid
+        or not call_session.callback_correlation_hash
+        or call_session.callback_correlation_expires_at is None
+        or call_session.callback_correlation_expires_at <= datetime.now(timezone.utc)
+        or not hmac.compare_digest(call_session.twilio_account_sid, account_sid)
+        or not hmac.compare_digest(call_session.callback_correlation_hash, token_hash(correlation))
+    ):
+        return None
+    ownership = _resolve_call_ownership(session, call_session)
+    if ownership is None:
+        return None
+    call_request, campaign, voice_script, contact = ownership
+    return call_session, call_request, campaign, voice_script, contact
 
 
 def _twilio_provider_event_id(event_kind: str, params: dict[str, str]) -> str:
@@ -302,7 +345,8 @@ async def twiml_handler(request: Request, session: SessionDep) -> Response:
 
     host = settings.SERVER_HOST
     ws_scheme = "wss" if request.url.scheme == "https" else "ws"
-    token = _build_media_stream_token(call_sid, account_sid)
+    token = _mint_media_stream_token(session, call_session)
+    session.commit()
     query = urlencode(
         {
             MEDIA_CALL_QUERY_PARAM: call_sid,
@@ -330,10 +374,8 @@ async def media_stream(websocket: WebSocket) -> None:
     media_token = websocket.query_params.get(MEDIA_TOKEN_QUERY_PARAM, "")
     expected_call_sid = websocket.query_params.get(MEDIA_CALL_QUERY_PARAM, "")
     expected_account_sid = websocket.query_params.get(MEDIA_ACCOUNT_QUERY_PARAM, "")
-    if not expected_call_sid or not media_token or not _verify_media_stream_token(
-        expected_call_sid,
-        expected_account_sid,
-        media_token,
+    if not expected_call_sid or not media_token or not _consume_media_stream_token(
+        expected_call_sid, expected_account_sid, media_token
     ):
         await websocket.close(code=1008)
         return
@@ -468,20 +510,58 @@ async def media_stream(websocket: WebSocket) -> None:
                 )
 
 
-def _build_media_stream_token(call_sid: str, account_sid: str) -> str:
-    """Return a per-call HMAC token for Twilio Media Stream binding."""
-    token_subject = f"{account_sid}:{call_sid}"
-    return hmac.new(
-        settings.SECRET_KEY.encode("utf-8"),
-        token_subject.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
+def _token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def _verify_media_stream_token(call_sid: str, account_sid: str, token: str) -> bool:
-    """Verify that a media stream token was minted for the Twilio call SID."""
-    expected = _build_media_stream_token(call_sid, account_sid)
-    return hmac.compare_digest(expected, token)
+def _mint_media_stream_token(session: Session, call_session: CallSession) -> str:
+    """Mint a short-lived opaque nonce and persist only its digest."""
+    token = secrets.token_urlsafe(32)
+    call_session.media_stream_nonce_hash = _token_hash(token)
+    call_session.media_stream_token_expires_at = datetime.now(timezone.utc) + timedelta(
+        seconds=MEDIA_TOKEN_TTL_SECONDS
+    )
+    call_session.media_stream_token_consumed_at = None
+    session.add(call_session)
+    return token
+
+
+def _consume_media_stream_token(call_sid: str, account_sid: str, token: str) -> bool:
+    """Atomically consume the nonce for an active, fully owned call."""
+    if not call_sid or not account_sid or not token:
+        return False
+    with Session(engine) as session:
+        call_session = session.exec(
+            select(CallSession)
+            .where(CallSession.twilio_call_sid == call_sid)
+            .with_for_update()
+        ).first()
+        if call_session is None or not call_session.twilio_account_sid:
+            return False
+        if not hmac.compare_digest(call_session.twilio_account_sid, account_sid):
+            return False
+        ownership = _resolve_call_ownership(session, call_session)
+        if ownership is None:
+            return False
+        call_request, _campaign, _script, _contact = ownership
+        if call_request.status not in {
+            CallRequestStatus.queued,
+            CallRequestStatus.in_progress,
+        }:
+            return False
+        expires_at = call_session.media_stream_token_expires_at
+        if (
+            not call_session.media_stream_nonce_hash
+            or call_session.media_stream_token_consumed_at is not None
+            or expires_at is None
+            or expires_at <= datetime.now(timezone.utc)
+            or not hmac.compare_digest(call_session.media_stream_nonce_hash, _token_hash(token))
+        ):
+            return False
+        call_session.media_stream_token_consumed_at = datetime.now(timezone.utc)
+        session.add(call_session)
+        session.commit()
+        return True
 
 
 async def _cancel_task(task: asyncio.Task | None) -> None:

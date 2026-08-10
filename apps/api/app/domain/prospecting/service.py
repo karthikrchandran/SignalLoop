@@ -566,6 +566,7 @@ def enroll_selected_prospects(
         else:
             session.add(
                 ContactSequenceState(
+                    workspace_id=workspace_id,
                     shared_contact_id=contact.id,
                     sequence_id=sequence.id,
                     status=SequenceStatus.active,

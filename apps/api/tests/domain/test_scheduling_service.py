@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import uuid
 from collections.abc import Generator
 from datetime import datetime, timezone
@@ -251,7 +252,7 @@ def test_verify_calendly_signature_valid() -> None:
 
     signing_key = "test_signing_key"
     body = b'{"event": "invitee.created"}'
-    timestamp = "1720400000"
+    timestamp = str(int(time.time()))
     signed_message = f"{timestamp}.{body.decode()}"
     v1 = _hmac.new(
         signing_key.encode(), signed_message.encode(), hashlib.sha256

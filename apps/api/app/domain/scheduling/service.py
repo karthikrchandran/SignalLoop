@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import hmac
+import json
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -26,6 +30,54 @@ from app.integrations.ecrm_workflow_events import emit_event
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+CALENDLY_STATE_MIN_TTL_SECONDS = 60
+CALENDLY_STATE_MAX_TTL_SECONDS = 30 * 24 * 60 * 60
+
+
+def mint_calendly_state(
+    request_id: uuid.UUID,
+    workspace_id: str,
+    signing_key: str,
+    *,
+    expires_at: int | None = None,
+    ttl_seconds: int = 24 * 60 * 60,
+) -> str:
+    bounded_ttl = max(
+        CALENDLY_STATE_MIN_TTL_SECONDS,
+        min(ttl_seconds, CALENDLY_STATE_MAX_TTL_SECONDS),
+    )
+    payload = json.dumps(
+        {
+            "requestId": str(request_id),
+            "workspace": workspace_id,
+            "exp": expires_at or int(time.time()) + bounded_ttl,
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+    encoded = base64.urlsafe_b64encode(payload).decode().rstrip("=")
+    signature = hmac.new(signing_key.encode(), encoded.encode(), hashlib.sha256).hexdigest()
+    return f"{encoded}.{signature}"
+
+
+def verify_calendly_state(token: str, signing_key: str) -> tuple[uuid.UUID, str] | None:
+    try:
+        encoded, signature = token.split(".", 1)
+        expected = hmac.new(signing_key.encode(), encoded.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, signature):
+            return None
+        padded = encoded + "=" * (-len(encoded) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded))
+        if not isinstance(payload, dict) or int(payload.get("exp", 0)) < int(time.time()):
+            return None
+        workspace_id = payload.get("workspace")
+        if not isinstance(workspace_id, str) or not workspace_id.strip():
+            return None
+        return uuid.UUID(str(payload.get("requestId"))), workspace_id.strip()
+    except (ValueError, TypeError, json.JSONDecodeError, binascii.Error):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +199,8 @@ def verify_calendly_signature(
     body: bytes,
     signature_header: str,
     signing_key: str,
+    *,
+    max_age_seconds: int = 5 * 60,
 ) -> bool:
     """Verify a Calendly webhook HMAC-SHA256 signature.
 
@@ -160,6 +214,11 @@ def verify_calendly_signature(
     except (ValueError, AttributeError):
         return False
 
+    try:
+        if abs(int(time.time()) - int(timestamp)) > max_age_seconds:
+            return False
+    except ValueError:
+        return False
     signed_message = f"{timestamp}.{body.decode('utf-8', errors='replace')}"
     expected = hmac.new(
         signing_key.encode(),
@@ -188,6 +247,10 @@ def handle_calendly_booking(
     ).first()
     if req is None:
         raise HTTPException(status_code=404, detail="Scheduling request not found")
+    if req.status == SchedulingRequestStatus.booked:
+        if req.calendly_event_id != calendly_event_id:
+            raise HTTPException(status_code=409, detail="Scheduling request already booked")
+        return req
 
     req.status = SchedulingRequestStatus.booked
     req.calendly_event_id = calendly_event_id

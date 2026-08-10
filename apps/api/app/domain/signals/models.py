@@ -6,7 +6,15 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, ClassVar
 
-from sqlalchemy import JSON, Column, DateTime, Index, UniqueConstraint, Uuid
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    ForeignKeyConstraint,
+    Index,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.orm import Synonym, synonym
 from sqlmodel import Field, SQLModel
 
@@ -28,6 +36,17 @@ class SignalEvent(SQLModel, table=True):
             "source_event_id",
             "signal_type",
             name="uq_signal_workspace_source_type",
+        ),
+        UniqueConstraint("id", "workspace_id", name="uq_signal_event_id_workspace"),
+        ForeignKeyConstraint(
+            ["campaign_id", "workspace_id"],
+            ["campaigns.id", "campaigns.workspace_id"],
+            name="fk_signal_event_campaign_workspace",
+        ),
+        ForeignKeyConstraint(
+            ["contact_id", "workspace_id"],
+            ["contacts.id", "contacts.workspace_id"],
+            name="fk_signal_event_contact_workspace",
         ),
     )
 
