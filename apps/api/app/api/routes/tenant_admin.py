@@ -297,6 +297,33 @@ def publish_branding(
     return draft
 
 
+@router.post("/tenants/{tenant_id}/branding/{version_id}/validate")
+def validate_branding(
+    *,
+    session: SessionDep,
+    user: CurrentUser,
+    tenant_id: uuid.UUID,
+    version_id: uuid.UUID,
+):
+    _authorize(session, user, tenant_id, "tenant.settings.manage")
+    draft = session.get(TenantBrandingVersion, version_id)
+    if (
+        draft is None
+        or draft.tenant_id != tenant_id
+        or draft.lifecycle != BrandingLifecycle.DRAFT
+    ):
+        raise HTTPException(status_code=409, detail="Only a draft can be validated")
+    if not draft.support_url or not draft.privacy_url or not draft.legal_url:
+        raise HTTPException(
+            status_code=422, detail="Support, privacy, and legal links are required"
+        )
+    draft.lifecycle = BrandingLifecycle.VALIDATED
+    draft.validated_by = user.id
+    session.add(draft)
+    session.flush()
+    return draft
+
+
 @router.post("/tenants/{tenant_id}/branding/{version_id}/rollback")
 def rollback_branding(
     *,
