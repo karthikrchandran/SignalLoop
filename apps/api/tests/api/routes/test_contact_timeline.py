@@ -166,6 +166,7 @@ def seeded_timeline(db: Session, campaign_and_contact: tuple[uuid.UUID, uuid.UUI
     db.add(script)
     db.flush()
     call_request = CallRequest(
+        workspace_id=WORKSPACE_ID,
         contact_id=contact_id,
         campaign_id=campaign_id,
         voice_script_id=script.id,

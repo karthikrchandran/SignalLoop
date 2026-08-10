@@ -76,6 +76,7 @@ def _prepare_postcall_summary_intent(
         aggregate_type="call_session",
         event_type="postcall.summary_email_requested",
         event_data={
+            "workspace_id": req.workspace_id,
             "call_session_id": str(sess.id),
             "call_request_id": str(req.id),
             "contact_id": str(req.contact_id),
@@ -129,7 +130,7 @@ def _build_summary(
         "phone": (contact.phone if contact else None) or "N/A",
         "campaign_name": campaign.name if campaign else str(req.campaign_id),
         "campaign_id": str(req.campaign_id),
-        "workspace_id": campaign.workspace_id if campaign else settings.DEFAULT_WORKSPACE_ID,
+        "workspace_id": req.workspace_id,
         "call_duration_seconds": sess.duration_seconds,
         "outcome": _outcome_label(sess.outcome),
         "transcript": sess.transcript or "",
@@ -200,11 +201,27 @@ async def _process_session(
     req: CallRequest,
     sess: CallSession,
 ) -> None:
+    workspace_id = req.workspace_id
     contact = db.get(Contact, req.contact_id)
+    if contact is not None and contact.workspace_id != workspace_id:
+        logger.error(
+            "Refusing cross-workspace post-call contact request=%s request_workspace=%s "
+            "contact_workspace=%s",
+            req.id,
+            workspace_id,
+            contact.workspace_id,
+        )
+        contact = None
     campaign = db.get(Campaign, req.campaign_id)
-    workspace_id: str = (
-        campaign.workspace_id if campaign else settings.DEFAULT_WORKSPACE_ID
-    )
+    if campaign is not None and campaign.workspace_id != workspace_id:
+        logger.error(
+            "Refusing cross-workspace post-call campaign request=%s "
+            "request_workspace=%s campaign_workspace=%s",
+            req.id,
+            workspace_id,
+            campaign.workspace_id,
+        )
+        campaign = None
 
     summary = _build_summary(req, sess, contact, campaign)
     body_text, body_html = _render_email(summary)

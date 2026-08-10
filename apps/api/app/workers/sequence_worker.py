@@ -22,7 +22,7 @@ from app.domain.sequences.models import (
     SequenceStatus,
     SequenceStep,
 )
-from app.domain.sequences.suppression import EmailSuppression
+from app.domain.sequences.suppression import is_email_suppressed
 from app.domain.shared_records import service as shared_record_service
 from app.domain_models import (
     Campaign,
@@ -108,10 +108,8 @@ def _daily_send_count(
     return result or 0
 
 
-def _is_suppressed(session: Session, email: str) -> bool:
-    return session.exec(
-        select(EmailSuppression.id).where(EmailSuppression.email == email)
-    ).first() is not None
+def _is_suppressed(session: Session, workspace_id: str, email: str) -> bool:
+    return is_email_suppressed(session, workspace_id, email)
 
 
 def _campaign_for_state(
@@ -327,7 +325,7 @@ async def _process_single(
         default_factory=SendGridAdapter,
     )
 
-    if _is_suppressed(session, contact.email):
+    if _is_suppressed(session, contact.workspace_id, contact.email):
         logger.info("Contact %s is suppressed, stopping sequence", contact.email)
         state.status = SequenceStatus.stopped
         state.signal_type = "suppressed"
@@ -356,7 +354,10 @@ async def _process_single(
 
     # Check for existing SendRequest (idempotent)
     existing = session.exec(
-        select(SendRequest).where(SendRequest.idempotency_key == idempotency_key)
+        select(SendRequest).where(
+            SendRequest.workspace_id == contact.workspace_id,
+            SendRequest.idempotency_key == idempotency_key,
+        )
     ).first()
 
     if existing and existing.status == SendRequestStatus.sent:
@@ -393,6 +394,7 @@ async def _process_single(
 
     # Create or reuse SendRequest
     send_request = existing or SendRequest(
+        workspace_id=contact.workspace_id,
         contact_sequence_state_id=state.id,
         step_order=state.current_step,
         idempotency_key=idempotency_key,
@@ -414,7 +416,11 @@ async def _process_single(
         body_html=body_html,
         body_text=body_text,
         idempotency_key=idempotency_key,
-        custom_args={"css_id": str(state.id), "step": str(state.current_step)},
+        custom_args={
+            "workspace_id": contact.workspace_id,
+            "css_id": str(state.id),
+            "step": str(state.current_step),
+        },
     )
 
     message_id = result.get("message_id", "")

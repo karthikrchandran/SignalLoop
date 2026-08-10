@@ -75,14 +75,13 @@ def _daily_call_count(
 ) -> int:
     today = datetime.now(timezone.utc).date()
     statement = select(func.count(CallRequest.id))
-    if workspace_id is not None:
-        statement = statement.join(Campaign, CallRequest.campaign_id == Campaign.id)
     statement = statement.where(
         func.date(CallRequest.created_at) == today,
+        CallRequest.status != CallRequestStatus.queued,
         CallRequest.status != CallRequestStatus.failed,
     )
     if workspace_id is not None:
-        statement = statement.where(Campaign.workspace_id == workspace_id)
+        statement = statement.where(CallRequest.workspace_id == workspace_id)
     if campaign_id is not None:
         statement = statement.where(CallRequest.campaign_id == campaign_id)
     result = session.exec(statement).one()
@@ -183,6 +182,16 @@ def _should_skip_for_governance(session: Session, call_req: CallRequest) -> bool
     if not campaign:
         return False
 
+    if campaign.workspace_id != call_req.workspace_id:
+        logger.error(
+            "Call request %s workspace does not match campaign %s",
+            call_req.id,
+            campaign.id,
+        )
+        call_req.status = CallRequestStatus.failed
+        session.add(call_req)
+        return True
+
     if campaign.status == CampaignStatus.paused:
         logger.info("Campaign %s paused - skipping call_request=%s", campaign.id, call_req.id)
         return True
@@ -227,41 +236,62 @@ async def _process_batch() -> int:
     processed = 0
 
     with Session(engine) as session:
-        daily_count = _daily_call_count(session)
-        if daily_count >= DAILY_CALL_CAP:
-            logger.warning("Daily call cap reached (%d/%d)", daily_count, DAILY_CALL_CAP)
-            return 0
-
-        remaining = DAILY_CALL_CAP - daily_count
-
-        due_requests = session.exec(
-            select(CallRequest)
+        workspace_ids = session.exec(
+            select(CallRequest.workspace_id)
             .where(
                 CallRequest.status == CallRequestStatus.queued,
                 CallRequest.scheduled_at <= datetime.now(timezone.utc),
             )
-            .order_by(CallRequest.scheduled_at)
-            .limit(min(BATCH_SIZE, remaining))
-            .with_for_update(skip_locked=True)
+            .distinct()
+            .order_by(CallRequest.workspace_id)
         ).all()
-
-        if not due_requests:
+        if not workspace_ids:
             return 0
 
         timeline_cache_targets: set[tuple[uuid.UUID, uuid.UUID]] = set()
-        for call_req in due_requests:
-            try:
-                if _should_skip_for_governance(session, call_req):
-                    continue
-                if target := await _initiate_call(session, call_req):
-                    timeline_cache_targets.add(target)
-                processed += 1
-            except Exception:
-                logger.exception("Error processing call_request=%s", call_req.id)
-                session.rollback()
-                break
+        for workspace_id in workspace_ids:
+            due_requests = session.exec(
+                select(CallRequest)
+                .where(
+                    CallRequest.workspace_id == workspace_id,
+                    CallRequest.status == CallRequestStatus.queued,
+                    CallRequest.scheduled_at <= datetime.now(timezone.utc),
+                )
+                .order_by(CallRequest.scheduled_at)
+                .limit(BATCH_SIZE)
+                .with_for_update(skip_locked=True)
+            ).all()
+            adapter: VoiceAdapter | None = None
+            workspace_failed = False
+            for call_req in due_requests:
+                try:
+                    if _should_skip_for_governance(session, call_req):
+                        continue
+                    if adapter is None:
+                        adapter = resolve_voice_adapter(
+                            session,
+                            workspace_id,
+                            default_factory=TwilioVoiceAdapter,
+                        )
+                    if target := await _initiate_call(
+                        session,
+                        call_req,
+                        adapter=adapter,
+                    ):
+                        timeline_cache_targets.add(target)
+                    processed += 1
+                except Exception:
+                    logger.exception(
+                        "Error processing call_request=%s workspace=%s",
+                        call_req.id,
+                        workspace_id,
+                    )
+                    session.rollback()
+                    workspace_failed = True
+                    break
+            if not workspace_failed:
+                session.commit()
 
-        session.commit()
         # Timeline cache invalidation (per-contact) is handled by workers/call_worker side effects,
         # but the call_worker process cannot invalidate caches directly (no Request object).
         # Caches will auto-expire or be invalidated by route handlers.
@@ -272,10 +302,12 @@ async def _process_batch() -> int:
 
 
 async def _initiate_call(
-    session: Session, call_req: CallRequest
+    session: Session,
+    call_req: CallRequest,
+    *,
+    adapter: VoiceAdapter | None = None,
 ) -> tuple[uuid.UUID, uuid.UUID] | None:
-    campaign = session.get(Campaign, call_req.campaign_id)
-    workspace_id = campaign.workspace_id if campaign else settings.DEFAULT_WORKSPACE_ID
+    workspace_id = call_req.workspace_id
     shared_contact = shared_record_service.get_shared_contact(
         workspace_id=workspace_id,
         contact_id=call_req.shared_contact_id,
@@ -285,10 +317,11 @@ async def _initiate_call(
         if shared_contact
         else None
     )
-    if not contact:
+    if not contact or contact.workspace_id != workspace_id:
         logger.warning(
-            "Shared contact %s not found, marking failed",
+            "Shared contact %s not found in workspace %s, marking failed",
             call_req.shared_contact_id,
+            workspace_id,
         )
         call_req.status = CallRequestStatus.failed
         session.add(call_req)
@@ -297,11 +330,12 @@ async def _initiate_call(
     # Resolve the voice adapter for this contact's workspace.  Falls back to
     # TwilioVoiceAdapter() when no explicit selection exists so that legacy
     # tests `patch.object(call_worker, "TwilioVoiceAdapter")` keep working.
-    adapter: VoiceAdapter = resolve_voice_adapter(
-        session,
-        contact.workspace_id,
-        default_factory=TwilioVoiceAdapter,
-    )
+    if adapter is None:
+        adapter = resolve_voice_adapter(
+            session,
+            workspace_id,
+            default_factory=TwilioVoiceAdapter,
+        )
 
     # Contact needs a phone number — check for one
     phone = getattr(contact, "phone", None) or getattr(contact, "email", "")

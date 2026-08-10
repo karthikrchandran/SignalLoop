@@ -589,6 +589,7 @@ class ActionQueue(SQLModel, table=True):
     __tablename__ = "action_queue"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(max_length=64, index=True)
     shared_contact_id: uuid.UUID = Field(
         alias="contact_id",
         sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
@@ -709,9 +710,10 @@ class ProviderEventLog(SQLModel, table=True):
     __tablename__ = "provider_event_logs"
     __table_args__ = (
         UniqueConstraint(
+            "workspace_id",
             "provider",
             "provider_event_id",
-            name="uq_provider_event_provider_event_id",
+            name="uq_provider_event_workspace_provider_event_id",
         ),
     )
 
@@ -1492,8 +1494,8 @@ class CampaignHealthPublic(SQLModel):
     provider_errors_by_type: dict[str, int]
 
 
-from app.domain.shared_records.models import (  # noqa: E402
-    PlatformExternalLink,
-    PlatformSharedAccount,
-    PlatformSharedContact,
+from app.domain.shared_records.models import (  # noqa: E402, F401
+    PlatformExternalLink,  # noqa: F401
+    PlatformSharedAccount,  # noqa: F401
+    PlatformSharedContact,  # noqa: F401
 )

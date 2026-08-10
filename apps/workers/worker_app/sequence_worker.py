@@ -34,12 +34,8 @@ if str(_API_SRC) not in sys.path:
 from sqlalchemy import func  # noqa: E402
 from sqlmodel import Session, select  # noqa: E402
 
-from app.core.config import settings  # noqa: E402  (loaded once at import time)
 from app.core.db import engine  # noqa: E402
 from app.domain.audit.audit_events import AuditEvent  # noqa: E402
-from app.domain.providers.credential_resolver import (  # noqa: E402
-    resolve_provider_credentials,
-)
 from app.domain.sequences.models import (  # noqa: E402
     ContactSequenceState,
     EmailSequence,
@@ -48,13 +44,12 @@ from app.domain.sequences.models import (  # noqa: E402
     SequenceStatus,
     SequenceStep,
 )
-from app.domain.sequences.suppression import EmailSuppression  # noqa: E402
+from app.domain.sequences.suppression import is_email_suppressed  # noqa: E402
 from app.domain_models import (  # noqa: E402
     Campaign,
     Contact,
     GlobalControlState,
     GovernancePolicy,
-    NotificationProvider,
     PolicyStatus,
     PolicyType,
 )
@@ -239,10 +234,7 @@ async def _process_single(
         return
 
     # -- Suppression check ----------------------------------------------------
-    suppressed = session.exec(
-        select(EmailSuppression.id).where(EmailSuppression.email == contact.email)
-    ).first()
-    if suppressed:
+    if is_email_suppressed(session, workspace_id, contact.email):
         logger.info("Contact %s suppressed — stopping sequence %s", contact.email, state.id)
         state.status = SequenceStatus.stopped
         state.signal_type = "suppressed"
@@ -278,7 +270,10 @@ async def _process_single(
 
     # -- Exactly-once guard ---------------------------------------------------
     existing: SendRequest | None = session.exec(
-        select(SendRequest).where(SendRequest.idempotency_key == idempotency_key)
+        select(SendRequest).where(
+            SendRequest.workspace_id == workspace_id,
+            SendRequest.idempotency_key == idempotency_key,
+        )
     ).first()
 
     if existing and existing.status == SendRequestStatus.sent:
@@ -316,6 +311,7 @@ async def _process_single(
 
     # -- Create or reuse SendRequest ------------------------------------------
     send_request: SendRequest = existing or SendRequest(
+        workspace_id=workspace_id,
         contact_sequence_state_id=state.id,
         step_order=state.current_step,
         idempotency_key=idempotency_key,
@@ -334,6 +330,7 @@ async def _process_single(
         body_text=body_text,
         idempotency_key=idempotency_key,
         custom_args={
+            "workspace_id": workspace_id,
             "css_id": str(state.id),
             "step": str(state.current_step),
         },

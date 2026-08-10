@@ -9,7 +9,6 @@ import logging
 
 from sqlmodel import Session, select
 
-from app.core.config import settings
 from app.core.db import engine
 from app.domain.outreach.outbox_service import (
     enqueue_outbox_event,
@@ -62,6 +61,7 @@ def _prepare_postcall_summary_intent(
         aggregate_type="call_session",
         event_type="postcall.summary_email_requested",
         event_data={
+            "workspace_id": call_request.workspace_id,
             "call_session_id": str(call_session.id),
             "call_request_id": str(call_request.id),
             "contact_id": str(call_request.shared_contact_id),
@@ -126,10 +126,17 @@ async def _send_summary(
     if not call_request:
         return
 
-    workspace_id = settings.DEFAULT_WORKSPACE_ID
+    workspace_id = call_request.workspace_id
     campaign = session.get(Campaign, call_request.campaign_id)
-    if campaign is not None:
-        workspace_id = campaign.workspace_id
+    if campaign is not None and campaign.workspace_id != workspace_id:
+        logger.error(
+            "Refusing cross-workspace post-call campaign request=%s "
+            "request_workspace=%s campaign_workspace=%s",
+            call_request.id,
+            workspace_id,
+            campaign.workspace_id,
+        )
+        campaign = None
     shared_contact = shared_record_service.get_shared_contact(
         workspace_id=workspace_id,
         contact_id=call_request.shared_contact_id,
@@ -139,6 +146,15 @@ async def _send_summary(
         if shared_contact
         else None
     )
+    if contact is not None and contact.workspace_id != workspace_id:
+        logger.error(
+            "Refusing cross-workspace post-call contact request=%s "
+            "request_workspace=%s contact_workspace=%s",
+            call_request.id,
+            workspace_id,
+            contact.workspace_id,
+        )
+        contact = None
     contact_name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() if contact else "Unknown"
     contact_company = contact.company or "" if contact else ""
     contact_email = contact.email if contact else ""
@@ -150,7 +166,6 @@ async def _send_summary(
         contact_email=contact_email,
     )
 
-    workspace_id = contact.workspace_id if contact else workspace_id
     team_email = resolve_team_notification_email(session, workspace_id)
     if not team_email:
         logger.warning("TEAM_NOTIFICATION_EMAIL not configured, skipping send")

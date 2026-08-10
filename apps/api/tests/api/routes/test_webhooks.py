@@ -72,6 +72,7 @@ def _make_send_request(
     db.add(state)
     db.flush()
     sr = SendRequest(
+        workspace_id=campaign.workspace_id,
         contact_sequence_state_id=state.id,
         step_order=1,
         idempotency_key=f"wh-{uuid.uuid4()}",

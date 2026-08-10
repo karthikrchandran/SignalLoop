@@ -74,6 +74,7 @@ class CallRequest(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(max_length=64, index=True)
     shared_contact_id: uuid.UUID = Field(
         alias="contact_id",
         sa_column=Column("contact_id", Uuid(), index=True, nullable=False)

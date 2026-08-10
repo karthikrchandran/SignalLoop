@@ -50,7 +50,7 @@ def _seed_campaign_and_contact(session: Session) -> tuple[Campaign, Contact]:
 
 
 def test_parse_csv_handles_utf8_bom_and_rows() -> None:
-    file_bytes = "\ufeffemail,firstName,company,timezone\nuser@example.com,Ada,Acme,UTC\n".encode("utf-8")
+    file_bytes = "\ufeffemail,firstName,company,timezone\nuser@example.com,Ada,Acme,UTC\n".encode()
     headers, rows = parse_csv(file_bytes)
 
     assert headers == ["email", "firstName", "company", "timezone"]
@@ -121,6 +121,7 @@ def test_enqueue_action_persists_pending_action() -> None:
 
         action = enqueue_action(
             session,
+            workspace_id="ws-a",
             contact_id=contact.id,
             campaign_id=campaign.id,
             action_type="send_email",
@@ -138,6 +139,7 @@ def test_list_pending_actions_filters_by_status_and_respects_limit() -> None:
         campaign, contact = _seed_campaign_and_contact(session)
         first = enqueue_action(
             session,
+            workspace_id="ws-a",
             contact_id=contact.id,
             campaign_id=campaign.id,
             action_type="send_email",
@@ -146,15 +148,21 @@ def test_list_pending_actions_filters_by_status_and_respects_limit() -> None:
         )
         second = enqueue_action(
             session,
+            workspace_id="ws-a",
             contact_id=contact.id,
             campaign_id=campaign.id,
             action_type="send_email",
             channel="email",
             payload={"seq": 2},
         )
-        update_action_status(session, action_id=second.id, status="completed")
+        update_action_status(
+            session,
+            workspace_id="ws-a",
+            action_id=second.id,
+            status="completed",
+        )
 
-        pending = list_pending_actions(session, limit=1)
+        pending = list_pending_actions(session, workspace_id="ws-a", limit=1)
 
         assert len(pending) == 1
         assert pending[0].id == first.id
@@ -162,7 +170,15 @@ def test_list_pending_actions_filters_by_status_and_respects_limit() -> None:
 
 def test_update_action_status_returns_none_when_action_missing() -> None:
     with _session() as session:
-        assert update_action_status(session, action_id=uuid.uuid4(), status="completed") is None
+        assert (
+            update_action_status(
+                session,
+                workspace_id="ws-a",
+                action_id=uuid.uuid4(),
+                status="completed",
+            )
+            is None
+        )
 
 
 def test_update_action_status_sets_executed_at_for_completed() -> None:
@@ -170,6 +186,7 @@ def test_update_action_status_sets_executed_at_for_completed() -> None:
         campaign, contact = _seed_campaign_and_contact(session)
         action = enqueue_action(
             session,
+            workspace_id="ws-a",
             contact_id=contact.id,
             campaign_id=campaign.id,
             action_type="send_email",
@@ -180,6 +197,7 @@ def test_update_action_status_sets_executed_at_for_completed() -> None:
 
         completed = update_action_status(
             session,
+            workspace_id="ws-a",
             action_id=action.id,
             status="completed",
             next_retry_at=next_retry_at,
@@ -196,6 +214,7 @@ def test_write_dead_letter_sets_status_and_creates_event() -> None:
         campaign, contact = _seed_campaign_and_contact(session)
         action = enqueue_action(
             session,
+            workspace_id="ws-a",
             contact_id=contact.id,
             campaign_id=campaign.id,
             action_type="send_email",

@@ -25,11 +25,10 @@ _API_SRC = _REPO_ROOT / "apps" / "api"
 if str(_API_SRC) not in sys.path:
     sys.path.insert(0, str(_API_SRC))
 
-from sqlalchemy import text  # noqa: E402
-from sqlmodel import Session, select, func  # noqa: E402
+from sqlmodel import Session, select  # noqa: E402
 
 from app.core.db import engine  # noqa: E402
-from app.domain_models import ActionQueue, Campaign, KpiDailySnapshot, RoutingDecision  # noqa: E402
+from app.domain_models import ActionQueue, KpiDailySnapshot, RoutingDecision  # noqa: E402
 from app.domain.reporting.kpi_aggregation_service import compute_daily_snapshot  # noqa: E402
 
 logging.basicConfig(
@@ -45,8 +44,7 @@ def _active_workspace_campaign_pairs(session: Session, target_date: date) -> lis
     day_end = datetime(target_date.year, target_date.month, target_date.day, 23, 59, 59, 999999, tzinfo=timezone.utc)
 
     stmt = (
-        select(Campaign.workspace_id, ActionQueue.campaign_id)
-        .join(Campaign, ActionQueue.campaign_id == Campaign.id)
+        select(ActionQueue.workspace_id, ActionQueue.campaign_id)
         .where(ActionQueue.created_at >= day_start, ActionQueue.created_at <= day_end)
         .distinct()
     )

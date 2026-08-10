@@ -5,7 +5,7 @@ import uuid
 from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import Session, SQLModel, create_engine
 
 from app.domain.sequences.models import (
     ContactSequenceState,
@@ -15,6 +15,7 @@ from app.domain.sequences.models import (
     SequenceStatus,
     SequenceStep,
 )
+from app.domain.sequences.suppression import EmailSuppression
 from app.domain.voice.models import (
     CallRequest,
     CallRequestStatus,
@@ -22,7 +23,7 @@ from app.domain.voice.models import (
     VoiceScript,
 )
 from app.domain_models import Campaign, CampaignStatus, Contact
-from worker_app import call_worker, sequence_worker
+from worker_app import call_worker, sequence_worker  # type: ignore[import-untyped]
 
 
 def _run(coro):
@@ -109,6 +110,7 @@ def _seed_call_request(
     session.add(script)
     session.flush()
     request = CallRequest(
+        workspace_id=campaign.workspace_id,
         contact_id=contact.id,
         campaign_id=campaign.id,
         voice_script_id=script.id,
@@ -129,6 +131,7 @@ def test_sequence_worker_does_not_resend_stale_pending_unknown_outcome() -> None
         state = _seed_sequence_state(session, contact=contact, campaign=campaign)
         key = f"{state.id}:{state.current_step}"
         send_request = SendRequest(
+            workspace_id=campaign.workspace_id,
             contact_sequence_state_id=state.id,
             step_order=1,
             idempotency_key=key,
@@ -162,6 +165,38 @@ def test_sequence_worker_does_not_resend_stale_pending_unknown_outcome() -> None
     assert send_request.status == SendRequestStatus.pending
     assert state.status == SequenceStatus.active
     adapter.send_email.assert_not_called()
+
+
+def test_sequence_worker_does_not_apply_another_workspaces_suppression() -> None:
+    with _session() as session:
+        campaign = _seed_campaign(session)
+        contact = _seed_contact(session)
+        state = _seed_sequence_state(session, contact=contact, campaign=campaign)
+        session.add(
+            EmailSuppression(
+                workspace_id="workspace-a",
+                email=contact.email,
+                reason="unsubscribe",
+            )
+        )
+        session.commit()
+
+        adapter = MagicMock()
+        adapter.send_email = AsyncMock(
+            return_value={"status_code": 202, "message_id": "message-b"}
+        )
+        with patch.object(sequence_worker, "_in_quiet_hours", return_value=False):
+            _run(
+                sequence_worker._process_single(
+                    session,
+                    state,
+                    workspace_id=contact.workspace_id,
+                    campaign_id=campaign.id,
+                    adapter=adapter,
+                )
+            )
+
+    adapter.send_email.assert_awaited_once()
 
 
 def test_call_worker_does_not_redial_stale_initiating_unknown_outcome() -> None:

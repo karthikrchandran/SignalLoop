@@ -11,7 +11,7 @@ from sqlmodel import SQLModel, func, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
-from app.core.config import settings
+from app.core.config import settings  # noqa: F401  (test-time shared-record toggle)
 from app.core.idempotency import run_idempotent_mutation
 from app.domain.audit.audit_events import (
     append_audit_event_to_session,
@@ -132,7 +132,7 @@ def _get_call_request_or_404(
 
 
 def _load_contact_for_workspace(
-    session: SessionDep,
+    _session: SessionDep,
     *,
     workspace_id: str,
     contact_id: uuid.UUID,
@@ -402,6 +402,7 @@ def _queue_test_call_once(
 
     scheduled_at = payload.scheduled_at or datetime.now(timezone.utc)
     call_request = CallRequest(
+        workspace_id=workspace_id,
         contact_id=contact.id,
         campaign_id=campaign.id,
         voice_script_id=script.id,

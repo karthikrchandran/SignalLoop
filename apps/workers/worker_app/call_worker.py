@@ -31,7 +31,6 @@ from sqlmodel import Session, create_engine, select
 
 from app.core.config import settings
 from app.domain.audit.audit_events import AuditEvent
-from app.domain.providers.credential_resolver import resolve_provider_credentials
 from app.domain.voice.models import (
     CallOutcome,
     CallRequest,
@@ -40,8 +39,8 @@ from app.domain.voice.models import (
 )
 from app.domain_models import (
     Contact,
+    GlobalControlState,
     GovernancePolicy,
-    NotificationProvider,
     PolicyStatus,
     PolicyType,
 )
@@ -109,18 +108,30 @@ def _get_daily_cap(session: Session, workspace_id: str) -> int:
 
 
 def _today_call_count(session: Session, workspace_id: str) -> int:
-    """Count non-failed calls initiated today (UTC) for *workspace_id*."""
+    """Count calls initiated today (UTC) for *workspace_id*."""
     today: date = datetime.now(UTC).date()
     count_val = session.exec(
-        select(func.count(CallRequest.id))
-        .join(Contact, Contact.id == CallRequest.contact_id)
+        select(func.count())
+        .select_from(CallRequest)
         .where(
-            Contact.workspace_id == workspace_id,
+            CallRequest.workspace_id == workspace_id,
             func.date(CallRequest.created_at) == today,
+            CallRequest.status != CallRequestStatus.queued,
             CallRequest.status != CallRequestStatus.failed,
         )
     ).one()
     return int(count_val or 0)
+
+
+def _workspace_is_paused(session: Session, workspace_id: str) -> bool:
+    """Return whether outbound work is paused for *workspace_id*."""
+    return session.exec(
+        select(GlobalControlState.id).where(
+            GlobalControlState.workspace_id == workspace_id,
+            GlobalControlState.campaign_id == None,  # noqa: E711
+            GlobalControlState.paused == True,  # noqa: E712
+        )
+    ).first() is not None
 
 
 def _write_audit_event(
@@ -175,16 +186,38 @@ async def _initiate_one(
     Mutates *session* objects; the caller is responsible for committing or
     rolling back.  Returns True if the call was successfully handed to Twilio.
     """
+    if call_req.workspace_id != workspace_id:
+        logger.error(
+            "Call request %s workspace mismatch (%s != %s) — marking FAILED",
+            call_req.id,
+            call_req.workspace_id,
+            workspace_id,
+        )
+        call_req.status = CallRequestStatus.failed
+        _write_audit_event(
+            session,
+            workspace_id=call_req.workspace_id,
+            call_req=call_req,
+            call_sid="",
+            error="workspace_mismatch",
+        )
+        session.add(call_req)
+        return False
+
     contact = session.get(Contact, call_req.contact_id)
-    if not contact:
-        logger.warning("Contact %s not found — marking FAILED", call_req.contact_id)
+    if not contact or contact.workspace_id != workspace_id:
+        logger.warning(
+            "Contact %s not found in workspace %s — marking FAILED",
+            call_req.contact_id,
+            workspace_id,
+        )
         call_req.status = CallRequestStatus.failed
         _write_audit_event(
             session,
             workspace_id=workspace_id,
             call_req=call_req,
             call_sid="",
-            error="contact_not_found",
+            error="contact_not_found_or_workspace_mismatch",
         )
         session.add(call_req)
         return False
@@ -322,82 +355,96 @@ async def _initiate_one(
 
 
 async def poll_and_dispatch() -> None:
-    """One poll cycle: enforce caps, fetch a batch of QUEUED calls, dispatch."""
-    workspace_id = settings.DEFAULT_WORKSPACE_ID
-
+    """Dispatch queued calls independently for each stored workspace."""
     with Session(_engine) as session:
-        # ------------------------------------------------------------------
-        # 1. Daily cap check (skip entire cycle if reached)
-        # ------------------------------------------------------------------
-        daily_cap = _get_daily_cap(session, workspace_id)
-        today_count = _today_call_count(session, workspace_id)
-
-        if today_count >= daily_cap:
-            logger.warning(
-                "Daily call cap reached (%d/%d) — skipping poll cycle",
-                today_count,
-                daily_cap,
-            )
-            return
-
-        remaining_budget = min(BATCH_SIZE, daily_cap - today_count)
-
-        # ------------------------------------------------------------------
-        # 2. Fetch candidates ordered by trigger_reason priority, then FIFO.
-        #    No 'priority' column exists; map trigger_reason to an ordinal.
-        # ------------------------------------------------------------------
         priority_expr = case(
             (CallRequest.trigger_reason == "manual_queue", 1),
             (CallRequest.trigger_reason == "positive_email_signal", 2),
             else_=3,
         )
-
-        candidates = session.exec(
-            select(CallRequest)
-            .where(CallRequest.status == CallRequestStatus.queued)
-            .order_by(priority_expr, CallRequest.created_at.asc())
-            .limit(remaining_budget)
-            .with_for_update(skip_locked=True)
+        workspace_ids = session.exec(
+            select(CallRequest.workspace_id)
+            .where(
+                CallRequest.status == CallRequestStatus.queued,
+                CallRequest.scheduled_at <= datetime.now(UTC),
+            )
+            .distinct()
+            .order_by(CallRequest.workspace_id)
         ).all()
-
-        if not candidates:
+        if not workspace_ids:
             logger.debug("No QUEUED call requests in this cycle")
             return
 
-        # ------------------------------------------------------------------
-        # 3. Resolve voice adapter for the workspace (once per cycle).
-        # Falls back to TwilioVoiceAdapter() when no opt-in selection exists.
-        # ------------------------------------------------------------------
-        adapter = resolve_voice_adapter(
-            session,
-            workspace_id,
-            default_factory=TwilioVoiceAdapter,
-        )
-
-        # ------------------------------------------------------------------
-        # 4. Dispatch each candidate
-        # ------------------------------------------------------------------
-        dispatched = 0
-        for call_req in candidates:
-            try:
-                ok = await _initiate_one(session, call_req, workspace_id, adapter)
-                if ok:
-                    dispatched += 1
-            except Exception:
-                logger.exception(
-                    "Unexpected error processing call_request=%s — aborting batch",
-                    call_req.id,
+        for workspace_id in workspace_ids:
+            if _workspace_is_paused(session, workspace_id):
+                logger.info(
+                    "Workspace %s is paused — leaving queued calls safe",
+                    workspace_id,
                 )
-                session.rollback()
-                return  # let the next cycle retry
+                continue
 
-        session.commit()
-        logger.debug(
-            "Poll cycle complete — dispatched=%d cap=%d/%d",
-            dispatched,
-            today_count + dispatched,
-            daily_cap,
-        )
+            daily_cap = _get_daily_cap(session, workspace_id)
+            today_count = _today_call_count(session, workspace_id)
+            if today_count >= daily_cap:
+                logger.warning(
+                    "Daily call cap reached for workspace=%s (%d/%d)",
+                    workspace_id,
+                    today_count,
+                    daily_cap,
+                )
+                continue
+
+            remaining_budget = min(BATCH_SIZE, daily_cap - today_count)
+            candidates = session.exec(
+                select(CallRequest)
+                .where(
+                    CallRequest.workspace_id == workspace_id,
+                    CallRequest.status == CallRequestStatus.queued,
+                    CallRequest.scheduled_at <= datetime.now(UTC),
+                )
+                .order_by(priority_expr, CallRequest.created_at.asc())
+                .limit(remaining_budget)
+                .with_for_update(skip_locked=True)
+            ).all()
+            if not candidates:
+                continue
+
+            adapter = resolve_voice_adapter(
+                session,
+                workspace_id,
+                default_factory=TwilioVoiceAdapter,
+            )
+            dispatched = 0
+            batch_failed = False
+            for call_req in candidates:
+                try:
+                    if await _initiate_one(
+                        session,
+                        call_req,
+                        workspace_id,
+                        adapter,
+                    ):
+                        dispatched += 1
+                except Exception:
+                    logger.exception(
+                        "Unexpected error processing call_request=%s in workspace=%s",
+                        call_req.id,
+                        workspace_id,
+                    )
+                    session.rollback()
+                    batch_failed = True
+                    break
+
+            if batch_failed:
+                continue
+            session.commit()
+            logger.debug(
+                "Workspace poll complete — workspace=%s dispatched=%d cap=%d/%d",
+                workspace_id,
+                dispatched,
+                today_count + dispatched,
+                daily_cap,
+            )
 
 
 # ---------------------------------------------------------------------------

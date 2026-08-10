@@ -939,6 +939,7 @@ def test_operational_models_expose_shared_reference_attributes() -> None:
             signal_event_id=uuid.uuid4(),
         ),
         CallRequest(
+            workspace_id="ws-shared",
             shared_contact_id=shared_contact_id,
             campaign_id=uuid.uuid4(),
             voice_script_id=uuid.uuid4(),

@@ -87,10 +87,28 @@ async def consume_once(
         return False
     raw = row[1] if isinstance(row, tuple) else row
     factory = session_factory or (lambda: Session(engine))
+    payload_for_dead_letter = _decode_queue_row(raw)
+    inbound = _runtime_input(payload_for_dead_letter)
+    if inbound.workspace_id != workspace_id:
+        await write_dead_letter(
+            redis,
+            workspace_id=workspace_id,
+            channel_type=inbound.channel_type,
+            provider_message_id=inbound.provider_message_id,
+            payload=payload_for_dead_letter,
+            attempt_count=0,
+            last_error="workspace_mismatch",
+        )
+        logger.error(
+            "Rejected cross-workspace chatbot queue item queue_workspace=%s "
+            "payload_workspace=%s",
+            workspace_id,
+            inbound.workspace_id,
+        )
+        return False
     with factory() as session:
-        payload_for_dead_letter = _decode_queue_row(raw)
-        channel_type = ChatbotChannelType(payload_for_dead_letter.get("channel_type"))
-        provider_message_id = str(payload_for_dead_letter.get("provider_message_id") or "")
+        channel_type = inbound.channel_type
+        provider_message_id = inbound.provider_message_id
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 await process_queue_item(redis=redis, session=session, raw=payload_for_dead_letter)

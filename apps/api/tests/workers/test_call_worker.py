@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from datetime import datetime, time, timedelta, timezone
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -29,6 +30,14 @@ _SHARED_CONTACTS: dict[uuid.UUID, Contact] = {}
 # ---------------------------------------------------------------------------
 # Helpers / seed factories
 # ---------------------------------------------------------------------------
+
+
+def test_call_request_schema_requires_workspace_ownership() -> None:
+    workspace_column = cast(Any, CallRequest).__table__.columns.get("workspace_id")
+
+    assert workspace_column is not None, "CallRequest must store workspace ownership"
+    assert workspace_column.nullable is False
+
 
 def _seed_contact(session: Session, *, phone: str | None = "+15551234567") -> Contact:
     """Create and persist a Contact."""
@@ -77,6 +86,7 @@ def _seed_call_request(
     session: Session,
     *,
     contact_id: uuid.UUID,
+    workspace_id: str = "ws-test",
     campaign_id: uuid.UUID | None = None,
     voice_script_id: uuid.UUID | None = None,
     scheduled_at: datetime | None = None,
@@ -87,6 +97,7 @@ def _seed_call_request(
     if voice_script_id is None:
         voice_script_id = _seed_voice_script(session, campaign_id).id
     cr = CallRequest(
+        workspace_id=workspace_id,
         contact_id=contact_id,
         campaign_id=campaign_id,
         voice_script_id=voice_script_id,
@@ -189,7 +200,11 @@ def test_daily_call_count_returns_zero_for_empty_db(memory_session: Session) -> 
 def test_daily_call_count_excludes_failed_and_other_dates(memory_session: Session) -> None:
     """Only non-failed requests created today are counted."""
     contact = _seed_contact(memory_session)
-    _seed_call_request(memory_session, contact_id=contact.id)
+    _seed_call_request(
+        memory_session,
+        contact_id=contact.id,
+        status=CallRequestStatus.in_progress,
+    )
     _seed_call_request(memory_session, contact_id=contact.id, status=CallRequestStatus.failed)
     assert call_worker._daily_call_count(memory_session) == 1
 
@@ -267,6 +282,58 @@ def test_process_batch_skips_when_global_pause_active(memory_session: Session) -
     adapter_inst.initiate_call.assert_not_awaited()
 
 
+def test_paused_workspace_does_not_fill_batch_and_block_another_workspace(
+    memory_session: Session,
+) -> None:
+    paused_contact = _seed_contact(memory_session)
+    paused_campaign = _seed_campaign(
+        memory_session,
+        workspace_id=paused_contact.workspace_id,
+    )
+    for offset in range(call_worker.BATCH_SIZE):
+        _seed_call_request(
+            memory_session,
+            contact_id=paused_contact.id,
+            campaign_id=paused_campaign.id,
+            scheduled_at=datetime.now(timezone.utc) - timedelta(minutes=10 - offset),
+        )
+    memory_session.add(
+        GlobalControlState(workspace_id=paused_contact.workspace_id, paused=True)
+    )
+
+    active_contact = Contact(
+        workspace_id="ws-active",
+        email="active@example.com",
+        phone="+15559876543",
+    )
+    memory_session.add(active_contact)
+    memory_session.commit()
+    memory_session.refresh(active_contact)
+    _SHARED_CONTACTS[active_contact.id] = active_contact
+    active_campaign = _seed_campaign(memory_session, workspace_id="ws-active")
+    active_request = _seed_call_request(
+        memory_session,
+        workspace_id="ws-active",
+        contact_id=active_contact.id,
+        campaign_id=active_campaign.id,
+        scheduled_at=datetime.now(timezone.utc),
+    )
+    memory_session.commit()
+
+    active_adapter = _make_adapter(call_sid="CA-active")
+    with (
+        _patch_engine(memory_session.bind),
+        patch.object(call_worker, "_is_quiet_hours", return_value=False),
+        patch.object(call_worker, "resolve_voice_adapter", return_value=active_adapter),
+    ):
+        processed = asyncio.run(call_worker._process_batch())
+
+    memory_session.refresh(active_request)
+    assert processed == 1
+    assert active_request.status == CallRequestStatus.in_progress
+    active_adapter.initiate_call.assert_awaited_once()
+
+
 def test_process_batch_handles_exception_and_breaks(memory_session: Session) -> None:
     """If `_initiate_call` raises, the loop rolls back and breaks."""
     contact = _seed_contact(memory_session)
@@ -302,6 +369,7 @@ def test_initiate_call_marks_failed_when_contact_missing(memory_session: Session
     """Missing contact -> CallRequest moved to failed."""
     bogus_contact_id = uuid.uuid4()
     cr = CallRequest(
+        workspace_id="ws-test",
         contact_id=bogus_contact_id,
         campaign_id=uuid.uuid4(),
         voice_script_id=_seed_voice_script(memory_session, uuid.uuid4()).id,
@@ -318,6 +386,34 @@ def test_initiate_call_marks_failed_when_contact_missing(memory_session: Session
 
     assert cr.status == CallRequestStatus.failed
     adapter.initiate_call.assert_not_called()
+
+
+def test_initiate_call_uses_stored_workspace_when_campaign_is_missing(
+    memory_session: Session,
+) -> None:
+    contact = _seed_contact(memory_session)
+    cr = _seed_call_request(
+        memory_session,
+        workspace_id=contact.workspace_id,
+        contact_id=contact.id,
+        campaign_id=uuid.uuid4(),
+    )
+    adapter = _make_adapter(call_sid="CA-stored-workspace")
+
+    with (
+        patch.object(
+            shared_record_service,
+            "get_shared_contact",
+            return_value=contact,
+        ) as get_shared_contact,
+        patch.object(call_worker, "resolve_voice_adapter", return_value=adapter),
+    ):
+        asyncio.run(call_worker._initiate_call(memory_session, cr))
+
+    get_shared_contact.assert_called_once_with(
+        workspace_id=contact.workspace_id,
+        contact_id=contact.id,
+    )
 
 
 def test_initiate_call_marks_failed_when_no_phone(memory_session: Session) -> None:

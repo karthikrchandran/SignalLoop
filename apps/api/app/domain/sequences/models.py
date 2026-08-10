@@ -7,7 +7,15 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, ClassVar
 
-from sqlalchemy import JSON, Column, DateTime, Index, Text, UniqueConstraint, Uuid
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    Index,
+    Text,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.orm import Synonym, synonym
 from sqlmodel import Field, SQLModel
 
@@ -106,14 +114,27 @@ class SendRequest(SQLModel, table=True):
     """Request payload: send."""
 
     __tablename__ = "send_requests"
-    __table_args__ = (Index("idx_sr_css", "contact_sequence_state_id"),)
+    __table_args__ = (
+        Index("idx_sr_css", "contact_sequence_state_id"),
+        UniqueConstraint(
+            "workspace_id",
+            "idempotency_key",
+            name="uq_send_request_workspace_idempotency",
+        ),
+        UniqueConstraint(
+            "workspace_id",
+            "provider_message_id",
+            name="uq_send_request_workspace_provider_message",
+        ),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(max_length=64, index=True)
     contact_sequence_state_id: uuid.UUID = Field(
         foreign_key="contact_sequence_state.id", index=True
     )
     step_order: int = Field()
-    idempotency_key: str = Field(unique=True, max_length=255, index=True)
+    idempotency_key: str = Field(max_length=255, index=True)
     provider_message_id: str | None = Field(default=None, max_length=255)
     status: SendRequestStatus = Field(default=SendRequestStatus.pending)
     retry_count: int = Field(default=0)

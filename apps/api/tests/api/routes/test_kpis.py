@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app.domain_models import Campaign, Contact, ActionQueue
+from app.domain_models import ActionQueue, Campaign, Contact
 
 WORKSPACE_ID = "ws-story-5-4"
 OTHER_WORKSPACE_ID = "ws-other-5-4"
@@ -51,6 +51,7 @@ def contact(db: Session) -> Contact:
 @pytest.fixture()
 def action(db: Session, campaign: Campaign, contact: Contact) -> ActionQueue:
     a = ActionQueue(
+        workspace_id=WORKSPACE_ID,
         contact_id=contact.id,
         campaign_id=campaign.id,
         action_type="send_email",

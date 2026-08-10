@@ -67,6 +67,7 @@ def _seed_call(
     session.flush()
 
     call_request = CallRequest(
+        workspace_id=workspace_id,
         contact_id=contact.id,
         campaign_id=campaign.id,
         voice_script_id=script.id,

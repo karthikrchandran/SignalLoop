@@ -17,7 +17,7 @@ from app.domain.voice.models import (
     VoiceScript,
 )
 from app.domain_models import Campaign, Contact, OutboxEvent
-from worker_app import postcall_worker
+from worker_app import postcall_worker  # type: ignore[import-untyped]
 
 
 def _run(coro):
@@ -57,6 +57,7 @@ def _seed_completed_call(session: Session) -> tuple[CallRequest, CallSession]:
     session.flush()
 
     request = CallRequest(
+        workspace_id=campaign.workspace_id,
         contact_id=contact.id,
         campaign_id=campaign.id,
         voice_script_id=script.id,
@@ -95,6 +96,20 @@ class _CapturingAdapter:
         assert intent.published_at is None
         self.sent.append(kwargs)
         return {"status_code": 202, "message_id": "summary-1"}
+
+
+def test_build_summary_uses_stored_workspace_without_campaign() -> None:
+    with _session() as session:
+        request, call_session = _seed_completed_call(session)
+
+        summary = postcall_worker._build_summary(
+            request,
+            call_session,
+            contact=None,
+            campaign=None,
+        )
+
+    assert summary["workspace_id"] == request.workspace_id
 
 
 def test_process_session_uses_outbox_intent_before_send() -> None:

@@ -103,6 +103,7 @@ def _seed_call(
     db.flush()
 
     call_request = CallRequest(
+        workspace_id=WORKSPACE_ID,
         contact_id=contact.id,
         campaign_id=campaign.id,
         voice_script_id=script.id,
@@ -395,7 +396,7 @@ def test_media_stream_rejects_mismatched_start_frame(client: TestClient) -> None
     assert exc_info.value.code == 1008
 
 
-def test_load_engine_for_call_uses_shared_contact_when_enabled(
+def test_load_engine_for_call_uses_stored_workspace_when_campaign_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(voice_routes.settings, "USE_ECRM_SHARED_RECORDS", True)
@@ -413,10 +414,11 @@ def test_load_engine_for_call_uses_shared_contact_when_enabled(
     monkeypatch.setattr(
         voice_routes, "resolve_llm_adapter", lambda *args, **kwargs: _DummyAdapter()
     )
-    monkeypatch.setattr(
-        voice_routes.shared_record_service,
-        "get_shared_contact",
-        lambda **kwargs: ContactPublic(
+    requested_workspaces: list[str] = []
+
+    def get_shared_contact(*, workspace_id: str, contact_id: uuid.UUID) -> ContactPublic:
+        requested_workspaces.append(workspace_id)
+        return ContactPublic(
             id=contact_id,
             workspace_id=WORKSPACE_ID,
             account_id=None,
@@ -427,7 +429,12 @@ def test_load_engine_for_call_uses_shared_contact_when_enabled(
             phone="+15551234567",
             timezone="UTC",
             created_at=datetime.now(timezone.utc),
-        ),
+        )
+
+    monkeypatch.setattr(
+        voice_routes.shared_record_service,
+        "get_shared_contact",
+        get_shared_contact,
     )
     monkeypatch.setattr(
         voice_routes,
@@ -452,6 +459,7 @@ def test_load_engine_for_call_uses_shared_contact_when_enabled(
         created_by=owner_id,
     )
     call_request = CallRequest(
+        workspace_id=WORKSPACE_ID,
         contact_id=contact_id,
         campaign_id=campaign.id,
         voice_script_id=script.id,
@@ -496,7 +504,7 @@ def test_load_engine_for_call_uses_shared_contact_when_enabled(
             if model is voice_routes.VoiceScript and key == script.id:
                 return script
             if model is voice_routes.Campaign and key == campaign.id:
-                return campaign
+                return None
             return None
 
     monkeypatch.setattr(voice_routes, "Session", lambda *args, **kwargs: _FakeSession())
@@ -504,5 +512,6 @@ def test_load_engine_for_call_uses_shared_contact_when_enabled(
     engine = asyncio.run(voice_routes._load_engine_for_call(call_session.twilio_call_sid))
 
     assert engine is not None
+    assert requested_workspaces == [WORKSPACE_ID]
     assert engine._contact_name == "Avery"
     assert engine._contact_company == "SharedCo"

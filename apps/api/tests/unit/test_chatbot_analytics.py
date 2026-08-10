@@ -221,6 +221,7 @@ def test_chatbot_analytics_tracks_conversion_funnel_to_campaign_and_voice_follow
         session.add(ContactSequenceState(contact_id=contact.id, sequence_id=sequence.id))
         session.add(
             CallRequest(
+                workspace_id="ws-a",
                 contact_id=contact.id,
                 campaign_id=campaign.id,
                 voice_script_id=script.id,

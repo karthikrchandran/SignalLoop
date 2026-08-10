@@ -141,6 +141,7 @@ class SendGridAdapter(NotificationProviderAdapter):
             "contact_identifier": raw_payload.get("email", ""),
             "occurred_at": raw_payload.get("timestamp", ""),
             "provider_message_id": raw_payload.get("sg_message_id", "").split(".")[0],
+            "workspace_id": raw_payload.get("workspace_id", ""),
         }
 
     @staticmethod

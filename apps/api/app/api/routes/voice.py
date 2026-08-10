@@ -145,13 +145,14 @@ def _workspace_for_call_request(session: Session, call_request: CallRequest | No
     if not call_request:
         return "system"
     campaign = session.get(Campaign, call_request.campaign_id)
-    if campaign:
-        return campaign.workspace_id
-    shared_contact = shared_record_service.get_shared_contact(
-        workspace_id="system",
-        contact_id=call_request.contact_id,
-    )
-    return shared_contact.workspace_id if shared_contact else "system"
+    if campaign is not None and campaign.workspace_id != call_request.workspace_id:
+        logger.error(
+            "Call request %s workspace %s does not match campaign workspace %s",
+            call_request.id,
+            call_request.workspace_id,
+            campaign.workspace_id,
+        )
+    return call_request.workspace_id
 
 
 def _load_contact_for_workspace(
@@ -180,6 +181,7 @@ def _record_twilio_provider_event(
 ) -> bool:
     existing = session.exec(
         select(ProviderEventLog.id).where(
+            ProviderEventLog.workspace_id == workspace_id,
             ProviderEventLog.provider == NotificationProvider.twilio,
             ProviderEventLog.provider_event_id == provider_event_id,
         )
@@ -470,7 +472,16 @@ async def _load_engine_for_call(call_sid: str) -> ConversationEngine | None:
             return None
 
         campaign = session.get(Campaign, call_request.campaign_id)
-        workspace_id = campaign.workspace_id if campaign else settings.DEFAULT_WORKSPACE_ID
+        workspace_id = call_request.workspace_id
+        if campaign is not None and campaign.workspace_id != workspace_id:
+            logger.error(
+                "Refusing cross-workspace voice stream request=%s "
+                "request_workspace=%s campaign_workspace=%s",
+                call_request.id,
+                workspace_id,
+                campaign.workspace_id,
+            )
+            return None
         contact = _load_contact_for_workspace(
             session,
             workspace_id=workspace_id,

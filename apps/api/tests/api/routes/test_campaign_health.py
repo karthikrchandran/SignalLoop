@@ -53,6 +53,7 @@ def _make_action(
     retry_count: int = 0,
 ) -> ActionQueue:
     action = ActionQueue(
+        workspace_id=WORKSPACE_ID,
         contact_id=contact_id,
         campaign_id=campaign_id,
         action_type="send_email",

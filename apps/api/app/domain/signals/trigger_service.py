@@ -79,7 +79,10 @@ async def process_signal(
     for action in rules:
         try:
             if action == "queue_followup_call":
-                timeline_cache_dirty = _queue_followup_call(session, signal) or timeline_cache_dirty
+                timeline_cache_dirty = (
+                    _queue_followup_call(session, signal, workspace_id)
+                    or timeline_cache_dirty
+                )
             elif action == "send_demo_email":
                 email_adapter = email_adapter or resolve_email_adapter(
                     session,
@@ -195,7 +198,11 @@ def _raise_provider_rejected(action: str, result: dict[str, Any]) -> None:
     )
 
 
-def _queue_followup_call(session: Session, signal: SignalEvent) -> bool:
+def _queue_followup_call(
+    session: Session,
+    signal: SignalEvent,
+    workspace_id: str,
+) -> bool:
     """Queue a followup call for a positive email signal."""
     from sqlmodel import select
 
@@ -217,6 +224,7 @@ def _queue_followup_call(session: Session, signal: SignalEvent) -> bool:
     scheduled_at = now + timedelta(hours=1)
 
     call_req = CallRequest(
+        workspace_id=workspace_id,
         shared_contact_id=signal.shared_contact_id,
         campaign_id=signal.campaign_id,
         voice_script_id=script.id,

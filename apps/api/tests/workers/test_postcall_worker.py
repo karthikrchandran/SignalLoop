@@ -103,6 +103,7 @@ def _seed_answered_call(session: Session, *, workspace_id: str = "ws") -> CallSe
     session.flush()
 
     call_request = CallRequest(
+        workspace_id=campaign.workspace_id,
         contact_id=contact.id,
         campaign_id=campaign.id,
         voice_script_id=script.id,
@@ -257,6 +258,7 @@ def test_send_summary_uses_contact_defaults_when_contact_missing() -> None:
     """When contact lookup returns None, defaults ('Unknown'/empty) are used."""
     session = MagicMock()
     call_request = MagicMock(
+        workspace_id="ws-stored",
         contact_id=99,
         shared_contact_id=99,
         campaign_id=uuid.uuid4(),
@@ -268,13 +270,23 @@ def test_send_summary_uses_contact_defaults_when_contact_missing() -> None:
     cs = _build_call_session()
 
     summary = MagicMock(subject="s", html_body="<p/>", transcript_preview="t")
+    shared_contact_lookup = MagicMock(return_value=None)
 
     with (
         patch(
             "app.workers.postcall_worker.generate_summary", return_value=summary
         ) as gen,
-        patch.object(postcall_worker.settings, "TEAM_NOTIFICATION_EMAIL", "ops@x.io"),
+        patch.object(
+            postcall_worker,
+            "resolve_team_notification_email",
+            return_value="ops@x.io",
+        ),
         patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
+        patch.object(
+            postcall_worker.shared_record_service,
+            "get_shared_contact",
+            shared_contact_lookup,
+        ),
         patch.object(
             postcall_worker,
             "_prepare_postcall_summary_intent",
@@ -288,6 +300,10 @@ def test_send_summary_uses_contact_defaults_when_contact_missing() -> None:
     assert kwargs["contact_name"] == "Unknown"
     assert kwargs["contact_company"] == ""
     assert kwargs["contact_email"] == ""
+    shared_contact_lookup.assert_called_once_with(
+        workspace_id="ws-stored",
+        contact_id=99,
+    )
     adapter.send_email.assert_awaited_once_with(
         to="ops@x.io",
         subject="s",
@@ -308,6 +324,7 @@ def test_send_summary_uses_contact_fields_when_present() -> None:
         workspace_id="ws-a",
     )
     call_request = MagicMock(
+        workspace_id="ws-a",
         contact_id=1,
         shared_contact_id=1,
         campaign_id=uuid.uuid4(),
@@ -324,7 +341,11 @@ def test_send_summary_uses_contact_fields_when_present() -> None:
         patch(
             "app.workers.postcall_worker.generate_summary", return_value=summary
         ) as gen,
-        patch.object(postcall_worker.settings, "TEAM_NOTIFICATION_EMAIL", "ops@x.io"),
+        patch.object(
+            postcall_worker,
+            "resolve_team_notification_email",
+            return_value="ops@x.io",
+        ),
         patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
         patch.object(
             postcall_worker,
@@ -492,6 +513,7 @@ def test_send_summary_skips_send_when_team_email_unset() -> None:
     """No ``TEAM_NOTIFICATION_EMAIL`` configured Ã¢â€¡â€™ generator runs but no email is sent."""
     session = MagicMock()
     call_request = MagicMock(
+        workspace_id="ws-a",
         contact_id=1,
         shared_contact_id=1,
         campaign_id=uuid.uuid4(),
@@ -512,7 +534,11 @@ def test_send_summary_skips_send_when_team_email_unset() -> None:
 
     with (
         patch("app.workers.postcall_worker.generate_summary", return_value=MagicMock()),
-        patch.object(postcall_worker.settings, "TEAM_NOTIFICATION_EMAIL", ""),
+        patch.object(
+            postcall_worker,
+            "resolve_team_notification_email",
+            return_value="",
+        ),
         patch.object(postcall_worker, "resolve_email_adapter", return_value=adapter),
     ):
         _run(postcall_worker._send_summary(session, cs))
