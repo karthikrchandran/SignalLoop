@@ -6,7 +6,13 @@ from dataclasses import fields, is_dataclass, replace
 from typing import Any, TypeVar, cast
 from uuid import UUID
 
-from .models import DispatchResult, Intervention, KnowledgeRelease, Outcome, RevenueSignal
+from .models import (
+    DispatchResult,
+    Intervention,
+    KnowledgeRelease,
+    Outcome,
+    RevenueSignal,
+)
 
 T = TypeVar("T", RevenueSignal, Intervention, Outcome, KnowledgeRelease)
 

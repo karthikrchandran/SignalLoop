@@ -4,7 +4,7 @@ import uuid
 
 import pytest
 
-from app.domain.revenue_intelligence.service import RevenueIntelligenceService
+from app.domain.revenue_intelligence.service import RevenueIntelligenceService, TenantScopeError
 
 
 def _service() -> tuple[RevenueIntelligenceService, uuid.UUID]:
@@ -38,5 +38,5 @@ def test_reject_and_cancel_are_terminal_and_tenant_scoped() -> None:
     assert rejected.status == "rejected"
     with pytest.raises(ValueError):
         service.transition_intervention(tenant_key="ara-global", intervention_id=intervention_id, target="cancelled", actor="user-1", idempotency_key="cancel-1")
-    with pytest.raises(Exception):
+    with pytest.raises(TenantScopeError):
         service.get_intervention(tenant_key="ai-consulting", intervention_id=intervention_id)

@@ -8,7 +8,10 @@ from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.domain.revenue_intelligence.models import Intervention
-from app.domain.revenue_intelligence.service import RevenueIntelligenceService, TenantScopeError
+from app.domain.revenue_intelligence.service import (
+    RevenueIntelligenceService,
+    TenantScopeError,
+)
 from app.domain.tenants.capabilities import resolve_suite_context
 from app.domain.tenants.models import Tenant
 
