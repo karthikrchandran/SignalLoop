@@ -175,6 +175,14 @@ class Settings(BaseSettings):
     CALENDLY_STATE_TTL_SECONDS: int = 24 * 60 * 60
     CALENDLY_WEBHOOK_MAX_AGE_SECONDS: int = 5 * 60
     MAX_RETRY_COUNT: int = 3  # Dead-letter retry cap (Story 5.3)
+    AUTH_MODE: Literal["oidc", "local-test"] = "local-test"
+    OIDC_ISSUER: str = ""
+    OIDC_CLIENT_ID: str = ""
+    OIDC_CLIENT_SECRET: str = ""
+    OIDC_REDIRECT_URI: str = ""
+    OIDC_AUDIENCE: str = ""
+    OIDC_SCOPES: str = "openid profile email"
+    OIDC_TRANSACTION_TTL_SECONDS: int = 300
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":
