@@ -141,6 +141,11 @@ from app.domain.tenants.models import (  # noqa: E402, F401
     TenantEntitlement,
     TenantInvitation,
 )
+from app.domain.onboarding.persistence import (  # noqa: E402, F401
+    OnboardingRunRecord,
+    OnboardingStageRecord,
+    OnboardingEvidenceRecord,
+)
 from app.domain.branding.models import (  # noqa: E402, F401
     TenantBrandAsset,
     TenantBrandingVersion,
