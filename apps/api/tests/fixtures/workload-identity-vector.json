@@ -1,0 +1,18 @@
+{
+  "public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+  "body": "{\"event\":\"canary\"}",
+  "body_sha256": "K9OhRAvdkKKLdsDEOb48CPHznvgyvAjYg_kQpT8RxAc",
+  "compact_jwt": "eyJhbGciOiJFZERTQSIsImtpZCI6InBoYXNlMS10ZXN0LWtleS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiJzaWduYWxsb29wIiwiYXVkIjoicmV2ZW51ZW9zIiwic3ViIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwidGVuYW50X2tleSI6ImFyYS1nbG9iYWwiLCJjYXBhYmlsaXR5IjoicmV2ZW51ZS5zaWduYWxzLnJlYWQiLCJib2R5X3NoYTI1NiI6Iks5T2hSQXZka0tLTGRzREVPYjQ4Q1BIem52Z3l2QWpZZ19rUXBUOFJ4QWMiLCJpZGVtcG90ZW5jeV9rZXkiOiJ2ZWN0b3ItMSIsImp0aSI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMiIsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoxNzAwMDAwMTIwfQ.luvyDDV_m76DWtbCO59OYe4iPENFyzXegqiHrxiq1QsZTo6lnl2QkDRNmNMxIpek37HO1NwIOLiXzSd88k5wCA",
+  "claims": {
+    "iss": "signalloop",
+    "aud": "revenueos",
+    "sub": "00000000-0000-0000-0000-000000000001",
+    "tenant_key": "ara-global",
+    "capability": "revenue.signals.read",
+    "body_sha256": "K9OhRAvdkKKLdsDEOb48CPHznvgyvAjYg_kQpT8RxAc",
+    "idempotency_key": "vector-1",
+    "jti": "00000000-0000-0000-0000-000000000002",
+    "iat": 1700000000,
+    "exp": 1700000120
+  }
+}

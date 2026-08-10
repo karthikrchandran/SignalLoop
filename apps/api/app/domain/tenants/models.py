@@ -138,7 +138,52 @@ class ProductInstallation(SQLModel, table=True):
     product_code: ProductCode = Field(sa_column=Column(String(32), nullable=False))
     local_identifier: str = Field(sa_column=Column(String(255), nullable=False))
     status: str = Field(default="ACTIVE", max_length=32, index=True)
+    workload_key_id: str | None = Field(default=None, sa_column=Column(String(255), nullable=True, index=True))
+    workload_public_key: str | None = Field(default=None, sa_column=Column(String(255), nullable=True))
+    workload_key_status: str = Field(default="UNCONFIGURED", max_length=32, index=True)
+    workload_key_valid_from: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+    workload_key_valid_to: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+    workload_key_version: int = Field(default=1, nullable=False)
     created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
+
+
+class NativeProjectionCursor(SQLModel, table=True):
+    """Last successfully applied projection version for an installation."""
+
+    __tablename__ = "native_projection_cursor"
+    __table_args__ = (UniqueConstraint("installation_id", name="uq_native_projection_cursor_installation"),)
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    installation_id: uuid.UUID = Field(sa_column=Column(ForeignKey("suite_product_installation.id", ondelete="CASCADE"), nullable=False, index=True))
+    cursor: str | None = Field(default=None, max_length=255)
+    projection_version: int = Field(default=0, nullable=False)
+    updated_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
+
+
+class NativeProjectionReceipt(SQLModel, table=True):
+    """Idempotent receipt for a projected mutation."""
+
+    __tablename__ = "native_projection_receipt"
+    __table_args__ = (UniqueConstraint("installation_id", "event_id", name="uq_native_projection_receipt_event"),)
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    installation_id: uuid.UUID = Field(sa_column=Column(ForeignKey("suite_product_installation.id", ondelete="CASCADE"), nullable=False, index=True))
+    event_id: uuid.UUID = Field(nullable=False, index=True)
+    payload_digest: str = Field(max_length=64)
+    acknowledged_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
+
+
+class NativeWorkloadReplay(SQLModel, table=True):
+    """Consumed assertion JTIs, scoped to their originating installation."""
+
+    __tablename__ = "native_workload_replay"
+    __table_args__ = (UniqueConstraint("installation_id", "jti", name="uq_native_workload_replay_installation_jti"),)
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    installation_id: uuid.UUID = Field(sa_column=Column(ForeignKey("suite_product_installation.id", ondelete="CASCADE"), nullable=False, index=True))
+    jti: uuid.UUID = Field(nullable=False, index=True)
+    expires_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    consumed_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
 
 
 class SupportAccessGrant(SQLModel, table=True):

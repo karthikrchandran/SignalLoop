@@ -130,6 +130,9 @@ from app.domain_models import (  # noqa: E402
 
 from app.domain.identity.models import OidcIdentity, OidcSession  # noqa: E402, F401
 from app.domain.tenants.models import (  # noqa: E402, F401
+    NativeProjectionCursor,
+    NativeProjectionReceipt,
+    NativeWorkloadReplay,
     ProductInstallation,
     SuiteMembership,
     SuiteRoleAssignment,
