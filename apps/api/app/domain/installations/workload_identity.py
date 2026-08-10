@@ -7,7 +7,7 @@ import hashlib
 import time
 import uuid
 from collections.abc import Callable, MutableSet
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import jwt
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -78,7 +78,12 @@ def create_workload_assertion(
         "iat": issued,
         "exp": issued + ttl_seconds,
     }
-    return jwt.encode(claims, _key_bytes(private_key), algorithm="EdDSA", headers={"kid": key_id, "typ": "JWT"})
+    return jwt.encode(
+        claims,
+        cast(Any, _key_bytes(private_key)),
+        algorithm="EdDSA",
+        headers={"kid": key_id, "typ": "JWT"},
+    )
 
 
 class WorkloadVerifier:
@@ -118,7 +123,7 @@ class WorkloadVerifier:
                 raise WorkloadIdentityError("invalid workload assertion header")
             decoded: dict[str, Any] = jwt.decode(
                 token,
-                _key_bytes(self.public_key),
+                cast(Any, _key_bytes(self.public_key)),
                 algorithms=["EdDSA"],
                 issuer=self.expected_issuer,
                 audience=self.expected_audience,
