@@ -4,7 +4,10 @@ import uuid
 
 import pytest
 
-from app.domain.revenue_intelligence.service import RevenueIntelligenceService, TenantScopeError
+from app.domain.revenue_intelligence.service import (
+    RevenueIntelligenceService,
+    TenantScopeError,
+)
 
 
 def _service() -> tuple[RevenueIntelligenceService, uuid.UUID]:
