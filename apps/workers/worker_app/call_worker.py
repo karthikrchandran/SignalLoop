@@ -19,8 +19,9 @@ Per cycle:
 """
 from __future__ import annotations
 
-import logging
 import hmac
+import logging
+import uuid
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -70,7 +71,7 @@ _engine = create_engine(str(settings.SQLALCHEMY_DATABASE_URI), pool_pre_ping=Tru
 
 
 def _lock_dispatch_state(
-    session: Session, call_request_id: Any
+    session: Session, call_request_id: uuid.UUID
 ) -> tuple[CallRequest, CallSession]:
     """Reload provider-owned state after the unlocked network call."""
     session.expire_all()
@@ -84,6 +85,33 @@ def _lock_dispatch_state(
         .where(CallRequest.id == call_request_id)
         .with_for_update()
     ).one()
+    return call_req, call_session
+
+
+def _lock_call_candidate(
+    session: Session,
+    call_request_id: uuid.UUID,
+) -> tuple[CallRequest, CallSession | None] | None:
+    """Claim rows without ever acquiring CallRequest before an existing session."""
+    call_session = session.exec(
+        select(CallSession)
+        .where(CallSession.call_request_id == call_request_id)
+        .with_for_update()
+    ).first()
+    call_req = session.exec(
+        select(CallRequest)
+        .where(CallRequest.id == call_request_id)
+        .with_for_update()
+    ).first()
+    if call_req is None:
+        return None
+    if call_session is None:
+        # The request lock serializes session creation; recheck after acquiring it.
+        call_session = session.exec(
+            select(CallSession)
+            .where(CallSession.call_request_id == call_request_id)
+            .with_for_update()
+        ).first()
     return call_req, call_session
 
 
@@ -111,6 +139,12 @@ def _is_within_call_hours(tz: ZoneInfo) -> bool:
     """Return True if the current moment in *tz* falls in [09:00, 18:00)."""
     local_hour = datetime.now(tz).hour
     return _CALL_START_HOUR <= local_hour < _CALL_END_HOUR
+
+
+def _normalize_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _get_daily_cap(session: Session, workspace_id: str) -> int:
@@ -205,7 +239,7 @@ def _mask_phone(phone: str) -> str:
 
 async def _initiate_one(
     session: Session,
-    call_req: CallRequest,
+    call_request: CallRequest | uuid.UUID,
     workspace_id: str,
     adapter: VoiceAdapter | None = None,
 ) -> bool:
@@ -214,13 +248,14 @@ async def _initiate_one(
     Mutates *session* objects; the caller is responsible for committing or
     rolling back.  Returns True if the call was successfully handed to Twilio.
     """
+    call_request_id = (
+        call_request.id if isinstance(call_request, CallRequest) else call_request
+    )
+    claimed = _lock_call_candidate(session, call_request_id)
+    if claimed is None:
+        return False
+    call_req, call_session = claimed
     if call_req.workspace_id != workspace_id:
-        logger.error(
-            "Call request %s workspace mismatch (%s != %s) — marking FAILED",
-            call_req.id,
-            call_req.workspace_id,
-            workspace_id,
-        )
         call_req.status = CallRequestStatus.failed
         _write_audit_event(
             session,
@@ -230,6 +265,41 @@ async def _initiate_one(
             error="workspace_mismatch",
         )
         session.add(call_req)
+        return False
+    if (
+        call_req.status != CallRequestStatus.queued
+        or _normalize_utc(call_req.scheduled_at) > datetime.now(UTC)
+    ):
+        logger.info("Call request %s is no longer claimable", call_req.id)
+        return False
+
+    if call_session and call_session.twilio_call_sid:
+        logger.info(
+            "Call request already dispatched: call_request=%s sid=%s",
+            call_req.id,
+            call_session.twilio_call_sid,
+        )
+        call_req.status = CallRequestStatus.in_progress
+        session.add(call_req)
+        session.commit()
+        return False
+
+    if call_session and call_session.twilio_status == "initiating":
+        logger.warning(
+            "CallSession %s is initiating; skipping automatic redial because provider outcome is unknown",
+            call_session.id,
+        )
+        call_req.status = CallRequestStatus.in_progress
+        session.add(call_req)
+        session.commit()
+        return False
+
+    if _workspace_is_paused(session, workspace_id):
+        return False
+    if _today_call_count(session, workspace_id) >= _get_daily_cap(
+        session,
+        workspace_id,
+    ):
         return False
 
     campaign = session.get(Campaign, call_req.campaign_id)
@@ -298,30 +368,6 @@ async def _initiate_one(
         session.add(call_req)
         return False
 
-    call_session = session.exec(
-        select(CallSession)
-        .where(CallSession.call_request_id == call_req.id)
-        .with_for_update()
-    ).first()
-    if call_session and call_session.twilio_call_sid:
-        logger.info(
-            "Call request already dispatched: call_request=%s sid=%s",
-            call_req.id,
-            call_session.twilio_call_sid,
-        )
-        call_req.status = CallRequestStatus.in_progress
-        session.add(call_req)
-        return False
-
-    if call_session and call_session.twilio_status == "initiating":
-        logger.warning(
-            "CallSession %s is initiating; skipping automatic redial because provider outcome is unknown",
-            call_session.id,
-        )
-        call_req.status = CallRequestStatus.in_progress
-        session.add(call_req)
-        return False
-
     if adapter is None:
         adapter = resolve_voice_adapter(
             session,
@@ -349,6 +395,8 @@ async def _initiate_one(
     call_session.callback_correlation_expires_at = correlation_expires_at
     call_session.twilio_status = "initiating"
     call_session.twilio_status_updated_at = datetime.now(UTC)
+    call_req.status = CallRequestStatus.in_progress
+    session.add(call_req)
     session.add(call_session)
     session.commit()
     session.refresh(call_session)
@@ -492,8 +540,8 @@ async def poll_and_dispatch() -> None:
                 continue
 
             remaining_budget = min(BATCH_SIZE, daily_cap - today_count)
-            candidates = session.exec(
-                select(CallRequest)
+            candidate_ids = session.exec(
+                select(CallRequest.id)
                 .where(
                     CallRequest.workspace_id == workspace_id,
                     CallRequest.status == CallRequestStatus.queued,
@@ -501,18 +549,17 @@ async def poll_and_dispatch() -> None:
                 )
                 .order_by(priority_expr, CallRequest.created_at.asc())
                 .limit(remaining_budget)
-                .with_for_update(skip_locked=True)
             ).all()
-            if not candidates:
+            if not candidate_ids:
                 continue
 
             dispatched = 0
             batch_failed = False
-            for call_req in candidates:
+            for call_request_id in candidate_ids:
                 try:
                     if await _initiate_one(
                         session,
-                        call_req,
+                        call_request_id,
                         workspace_id,
                         adapter=None,
                     ):
@@ -520,7 +567,7 @@ async def poll_and_dispatch() -> None:
                 except Exception:
                     logger.exception(
                         "Unexpected error processing call_request=%s in workspace=%s",
-                        call_req.id,
+                        call_request_id,
                         workspace_id,
                     )
                     session.rollback()

@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from datetime import datetime, time, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -44,6 +45,34 @@ def test_dispatch_reconciliation_uses_callback_lock_order() -> None:
             return _Result()
 
     call_worker._lock_dispatch_state(_Session(), uuid.uuid4())  # type: ignore[arg-type]
+
+    assert "call_sessions" in statements[0]
+    assert "call_requests" in statements[1]
+
+
+def test_claim_existing_session_uses_session_first() -> None:
+    statements: list[str] = []
+    request_id = uuid.uuid4()
+
+    class _Result:
+        def __init__(self, value: object) -> None:
+            self.value = value
+
+        def first(self) -> object:
+            return self.value
+
+    class _Session:
+        def exec(self, statement: object) -> _Result:
+            rendered = str(statement)
+            statements.append(rendered)
+            value = (
+                SimpleNamespace(call_request_id=request_id)
+                if "call_sessions" in rendered
+                else SimpleNamespace(id=request_id)
+            )
+            return _Result(value)
+
+    call_worker._lock_call_candidate(_Session(), request_id)  # type: ignore[arg-type]
 
     assert "call_sessions" in statements[0]
     assert "call_requests" in statements[1]

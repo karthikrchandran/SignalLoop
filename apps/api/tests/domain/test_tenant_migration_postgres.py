@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from threading import Event
+from unittest.mock import AsyncMock, MagicMock
 
 import psycopg
 import pytest
@@ -315,5 +317,69 @@ def test_completed_status_wins_against_concurrent_stale_ringing() -> None:
     finally:
         allow_ringing_write.set()
         completed.close()
+        engine.dispose()
+        _cleanup_voice_context(request_id)
+
+
+def test_actual_dispatch_claim_overlapping_callback_is_terminal_and_single_dial() -> None:
+    request_id, _session_id, call_sid, account_sid = _seed_voice_context()
+    with _connect() as setup:
+        setup.execute(
+            "UPDATE call_requests SET status='queued' WHERE id=%s",
+            (request_id,),
+        )
+        setup.execute(
+            "UPDATE call_sessions SET twilio_status='initiating' WHERE call_request_id=%s",
+            (request_id,),
+        )
+        setup.commit()
+
+    engine = create_engine(str(settings.SQLALCHEMY_DATABASE_URI))
+    callback = Session(engine)
+    adapter = MagicMock()
+    adapter.initiate_call = AsyncMock(return_value={"call_sid": "CA-duplicate"})
+
+    def dispatch_claim() -> None:
+        with Session(engine) as dispatch:
+            asyncio.run(
+                call_worker._initiate_call(
+                    dispatch,
+                    request_id,
+                    expected_workspace_id="workspace-a",
+                    adapter=adapter,
+                )
+            )
+
+    try:
+        context = voice_routes._resolve_twilio_call_context(
+            callback,
+            call_sid=call_sid,
+            account_sid=account_sid,
+        )
+        assert context is not None
+        call_session, call_request, *_ = context
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            dispatching = pool.submit(dispatch_claim)
+            time.sleep(0.15)
+            assert not dispatching.done()
+            call_session.twilio_status = "completed"
+            call_request.status = CallRequestStatus.completed
+            callback.add(call_session)
+            callback.add(call_request)
+            callback.commit()
+            dispatching.result(timeout=5)
+
+        assert adapter.initiate_call.await_count == 0
+        with _connect() as verify:
+            assert verify.execute(
+                "SELECT status FROM call_requests WHERE id=%s",
+                (request_id,),
+            ).fetchone() == ("completed",)
+            assert verify.execute(
+                "SELECT twilio_status FROM call_sessions WHERE call_request_id=%s",
+                (request_id,),
+            ).fetchone() == ("completed",)
+    finally:
+        callback.close()
         engine.dispose()
         _cleanup_voice_context(request_id)

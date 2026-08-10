@@ -89,6 +89,33 @@ def _lock_dispatch_state(
     return call_req, call_session
 
 
+def _lock_call_candidate(
+    session: Session,
+    call_request_id: uuid.UUID,
+) -> tuple[CallRequest, CallSession | None] | None:
+    """Claim rows without ever acquiring CallRequest before an existing session."""
+    call_session = session.exec(
+        select(CallSession)
+        .where(CallSession.call_request_id == call_request_id)
+        .with_for_update()
+    ).first()
+    call_req = session.exec(
+        select(CallRequest)
+        .where(CallRequest.id == call_request_id)
+        .with_for_update()
+    ).first()
+    if call_req is None:
+        return None
+    if call_session is None:
+        # The request lock serializes session creation; recheck after acquiring it.
+        call_session = session.exec(
+            select(CallSession)
+            .where(CallSession.call_request_id == call_request_id)
+            .with_for_update()
+        ).first()
+    return call_req, call_session
+
+
 def _provider_sid_matches(call_session: CallSession, call_sid: str) -> bool:
     stored_sid = call_session.twilio_call_sid or ""
     return not stored_sid or hmac.compare_digest(stored_sid, call_sid)
@@ -279,8 +306,8 @@ async def _process_batch() -> int:
 
         timeline_cache_targets: set[tuple[uuid.UUID, uuid.UUID]] = set()
         for workspace_id in workspace_ids:
-            due_requests = session.exec(
-                select(CallRequest)
+            due_request_ids = session.exec(
+                select(CallRequest.id)
                 .where(
                     CallRequest.workspace_id == workspace_id,
                     CallRequest.status == CallRequestStatus.queued,
@@ -288,24 +315,24 @@ async def _process_batch() -> int:
                 )
                 .order_by(CallRequest.scheduled_at)
                 .limit(BATCH_SIZE)
-                .with_for_update(skip_locked=True)
             ).all()
             workspace_failed = False
-            for call_req in due_requests:
+            for call_request_id in due_request_ids:
                 try:
-                    if _should_skip_for_governance(session, call_req):
-                        continue
                     if target := await _initiate_call(
                         session,
-                        call_req,
+                        call_request_id,
+                        expected_workspace_id=workspace_id,
                         adapter=None,
                     ):
                         timeline_cache_targets.add(target)
-                    processed += 1
+                    refreshed = session.get(CallRequest, call_request_id)
+                    if refreshed and refreshed.status != CallRequestStatus.queued:
+                        processed += 1
                 except Exception:
                     logger.exception(
                         "Error processing call_request=%s workspace=%s",
-                        call_req.id,
+                        call_request_id,
                         workspace_id,
                     )
                     session.rollback()
@@ -325,11 +352,52 @@ async def _process_batch() -> int:
 
 async def _initiate_call(
     session: Session,
-    call_req: CallRequest,
+    call_request: CallRequest | uuid.UUID,
     *,
+    expected_workspace_id: str | None = None,
     adapter: VoiceAdapter | None = None,
 ) -> tuple[uuid.UUID, uuid.UUID] | None:
+    call_request_id = (
+        call_request.id if isinstance(call_request, CallRequest) else call_request
+    )
+    claimed = _lock_call_candidate(session, call_request_id)
+    if claimed is None:
+        return None
+    call_req, call_session = claimed
     workspace_id = call_req.workspace_id
+    if (
+        (expected_workspace_id is not None and workspace_id != expected_workspace_id)
+        or call_req.status != CallRequestStatus.queued
+        or _normalize_utc(call_req.scheduled_at) > datetime.now(timezone.utc)
+    ):
+        return None
+    if call_session and call_session.twilio_call_sid:
+        call_req.status = CallRequestStatus.in_progress
+        session.add(call_req)
+        session.commit()
+        return None
+
+    if call_session and call_session.twilio_status == "initiating":
+        updated_at = call_session.twilio_status_updated_at or call_session.created_at
+        stale_at = _normalize_utc(updated_at) + INITIATING_CALL_STALE_AFTER
+        if datetime.now(timezone.utc) >= stale_at:
+            logger.warning(
+                "CallSession %s is stale initiating; skipping automatic redial because provider outcome is unknown",
+                call_session.id,
+            )
+        else:
+            logger.info(
+                "CallSession %s already initiating; skipping duplicate dial",
+                call_session.id,
+            )
+        call_req.status = CallRequestStatus.in_progress
+        session.add(call_req)
+        session.commit()
+        return None
+
+    if _should_skip_for_governance(session, call_req):
+        return None
+
     campaign = session.get(Campaign, call_req.campaign_id)
     if campaign is None or campaign.workspace_id != workspace_id:
         call_req.status = CallRequestStatus.failed
@@ -384,30 +452,6 @@ async def _initiate_call(
         session.add(call_req)
         return None
 
-    call_session = session.exec(
-        select(CallSession)
-        .where(CallSession.call_request_id == call_req.id)
-        .with_for_update()
-    ).first()
-    if call_session and call_session.twilio_call_sid:
-        call_req.status = CallRequestStatus.in_progress
-        session.add(call_req)
-        return None
-
-    if call_session and call_session.twilio_status == "initiating":
-        updated_at = call_session.twilio_status_updated_at or call_session.created_at
-        stale_at = _normalize_utc(updated_at) + INITIATING_CALL_STALE_AFTER
-        if datetime.now(timezone.utc) >= stale_at:
-            logger.warning(
-                "CallSession %s is stale initiating; skipping automatic redial because provider outcome is unknown",
-                call_session.id,
-            )
-        else:
-            logger.info("CallSession %s already initiating; skipping duplicate dial", call_session.id)
-        call_req.status = CallRequestStatus.in_progress
-        session.add(call_req)
-        return None
-
     account_sid = getattr(adapter, "_account_sid", "") or None
     if call_session is None:
         call_session = CallSession(
@@ -428,6 +472,8 @@ async def _initiate_call(
     )
     call_session.callback_correlation_hash = token_hash(correlation_token)
     call_session.callback_correlation_expires_at = correlation_expires_at
+    call_req.status = CallRequestStatus.in_progress
+    session.add(call_req)
     session.add(call_session)
     session.commit()
     session.refresh(call_session)
