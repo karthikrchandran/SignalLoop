@@ -183,6 +183,9 @@ class Settings(BaseSettings):
     OIDC_AUDIENCE: str = ""
     OIDC_SCOPES: str = "openid profile email"
     OIDC_TRANSACTION_TTL_SECONDS: int = 300
+    TENANT_PUBLIC_HOSTS: str = "ara.localhost=ara-global,ai-consulting.localhost=ai-consulting"
+    TRUSTED_PROXY_CIDRS: str = ""
+    TRUSTED_ENTRY_ORIGINS: str = ""
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":

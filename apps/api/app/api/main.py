@@ -30,6 +30,7 @@ from app.api.routes import (
     voice,
     webhooks,
     workspace_runtime_config,
+    public_branding,
 )
 from app.core.config import settings
 from app.routers.chatbot import router as chatbot_router
@@ -62,6 +63,7 @@ api_router.include_router(workspace_runtime_config.router)
 api_router.include_router(audit_log.router)
 api_router.include_router(kpis.router)
 api_router.include_router(chatbot_router)
+api_router.include_router(public_branding.router)
 
 
 if settings.ENVIRONMENT == "local":

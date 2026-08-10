@@ -1,0 +1,1 @@
+"""Tenant branding domain."""

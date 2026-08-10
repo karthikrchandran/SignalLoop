@@ -141,6 +141,10 @@ from app.domain.tenants.models import (  # noqa: E402, F401
     TenantEntitlement,
     TenantInvitation,
 )
+from app.domain.branding.models import (  # noqa: E402, F401
+    TenantBrandAsset,
+    TenantBrandingVersion,
+)
 
 from app.domain.audit.audit_events import AuditEvent  # noqa: E402
 from app.domain.sequences.models import (  # noqa: E402
