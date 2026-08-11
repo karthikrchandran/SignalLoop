@@ -10,10 +10,12 @@ from app.api.routes.revenue_interventions import (
     InterventionProposal,
     approve,
     cancel,
+    list_dispatches,
     list_interventions,
     outcome,
     propose_intervention,
     reject,
+    retry_dispatch,
 )
 from app.domain.audit.audit_events import AuditEvent
 from app.domain.revenue_intelligence.persistence import RevenueInterventionStore
@@ -279,3 +281,61 @@ def test_intervention_action_rejects_caller_supplied_actor_impersonation() -> No
                 x_tenant_key=tenant.key,
                 idempotency_key="approve-actor-v1",
             )
+
+
+def test_revenue_operations_routes_list_and_retry_dead_letters() -> None:
+    with _session() as session:
+        user, tenant = _user_and_tenant(session)
+        store = RevenueInterventionStore(session)
+        signal = store.record_signal(
+            tenant_id=tenant.id,
+            signal_type="stalled_opportunity",
+            subject_ref="opportunity-9",
+            confidence=0.9,
+            evidence_refs=["signal:opportunity-9"],
+            evidence_hash="sha256:signal-9",
+            source="local-revenueos",
+            consent_verified=True,
+            policy_allowed=True,
+            idempotency_key="signal-operations-v1",
+        )
+        intervention = store.propose_intervention(
+            tenant_id=tenant.id,
+            signal_id=signal.id,
+            action="send_email",
+            evidence_refs=["signal:opportunity-9"],
+            idempotency_key="intervention-operations-v1",
+        )
+        store.approve_intervention(
+            tenant_id=tenant.id,
+            intervention_id=intervention.id,
+            actor_id=str(user.id),
+            idempotency_key="approve-operations-v1",
+        )
+        dispatch = store.claim_due_dispatches(tenant_id=tenant.id)[0]
+        store.record_dispatch_failure(
+            tenant_id=tenant.id,
+            dispatch_id=dispatch.id,
+            provider="sendgrid",
+            reason="HTTP_422",
+            retryable=False,
+        )
+
+        listed = list_dispatches(
+            session=session,
+            current_user=user,
+            x_tenant_key=tenant.key,
+            dispatch_status="DEAD_LETTER",
+        )
+        retried = retry_dispatch(
+            dispatch_id=dispatch.id,
+            body=InterventionAction(),
+            session=session,
+            current_user=user,
+            x_tenant_key=tenant.key,
+            idempotency_key="retry-operations-v1",
+        )
+
+        assert listed["counts"]["DEAD_LETTER"] == 1
+        assert listed["data"][0]["last_error"] == "HTTP_422"
+        assert retried["status"] == "PENDING"

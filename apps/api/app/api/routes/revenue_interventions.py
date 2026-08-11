@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlmodel import select
 
@@ -13,6 +13,7 @@ from app.domain.revenue_intelligence.persistence import (
     RevenueInterventionStore,
 )
 from app.domain.revenue_intelligence.persistence_models import (
+    RevenueInterventionDispatch,
     RevenueInterventionOutcome,
     RevenueInterventionRecord,
 )
@@ -91,6 +92,20 @@ def _outcome_public(tenant: Tenant, item: RevenueInterventionOutcome) -> dict[st
     }
 
 
+def _dispatch_public(item: RevenueInterventionDispatch) -> dict[str, object]:
+    return {
+        "id": str(item.id),
+        "intervention_id": str(item.intervention_id),
+        "status": item.status,
+        "attempt_count": item.attempt_count,
+        "next_attempt_at": item.next_attempt_at,
+        "provider": item.provider,
+        "last_error": item.last_error,
+        "dead_letter_reason": item.dead_letter_reason,
+        "updated_at": item.updated_at,
+    }
+
+
 @router.get("")
 def list_interventions(
     session: SessionDep,
@@ -127,6 +142,60 @@ def propose_intervention(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (RevenueInterventionNotFound, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/operations/dispatches")
+def list_dispatches(
+    session: SessionDep,
+    current_user: CurrentUser,
+    x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
+    dispatch_status: str | None = Query(default=None, alias="status"),
+):
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage")
+    store = RevenueInterventionStore(session)
+    all_rows = store.list_dispatches(tenant_id=tenant.id)
+    requested_status = dispatch_status.upper() if dispatch_status else None
+    rows = (
+        store.list_dispatches(tenant_id=tenant.id, status=requested_status)
+        if requested_status
+        else all_rows
+    )
+    counts: dict[str, int] = {}
+    for row in all_rows:
+        counts[row.status] = counts.get(row.status, 0) + 1
+    return {
+        "tenant_key": tenant.key,
+        "counts": counts,
+        "data": [_dispatch_public(row) for row in rows],
+    }
+
+
+@router.post("/operations/dispatches/{dispatch_id}/retry")
+def retry_dispatch(
+    dispatch_id: UUID,
+    body: InterventionAction,
+    session: SessionDep,
+    current_user: CurrentUser,
+    x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage")
+    if not idempotency_key:
+        raise HTTPException(status_code=400, detail="Idempotency-Key is required")
+    try:
+        item = RevenueInterventionStore(session).retry_dead_letter_dispatch(
+            tenant_id=tenant.id,
+            dispatch_id=dispatch_id,
+            actor_id=_actor_subject(body, current_user),
+            idempotency_key=idempotency_key,
+        )
+        return _dispatch_public(item)
+    except RevenueInterventionNotFound as exc:
+        raise HTTPException(status_code=404, detail="Dispatch not found") from exc
+    except RevenueInterventionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/{intervention_id}")

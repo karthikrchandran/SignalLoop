@@ -377,6 +377,71 @@ class RevenueInterventionStore:
     ) -> RevenueInterventionRecord:
         return self._intervention(tenant_id, intervention_id)
 
+    def list_dispatches(
+        self, *, tenant_id: UUID, status: str | None = None
+    ) -> list[RevenueInterventionDispatch]:
+        statement = select(RevenueInterventionDispatch).where(
+            RevenueInterventionDispatch.tenant_id == tenant_id
+        )
+        if status is not None:
+            statement = statement.where(RevenueInterventionDispatch.status == status.upper())
+        return list(
+            self.session.exec(statement.order_by(RevenueInterventionDispatch.created_at.desc())).all()
+        )
+
+    def retry_dead_letter_dispatch(
+        self,
+        *,
+        tenant_id: UUID,
+        dispatch_id: UUID,
+        actor_id: str,
+        idempotency_key: str,
+    ) -> RevenueInterventionDispatch:
+        dispatch = self._dispatch(tenant_id, dispatch_id)
+        replay = self._transition_replay(
+            tenant_id=tenant_id,
+            intervention_id=dispatch.intervention_id,
+            action="RETRY_DISPATCH",
+            actor_id=actor_id,
+            idempotency_key=idempotency_key,
+        )
+        if replay is not None:
+            return dispatch
+        if dispatch.status != "DEAD_LETTER":
+            raise ValueError(f"cannot retry dispatch in {dispatch.status} state")
+        intervention = self._intervention(tenant_id, dispatch.intervention_id)
+        dispatch.status = "PENDING"
+        dispatch.dead_letter_reason = None
+        dispatch.last_error = None
+        dispatch.next_attempt_at = None
+        dispatch.lease_expires_at = None
+        dispatch.updated_at = utc_now()
+        intervention.status = "APPROVED"
+        intervention.updated_at = utc_now()
+        self.session.add(dispatch)
+        self.session.add(intervention)
+        self._add_transition(
+            tenant_id=tenant_id,
+            intervention_id=intervention.id,
+            action="RETRY_DISPATCH",
+            actor_id=actor_id,
+            idempotency_key=idempotency_key,
+        )
+        self._audit(
+            tenant_id=tenant_id,
+            event_name="revenueos.intervention.dispatch_requeued",
+            resource_type="revenue_intervention_dispatch",
+            resource_id=str(dispatch.id),
+            payload={
+                "intervention_id": str(intervention.id),
+                "actor_subject": actor_id,
+                "preserved_attempt_count": dispatch.attempt_count,
+            },
+        )
+        self.session.commit()
+        self.session.refresh(dispatch)
+        return dispatch
+
     def claim_due_dispatches(
         self, *, tenant_id: UUID, limit: int = 50, lease_seconds: int = 60
     ) -> list[RevenueInterventionDispatch]:

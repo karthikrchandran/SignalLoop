@@ -370,3 +370,57 @@ def test_approval_replay_does_not_duplicate_dispatch_and_leased_dispatch_cannot_
                 actor_id="operator-1",
                 idempotency_key="cancel-after-lease-v1",
             )
+
+
+def test_dead_letter_retry_is_operator_attributed_and_idempotent() -> None:
+    with _session() as session:
+        tenant = Tenant(key="ara-global", display_name="ARA Global")
+        session.add(tenant)
+        session.commit()
+        store = RevenueInterventionStore(session)
+        signal = _signal(store, tenant.id)
+        intervention = store.propose_intervention(
+            tenant_id=tenant.id,
+            signal_id=signal.id,
+            action="send_email",
+            evidence_refs=["signal:opportunity-7"],
+            idempotency_key="intervention-dead-letter-v1",
+        )
+        store.approve_intervention(
+            tenant_id=tenant.id,
+            intervention_id=intervention.id,
+            actor_id="operator-1",
+            idempotency_key="approve-dead-letter-v1",
+        )
+        dispatch = store.claim_due_dispatches(tenant_id=tenant.id)[0]
+        store.record_dispatch_failure(
+            tenant_id=tenant.id,
+            dispatch_id=dispatch.id,
+            provider="sendgrid",
+            reason="HTTP_422",
+            retryable=False,
+        )
+
+        first = store.retry_dead_letter_dispatch(
+            tenant_id=tenant.id,
+            dispatch_id=dispatch.id,
+            actor_id="operator-1",
+            idempotency_key="retry-dead-letter-v1",
+        )
+        second = store.retry_dead_letter_dispatch(
+            tenant_id=tenant.id,
+            dispatch_id=dispatch.id,
+            actor_id="operator-1",
+            idempotency_key="retry-dead-letter-v1",
+        )
+
+        assert first.id == second.id
+        assert first.status == "PENDING"
+        assert first.attempt_count == 1
+        assert first.dead_letter_reason is None
+        assert len(store.list_dispatches(tenant_id=tenant.id, status="PENDING")) == 1
+        assert session.exec(
+            select(AuditEvent).where(
+                AuditEvent.event_name == "revenueos.intervention.dispatch_requeued"
+            )
+        ).one()
