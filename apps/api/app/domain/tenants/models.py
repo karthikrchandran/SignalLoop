@@ -146,6 +146,7 @@ class ProductInstallation(SQLModel, table=True):
     )
     product_code: ProductCode = Field(sa_column=Column(String(32), nullable=False))
     local_identifier: str = Field(sa_column=Column(String(255), nullable=False))
+    projection_endpoint: str | None = Field(default=None, max_length=2048)
     status: str = Field(default="ACTIVE", max_length=32, index=True)
     workload_key_id: str | None = Field(default=None, sa_column=Column(String(255), nullable=True, index=True))
     workload_public_key: str | None = Field(default=None, sa_column=Column(String(255), nullable=True))
@@ -191,14 +192,40 @@ class SuiteProjectionOutbox(SQLModel, table=True):
     next_attempt_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
+    lease_expires_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
     acknowledgement_receipt: dict[str, Any] | None = Field(
         default=None, sa_column=Column(JSON, nullable=True)
     )
     dead_letter_reason: str | None = Field(default=None, max_length=1000)
+    last_error: str | None = Field(default=None, max_length=1000)
     created_at: datetime = Field(
         default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False)
     )
     updated_at: datetime = Field(
+        default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+class SuiteProjectionAttempt(SQLModel, table=True):
+    """Immutable operational evidence for each projection delivery decision."""
+
+    __tablename__ = "suite_projection_attempt"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    projection_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("suite_projection_outbox.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    attempt_number: int = Field(nullable=False)
+    outcome: str = Field(sa_column=Column(String(32), nullable=False, index=True))
+    http_status: int | None = Field(default=None, nullable=True)
+    error_code: str | None = Field(default=None, max_length=1000)
+    recorded_at: datetime = Field(
         default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False)
     )
 

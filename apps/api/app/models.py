@@ -134,6 +134,7 @@ from app.domain.tenants.models import (  # noqa: E402, F401
     NativeProjectionReceipt,
     NativeWorkloadReplay,
     ProductInstallation,
+    SuiteProjectionAttempt,
     SuiteProjectionOutbox,
     SuiteMembership,
     SuiteRoleAssignment,

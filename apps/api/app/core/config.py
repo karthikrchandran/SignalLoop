@@ -157,6 +157,9 @@ class Settings(BaseSettings):
     SENDGRID_FROM_EMAIL: str = ""
     ECRM_SHARED_API_BASE_URL: str = "http://localhost:5050"
     ECRM_SHARED_API_TOKEN: str = ""
+    # Deployment-secret backed 32-byte Ed25519 seed, base64url encoded.
+    # It signs suite-to-product projection envelopes; absence blocks delivery.
+    SUITE_PROJECTION_PRIVATE_KEY: str = ""
     # Route-adapter cutover flag; intentionally unused by the low-level client.
     USE_ECRM_SHARED_RECORDS: bool = True
     USE_LOCAL_SHARED_RECORDS: bool = False

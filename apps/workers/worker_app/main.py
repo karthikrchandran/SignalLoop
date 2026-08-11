@@ -7,6 +7,11 @@ from worker_app.call_worker import POLL_INTERVAL_SECONDS as CALL_POLL_INTERVAL_S
 from worker_app.call_worker import poll_and_dispatch
 from worker_app.policies.enforcement_gate import EnforcementGate
 from worker_app.postcall_worker import process_completed_calls
+from worker_app.projection_worker import (
+    PROJECTION_POLL_INTERVAL_SECONDS,
+    ProjectionWorkerConfigurationError,
+    process_projection_batch,
+)
 from worker_app.sequence_worker import POLL_INTERVAL_SECONDS, process_batch
 
 logging.basicConfig(
@@ -54,6 +59,17 @@ async def _run_postcall_job() -> None:
         logger.exception("Postcall worker poll failed")
 
 
+async def _run_projection_job() -> None:
+    try:
+        count = process_projection_batch()
+        if count:
+            logger.info("Projection worker processed %d projection(s)", count)
+    except ProjectionWorkerConfigurationError as exc:
+        logger.warning("Projection worker blocked by configuration: %s", exc)
+    except Exception:
+        logger.exception("Projection worker poll failed")
+
+
 def main() -> None:
     gate = EnforcementGate()
     logger.info("SignalLoop worker initializing (paused=%s)", gate.is_paused())
@@ -83,6 +99,14 @@ def main() -> None:
         max_instances=1,
         coalesce=True,
     )
+    scheduler.add_job(
+        _run_projection_job,
+        trigger="interval",
+        seconds=PROJECTION_POLL_INTERVAL_SECONDS,
+        id="projection_worker",
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.start()
     logger.info(
         "Sequence worker scheduled (interval=%ds)", POLL_INTERVAL_SECONDS
@@ -92,6 +116,9 @@ def main() -> None:
     )
     logger.info(
         "Postcall worker scheduled (interval=%ds)", POSTCALL_POLL_INTERVAL_SECONDS
+    )
+    logger.info(
+        "Projection worker scheduled (interval=%ds)", PROJECTION_POLL_INTERVAL_SECONDS
     )
 
     try:
