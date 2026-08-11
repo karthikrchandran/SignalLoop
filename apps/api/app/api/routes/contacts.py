@@ -20,7 +20,7 @@ from fastapi import (
 from sqlmodel import Session, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
-from app.api.request_context import WorkspaceIdDep
+from app.api.request_context import ContactsReadWorkspaceIdDep, WorkspaceIdDep
 from app.domain.audit.audit_events import (
     append_audit_event_to_session,
     audit_actor_role,
@@ -335,7 +335,7 @@ def _get_campaign_or_404(
 @router.get("/", response_model=ContactsPublic, dependencies=[Depends(require_admin)])
 def read_contacts(
     session: SessionDep,
-    workspace_id: WorkspaceIdDep,
+    workspace_id: ContactsReadWorkspaceIdDep,
     search: Annotated[str | None, Query(max_length=255)] = None,
     has_phone: Annotated[bool | None, Query()] = None,
     field_name: Annotated[str | None, Query(max_length=64)] = None,

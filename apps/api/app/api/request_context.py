@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 from typing import Annotated
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import Depends, Header, HTTPException, status
+from sqlmodel import select
 
 from app.api.deps import AdminUser, CurrentUser, SessionDep
+from app.domain.support_access.service import (
+    SupportAccessDenied,
+    resolve_support_context,
+)
+from app.domain.tenants.models import Tenant
 from app.domain.workspaces.service import (
     normalize_workspace_id,
     user_has_workspace_access,
@@ -111,6 +117,55 @@ def require_workspace_id(
 
 WorkspaceIdDep = Annotated[str, Depends(require_workspace_id)]
 WorkspaceAccessIdDep = Annotated[str, Depends(require_workspace_access)]
+
+
+def require_workspace_access_with_support(required_capability: str):
+    """Permit tenant access through a live, tenant-matched support grant."""
+
+    def dependency(
+        current_user: CurrentUser,
+        session: SessionDep,
+        x_workspace_id: str | None = Header(default=None, alias="X-Workspace-Id"),
+        x_support_grant_id: str | None = Header(
+            default=None,
+            alias="X-Support-Grant-Id",
+        ),
+    ) -> str:
+        workspace_id = _validated_workspace_header(x_workspace_id)
+        if x_support_grant_id:
+            try:
+                grant_id = UUID(x_support_grant_id)
+            except ValueError:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+            tenant = session.exec(select(Tenant).where(Tenant.key == workspace_id)).one_or_none()
+            if tenant is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+            try:
+                resolve_support_context(
+                    session,
+                    grant_id=grant_id,
+                    operator_user_id=current_user.id,
+                    tenant_id=tenant.id,
+                    required_capability=required_capability,
+                )
+                session.commit()
+            except SupportAccessDenied:
+                session.commit()
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+            return workspace_id
+
+        if user_has_workspace_access(session, user=current_user, workspace_id=workspace_id):
+            return workspace_id
+        _workspace_access_denied_error(workspace_id)
+        raise AssertionError("unreachable")
+
+    return dependency
+
+
+ContactsReadWorkspaceIdDep = Annotated[
+    str,
+    Depends(require_workspace_access_with_support("contacts.read")),
+]
 
 
 def require_idempotency_key(idempotency_key: str | None = Header(default=None, alias="Idempotency-Key")) -> str:
