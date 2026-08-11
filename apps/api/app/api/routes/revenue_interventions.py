@@ -18,7 +18,17 @@ from app.domain.revenue_intelligence.persistence_models import (
     RevenueInterventionRecord,
 )
 from app.domain.tenants.capabilities import resolve_suite_context
-from app.domain.tenants.models import Tenant
+from app.domain.tenants.models import (
+    ProductCode,
+    ProductInstallation,
+    SuiteProjectionOutbox,
+    Tenant,
+)
+from app.domain_models import (
+    ProviderCapability,
+    ProviderCredential,
+    WorkspaceProviderSelection,
+)
 
 router = APIRouter(prefix="/revenueos/interventions", tags=["revenueos-interventions"])
 
@@ -106,6 +116,21 @@ def _dispatch_public(item: RevenueInterventionDispatch) -> dict[str, object]:
     }
 
 
+def _status_counts(
+    rows: list[RevenueInterventionDispatch] | list[SuiteProjectionOutbox],
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        row_status = row.status
+        counts[row_status] = counts.get(row_status, 0) + 1
+    return counts
+
+
+def _enum_value(value: object) -> str:
+    raw = getattr(value, "value", value)
+    return str(raw)
+
+
 @router.get("")
 def list_interventions(
     session: SessionDep,
@@ -160,13 +185,98 @@ def list_dispatches(
         if requested_status
         else all_rows
     )
-    counts: dict[str, int] = {}
-    for row in all_rows:
-        counts[row.status] = counts.get(row.status, 0) + 1
     return {
         "tenant_key": tenant.key,
-        "counts": counts,
+        "counts": _status_counts(all_rows),
         "data": [_dispatch_public(row) for row in rows],
+    }
+
+
+@router.get("/operations/health")
+def operational_health(
+    session: SessionDep,
+    current_user: CurrentUser,
+    x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
+):
+    """Return tenant-scoped execution readiness and durable failure state."""
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage")
+    dispatches = RevenueInterventionStore(session).list_dispatches(tenant_id=tenant.id)
+    projections = list(
+        session.exec(
+            select(SuiteProjectionOutbox).where(SuiteProjectionOutbox.tenant_id == tenant.id)
+        ).all()
+    )
+    installations = list(
+        session.exec(
+            select(ProductInstallation).where(ProductInstallation.tenant_id == tenant.id)
+        ).all()
+    )
+    signal_loop = next(
+        (
+            item
+            for item in installations
+            if _enum_value(item.product_code) == ProductCode.SIGNAL_LOOP.value
+        ),
+        None,
+    )
+    email_provider: dict[str, object] = {
+        "provider": None,
+        "selection_configured": False,
+        "credential_configured": False,
+    }
+    if signal_loop is not None:
+        selection = session.exec(
+            select(WorkspaceProviderSelection).where(
+                WorkspaceProviderSelection.workspace_id == signal_loop.local_identifier,
+                WorkspaceProviderSelection.capability == ProviderCapability.email,
+                WorkspaceProviderSelection.is_active == True,  # noqa: E712
+            )
+        ).one_or_none()
+        if selection is not None:
+            provider = _enum_value(selection.provider)
+            credential = session.exec(
+                select(ProviderCredential).where(
+                    ProviderCredential.workspace_id == signal_loop.local_identifier,
+                    ProviderCredential.provider == selection.provider,
+                    ProviderCredential.channel == "email",
+                    ProviderCredential.is_active == True,  # noqa: E712
+                )
+            ).first()
+            email_provider = {
+                "provider": provider,
+                "selection_configured": True,
+                "credential_configured": credential is not None,
+            }
+    unacknowledged = [item for item in projections if item.status != "ACKNOWLEDGED"]
+    return {
+        "tenant_key": tenant.key,
+        "dispatches": {
+            "counts": _status_counts(dispatches),
+            "policy_denial_count": sum(item.status == "POLICY_DENIED" for item in dispatches),
+            "dead_letter_count": sum(item.status == "DEAD_LETTER" for item in dispatches),
+        },
+        "projections": {
+            "counts": _status_counts(projections),
+            "unacknowledged_count": len(unacknowledged),
+            "dead_letter_count": sum(item.status == "DEAD_LETTER" for item in projections),
+            "configuration_blocked_count": sum(
+                item.status == "CONFIGURATION_BLOCKED" for item in projections
+            ),
+        },
+        "provider": {"email": email_provider},
+        "installations": [
+            {
+                "product_code": _enum_value(item.product_code),
+                "status": item.status,
+                "projection_ready": bool(
+                    item.status == "ACTIVE"
+                    and item.projection_endpoint
+                    and item.workload_key_id
+                    and item.workload_key_status == "ACTIVE"
+                ),
+            }
+            for item in installations
+        ],
     }
 
 

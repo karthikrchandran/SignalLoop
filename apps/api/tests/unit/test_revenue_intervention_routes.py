@@ -12,6 +12,7 @@ from app.api.routes.revenue_interventions import (
     cancel,
     list_dispatches,
     list_interventions,
+    operational_health,
     outcome,
     propose_intervention,
     reject,
@@ -28,11 +29,19 @@ from app.domain.revenue_intelligence.persistence_models import (
 )
 from app.domain.tenants.models import (
     ProductCode,
+    ProductInstallation,
     RoleBundle,
     SuiteMembership,
+    SuiteProjectionOutbox,
     SuiteRoleAssignment,
     Tenant,
     TenantEntitlement,
+)
+from app.domain_models import (
+    NotificationProvider,
+    ProviderCapability,
+    ProviderCredential,
+    WorkspaceProviderSelection,
 )
 from app.models import User
 
@@ -45,6 +54,10 @@ def _session() -> Session:
             User.__table__,
             Tenant.__table__,
             TenantEntitlement.__table__,
+            ProductInstallation.__table__,
+            SuiteProjectionOutbox.__table__,
+            ProviderCredential.__table__,
+            WorkspaceProviderSelection.__table__,
             SuiteMembership.__table__,
             SuiteRoleAssignment.__table__,
             RevenueSignalRecord.__table__,
@@ -339,3 +352,62 @@ def test_revenue_operations_routes_list_and_retry_dead_letters() -> None:
         assert listed["counts"]["DEAD_LETTER"] == 1
         assert listed["data"][0]["last_error"] == "HTTP_422"
         assert retried["status"] == "PENDING"
+
+
+def test_operational_health_reports_projection_provider_and_dispatch_state() -> None:
+    with _session() as session:
+        user, tenant = _user_and_tenant(session)
+        installation = ProductInstallation(
+            tenant_id=tenant.id,
+            product_code=ProductCode.SIGNAL_LOOP,
+            local_identifier="ws-ara",
+            projection_endpoint="https://signalloop.example.test/projections",
+            workload_key_id="key-1",
+            workload_key_status="ACTIVE",
+        )
+        session.add(installation)
+        session.flush()
+        session.add(
+            SuiteProjectionOutbox(
+                tenant_id=tenant.id,
+                installation_id=installation.id,
+                projection_kind="tenant_settings",
+                projection_version=1,
+                payload={"tenant_key": tenant.key},
+                payload_digest="a" * 64,
+                status="DEAD_LETTER",
+                dead_letter_reason="HTTP_422",
+                last_error="HTTP_422",
+            )
+        )
+        session.add(
+            WorkspaceProviderSelection(
+                workspace_id="ws-ara",
+                capability=ProviderCapability.email,
+                provider=NotificationProvider.sendgrid,
+                is_active=True,
+            )
+        )
+        session.add(
+            ProviderCredential(
+                workspace_id="ws-ara",
+                provider=NotificationProvider.sendgrid,
+                channel="email",
+                encrypted_api_key="encrypted-test-key",
+                is_active=True,
+            )
+        )
+        session.commit()
+
+        health = operational_health(
+            session=session,
+            current_user=user,
+            x_tenant_key=tenant.key,
+        )
+
+        assert health["tenant_key"] == tenant.key
+        assert health["projections"]["counts"]["DEAD_LETTER"] == 1
+        assert health["projections"]["unacknowledged_count"] == 1
+        assert health["provider"]["email"]["provider"] == "sendgrid"
+        assert health["provider"]["email"]["credential_configured"] is True
+        assert health["installations"][0]["projection_ready"] is True
