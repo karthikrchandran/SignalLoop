@@ -18,6 +18,7 @@ class OidcSubject:
     issuer: str
     subject: str
     email: str | None
+    email_verified: bool = False
 
 
 def normalize_issuer(issuer: str) -> str:
@@ -65,8 +66,12 @@ def validate_claims(
     email = claims.get("email")
     if email is not None and not isinstance(email, str):
         raise OidcValidationError("invalid email claim")
+    email_verified = claims.get("email_verified", False)
+    if not isinstance(email_verified, bool):
+        raise OidcValidationError("invalid email verification claim")
     return OidcSubject(
         issuer=expected_issuer,
         subject=subject,
         email=email.strip().lower() if isinstance(email, str) else None,
+        email_verified=email_verified,
     )

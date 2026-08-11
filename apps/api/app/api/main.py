@@ -15,26 +15,27 @@ from app.api.routes import (
     engagement_intelligence,
     kpis,
     login,
+    oidc,
+    onboarding,
     platform_shared,
     private,
     prospecting,
     provider_credentials,
+    public_branding,
+    revenue_interventions,
     scheduling,
     scripts,
     sequences,
     signals,
+    suite_context,
     templates,
+    tenant_admin,
     triggers,
     users,
     utils,
     voice,
     webhooks,
     workspace_runtime_config,
-    public_branding,
-    tenant_admin,
-    suite_context,
-    onboarding,
-    revenue_interventions,
 )
 from app.core.config import settings
 from app.routers.chatbot import router as chatbot_router
@@ -72,6 +73,7 @@ api_router.include_router(tenant_admin.router)
 api_router.include_router(suite_context.router)
 api_router.include_router(onboarding.router)
 api_router.include_router(revenue_interventions.router)
+api_router.include_router(oidc.router)
 
 
 if settings.ENVIRONMENT == "local":

@@ -19,6 +19,8 @@ class OidcTransaction:
     pkce_verifier: str
     issuer: str
     return_path: str
+    tenant_id: str | None = None
+    invitation_id: str | None = None
 
 
 class OidcTransactionStore:
