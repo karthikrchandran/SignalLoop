@@ -115,3 +115,50 @@ test("tenant user without an administration capability is redirected", async ({ 
 
   await expect(page).toHaveURL(/\/$/)
 })
+
+for (const product of [
+  { capability: "commitarc.admin.manage", path: "/admin/commit-arc", title: "CommitArc administration" },
+  { capability: "revenueos.admin.manage", path: "/admin/revenue-os", title: "RevenueOS administration" },
+  { capability: "signalloop.admin.manage", path: "/admin/signal-loop", title: "SignalLoop administration" },
+]) {
+  test(`${product.title} requires its product administration capability`, async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("access_token", "e2e-test-token")
+      localStorage.setItem("workspace_id", "ara")
+    })
+    await page.route("**/api/v1/users/me", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "ara-product-admin",
+          email: "product-admin@ara.example",
+          full_name: "ARA Product Admin",
+          is_superuser: false,
+          role: "admin",
+        }),
+      })
+    })
+    await page.route("**/api/v1/me/suite-context", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          tenant: { key: "ara", display_name: "ARA" },
+          roles: ["PRODUCT_ADMIN"],
+          capabilities: ["tenant.members.manage"],
+          products: {
+            commitarc: { visible: true, capabilities: [] },
+            revenueos: { visible: true, capabilities: [] },
+            signalloop: { visible: true, capabilities: [] },
+          },
+          default_route: "/",
+        }),
+      })
+    })
+
+    await page.goto(product.path)
+
+    await expect(page).toHaveURL(/\/$/)
+  })
+}

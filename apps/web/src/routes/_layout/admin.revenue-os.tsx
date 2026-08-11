@@ -1,8 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import { TenantAdminWorkspacePage } from "@/features/admin/TenantAdminWorkspacePage"
+import { requireProductAdmin } from "@/features/admin/requireProductAdmin"
 
-export const Route = createFileRoute("/_layout/admin/revenue-os")({ component: RevenueOsAdmin })
+export const Route = createFileRoute("/_layout/admin/revenue-os")({
+  beforeLoad: () => requireProductAdmin("revenueos.admin.manage"),
+  component: RevenueOsAdmin,
+})
 
 function RevenueOsAdmin() {
   return (

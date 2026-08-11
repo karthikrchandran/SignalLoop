@@ -1,8 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import { TenantAdminWorkspacePage } from "@/features/admin/TenantAdminWorkspacePage"
+import { requireProductAdmin } from "@/features/admin/requireProductAdmin"
 
-export const Route = createFileRoute("/_layout/admin/signal-loop")({ component: SignalLoopAdmin })
+export const Route = createFileRoute("/_layout/admin/signal-loop")({
+  beforeLoad: () => requireProductAdmin("signalloop.admin.manage"),
+  component: SignalLoopAdmin,
+})
 
 function SignalLoopAdmin() {
   return (
