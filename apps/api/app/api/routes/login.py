@@ -32,6 +32,8 @@ def login_access_token(
     """
     OAuth2 compatible token login, get an access token for future requests
     """
+    if settings.AUTH_MODE != "local-test":
+        raise HTTPException(status_code=404, detail="Password login is unavailable")
     user = crud.authenticate(
         session=session, email=form_data.username, password=form_data.password
     )

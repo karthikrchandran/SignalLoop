@@ -16,3 +16,14 @@ def test_onboarding_follows_branding_in_the_phase_one_chain() -> None:
         "phase1_onboarding", "p1_onboard_20260810_add_onboarding_runs.py"
     )
     assert onboarding.down_revision == "p1_branding_20260810"
+
+
+def test_phase_one_history_keeps_the_prior_sales_agent_revision_reachable() -> None:
+    sales_agent = _load(
+        "sales_agent_history", "sales_agent_20260809_add_supervised_loop.py"
+    )
+    merge = _load("phase1_merge", "p1_merge_20260810_restore_sales_agent_head.py")
+
+    assert sales_agent.revision == "sales_agent_20260809"
+    assert sales_agent.down_revision == "psid_20260726"
+    assert set(merge.down_revision) == {"sales_agent_20260809", "p1_onboard_20260810"}

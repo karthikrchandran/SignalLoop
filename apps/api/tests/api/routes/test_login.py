@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 from pwdlib.hashers.bcrypt import BcryptHasher
 from sqlmodel import Session
@@ -32,6 +33,19 @@ def test_get_access_token_incorrect_password(client: TestClient) -> None:
     }
     r = client.post(f"{settings.API_V1_STR}/login/access-token", data=login_data)
     assert r.status_code == 400
+
+
+def test_password_login_is_unavailable_when_oidc_is_enabled(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "AUTH_MODE", "oidc")
+
+    response = client.post(
+        f"{settings.API_V1_STR}/login/access-token",
+        data={"username": "test@example.com", "password": "not-used"},
+    )
+
+    assert response.status_code == 404
 
 
 def test_use_access_token(
