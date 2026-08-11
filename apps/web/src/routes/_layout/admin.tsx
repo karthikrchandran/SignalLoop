@@ -8,6 +8,7 @@ import { columns, type UserTableData } from "@/components/Admin/columns"
 import { DataTable } from "@/components/Common/DataTable"
 import PendingUsers from "@/components/Pending/PendingUsers"
 import { TenantAdminLayout } from "@/features/admin/TenantAdminLayout"
+import { TenantAdminWorkspacePage } from "@/features/admin/TenantAdminWorkspacePage"
 import { isChatbotDemoMode } from "@/features/chatbot/demo"
 import useAuth from "@/hooks/useAuth"
 import { getSuiteContext } from "@/lib/signalloop-api"
@@ -59,11 +60,9 @@ export const Route = createFileRoute("/_layout/admin")({
       // The suite context endpoint is the authoritative tenant membership check.
     }
 
-    {
-      throw redirect({
-        to: "/",
-      })
-    }
+    throw redirect({
+      to: "/",
+    })
   },
   head: () => ({
     meta: [
@@ -96,14 +95,30 @@ function UsersTable() {
 
 function Admin() {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const { user } = useAuth()
 
   if (pathname !== "/admin") {
-    return <Outlet />
+    return (
+      <TenantAdminLayout>
+        <Outlet />
+      </TenantAdminLayout>
+    )
+  }
+
+  if (!user?.is_superuser) {
+    return (
+      <TenantAdminLayout>
+        <TenantAdminWorkspacePage
+          title="Tenant overview"
+          description="Manage your tenant's people, enabled products, brand, security, and messaging settings."
+          sections={["People and roles", "Products", "Security and messaging", "Tenant audit"]}
+        />
+      </TenantAdminLayout>
+    )
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <TenantAdminLayout />
+    <TenantAdminLayout>
       <div id="tenant-workspace" className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold tracking-tight">Users</h2>
@@ -114,6 +129,6 @@ function Admin() {
         <AddUser />
       </div>
       <UsersTable />
-    </div>
+    </TenantAdminLayout>
   )
 }

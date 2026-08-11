@@ -1,13 +1,16 @@
+import type { PropsWithChildren } from "react"
+
 const tenantLinks = [
+  { label: "Overview", href: "/admin" },
   { label: "People and roles", href: "/admin/members" },
-  { label: "Products", href: "#tenant-workspace" },
-  { label: "Branding", href: "#tenant-workspace" },
-  { label: "Security", href: "#tenant-workspace" },
-  { label: "Messaging", href: "#tenant-workspace" },
-  { label: "Tenant audit", href: "#tenant-workspace" },
+  { label: "Products", href: "/admin/products" },
+  { label: "Branding", href: "/admin/branding" },
+  { label: "Security", href: "/admin/security" },
+  { label: "Messaging", href: "/admin/messaging" },
+  { label: "Tenant audit", href: "/admin/audit" },
 ]
 
-export function TenantAdminLayout() {
+export function TenantAdminLayout({ children }: PropsWithChildren) {
   return (
     <section className="space-y-4">
       <div>
@@ -23,6 +26,7 @@ export function TenantAdminLayout() {
           </a>
         ))}
       </nav>
+      {children}
     </section>
   )
 }

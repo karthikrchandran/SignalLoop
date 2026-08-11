@@ -23,10 +23,15 @@ test("tenant administrator sees tenant-scoped navigation", async ({ page }) => {
   await page.goto("/admin")
 
   await expect(page.getByRole("heading", { name: "Tenant administration" })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/admin")
   await expect(
     page.getByRole("link", { name: "People and roles" }),
   ).toHaveAttribute("href", "/admin/members")
-  await expect(page.getByRole("link", { name: "Products" })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Products" })).toHaveAttribute("href", "/admin/products")
+  await expect(page.getByRole("link", { name: "Branding" })).toHaveAttribute("href", "/admin/branding")
+  await expect(page.getByRole("link", { name: "Security" })).toHaveAttribute("href", "/admin/security")
+  await expect(page.getByRole("link", { name: "Messaging" })).toHaveAttribute("href", "/admin/messaging")
+  await expect(page.getByRole("link", { name: "Tenant audit" })).toHaveAttribute("href", "/admin/audit")
 })
 
 test("tenant member manager can open their tenant's people page", async ({ page }) => {
