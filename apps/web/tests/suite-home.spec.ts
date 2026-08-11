@@ -41,6 +41,29 @@ test("employee sees CommitArc and RevenueOS Essentials but no SignalLoop authori
       }),
     })
   })
+  await page.route("**/api/v1/revenueos/essentials", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        generated_at: "2026-08-10T00:00:00Z",
+        source_freshness: [
+          {
+            source: "CommitArc",
+            status: "UNAVAILABLE",
+            message: "No signed CommitArc projection has been received for this tenant.",
+            observed_at: null,
+          },
+        ],
+        cards: [],
+        metrics: [],
+        blocked_actions: ["Connect a signed CommitArc projection before recommendations can be generated."],
+        permitted_questions: [],
+        personal_goals: [],
+        intervention_outcomes: [],
+      }),
+    })
+  })
 
   await page.goto("/home")
 
@@ -49,6 +72,9 @@ test("employee sees CommitArc and RevenueOS Essentials but no SignalLoop authori
   ).toBeVisible()
   await expect(
     page.getByRole("link", { name: "RevenueOS Essentials", exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByText("No signed CommitArc projection has been received for this tenant."),
   ).toBeVisible()
   await expect(page.getByRole("link", { name: /Open campaigns/i })).toHaveCount(0)
 })

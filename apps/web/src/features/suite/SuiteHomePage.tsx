@@ -1,11 +1,19 @@
 import { Link } from "@tanstack/react-router"
+import { useQuery } from "@tanstack/react-query"
 import { ArrowRight, CircleAlert, ListChecks, Sparkles } from "lucide-react"
 
 import { ProductSwitcher } from "@/features/suite/ProductSwitcher"
 import { useSuiteContext } from "@/features/suite/useSuiteContext"
+import { getRevenueEssentials } from "@/lib/signalloop-api"
 
 export function SuiteHomePage() {
   const suiteContext = useSuiteContext()
+  const essentials = useQuery({
+    queryKey: ["revenueos-essentials"],
+    queryFn: () => getRevenueEssentials(),
+    enabled: Boolean(suiteContext.data?.products.revenueos.visible),
+    retry: false,
+  })
 
   if (suiteContext.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading your workspace…</p>
@@ -58,6 +66,11 @@ export function SuiteHomePage() {
             RevenueOS Essentials highlights the next safe action using only records you may access.
           </p>
           {products.revenueos.visible ? <p className="mt-4 text-sm font-medium text-primary">RevenueOS {products.revenueos.mode === "ESSENTIALS" ? "Essentials" : ""}</p> : null}
+          {essentials.data?.source_freshness.map((source) => (
+            <p key={source.source} className="mt-2 text-sm text-muted-foreground">
+              {source.message}
+            </p>
+          ))}
         </article>
         <article className="rounded-lg border bg-card p-5">
           <CircleAlert className="size-5 text-primary" />

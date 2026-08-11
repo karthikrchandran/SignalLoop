@@ -39,6 +39,13 @@ export type SuiteContext = {
   default_route: string
 }
 
+export type RevenueEssentials = {
+  generated_at: string
+  source_freshness: Array<{ source: string; status: string; message: string }>
+  cards: Array<{ kind: string; title: string; detail: string; owner_user_id: string }>
+  blocked_actions: string[]
+}
+
 export type ProviderOption = {
   provider: string
   label: string
@@ -133,6 +140,12 @@ export function getSuiteContext(tenantKey = getWorkspaceId()) {
   })
 }
 
+export function getRevenueEssentials(tenantKey = getWorkspaceId()) {
+  return signalloopRequest<RevenueEssentials>("/api/v1/revenueos/essentials", {
+    workspaceId: tenantKey,
+  })
+}
+
 const isAuthFailure = (status: number, message: string) => {
   return status === 401 || (status === 404 && message === "User not found")
 }
@@ -174,7 +187,7 @@ export async function signalloopRequest<T>(
     headers.set("Authorization", `Bearer ${authToken}`)
   }
   headers.set("X-Workspace-Id", options?.workspaceId || getWorkspaceId())
-  if (path === "/api/v1/me/suite-context") {
+  if (path === "/api/v1/me/suite-context" || path === "/api/v1/revenueos/essentials") {
     headers.set("X-Tenant-Key", options?.workspaceId || getWorkspaceId())
   }
 
