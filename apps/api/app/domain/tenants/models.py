@@ -5,8 +5,17 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any
 
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    UniqueConstraint,
+)
 from sqlmodel import Field, SQLModel
 
 
@@ -145,6 +154,53 @@ class ProductInstallation(SQLModel, table=True):
     workload_key_valid_to: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
     workload_key_version: int = Field(default=1, nullable=False)
     created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
+
+
+class SuiteProjectionOutbox(SQLModel, table=True):
+    """An immutable, retryable projection intent owned by the suite control plane."""
+
+    __tablename__ = "suite_projection_outbox"
+    __table_args__ = (
+        UniqueConstraint(
+            "installation_id",
+            "projection_kind",
+            "projection_version",
+            name="uq_suite_projection_installation_kind_version",
+        ),
+        Index("ix_suite_projection_outbox_status_next_attempt", "status", "next_attempt_at"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    event_id: uuid.UUID = Field(default_factory=uuid.uuid4, nullable=False, unique=True, index=True)
+    tenant_id: uuid.UUID = Field(
+        sa_column=Column(ForeignKey("suite_tenant.id", ondelete="CASCADE"), nullable=False, index=True)
+    )
+    installation_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("suite_product_installation.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    projection_kind: str = Field(sa_column=Column(String(64), nullable=False))
+    projection_version: int = Field(nullable=False)
+    payload: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
+    payload_digest: str = Field(sa_column=Column(String(64), nullable=False))
+    status: str = Field(default="PENDING", max_length=32, index=True)
+    attempt_count: int = Field(default=0, nullable=False)
+    next_attempt_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    acknowledgement_receipt: dict[str, Any] | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
+    dead_letter_reason: str | None = Field(default=None, max_length=1000)
+    created_at: datetime = Field(
+        default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
 
 
 class NativeProjectionCursor(SQLModel, table=True):
