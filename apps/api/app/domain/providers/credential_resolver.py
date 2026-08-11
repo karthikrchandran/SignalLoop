@@ -74,6 +74,33 @@ def resolve_provider_credentials(
     return _settings_fallback(provider, channel)
 
 
+def resolve_stored_provider_credentials(
+    session: Session,
+    workspace_id: str,
+    provider: NotificationProvider,
+    channel: str,
+) -> dict[str, Any] | None:
+    """Return active stored credentials without applying settings fallback."""
+    row = session.exec(
+        select(ProviderCredential).where(
+            ProviderCredential.workspace_id == workspace_id,
+            ProviderCredential.provider == provider,
+            ProviderCredential.channel == channel,
+            ProviderCredential.is_active == True,  # noqa: E712
+        )
+    ).first()
+    if row is None:
+        return None
+
+    creds: dict[str, Any] = {
+        "api_key": decrypt(row.encrypted_api_key),
+    }
+    if row.encrypted_api_secret:
+        creds["api_secret"] = decrypt(row.encrypted_api_secret)
+    creds.update(row.config_json)
+    return creds
+
+
 def _settings_fallback(provider: NotificationProvider, channel: str) -> dict[str, Any]:
     """Return credentials from settings for single-tenant / demo mode."""
     if provider == NotificationProvider.sendgrid:

@@ -12,6 +12,10 @@ from worker_app.projection_worker import (
     ProjectionWorkerConfigurationError,
     process_projection_batch,
 )
+from worker_app.revenue_intervention_worker import (
+    REVENUE_INTERVENTION_POLL_INTERVAL_SECONDS,
+    process_revenue_intervention_batch,
+)
 from worker_app.sequence_worker import POLL_INTERVAL_SECONDS, process_batch
 
 logging.basicConfig(
@@ -70,6 +74,19 @@ async def _run_projection_job() -> None:
         logger.exception("Projection worker poll failed")
 
 
+async def _run_revenue_intervention_job() -> None:
+    gate = EnforcementGate()
+    if gate.is_paused():
+        logger.info("EnforcementGate paused — skipping RevenueOS intervention poll")
+        return
+    try:
+        count = await process_revenue_intervention_batch()
+        if count:
+            logger.info("RevenueOS worker processed %d intervention dispatch(es)", count)
+    except Exception:
+        logger.exception("RevenueOS intervention worker poll failed")
+
+
 def main() -> None:
     gate = EnforcementGate()
     logger.info("SignalLoop worker initializing (paused=%s)", gate.is_paused())
@@ -107,6 +124,14 @@ def main() -> None:
         max_instances=1,
         coalesce=True,
     )
+    scheduler.add_job(
+        _run_revenue_intervention_job,
+        trigger="interval",
+        seconds=REVENUE_INTERVENTION_POLL_INTERVAL_SECONDS,
+        id="revenue_intervention_worker",
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.start()
     logger.info(
         "Sequence worker scheduled (interval=%ds)", POLL_INTERVAL_SECONDS
@@ -119,6 +144,10 @@ def main() -> None:
     )
     logger.info(
         "Projection worker scheduled (interval=%ds)", PROJECTION_POLL_INTERVAL_SECONDS
+    )
+    logger.info(
+        "RevenueOS intervention worker scheduled (interval=%ds)",
+        REVENUE_INTERVENTION_POLL_INTERVAL_SECONDS,
     )
 
     try:

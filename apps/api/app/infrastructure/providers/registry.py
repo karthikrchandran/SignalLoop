@@ -38,6 +38,7 @@ from app.domain.providers.credential_resolver import (
     get_workspace_provider_selection,
     resolve_active_provider,
     resolve_provider_credentials,
+    resolve_stored_provider_credentials,
 )
 from app.domain_models import NotificationProvider, ProviderCapability
 from app.infrastructure.providers.base import (
@@ -267,6 +268,42 @@ def get_adapter(
             capability.value,
         )
         return default_factory()
+
+
+def get_strict_adapter(
+    session: Session,
+    *,
+    workspace_id: str,
+    capability: ProviderCapability,
+) -> CapabilityAdapter:
+    """Return an adapter only from explicit workspace configuration."""
+    provider = get_workspace_provider_selection(session, workspace_id, capability)
+    if provider is None:
+        raise ProviderResolutionError(
+            "No active provider selection for "
+            f"workspace={workspace_id} capability={capability.value}"
+        )
+
+    factory = _PROVIDER_MAP.get((provider, capability))
+    if factory is None:
+        raise ProviderResolutionError(
+            f"No adapter factory for provider={provider.value} "
+            f"capability={capability.value}"
+        )
+
+    creds = resolve_stored_provider_credentials(
+        session,
+        workspace_id=workspace_id,
+        provider=provider,
+        channel=_CAPABILITY_CHANNEL[capability],
+    )
+    if creds is None:
+        raise ProviderResolutionError(
+            "No active credentials for "
+            f"workspace={workspace_id} provider={provider.value} "
+            f"channel={_CAPABILITY_CHANNEL[capability]}"
+        )
+    return factory(creds)
 
 
 # Convenience helpers — one per capability for readability at call sites.

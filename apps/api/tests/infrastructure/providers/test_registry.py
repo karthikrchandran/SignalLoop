@@ -4,8 +4,15 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+from sqlmodel import Session, SQLModel, create_engine
 
-from app.domain_models import NotificationProvider, ProviderCapability
+from app.core.encryption import encrypt
+from app.domain_models import (
+    NotificationProvider,
+    ProviderCapability,
+    ProviderCredential,
+    WorkspaceProviderSelection,
+)
 from app.infrastructure.providers import registry as reg
 from app.infrastructure.providers.base import EmailAdapter
 from app.infrastructure.providers.errors import ProviderConfigurationError
@@ -93,6 +100,81 @@ def test_get_adapter_reraises_when_no_default(monkeypatch: pytest.MonkeyPatch) -
             capability=ProviderCapability.email,
             default_factory=None,
         )
+
+
+def test_get_strict_adapter_requires_explicit_workspace_selection() -> None:
+    engine = create_engine("sqlite://")
+    SQLModel.metadata.create_all(
+        engine, tables=[WorkspaceProviderSelection.__table__, ProviderCredential.__table__]
+    )
+
+    with Session(engine) as session:
+        with pytest.raises(reg.ProviderResolutionError, match="No active provider selection"):
+            reg.get_strict_adapter(
+                session,
+                workspace_id="ws1",
+                capability=ProviderCapability.email,
+            )
+
+
+def test_get_strict_adapter_requires_active_stored_credential() -> None:
+    engine = create_engine("sqlite://")
+    SQLModel.metadata.create_all(
+        engine, tables=[WorkspaceProviderSelection.__table__, ProviderCredential.__table__]
+    )
+
+    with Session(engine) as session:
+        session.add(
+            WorkspaceProviderSelection(
+                workspace_id="ws1",
+                capability=ProviderCapability.email,
+                provider=NotificationProvider.sendgrid,
+            )
+        )
+        session.commit()
+
+        with pytest.raises(reg.ProviderResolutionError, match="No active credentials"):
+            reg.get_strict_adapter(
+                session,
+                workspace_id="ws1",
+                capability=ProviderCapability.email,
+            )
+
+
+def test_get_strict_adapter_uses_active_encrypted_credential() -> None:
+    engine = create_engine("sqlite://")
+    SQLModel.metadata.create_all(
+        engine, tables=[WorkspaceProviderSelection.__table__, ProviderCredential.__table__]
+    )
+
+    with Session(engine) as session:
+        session.add(
+            WorkspaceProviderSelection(
+                workspace_id="ws1",
+                capability=ProviderCapability.email,
+                provider=NotificationProvider.sendgrid,
+            )
+        )
+        session.add(
+            ProviderCredential(
+                workspace_id="ws1",
+                provider=NotificationProvider.sendgrid,
+                channel="email",
+                encrypted_api_key=encrypt("SG.enterprise"),
+                config_json={"from_email": "from@example.com"},
+            )
+        )
+        session.commit()
+
+        out = reg.get_strict_adapter(
+            session,
+            workspace_id="ws1",
+            capability=ProviderCapability.email,
+        )
+
+    assert isinstance(out, SendGridAdapter)
+    assert out._api_key == "SG.enterprise"
+    assert out._from_email == "from@example.com"
 
 
 def test_build_adapter_from_credential_bypasses_selection(
