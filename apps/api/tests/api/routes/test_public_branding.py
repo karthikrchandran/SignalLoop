@@ -8,6 +8,8 @@ def test_known_local_domain_returns_safe_branding() -> None:
         response = client.get("/api/v1/public/entry", headers={"host": "ara.localhost"})
     assert response.status_code == 200
     assert response.json()["tenant_key"] == "ara-global"
+    assert response.json()["oidc_start_url"] == "/api/v1/auth/oidc/start"
+    assert response.json()["products"] == ["CommitArc", "RevenueOS", "SignalLoop"]
     assert "support_email" not in response.json()
 
 

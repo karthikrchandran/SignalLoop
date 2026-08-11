@@ -24,8 +24,22 @@ test("uses organization sign-in as the only entry in OIDC mode", async ({
     process.env.VITE_AUTH_MODE !== "oidc",
     "This assertion runs against the OIDC-mode frontend build.",
   )
+  await page.route("**/api/v1/public/entry", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        display_name: "ARA Global Revenue Workspace",
+        headline: "Turn every customer commitment into coordinated action.",
+        products: ["CommitArc", "RevenueOS", "SignalLoop"],
+      }),
+    })
+  })
   await page.goto("/login")
 
+  await expect(
+    page.getByRole("heading", { name: "ARA Global Revenue Workspace" }),
+  ).toBeVisible()
   await expect(
     page.getByRole("link", { name: "Continue with your work account" }),
   ).toBeVisible()

@@ -46,14 +46,16 @@ def public_entry(
             "headline": "Turn every customer commitment into coordinated action.",
             "primary_color": "#0f172a",
             "secondary_color": "#ffffff",
-            "oidc_start_url": "/api/v1/oidc/start",
+            "oidc_start_url": "/api/v1/auth/oidc/start",
+            "products": ["CommitArc", "RevenueOS", "SignalLoop"],
         },
         "ai-consulting": {
             "display_name": "AI Consulting Revenue Workspace",
             "headline": "Coordinate growth with one trusted workspace.",
             "primary_color": "#1e3a8a",
             "secondary_color": "#ffffff",
-            "oidc_start_url": "/api/v1/oidc/start",
+            "oidc_start_url": "/api/v1/auth/oidc/start",
+            "products": ["CommitArc", "RevenueOS", "SignalLoop"],
         },
     }
     entry = entries.get(tenant_key)

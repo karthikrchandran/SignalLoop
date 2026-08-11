@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input"
 import { LoadingButton } from "@/components/ui/loading-button"
 import { PasswordInput } from "@/components/ui/password-input"
 import { OidcLoginButton } from "@/features/auth/OidcLoginButton"
+import { TenantSuiteEntry } from "@/features/entry/TenantSuiteEntry"
 import useAuth, { isLoggedIn } from "@/hooks/useAuth"
 import { isOidcMode } from "@/lib/auth-session"
 
@@ -82,6 +83,7 @@ function Login() {
               Use your organization account to continue.
             </p>
           </div>
+          <TenantSuiteEntry />
           <OidcLoginButton returnTo={returnTo} />
         </div>
       </AuthLayout>
