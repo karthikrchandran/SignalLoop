@@ -23,6 +23,8 @@ test("tenant administrator sees tenant-scoped navigation", async ({ page }) => {
   await page.goto("/admin")
 
   await expect(page.getByRole("heading", { name: "Tenant administration" })).toBeVisible()
-  await expect(page.getByRole("link", { name: "People and roles" })).toBeVisible()
+  await expect(
+    page.getByRole("link", { name: "People and roles" }),
+  ).toHaveAttribute("href", "/admin/members")
   await expect(page.getByRole("link", { name: "Products" })).toBeVisible()
 })

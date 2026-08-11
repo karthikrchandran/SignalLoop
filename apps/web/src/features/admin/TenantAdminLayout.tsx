@@ -1,10 +1,10 @@
 const tenantLinks = [
-  "People and roles",
-  "Products",
-  "Branding",
-  "Security",
-  "Messaging",
-  "Tenant audit",
+  { label: "People and roles", href: "/admin/members" },
+  { label: "Products", href: "#tenant-workspace" },
+  { label: "Branding", href: "#tenant-workspace" },
+  { label: "Security", href: "#tenant-workspace" },
+  { label: "Messaging", href: "#tenant-workspace" },
+  { label: "Tenant audit", href: "#tenant-workspace" },
 ]
 
 export function TenantAdminLayout() {
@@ -17,9 +17,9 @@ export function TenantAdminLayout() {
         </p>
       </div>
       <nav aria-label="Tenant administration" className="flex flex-wrap gap-2">
-        {tenantLinks.map((label) => (
-          <a key={label} href="#tenant-workspace" className="rounded-md border bg-card px-3 py-2 text-sm font-medium hover:border-primary/60 hover:text-primary">
-            {label}
+        {tenantLinks.map((link) => (
+          <a key={link.label} href={link.href} className="rounded-md border bg-card px-3 py-2 text-sm font-medium hover:border-primary/60 hover:text-primary">
+            {link.label}
           </a>
         ))}
       </nav>

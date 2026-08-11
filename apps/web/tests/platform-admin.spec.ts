@@ -23,6 +23,9 @@ test("platform administrator sees control-plane navigation", async ({ page }) =>
   await page.goto("/platform")
 
   await expect(page.getByRole("heading", { name: "Platform administration" })).toBeVisible()
-  await expect(page.getByRole("link", { name: "Tenants" })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Tenants" })).toHaveAttribute(
+    "href",
+    "/platform/tenants",
+  )
   await expect(page.getByRole("link", { name: "Support access" })).toBeVisible()
 })

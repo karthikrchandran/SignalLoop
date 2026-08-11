@@ -1,12 +1,12 @@
 const platformLinks = [
-  "Tenants",
-  "Products",
-  "Identity",
-  "Messaging defaults",
-  "Provider policies",
-  "Usage and health",
-  "Support access",
-  "Audit",
+  { label: "Tenants", href: "/platform/tenants" },
+  { label: "Products", href: "#platform-workspace" },
+  { label: "Identity", href: "#platform-workspace" },
+  { label: "Messaging defaults", href: "#platform-workspace" },
+  { label: "Provider policies", href: "#platform-workspace" },
+  { label: "Usage and health", href: "#platform-workspace" },
+  { label: "Support access", href: "#platform-workspace" },
+  { label: "Audit", href: "#platform-workspace" },
 ]
 
 export function PlatformAdminLayout() {
@@ -19,9 +19,9 @@ export function PlatformAdminLayout() {
         </p>
       </section>
       <nav aria-label="Platform administration" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {platformLinks.map((label) => (
-          <a key={label} href="#platform-workspace" className="rounded-md border bg-card px-3 py-2 text-sm font-medium hover:border-primary/60 hover:text-primary">
-            {label}
+        {platformLinks.map((link) => (
+          <a key={link.label} href={link.href} className="rounded-md border bg-card px-3 py-2 text-sm font-medium hover:border-primary/60 hover:text-primary">
+            {link.label}
           </a>
         ))}
       </nav>
