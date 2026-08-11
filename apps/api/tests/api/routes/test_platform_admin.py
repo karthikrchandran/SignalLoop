@@ -28,7 +28,7 @@ def test_platform_admin_issues_and_revokes_a_reasoned_support_grant(
 ) -> None:
     tenant = Tenant(key=f"ara-{uuid.uuid4().hex[:8]}", display_name="ARA")
     operator = User(
-        email=f"support-{uuid.uuid4().hex[:8]}@example.test",
+        email=f"support-{uuid.uuid4().hex[:8]}@example.com",
         hashed_password="not-used",
         is_superuser=True,
     )

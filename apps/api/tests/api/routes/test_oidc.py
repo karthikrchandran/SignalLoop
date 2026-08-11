@@ -149,7 +149,7 @@ def test_oidc_callback_activates_the_bound_invitation_once(
     assert authenticated.json()["email"] == "owner@example.com"
     assert replay.status_code == 400
     assert logout.status_code == 204
-    assert after_logout.status_code == 403
+    assert after_logout.status_code == 401
     db.refresh(invitation)
     assert invitation.status == "ACCEPTED"
     assert db.exec(select(OidcIdentity)).one().subject == "subject-1"
