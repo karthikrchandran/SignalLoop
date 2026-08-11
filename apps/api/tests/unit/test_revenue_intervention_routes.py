@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 from fastapi import HTTPException
 from sqlmodel import Session, SQLModel, create_engine, select
@@ -34,8 +36,10 @@ from app.domain.tenants.models import (
     SuiteMembership,
     SuiteProjectionOutbox,
     SuiteRoleAssignment,
+    SupportAccessGrant,
     Tenant,
     TenantEntitlement,
+    utc_now,
 )
 from app.domain_models import (
     NotificationProvider,
@@ -60,6 +64,7 @@ def _session() -> Session:
             WorkspaceProviderSelection.__table__,
             SuiteMembership.__table__,
             SuiteRoleAssignment.__table__,
+            SupportAccessGrant.__table__,
             RevenueSignalRecord.__table__,
             RevenueInterventionRecord.__table__,
             RevenueInterventionDispatch.__table__,
@@ -411,3 +416,83 @@ def test_operational_health_reports_projection_provider_and_dispatch_state() -> 
         assert health["provider"]["email"]["provider"] == "sendgrid"
         assert health["provider"]["email"]["credential_configured"] is True
         assert health["installations"][0]["projection_ready"] is True
+
+
+def test_operational_health_accepts_live_tenant_scoped_support_grant() -> None:
+    with _session() as session:
+        operator = User(email="support@example.com", hashed_password="not-used")
+        tenant = Tenant(key="supported-tenant", display_name="Supported Tenant")
+        session.add(operator)
+        session.add(tenant)
+        session.flush()
+        session.add(
+            TenantEntitlement(
+                tenant_id=tenant.id,
+                product_code=ProductCode.REVENUE_OS,
+            )
+        )
+        grant = SupportAccessGrant(
+            tenant_id=tenant.id,
+            operator_user_id=operator.id,
+            capabilities=["revenueos.admin.manage"],
+            reason="Investigate dispatch backlog",
+            ticket_reference="SUP-42",
+            approved_by=operator.id,
+            expires_at=utc_now() + timedelta(hours=1),
+        )
+        session.add(grant)
+        session.commit()
+
+        health = operational_health(
+            session=session,
+            current_user=operator,
+            x_tenant_key=tenant.key,
+            x_support_grant_id=str(grant.id),
+        )
+
+        assert health["tenant_key"] == tenant.key
+        event = session.exec(
+            select(AuditEvent).where(AuditEvent.event_name == "support.grant.used")
+        ).one()
+        assert event.resource_id == str(grant.id)
+
+
+def test_operational_health_denies_cross_tenant_support_grant_and_audits() -> None:
+    with _session() as session:
+        operator = User(email="support-denied@example.com", hashed_password="not-used")
+        requested_tenant = Tenant(key="requested-tenant", display_name="Requested Tenant")
+        granted_tenant = Tenant(key="granted-tenant", display_name="Granted Tenant")
+        session.add(operator)
+        session.add(requested_tenant)
+        session.add(granted_tenant)
+        session.flush()
+        session.add(
+            TenantEntitlement(
+                tenant_id=requested_tenant.id,
+                product_code=ProductCode.REVENUE_OS,
+            )
+        )
+        grant = SupportAccessGrant(
+            tenant_id=granted_tenant.id,
+            operator_user_id=operator.id,
+            capabilities=["revenueos.admin.manage"],
+            reason="Investigate dispatch backlog",
+            approved_by=operator.id,
+            expires_at=utc_now() + timedelta(hours=1),
+        )
+        session.add(grant)
+        session.commit()
+
+        with pytest.raises(HTTPException) as exc_info:
+            operational_health(
+                session=session,
+                current_user=operator,
+                x_tenant_key=requested_tenant.key,
+                x_support_grant_id=str(grant.id),
+            )
+
+        assert exc_info.value.status_code == 404
+        event = session.exec(
+            select(AuditEvent).where(AuditEvent.event_name == "support.grant.denied")
+        ).one()
+        assert event.payload["denial_reason"] == "SUPPORT_GRANT_TENANT_MISMATCH"

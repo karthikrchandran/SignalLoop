@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Query, status
@@ -17,12 +18,17 @@ from app.domain.revenue_intelligence.persistence_models import (
     RevenueInterventionOutcome,
     RevenueInterventionRecord,
 )
+from app.domain.support_access.service import (
+    SupportAccessDenied,
+    resolve_support_context,
+)
 from app.domain.tenants.capabilities import resolve_suite_context
 from app.domain.tenants.models import (
     ProductCode,
     ProductInstallation,
     SuiteProjectionOutbox,
     Tenant,
+    TenantEntitlement,
 )
 from app.domain_models import (
     ProviderCapability,
@@ -54,12 +60,40 @@ def _tenant_context(
     current_user: CurrentUser,
     tenant_key: str | None,
     capability: str,
+    support_grant_id: str | None = None,
 ) -> Tenant:
     if not tenant_key:
         raise HTTPException(status_code=400, detail="X-Tenant-Key is required")
     tenant = session.exec(select(Tenant).where(Tenant.key == tenant_key)).one_or_none()
     if tenant is None:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    if support_grant_id:
+        try:
+            grant_id = UUID(support_grant_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="Not found") from exc
+        entitlement = session.exec(
+            select(TenantEntitlement).where(
+                TenantEntitlement.tenant_id == tenant.id,
+                TenantEntitlement.product_code == ProductCode.REVENUE_OS,
+                TenantEntitlement.status == "ACTIVE",
+            )
+        ).one_or_none()
+        if tenant.status != "ACTIVE" or entitlement is None:
+            raise HTTPException(status_code=404, detail="Not found")
+        try:
+            resolve_support_context(
+                session,
+                grant_id=grant_id,
+                operator_user_id=current_user.id,
+                tenant_id=tenant.id,
+                required_capability=capability,
+            )
+            session.commit()
+        except SupportAccessDenied as exc:
+            session.commit()
+            raise HTTPException(status_code=404, detail="Not found") from exc
+        return tenant
     try:
         context = resolve_suite_context(session, user_id=current_user.id, tenant_id=tenant.id)
     except PermissionError as exc:
@@ -136,8 +170,9 @@ def list_interventions(
     session: SessionDep,
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
+    x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
 ):
-    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.essentials.read")
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.essentials.read", x_support_grant_id)
     store = RevenueInterventionStore(session)
     return {"data": [_public(tenant, item) for item in store.list_interventions(tenant_id=tenant.id)]}
 
@@ -149,8 +184,9 @@ def propose_intervention(
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
 ):
-    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.essentials.read")
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.essentials.read", x_support_grant_id)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key is required")
     try:
@@ -175,8 +211,9 @@ def list_dispatches(
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     dispatch_status: str | None = Query(default=None, alias="status"),
+    x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
 ):
-    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage")
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
     store = RevenueInterventionStore(session)
     all_rows = store.list_dispatches(tenant_id=tenant.id)
     requested_status = dispatch_status.upper() if dispatch_status else None
@@ -197,9 +234,10 @@ def operational_health(
     session: SessionDep,
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
+    x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
 ):
     """Return tenant-scoped execution readiness and durable failure state."""
-    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage")
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
     dispatches = RevenueInterventionStore(session).list_dispatches(tenant_id=tenant.id)
     projections = list(
         session.exec(
@@ -288,8 +326,9 @@ def retry_dispatch(
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
 ):
-    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage")
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key is required")
     try:
@@ -314,8 +353,9 @@ def get_intervention(
     session: SessionDep,
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
+    x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
 ):
-    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.essentials.read")
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.essentials.read", x_support_grant_id)
     try:
         item = RevenueInterventionStore(session).get_intervention(
             tenant_id=tenant.id,
@@ -334,8 +374,9 @@ def approve(
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
 ):
-    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage")
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key is required")
     try:
@@ -360,8 +401,9 @@ def reject(
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
 ):
-    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage")
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key is required")
     try:
@@ -388,8 +430,9 @@ def cancel(
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
 ):
-    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage")
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key is required")
     try:
@@ -416,8 +459,9 @@ def outcome(
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
 ):
-    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage")
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key is required")
     try:
