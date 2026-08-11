@@ -1,15 +1,17 @@
+import type { PropsWithChildren } from "react"
+
 const platformLinks = [
   { label: "Tenants", href: "/platform/tenants" },
-  { label: "Products", href: "#platform-workspace" },
-  { label: "Identity", href: "#platform-workspace" },
-  { label: "Messaging defaults", href: "#platform-workspace" },
-  { label: "Provider policies", href: "#platform-workspace" },
-  { label: "Usage and health", href: "#platform-workspace" },
-  { label: "Support access", href: "#platform-workspace" },
-  { label: "Audit", href: "#platform-workspace" },
+  { label: "Products", href: "/platform/products" },
+  { label: "Identity", href: "/platform/identity" },
+  { label: "Messaging defaults", href: "/platform/messaging" },
+  { label: "Provider policies", href: "/platform/provider-policies" },
+  { label: "Usage and health", href: "/platform/usage-health" },
+  { label: "Support access", href: "/platform/support-access" },
+  { label: "Audit", href: "/platform/audit" },
 ]
 
-export function PlatformAdminLayout() {
+export function PlatformAdminLayout({ children }: PropsWithChildren) {
   return (
     <div className="space-y-6">
       <section>
@@ -25,12 +27,7 @@ export function PlatformAdminLayout() {
           </a>
         ))}
       </nav>
-      <section id="platform-workspace" className="rounded-lg border bg-card p-5">
-        <h2 className="text-lg font-semibold">Control-plane workspace</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Select a control-plane area to manage tenant lifecycle, product access, identity configuration, and audited support access.
-        </p>
-      </section>
+      {children}
     </div>
   )
 }
