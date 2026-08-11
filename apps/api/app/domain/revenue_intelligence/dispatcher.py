@@ -6,7 +6,12 @@ from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
+from .enforcement import (
+    InterventionEnforcementDecision,
+    PersistedSignalEnforcementGate,
+)
 from .persistence import RevenueInterventionStore
+from .persistence_models import RevenueSignalRecord
 
 
 @dataclass(frozen=True)
@@ -29,11 +34,30 @@ class InterventionDelivery(Protocol):
         """Deliver one explicitly described intervention."""
 
 
+class InterventionEnforcementGate(Protocol):
+    """Policy boundary evaluated immediately before provider execution."""
+
+    def evaluate(
+        self,
+        *,
+        action: str,
+        payload: dict[str, object],
+        signal: RevenueSignalRecord,
+    ) -> InterventionEnforcementDecision:
+        """Return a current policy decision for this dispatch."""
+
+
 class RevenueInterventionDispatcher:
     """Recheck policy gates immediately before execution, then settle durably."""
 
-    def __init__(self, delivery: InterventionDelivery) -> None:
+    def __init__(
+        self,
+        delivery: InterventionDelivery,
+        *,
+        enforcement_gate: InterventionEnforcementGate | None = None,
+    ) -> None:
         self.delivery = delivery
+        self.enforcement_gate = enforcement_gate or PersistedSignalEnforcementGate()
 
     async def dispatch(
         self, store: RevenueInterventionStore, *, tenant_id: UUID, dispatch_id: UUID
@@ -42,22 +66,17 @@ class RevenueInterventionDispatcher:
             tenant_id=tenant_id,
             dispatch_id=dispatch_id,
         )
-        if not signal.consent_verified:
-            store.record_dispatch_failure(
+        decision = self.enforcement_gate.evaluate(
+            action=intervention.action,
+            payload=intervention.action_payload,
+            signal=signal,
+        )
+        if not decision.allowed:
+            store.record_dispatch_policy_block(
                 tenant_id=tenant_id,
                 dispatch_id=dispatch.id,
-                provider="policy-gate",
-                reason="CONSENT_NOT_VERIFIED",
-                retryable=False,
-            )
-            return
-        if not signal.policy_allowed:
-            store.record_dispatch_failure(
-                tenant_id=tenant_id,
-                dispatch_id=dispatch.id,
-                provider="policy-gate",
-                reason="POLICY_NOT_ALLOWED",
-                retryable=False,
+                reason=decision.reason or "POLICY_NOT_ALLOWED",
+                next_attempt_at=decision.next_attempt_at,
             )
             return
         try:

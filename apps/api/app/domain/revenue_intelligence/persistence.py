@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlmodel import Session, select
@@ -580,6 +580,51 @@ class RevenueInterventionStore:
                 "provider": dispatch.provider,
                 "reason": dispatch.last_error,
                 "attempt_count": dispatch.attempt_count,
+            },
+        )
+        self.session.commit()
+        self.session.refresh(dispatch)
+        return dispatch
+
+    def record_dispatch_policy_block(
+        self,
+        *,
+        tenant_id: UUID,
+        dispatch_id: UUID,
+        reason: str,
+        next_attempt_at: datetime | None,
+    ) -> RevenueInterventionDispatch:
+        """Record a live policy denial without misclassifying it as a provider failure."""
+        dispatch = self._dispatch(tenant_id, dispatch_id)
+        intervention = self._intervention(tenant_id, dispatch.intervention_id)
+        dispatch.provider = "policy-gate"
+        dispatch.last_error = _require_text(reason, "reason")
+        dispatch.lease_expires_at = None
+        dispatch.updated_at = utc_now()
+        if next_attempt_at is None:
+            dispatch.status = "POLICY_DENIED"
+            dispatch.next_attempt_at = None
+            intervention.status = "DENIED"
+            intervention.denial_reason = dispatch.last_error
+            event_name = "revenueos.intervention.dispatch_policy_denied"
+        else:
+            dispatch.status = "RETRY_SCHEDULED"
+            dispatch.next_attempt_at = next_attempt_at
+            event_name = "revenueos.intervention.dispatch_policy_deferred"
+        intervention.updated_at = utc_now()
+        self.session.add(dispatch)
+        self.session.add(intervention)
+        self._audit(
+            tenant_id=tenant_id,
+            event_name=event_name,
+            resource_type="revenue_intervention_dispatch",
+            resource_id=str(dispatch.id),
+            payload={
+                "intervention_id": str(intervention.id),
+                "reason": dispatch.last_error,
+                "next_attempt_at": (
+                    dispatch.next_attempt_at.isoformat() if dispatch.next_attempt_at else None
+                ),
             },
         )
         self.session.commit()

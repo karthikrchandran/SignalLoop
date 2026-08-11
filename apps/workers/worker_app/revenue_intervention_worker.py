@@ -20,6 +20,9 @@ from app.domain.revenue_intelligence.dispatcher import (  # noqa: E402
     InterventionDelivery,
     RevenueInterventionDispatcher,
 )
+from app.domain.revenue_intelligence.enforcement import (  # noqa: E402
+    ConfiguredInterventionEnforcementGate,
+)
 from app.domain.revenue_intelligence.persistence import RevenueInterventionStore  # noqa: E402
 from app.domain.revenue_intelligence.persistence_models import (  # noqa: E402
     RevenueInterventionDispatch,
@@ -77,7 +80,13 @@ async def process_claimed_revenue_interventions(
                     workspace_id=installation.local_identifier,
                 )
             )
-            await RevenueInterventionDispatcher(delivery).dispatch(
+            await RevenueInterventionDispatcher(
+                delivery,
+                enforcement_gate=ConfiguredInterventionEnforcementGate(
+                    session=session,
+                    workspace_id=installation.local_identifier,
+                ),
+            ).dispatch(
                 store,
                 tenant_id=tenant_id,
                 dispatch_id=dispatch.id,

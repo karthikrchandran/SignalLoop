@@ -15,12 +15,14 @@ from app.domain.revenue_intelligence.persistence_models import (
     RevenueInterventionTransition,
     RevenueSignalRecord,
 )
+from app.domain.sequences.suppression import EmailSuppression
 from app.domain.tenants.models import (
     ProductCode,
     ProductInstallation,
     Tenant,
     utc_now,
 )
+from app.domain_models import ActionQueue, Contact, GlobalControlState, GovernancePolicy
 from worker_app.revenue_intervention_worker import process_claimed_revenue_interventions
 
 
@@ -47,6 +49,11 @@ def _session() -> Session:
         tables=[
             Tenant.__table__,
             ProductInstallation.__table__,
+            Contact.__table__,
+            EmailSuppression.__table__,
+            GovernancePolicy.__table__,
+            GlobalControlState.__table__,
+            ActionQueue.__table__,
             RevenueSignalRecord.__table__,
             RevenueInterventionRecord.__table__,
             RevenueInterventionDispatch.__table__,
@@ -69,6 +76,12 @@ def _approved_dispatch(session: Session) -> tuple[Tenant, RevenueInterventionDis
             local_identifier="ws-ara",
         )
     )
+    contact = Contact(
+        workspace_id="ws-ara",
+        email="owner@example.test",
+        consent_email=True,
+    )
+    session.add(contact)
     session.commit()
     store = RevenueInterventionStore(session)
     signal = store.record_signal(
@@ -88,6 +101,7 @@ def _approved_dispatch(session: Session) -> tuple[Tenant, RevenueInterventionDis
         signal_id=signal.id,
         action="send_email",
         action_payload={
+            "contact_id": str(contact.id),
             "to": "owner@example.test",
             "subject": "Review account",
             "body_text": "Review account A.",
