@@ -90,3 +90,46 @@ class RevenueInterventionDispatch(SQLModel, table=True):
     last_error: str | None = Field(default=None, max_length=1000)
     created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
     updated_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
+
+
+class RevenueInterventionTransition(SQLModel, table=True):
+    """Idempotent operator decision applied to one intervention."""
+
+    __tablename__ = "revenue_intervention_transition"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "idempotency_key", name="uq_revenue_transition_tenant_key"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    tenant_id: uuid.UUID = Field(
+        sa_column=Column(ForeignKey("suite_tenant.id", ondelete="CASCADE"), nullable=False, index=True)
+    )
+    intervention_id: uuid.UUID = Field(
+        sa_column=Column(ForeignKey("revenue_intervention_record.id", ondelete="CASCADE"), nullable=False, index=True)
+    )
+    action: str = Field(sa_column=Column(String(32), nullable=False))
+    actor_id: str = Field(sa_column=Column(String(255), nullable=False))
+    idempotency_key: str = Field(sa_column=Column(String(255), nullable=False))
+    created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
+
+
+class RevenueInterventionOutcome(SQLModel, table=True):
+    """Append-only evidence-backed business outcome for a dispatched intervention."""
+
+    __tablename__ = "revenue_intervention_outcome"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "idempotency_key", name="uq_revenue_outcome_tenant_key"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    tenant_id: uuid.UUID = Field(
+        sa_column=Column(ForeignKey("suite_tenant.id", ondelete="CASCADE"), nullable=False, index=True)
+    )
+    intervention_id: uuid.UUID = Field(
+        sa_column=Column(ForeignKey("revenue_intervention_record.id", ondelete="CASCADE"), nullable=False, index=True)
+    )
+    status: str = Field(sa_column=Column(String(64), nullable=False))
+    evidence_refs: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    actor_id: str = Field(sa_column=Column(String(255), nullable=False))
+    idempotency_key: str = Field(sa_column=Column(String(255), nullable=False))
+    created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))

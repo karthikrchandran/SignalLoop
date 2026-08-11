@@ -12,7 +12,10 @@ from app.domain.revenue_intelligence.persistence import (
     RevenueInterventionNotFound,
     RevenueInterventionStore,
 )
-from app.domain.revenue_intelligence.persistence_models import RevenueInterventionRecord
+from app.domain.revenue_intelligence.persistence_models import (
+    RevenueInterventionOutcome,
+    RevenueInterventionRecord,
+)
 from app.domain.tenants.capabilities import resolve_suite_context
 from app.domain.tenants.models import Tenant
 
@@ -27,6 +30,11 @@ class InterventionProposal(BaseModel):
     signal_id: UUID
     action: str = Field(min_length=1)
     action_payload: dict[str, object] = Field(default_factory=dict)
+    evidence_refs: list[str] = Field(min_length=1)
+
+
+class InterventionOutcome(BaseModel):
+    status: str = Field(min_length=1)
     evidence_refs: list[str] = Field(min_length=1)
 
 
@@ -50,6 +58,14 @@ def _tenant_context(
     return tenant
 
 
+def _actor_subject(body: InterventionAction, current_user: CurrentUser) -> str:
+    """Bind audit attribution to authentication, rejecting caller impersonation."""
+    actor = str(current_user.id)
+    if body.actor is not None and body.actor.strip() != actor:
+        raise HTTPException(status_code=400, detail="actor must match the authenticated user")
+    return actor
+
+
 def _public(tenant: Tenant, item: RevenueInterventionRecord) -> dict[str, object]:
     return {
         "id": str(item.id),
@@ -59,6 +75,17 @@ def _public(tenant: Tenant, item: RevenueInterventionRecord) -> dict[str, object
         "action_payload": item.action_payload,
         "status": item.status,
         "denial_reason": item.denial_reason,
+        "evidence_refs": list(item.evidence_refs),
+        "created_at": item.created_at,
+    }
+
+
+def _outcome_public(tenant: Tenant, item: RevenueInterventionOutcome) -> dict[str, object]:
+    return {
+        "id": str(item.id),
+        "tenant_key": tenant.key,
+        "intervention_id": str(item.intervention_id),
+        "status": item.status,
         "evidence_refs": list(item.evidence_refs),
         "created_at": item.created_at,
     }
@@ -136,7 +163,8 @@ def approve(
         item = RevenueInterventionStore(session).approve_intervention(
             tenant_id=tenant.id,
             intervention_id=intervention_id,
-            actor_id=body.actor or str(current_user.id),
+            actor_id=_actor_subject(body, current_user),
+            idempotency_key=idempotency_key,
         )
         return _public(tenant, item)
     except RevenueInterventionNotFound as exc:
@@ -154,15 +182,23 @@ def reject(
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
-    _unsupported_transition(
-        session=session,
-        current_user=current_user,
-        x_tenant_key=x_tenant_key,
-        idempotency_key=idempotency_key,
-        intervention_id=intervention_id,
-        actor=body.actor,
-    )
-    raise HTTPException(status_code=501, detail="Durable rejection is not implemented yet")
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage")
+    if not idempotency_key:
+        raise HTTPException(status_code=400, detail="Idempotency-Key is required")
+    try:
+        item = RevenueInterventionStore(session).reject_intervention(
+            tenant_id=tenant.id,
+            intervention_id=intervention_id,
+            actor_id=_actor_subject(body, current_user),
+            idempotency_key=idempotency_key,
+        )
+        return _public(tenant, item)
+    except RevenueInterventionNotFound as exc:
+        raise HTTPException(status_code=404, detail="Intervention not found") from exc
+    except RevenueInterventionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.post("/{intervention_id}/cancel")
@@ -174,52 +210,50 @@ def cancel(
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
-    _unsupported_transition(
-        session=session,
-        current_user=current_user,
-        x_tenant_key=x_tenant_key,
-        idempotency_key=idempotency_key,
-        intervention_id=intervention_id,
-        actor=body.actor,
-    )
-    raise HTTPException(status_code=501, detail="Durable cancellation is not implemented yet")
+    tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage")
+    if not idempotency_key:
+        raise HTTPException(status_code=400, detail="Idempotency-Key is required")
+    try:
+        item = RevenueInterventionStore(session).cancel_intervention(
+            tenant_id=tenant.id,
+            intervention_id=intervention_id,
+            actor_id=_actor_subject(body, current_user),
+            idempotency_key=idempotency_key,
+        )
+        return _public(tenant, item)
+    except RevenueInterventionNotFound as exc:
+        raise HTTPException(status_code=404, detail="Intervention not found") from exc
+    except RevenueInterventionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.post("/{intervention_id}/outcome")
 def outcome(
     intervention_id: UUID,
-    body: dict[str, object],
+    body: InterventionOutcome,
     session: SessionDep,
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
-    _unsupported_transition(
-        session=session,
-        current_user=current_user,
-        x_tenant_key=x_tenant_key,
-        idempotency_key=idempotency_key,
-        intervention_id=intervention_id,
-        actor=str(body.get("actor", "")),
-    )
-    raise HTTPException(status_code=501, detail="Durable outcome recording is not implemented yet")
-
-
-def _unsupported_transition(
-    *,
-    session: SessionDep,
-    current_user: CurrentUser,
-    x_tenant_key: str | None,
-    idempotency_key: str | None,
-    intervention_id: UUID,
-    actor: str | None,
-) -> None:
     tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage")
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key is required")
-    RevenueInterventionStore(session).get_intervention(
-        tenant_id=tenant.id,
-        intervention_id=intervention_id,
-    )
-    if actor is not None:
-        actor.strip()
+    try:
+        item = RevenueInterventionStore(session).record_outcome(
+            tenant_id=tenant.id,
+            intervention_id=intervention_id,
+            status=body.status,
+            evidence_refs=body.evidence_refs,
+            actor_id=str(current_user.id),
+            idempotency_key=idempotency_key,
+        )
+        return _outcome_public(tenant, item)
+    except RevenueInterventionNotFound as exc:
+        raise HTTPException(status_code=404, detail="Intervention not found") from exc
+    except RevenueInterventionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

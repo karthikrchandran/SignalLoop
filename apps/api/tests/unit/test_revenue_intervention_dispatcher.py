@@ -12,7 +12,9 @@ from app.domain.revenue_intelligence.dispatcher import (
 from app.domain.revenue_intelligence.persistence import RevenueInterventionStore
 from app.domain.revenue_intelligence.persistence_models import (
     RevenueInterventionDispatch,
+    RevenueInterventionOutcome,
     RevenueInterventionRecord,
+    RevenueInterventionTransition,
     RevenueSignalRecord,
 )
 from app.domain.tenants.models import Tenant
@@ -42,6 +44,8 @@ def test_dispatcher_executes_approved_intervention_with_explicit_payload() -> No
             RevenueSignalRecord.__table__,
             RevenueInterventionRecord.__table__,
             RevenueInterventionDispatch.__table__,
+            RevenueInterventionTransition.__table__,
+            RevenueInterventionOutcome.__table__,
             AuditEvent.__table__,
         ],
     )

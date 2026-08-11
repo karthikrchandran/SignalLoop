@@ -12,7 +12,9 @@ from app.domain.tenants.models import Tenant, utc_now
 
 from .persistence_models import (
     RevenueInterventionDispatch,
+    RevenueInterventionOutcome,
     RevenueInterventionRecord,
+    RevenueInterventionTransition,
     RevenueSignalRecord,
 )
 
@@ -195,11 +197,24 @@ class RevenueInterventionStore:
         return intervention
 
     def approve_intervention(
-        self, *, tenant_id: UUID, intervention_id: UUID, actor_id: str
+        self,
+        *,
+        tenant_id: UUID,
+        intervention_id: UUID,
+        actor_id: str,
+        idempotency_key: str | None = None,
     ) -> RevenueInterventionRecord:
+        key = idempotency_key or f"approve:{intervention_id}"
+        replay = self._transition_replay(
+            tenant_id=tenant_id,
+            intervention_id=intervention_id,
+            action="APPROVE",
+            actor_id=actor_id,
+            idempotency_key=key,
+        )
+        if replay is not None:
+            return replay
         intervention = self._intervention(tenant_id, intervention_id)
-        if intervention.status == "APPROVED":
-            return intervention
         if intervention.status != "PROPOSED":
             raise ValueError(f"cannot approve intervention in {intervention.status} state")
         intervention.status = "APPROVED"
@@ -213,6 +228,13 @@ class RevenueInterventionStore:
                 intervention_id=intervention.id,
             )
         )
+        self._add_transition(
+            tenant_id=tenant_id,
+            intervention_id=intervention.id,
+            action="APPROVE",
+            actor_id=intervention.approved_by,
+            idempotency_key=key,
+        )
         self._audit(
             tenant_id=tenant_id,
             event_name="revenueos.intervention.approved",
@@ -223,6 +245,123 @@ class RevenueInterventionStore:
         self.session.commit()
         self.session.refresh(intervention)
         return intervention
+
+    def reject_intervention(
+        self,
+        *,
+        tenant_id: UUID,
+        intervention_id: UUID,
+        actor_id: str,
+        idempotency_key: str,
+    ) -> RevenueInterventionRecord:
+        return self._terminal_transition(
+            tenant_id=tenant_id,
+            intervention_id=intervention_id,
+            actor_id=actor_id,
+            idempotency_key=idempotency_key,
+            action="REJECT",
+            target_status="REJECTED",
+            allowed_statuses={"PROPOSED"},
+        )
+
+    def cancel_intervention(
+        self,
+        *,
+        tenant_id: UUID,
+        intervention_id: UUID,
+        actor_id: str,
+        idempotency_key: str,
+    ) -> RevenueInterventionRecord:
+        replay = self._transition_replay(
+            tenant_id=tenant_id,
+            intervention_id=intervention_id,
+            action="CANCEL",
+            actor_id=actor_id,
+            idempotency_key=idempotency_key,
+        )
+        if replay is not None:
+            return replay
+        intervention = self._intervention(tenant_id, intervention_id)
+        if intervention.status not in {"PROPOSED", "APPROVED"}:
+            raise ValueError(f"cannot cancel intervention in {intervention.status} state")
+        dispatch = self.session.exec(
+            select(RevenueInterventionDispatch).where(
+                RevenueInterventionDispatch.tenant_id == tenant_id,
+                RevenueInterventionDispatch.intervention_id == intervention.id,
+            )
+        ).one_or_none()
+        if dispatch is not None:
+            if dispatch.status not in {"PENDING", "RETRY_SCHEDULED"}:
+                raise ValueError(f"cannot cancel intervention with dispatch in {dispatch.status} state")
+            dispatch.status = "CANCELLED"
+            dispatch.next_attempt_at = None
+            dispatch.lease_expires_at = None
+            dispatch.updated_at = utc_now()
+            self.session.add(dispatch)
+        return self._apply_terminal_transition(
+            intervention=intervention,
+            actor_id=actor_id,
+            idempotency_key=idempotency_key,
+            action="CANCEL",
+            target_status="CANCELLED",
+        )
+
+    def record_outcome(
+        self,
+        *,
+        tenant_id: UUID,
+        intervention_id: UUID,
+        status: str,
+        evidence_refs: list[str],
+        actor_id: str,
+        idempotency_key: str,
+    ) -> RevenueInterventionOutcome:
+        intervention = self._intervention(tenant_id, intervention_id)
+        key = _require_text(idempotency_key, "idempotency_key")
+        outcome_status = _require_text(status, "status").upper()
+        evidence = _require_evidence(evidence_refs)
+        actor = _require_text(actor_id, "actor_id")
+        existing = self.session.exec(
+            select(RevenueInterventionOutcome).where(
+                RevenueInterventionOutcome.tenant_id == tenant_id,
+                RevenueInterventionOutcome.idempotency_key == key,
+            )
+        ).one_or_none()
+        if existing is not None:
+            if (
+                existing.intervention_id,
+                existing.status,
+                existing.evidence_refs,
+                existing.actor_id,
+            ) != (intervention_id, outcome_status, evidence, actor):
+                raise RevenueInterventionConflict("outcome idempotency key conflicts with existing record")
+            return existing
+        if intervention.status != "DISPATCHED":
+            raise ValueError(f"cannot record outcome for intervention in {intervention.status} state")
+        outcome = RevenueInterventionOutcome(
+            tenant_id=tenant_id,
+            intervention_id=intervention_id,
+            status=outcome_status,
+            evidence_refs=evidence,
+            actor_id=actor,
+            idempotency_key=key,
+        )
+        self.session.add(outcome)
+        self._audit(
+            tenant_id=tenant_id,
+            event_name="revenueos.intervention.outcome_recorded",
+            resource_type="revenue_intervention_outcome",
+            resource_id=str(outcome.id),
+            payload={
+                "intervention_id": str(intervention_id),
+                "status": outcome.status,
+                "actor_subject": actor,
+                "evidence_refs": evidence,
+            },
+        )
+        self.session.commit()
+        self.session.refresh(outcome)
+        return outcome
 
     def list_interventions(self, *, tenant_id: UUID) -> list[RevenueInterventionRecord]:
         return list(
@@ -391,6 +530,113 @@ class RevenueInterventionStore:
         ).one_or_none()
         if intervention is None:
             raise RevenueInterventionNotFound("intervention is not in tenant scope")
+        return intervention
+
+    def _transition_replay(
+        self,
+        *,
+        tenant_id: UUID,
+        intervention_id: UUID,
+        action: str,
+        actor_id: str,
+        idempotency_key: str,
+    ) -> RevenueInterventionRecord | None:
+        key = _require_text(idempotency_key, "idempotency_key")
+        actor = _require_text(actor_id, "actor_id")
+        existing = self.session.exec(
+            select(RevenueInterventionTransition).where(
+                RevenueInterventionTransition.tenant_id == tenant_id,
+                RevenueInterventionTransition.idempotency_key == key,
+            )
+        ).one_or_none()
+        if existing is None:
+            return None
+        if (existing.intervention_id, existing.action, existing.actor_id) != (
+            intervention_id,
+            action,
+            actor,
+        ):
+            raise RevenueInterventionConflict("transition idempotency key conflicts with existing record")
+        return self._intervention(tenant_id, intervention_id)
+
+    def _add_transition(
+        self,
+        *,
+        tenant_id: UUID,
+        intervention_id: UUID,
+        action: str,
+        actor_id: str,
+        idempotency_key: str,
+    ) -> None:
+        self.session.add(
+            RevenueInterventionTransition(
+                tenant_id=tenant_id,
+                intervention_id=intervention_id,
+                action=action,
+                actor_id=_require_text(actor_id, "actor_id"),
+                idempotency_key=_require_text(idempotency_key, "idempotency_key"),
+            )
+        )
+
+    def _terminal_transition(
+        self,
+        *,
+        tenant_id: UUID,
+        intervention_id: UUID,
+        actor_id: str,
+        idempotency_key: str,
+        action: str,
+        target_status: str,
+        allowed_statuses: set[str],
+    ) -> RevenueInterventionRecord:
+        replay = self._transition_replay(
+            tenant_id=tenant_id,
+            intervention_id=intervention_id,
+            action=action,
+            actor_id=actor_id,
+            idempotency_key=idempotency_key,
+        )
+        if replay is not None:
+            return replay
+        intervention = self._intervention(tenant_id, intervention_id)
+        if intervention.status not in allowed_statuses:
+            raise ValueError(f"cannot {action.lower()} intervention in {intervention.status} state")
+        return self._apply_terminal_transition(
+            intervention=intervention,
+            actor_id=actor_id,
+            idempotency_key=idempotency_key,
+            action=action,
+            target_status=target_status,
+        )
+
+    def _apply_terminal_transition(
+        self,
+        *,
+        intervention: RevenueInterventionRecord,
+        actor_id: str,
+        idempotency_key: str,
+        action: str,
+        target_status: str,
+    ) -> RevenueInterventionRecord:
+        intervention.status = target_status
+        intervention.updated_at = utc_now()
+        self.session.add(intervention)
+        self._add_transition(
+            tenant_id=intervention.tenant_id,
+            intervention_id=intervention.id,
+            action=action,
+            actor_id=actor_id,
+            idempotency_key=idempotency_key,
+        )
+        self._audit(
+            tenant_id=intervention.tenant_id,
+            event_name=f"revenueos.intervention.{action.lower()}ed",
+            resource_type="revenue_intervention",
+            resource_id=str(intervention.id),
+            payload={"actor_subject": actor_id, "status": target_status},
+        )
+        self.session.commit()
+        self.session.refresh(intervention)
         return intervention
 
     def _dispatch(self, tenant_id: UUID, dispatch_id: UUID) -> RevenueInterventionDispatch:

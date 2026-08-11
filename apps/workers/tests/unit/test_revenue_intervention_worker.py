@@ -10,7 +10,9 @@ from app.domain.revenue_intelligence.dispatcher import InterventionDeliveryResul
 from app.domain.revenue_intelligence.persistence import RevenueInterventionStore
 from app.domain.revenue_intelligence.persistence_models import (
     RevenueInterventionDispatch,
+    RevenueInterventionOutcome,
     RevenueInterventionRecord,
+    RevenueInterventionTransition,
     RevenueSignalRecord,
 )
 from app.domain.tenants.models import (
@@ -48,6 +50,8 @@ def _session() -> Session:
             RevenueSignalRecord.__table__,
             RevenueInterventionRecord.__table__,
             RevenueInterventionDispatch.__table__,
+            RevenueInterventionTransition.__table__,
+            RevenueInterventionOutcome.__table__,
             AuditEvent.__table__,
         ],
     )

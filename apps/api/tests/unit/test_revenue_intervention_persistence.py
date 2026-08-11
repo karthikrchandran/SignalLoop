@@ -12,7 +12,9 @@ from app.domain.revenue_intelligence.persistence import (
 )
 from app.domain.revenue_intelligence.persistence_models import (
     RevenueInterventionDispatch,
+    RevenueInterventionOutcome,
     RevenueInterventionRecord,
+    RevenueInterventionTransition,
     RevenueSignalRecord,
 )
 from app.domain.tenants.models import Tenant, utc_now
@@ -27,6 +29,8 @@ def _session() -> Session:
             RevenueSignalRecord.__table__,
             RevenueInterventionRecord.__table__,
             RevenueInterventionDispatch.__table__,
+            RevenueInterventionTransition.__table__,
+            RevenueInterventionOutcome.__table__,
             AuditEvent.__table__,
         ],
     )
@@ -207,3 +211,162 @@ def test_store_settles_dispatch_with_retry_and_dead_letter_state() -> None:
         session.refresh(intervention2)
         assert acknowledged.status == "ACKNOWLEDGED"
         assert intervention2.status == "DISPATCHED"
+
+
+def test_store_rejects_and_cancels_interventions_idempotently() -> None:
+    with _session() as session:
+        tenant = Tenant(key="ara-global", display_name="ARA Global")
+        session.add(tenant)
+        session.commit()
+        store = RevenueInterventionStore(session)
+        signal = _signal(store, tenant.id)
+        rejected = store.propose_intervention(
+            tenant_id=tenant.id,
+            signal_id=signal.id,
+            action="send_email",
+            evidence_refs=["signal:opportunity-7"],
+            idempotency_key="intervention-reject-v1",
+        )
+
+        first = store.reject_intervention(
+            tenant_id=tenant.id,
+            intervention_id=rejected.id,
+            actor_id="operator-1",
+            idempotency_key="reject-v1",
+        )
+        second = store.reject_intervention(
+            tenant_id=tenant.id,
+            intervention_id=rejected.id,
+            actor_id="operator-1",
+            idempotency_key="reject-v1",
+        )
+
+        assert first.status == second.status == "REJECTED"
+        assert len(session.exec(select(RevenueInterventionTransition)).all()) == 1
+
+        cancellable = store.propose_intervention(
+            tenant_id=tenant.id,
+            signal_id=signal.id,
+            action="send_email",
+            evidence_refs=["signal:opportunity-7"],
+            idempotency_key="intervention-cancel-v1",
+        )
+        store.approve_intervention(
+            tenant_id=tenant.id,
+            intervention_id=cancellable.id,
+            actor_id="operator-1",
+            idempotency_key="approve-cancel-v1",
+        )
+        cancelled = store.cancel_intervention(
+            tenant_id=tenant.id,
+            intervention_id=cancellable.id,
+            actor_id="operator-1",
+            idempotency_key="cancel-v1",
+        )
+        dispatch = session.exec(
+            select(RevenueInterventionDispatch).where(
+                RevenueInterventionDispatch.intervention_id == cancellable.id
+            )
+        ).one()
+        assert cancelled.status == "CANCELLED"
+        assert dispatch.status == "CANCELLED"
+
+        with pytest.raises(RevenueInterventionConflict):
+            store.reject_intervention(
+                tenant_id=tenant.id,
+                intervention_id=cancellable.id,
+                actor_id="operator-1",
+                idempotency_key="cancel-v1",
+            )
+
+
+def test_store_records_tenant_scoped_idempotent_outcome_with_evidence() -> None:
+    with _session() as session:
+        tenant = Tenant(key="ara-global", display_name="ARA Global")
+        session.add(tenant)
+        session.commit()
+        store = RevenueInterventionStore(session)
+        signal = _signal(store, tenant.id)
+        intervention = store.propose_intervention(
+            tenant_id=tenant.id,
+            signal_id=signal.id,
+            action="send_email",
+            evidence_refs=["signal:opportunity-7"],
+            idempotency_key="intervention-outcome-v1",
+        )
+        store.approve_intervention(
+            tenant_id=tenant.id,
+            intervention_id=intervention.id,
+            actor_id="operator-1",
+            idempotency_key="approve-outcome-v1",
+        )
+        dispatch = store.claim_due_dispatches(tenant_id=tenant.id)[0]
+        store.record_dispatch_success(
+            tenant_id=tenant.id,
+            dispatch_id=dispatch.id,
+            provider="sendgrid",
+            receipt={"message_id": "sg-123"},
+        )
+
+        first = store.record_outcome(
+            tenant_id=tenant.id,
+            intervention_id=intervention.id,
+            status="QUALIFIED",
+            evidence_refs=["reply:sg-123"],
+            actor_id="operator-1",
+            idempotency_key="outcome-v1",
+        )
+        second = store.record_outcome(
+            tenant_id=tenant.id,
+            intervention_id=intervention.id,
+            status="QUALIFIED",
+            evidence_refs=["reply:sg-123"],
+            actor_id="operator-1",
+            idempotency_key="outcome-v1",
+        )
+
+        assert first.id == second.id
+        assert session.exec(select(RevenueInterventionOutcome)).one().status == "QUALIFIED"
+        assert session.exec(
+            select(AuditEvent).where(AuditEvent.event_name == "revenueos.intervention.outcome_recorded")
+        ).one()
+
+
+def test_approval_replay_does_not_duplicate_dispatch_and_leased_dispatch_cannot_cancel() -> None:
+    with _session() as session:
+        tenant = Tenant(key="ara-global", display_name="ARA Global")
+        session.add(tenant)
+        session.commit()
+        store = RevenueInterventionStore(session)
+        signal = _signal(store, tenant.id)
+        intervention = store.propose_intervention(
+            tenant_id=tenant.id,
+            signal_id=signal.id,
+            action="send_email",
+            evidence_refs=["signal:opportunity-7"],
+            idempotency_key="intervention-approval-replay-v1",
+        )
+
+        first = store.approve_intervention(
+            tenant_id=tenant.id,
+            intervention_id=intervention.id,
+            actor_id="operator-1",
+            idempotency_key="approve-replay-v1",
+        )
+        second = store.approve_intervention(
+            tenant_id=tenant.id,
+            intervention_id=intervention.id,
+            actor_id="operator-1",
+            idempotency_key="approve-replay-v1",
+        )
+
+        assert first.id == second.id
+        assert len(session.exec(select(RevenueInterventionDispatch)).all()) == 1
+        store.claim_due_dispatches(tenant_id=tenant.id)
+        with pytest.raises(ValueError, match="dispatch in IN_FLIGHT state"):
+            store.cancel_intervention(
+                tenant_id=tenant.id,
+                intervention_id=intervention.id,
+                actor_id="operator-1",
+                idempotency_key="cancel-after-lease-v1",
+            )
