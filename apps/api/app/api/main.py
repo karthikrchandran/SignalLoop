@@ -23,6 +23,7 @@ from app.api.routes import (
     provider_credentials,
     public_branding,
     revenue_interventions,
+    revenue_essentials,
     scheduling,
     scripts,
     sequences,
@@ -73,6 +74,7 @@ api_router.include_router(tenant_admin.router)
 api_router.include_router(suite_context.router)
 api_router.include_router(onboarding.router)
 api_router.include_router(revenue_interventions.router)
+api_router.include_router(revenue_essentials.router)
 api_router.include_router(oidc.router)
 
 
