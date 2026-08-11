@@ -32,6 +32,7 @@ def login_access_token(
     """
     OAuth2 compatible token login, get an access token for future requests
     """
+    _ = request
     if settings.AUTH_MODE != "local-test":
         raise HTTPException(status_code=404, detail="Password login is unavailable")
     user = crud.authenticate(
@@ -65,6 +66,7 @@ def recover_password(  # noqa: ARG001
     """
     Password Recovery
     """
+    _ = request
     user = crud.get_user_by_email(session=session, email=email)
 
     # Always return the same response to prevent email enumeration attacks
