@@ -12,8 +12,10 @@ import { ThemeProvider } from "./components/theme-provider"
 import { Toaster } from "./components/ui/sonner"
 import "./index.css"
 import { routeTree } from "./routeTree.gen"
+import { clearClientAuthState } from "./lib/auth-session"
 
 OpenAPI.BASE = import.meta.env.VITE_API_URL
+OpenAPI.WITH_CREDENTIALS = true
 OpenAPI.TOKEN = async () => {
   return localStorage.getItem("access_token") || ""
 }
@@ -25,7 +27,7 @@ const handleApiError = (error: Error) => {
     error.request.url === "/api/v1/users/me"
 
   if (error instanceof ApiError && (error.status === 401 || isMissingCurrentUser)) {
-    localStorage.removeItem("access_token")
+    clearClientAuthState()
     if (window.location.pathname !== "/login") {
       window.location.href = "/login"
     }

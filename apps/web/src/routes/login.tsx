@@ -22,6 +22,7 @@ import { LoadingButton } from "@/components/ui/loading-button"
 import { PasswordInput } from "@/components/ui/password-input"
 import { OidcLoginButton } from "@/features/auth/OidcLoginButton"
 import useAuth, { isLoggedIn } from "@/hooks/useAuth"
+import { isOidcMode } from "@/lib/auth-session"
 
 const formSchema = z.object({
   username: z.email(),
@@ -53,6 +54,7 @@ export const Route = createFileRoute("/login")({
 
 function Login() {
   const { loginMutation } = useAuth()
+  const oidcMode = isOidcMode()
   const returnTo =
     new URLSearchParams(window.location.search).get("returnTo") || "/"
   const form = useForm<FormData>({
@@ -68,6 +70,22 @@ function Login() {
   const onSubmit = (data: FormData) => {
     if (loginMutation.isPending) return
     loginMutation.mutate(data)
+  }
+
+  if (oidcMode) {
+    return (
+      <AuthLayout>
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <h1 className="text-2xl font-bold">Sign in to SignalLoop</h1>
+            <p className="text-sm text-muted-foreground">
+              Use your organization account to continue.
+            </p>
+          </div>
+          <OidcLoginButton returnTo={returnTo} />
+        </div>
+      </AuthLayout>
+    )
   }
 
   return (

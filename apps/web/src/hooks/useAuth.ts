@@ -10,11 +10,20 @@ import {
   UsersService,
 } from "@/client"
 import { isChatbotDemoMode } from "@/features/chatbot/demo"
+import {
+  clearClientAuthState,
+  hasServerSessionHint,
+} from "@/lib/auth-session"
+import { getApiBase } from "@/lib/signalloop-api"
 import { handleError } from "@/utils"
 import useCustomToast from "./useCustomToast"
 
 const isLoggedIn = () => {
-  return localStorage.getItem("access_token") !== null || isChatbotDemoMode()
+  return (
+    localStorage.getItem("access_token") !== null ||
+    hasServerSessionHint() ||
+    isChatbotDemoMode()
+  )
 }
 
 const demoUser = {
@@ -44,7 +53,7 @@ const useAuth = () => {
       return
     }
 
-    localStorage.removeItem("access_token")
+    clearClientAuthState()
     navigate({ to: "/login" })
   }, [currentUserQuery.isError, navigate])
 
@@ -75,8 +84,18 @@ const useAuth = () => {
     onError: handleError.bind(showErrorToast),
   })
 
-  const logout = () => {
-    localStorage.removeItem("access_token")
+  const logout = async () => {
+    if (hasServerSessionHint()) {
+      try {
+        await fetch(`${getApiBase()}/api/v1/auth/oidc/logout`, {
+          method: "POST",
+          credentials: "include",
+        })
+      } catch {
+        // The browser-side hint is still cleared even when the network is unavailable.
+      }
+    }
+    clearClientAuthState()
     navigate({ to: "/login" })
   }
 

@@ -1,3 +1,5 @@
+import { clearClientAuthState } from "./auth-session"
+
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
   body?: unknown
@@ -115,7 +117,7 @@ export type SetupOverview = {
   }
 }
 
-const getApiBase = () => {
+export const getApiBase = () => {
   const base = import.meta.env.VITE_API_URL || ""
   return base.endsWith("/") ? base.slice(0, -1) : base
 }
@@ -136,7 +138,7 @@ const isAuthFailure = (status: number, message: string) => {
 }
 
 const redirectToLogin = () => {
-  localStorage.removeItem("access_token")
+  clearClientAuthState()
   if (window.location.pathname !== "/login") {
     window.location.href = "/login"
   }
@@ -167,7 +169,10 @@ export async function signalloopRequest<T>(
   options?: RequestOptions,
 ): Promise<T> {
   const headers = new Headers()
-  headers.set("Authorization", `Bearer ${getAuthToken()}`)
+  const authToken = getAuthToken()
+  if (authToken) {
+    headers.set("Authorization", `Bearer ${authToken}`)
+  }
   headers.set("X-Workspace-Id", options?.workspaceId || getWorkspaceId())
   if (path === "/api/v1/me/suite-context") {
     headers.set("X-Tenant-Key", options?.workspaceId || getWorkspaceId())
@@ -189,6 +194,7 @@ export async function signalloopRequest<T>(
     method: options?.method || "GET",
     headers,
     body,
+    credentials: "include",
   })
 
   if (!response.ok) {

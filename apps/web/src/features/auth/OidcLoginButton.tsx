@@ -21,7 +21,7 @@ export function OidcLoginButton({ returnTo }: OidcLoginButtonProps) {
     <Button asChild variant="outline" className="w-full">
       <a href={buildOidcLoginUrl(returnTo)}>
         <Building2 aria-hidden="true" />
-        Continue with organization sign-in
+        Continue with your work account
       </a>
     </Button>
   )
