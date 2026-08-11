@@ -10,6 +10,7 @@ import PendingUsers from "@/components/Pending/PendingUsers"
 import { TenantAdminLayout } from "@/features/admin/TenantAdminLayout"
 import { isChatbotDemoMode } from "@/features/chatbot/demo"
 import useAuth from "@/hooks/useAuth"
+import { getSuiteContext } from "@/lib/signalloop-api"
 
 type UserWithRole = UserPublic & {
   role?: string | null
@@ -17,6 +18,14 @@ type UserWithRole = UserPublic & {
 
 const isDeadLetterOperator = (user: UserWithRole) =>
   Boolean(user.is_superuser || user.role === "operator" || user.role === "super_admin")
+
+const tenantAdminCapabilities = new Set([
+  "tenant.members.manage",
+  "tenant.settings.manage",
+  "revenueos.admin.manage",
+  "commitarc.admin.manage",
+  "signalloop.admin.manage",
+])
 
 function getUsersQueryOptions() {
   return {
@@ -37,7 +46,20 @@ export const Route = createFileRoute("/_layout/admin")({
       return
     }
 
-    if (!user.is_superuser) {
+    if (user.is_superuser) {
+      return
+    }
+
+    try {
+      const suiteContext = await getSuiteContext()
+      if (suiteContext.capabilities.some((capability) => tenantAdminCapabilities.has(capability))) {
+        return
+      }
+    } catch {
+      // The suite context endpoint is the authoritative tenant membership check.
+    }
+
+    {
       throw redirect({
         to: "/",
       })
