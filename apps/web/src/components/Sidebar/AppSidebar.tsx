@@ -52,7 +52,7 @@ const isChatbotAdmin = (user: UserWithRole | null | undefined) =>
   )
 
 const baseItems: Item[] = [
-  { icon: Home, title: "Revenue OS", path: "/" },
+  { icon: Home, title: "Home", path: "/home" },
   { icon: Home, title: "Dashboard", path: "/dashboard" },
   { icon: Briefcase, title: "Campaigns", path: "/campaigns" },
   { icon: BrainCircuit, title: "SignalLoop AI", path: "/signalloop-ai" },
