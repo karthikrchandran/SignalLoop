@@ -17,6 +17,7 @@ from app.api.routes import (
     login,
     oidc,
     onboarding,
+    platform_admin,
     platform_shared,
     private,
     prospecting,
@@ -70,6 +71,7 @@ api_router.include_router(audit_log.router)
 api_router.include_router(kpis.router)
 api_router.include_router(chatbot_router)
 api_router.include_router(public_branding.router)
+api_router.include_router(platform_admin.router)
 api_router.include_router(tenant_admin.router)
 api_router.include_router(suite_context.router)
 api_router.include_router(onboarding.router)
