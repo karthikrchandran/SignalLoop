@@ -129,6 +129,11 @@ from app.domain_models import (  # noqa: E402
 )
 
 from app.domain.identity.models import OidcIdentity, OidcSession  # noqa: E402, F401
+from app.domain.revenue_intelligence.persistence_models import (  # noqa: E402, F401
+    RevenueInterventionDispatch,
+    RevenueInterventionRecord,
+    RevenueSignalRecord,
+)
 from app.domain.tenants.models import (  # noqa: E402, F401
     NativeProjectionCursor,
     NativeProjectionReceipt,
