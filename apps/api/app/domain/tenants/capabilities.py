@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from sqlmodel import Session, select
 
 from app.domain.tenants.models import (
+    ProductCode,
     RoleBundle,
     SuiteMembership,
     SuiteRoleAssignment,
@@ -74,5 +75,11 @@ def resolve_suite_context(session: Session, *, user_id: uuid.UUID, tenant_id: uu
     ).all()
     role_bundles = frozenset(RoleBundle(role.role_bundle) for role in roles)
     capabilities = frozenset(cap for bundle in role_bundles for cap in _ROLE_CAPABILITIES.get(bundle, frozenset()))
-    products = frozenset(entitlement.product_code.value for entitlement in entitlements)
+    products = frozenset(_product_code_value(entitlement.product_code) for entitlement in entitlements)
     return SuiteContext(user_id, tenant_id, products, role_bundles, capabilities)
+
+
+def _product_code_value(product_code: ProductCode | str) -> str:
+    if isinstance(product_code, ProductCode):
+        return product_code.value
+    return ProductCode(product_code).value

@@ -224,6 +224,20 @@ class RevenueInterventionStore:
         self.session.refresh(intervention)
         return intervention
 
+    def list_interventions(self, *, tenant_id: UUID) -> list[RevenueInterventionRecord]:
+        return list(
+            self.session.exec(
+                select(RevenueInterventionRecord)
+                .where(RevenueInterventionRecord.tenant_id == tenant_id)
+                .order_by(RevenueInterventionRecord.created_at.desc())
+            ).all()
+        )
+
+    def get_intervention(
+        self, *, tenant_id: UUID, intervention_id: UUID
+    ) -> RevenueInterventionRecord:
+        return self._intervention(tenant_id, intervention_id)
+
     def claim_due_dispatches(
         self, *, tenant_id: UUID, limit: int = 50, lease_seconds: int = 60
     ) -> list[RevenueInterventionDispatch]:
