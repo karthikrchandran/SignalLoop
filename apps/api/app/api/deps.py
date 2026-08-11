@@ -41,8 +41,9 @@ def get_current_user(request: Request, session: SessionDep, token: TokenDep) -> 
         session_token = request.cookies.get("access_token")
         if not session_token:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
             )
         try:
             user_id = resolve_session(session, session_token)
