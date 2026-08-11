@@ -137,6 +137,8 @@ def test_oidc_callback_activates_the_bound_invitation_once(
             params={"code": "opaque-code", "state": state},
             follow_redirects=False,
         )
+        logout = client.post(f"{settings.API_V1_STR}/auth/oidc/logout")
+        after_logout = client.post(f"{settings.API_V1_STR}/login/test-token")
     finally:
         redis_manager.client = original_redis
 
@@ -146,6 +148,8 @@ def test_oidc_callback_activates_the_bound_invitation_once(
     assert authenticated.status_code == 200
     assert authenticated.json()["email"] == "owner@example.com"
     assert replay.status_code == 400
+    assert logout.status_code == 204
+    assert after_logout.status_code == 403
     db.refresh(invitation)
     assert invitation.status == "ACCEPTED"
     assert db.exec(select(OidcIdentity)).one().subject == "subject-1"

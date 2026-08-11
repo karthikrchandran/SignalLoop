@@ -13,7 +13,7 @@ from uuid import UUID
 import httpx
 import jwt
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlmodel import select
 
@@ -33,7 +33,7 @@ from app.domain.identity.service import (
     activate_oidc_identity,
     activate_oidc_identity_for_invitation,
 )
-from app.domain.identity.sessions import create_session
+from app.domain.identity.sessions import create_session, revoke_session
 from app.domain.identity.transactions import OidcTransaction, OidcTransactionStore
 from app.domain.tenants.models import Tenant, TenantInvitation
 
@@ -326,5 +326,27 @@ async def complete_oidc_login(
         path="/",
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
+    response.set_cookie(
+        "signalloop_authenticated",
+        "1",
+        httponly=False,
+        secure=settings.ENVIRONMENT != "local",
+        samesite="lax",
+        path="/",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
     response.delete_cookie("oidc_tx", path=f"{settings.API_V1_STR}/auth/oidc")
+    return response
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout_oidc_session(request: Request, session: SessionDep) -> Response:
+    """Revoke the current opaque application session and clear both cookies."""
+    session_token = request.cookies.get("access_token")
+    if session_token:
+        revoke_session(session, session_token)
+        session.commit()
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("signalloop_authenticated", path="/")
     return response
