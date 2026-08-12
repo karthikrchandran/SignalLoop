@@ -45,13 +45,21 @@ npm run test:ui
 
 ## Generate Client
 
-When the backend OpenAPI schema changes, run the API on `http://localhost:8001`, then regenerate the client:
+When the backend OpenAPI schema changes, regenerate the checked-in OpenAPI
+input directly from the FastAPI application. This does not start the API, its
+database lifecycle, or any provider connections:
 
 ```powershell
+npm run export-openapi
 npm run generate-client
 ```
 
-Commit generated client changes with the backend API change.
+`npm run check-openapi` fails when the checked-in input is missing or stale.
+Run it in CI before client generation. Commit `openapi.json` and generated
+client changes with the backend API change.
+
+The current generator is pinned in `package-lock.json`. Run it with Node 22
+or 24 LTS; Node 25 is not a supported reproducible generation runtime.
 
 ## Playwright
 
