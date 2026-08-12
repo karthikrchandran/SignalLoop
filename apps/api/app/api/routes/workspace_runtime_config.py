@@ -104,6 +104,7 @@ async def upsert_workspace_runtime_config(
 ) -> WorkspaceRuntimeConfigPublic:
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="workspace-runtime-config-upsert",

@@ -245,6 +245,7 @@ async def retry_dead_letter(
 ) -> DeadLetterItemPublic:
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="dead-letter-retry",
@@ -348,6 +349,7 @@ async def dismiss_dead_letter(
 ) -> DeadLetterItemPublic:
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="dead-letter-dismiss",

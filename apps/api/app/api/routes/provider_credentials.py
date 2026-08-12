@@ -223,6 +223,7 @@ async def upsert_provider_credentials(
 ) -> ProviderCredentialPublic:
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="provider-credential-upsert",
@@ -365,6 +366,7 @@ async def deactivate_provider_credential(
 ) -> None:
     await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="provider-credential-deactivate",
@@ -521,6 +523,7 @@ async def upsert_provider_selection(
 ) -> ProviderSelectionPublic:
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="provider-selection-upsert",

@@ -83,7 +83,7 @@ def test_provider_credential_mutation_replays_conflicts_and_requires_key(
     _ = fake_idempotency_redis
     url = f"{settings.API_V1_STR}/workspaces/{WORKSPACE_ID}/provider-credentials"
     payload = {"provider": "smtp", "channel": "email", "api_key": "key-one"}
-    headers = _headers(superuser_token_headers, "credential-replay")
+    headers = _headers(superuser_token_headers, f"credential-replay-{uuid.uuid4()}")
 
     first = client.post(url, headers=headers, json=payload)
     replay = client.post(url, headers=headers, json=payload)
@@ -105,6 +105,36 @@ def test_provider_credential_mutation_replays_conflicts_and_requires_key(
     assert len([row for row in rows if row.is_active]) == 1
 
 
+def test_provider_credential_replays_from_durable_record_when_redis_is_unavailable(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    """A Redis outage cannot re-run a completed provider mutation."""
+    original = getattr(client.app.state, "redis_manager", None)
+    client.app.state.redis_manager = SimpleNamespace(client=None)
+    try:
+        url = f"{settings.API_V1_STR}/workspaces/{WORKSPACE_ID}/provider-credentials"
+        headers = _headers(superuser_token_headers, f"durable-outage-{uuid.uuid4()}")
+        payload = {"provider": "smtp", "channel": "sms", "api_key": "outage-key"}
+        first = client.post(url, headers=headers, json=payload)
+        replay = client.post(url, headers=headers, json=payload)
+    finally:
+        client.app.state.redis_manager = original
+
+    assert first.status_code == 201
+    assert replay.status_code == 201
+    assert replay.json() == first.json()
+    active = db.exec(
+        select(ProviderCredential).where(
+            ProviderCredential.workspace_id == WORKSPACE_ID,
+            ProviderCredential.channel == "sms",
+            ProviderCredential.is_active == True,  # noqa: E712
+        )
+    ).all()
+    assert len(active) == 1
+
+
 def test_runtime_config_mutation_replays_conflicts_and_requires_key(
     client: TestClient,
     superuser_token_headers: dict[str, str],
@@ -113,7 +143,7 @@ def test_runtime_config_mutation_replays_conflicts_and_requires_key(
     _ = fake_idempotency_redis
     url = f"{settings.API_V1_STR}/workspaces/{WORKSPACE_ID}/runtime-config"
     payload = {"team_notification_email": "ops@example.com"}
-    headers = _headers(superuser_token_headers, "runtime-replay")
+    headers = _headers(superuser_token_headers, f"runtime-replay-{uuid.uuid4()}")
 
     first = client.post(url, headers=headers, json=payload)
     replay = client.post(url, headers=headers, json=payload)
@@ -160,7 +190,7 @@ def test_dead_letter_mutation_replays_conflicts_and_requires_key(
     url = (
         f"{settings.API_V1_STR}/campaigns/{campaign_id}/dead-letters/{action.id}/retry"
     )
-    headers = _headers(superuser_token_headers, "dead-letter-replay")
+    headers = _headers(superuser_token_headers, f"dead-letter-replay-{uuid.uuid4()}")
 
     first = client.post(url, headers=headers)
     replay = client.post(url, headers=headers)
@@ -187,7 +217,7 @@ def test_campaign_strategy_segment_mutations_replay_conflict_and_require_key(
     campaign_id = _campaign(client, superuser_token_headers)
     segment_url = f"{settings.API_V1_STR}/campaigns/{campaign_id}/segments"
     payload = {"name": "Priority", "rules": []}
-    headers = _headers(superuser_token_headers, "segment-replay")
+    headers = _headers(superuser_token_headers, f"segment-replay-{uuid.uuid4()}")
 
     first = client.post(segment_url, headers=headers, json=payload)
     replay = client.post(segment_url, headers=headers, json=payload)
@@ -206,7 +236,9 @@ def test_campaign_strategy_segment_mutations_replay_conflict_and_require_key(
 
     strategy_url = f"{settings.API_V1_STR}/campaigns/{campaign_id}/strategy"
     strategy_payload = {"channel_strategy": {"channel": "email", "cadence": "weekly"}}
-    strategy_headers = _headers(superuser_token_headers, "strategy-replay")
+    strategy_headers = _headers(
+        superuser_token_headers, f"strategy-replay-{uuid.uuid4()}"
+    )
     strategy_first = client.post(
         strategy_url, headers=strategy_headers, json=strategy_payload
     )
