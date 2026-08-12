@@ -81,6 +81,27 @@ def test_workspace_admin_role_can_authorize_admin_dependency() -> None:
         assert require_workspace_id(user, session, "ws-a") == "ws-a"
 
 
+def test_global_admin_with_operator_membership_cannot_use_workspace_admin_dependency() -> None:
+    """A legacy global role must not elevate a workspace operator."""
+    with _session() as session:
+        user = _user(role="admin")
+        session.add(user)
+        session.flush()
+        ensure_workspace_membership(
+            session,
+            workspace_id="ws-a",
+            user_id=user.id,
+            role="operator",
+        )
+        session.commit()
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_workspace_id(user, session, "ws-a")
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail["error"]["code"] == "WORKSPACE_ACCESS_DENIED"
+
+
 def test_global_admin_without_membership_cannot_select_workspace() -> None:
     with _session() as session:
         user = _user(role="admin")
