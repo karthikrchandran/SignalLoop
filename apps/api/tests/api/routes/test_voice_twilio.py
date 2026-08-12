@@ -790,3 +790,25 @@ def test_parent_campaign_workspace_move_is_denied_by_relational_constraint(
     with pytest.raises(IntegrityError):
         db.commit()
     db.rollback()
+
+
+def test_load_engine_for_call_offloads_sync_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = SimpleNamespace()
+    observed: list[tuple[object, tuple[object, ...]]] = []
+
+    def load_sync(_call_sid: str, _account_sid: str) -> object:
+        raise AssertionError("the thread boundary should invoke this function")
+
+    async def run_sync(function, *args):  # type: ignore[no-untyped-def]
+        observed.append((function, args))
+        return expected
+
+    monkeypatch.setattr(voice_routes, "_load_engine_for_call_sync", load_sync)
+    monkeypatch.setattr(voice_routes, "run_sync", run_sync)
+
+    result = asyncio.run(voice_routes._load_engine_for_call("CA-thread", "AC-thread"))
+
+    assert result is expected
+    assert observed == [(load_sync, ("CA-thread", "AC-thread"))]
