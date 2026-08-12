@@ -620,6 +620,10 @@ class IdempotencyRecord(SQLModel, table=True):
     request_hash: str = Field(max_length=64)
     state: str = Field(default="in_progress", max_length=32)
     response_data: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    failure_reason: str | None = Field(default=None, max_length=128)
+    lease_expires_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True)
+    )
     created_at: datetime = Field(
         default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
     )

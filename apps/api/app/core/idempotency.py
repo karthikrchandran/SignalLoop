@@ -18,7 +18,7 @@ import hashlib
 import inspect
 import json
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException, Request, status
@@ -107,6 +107,7 @@ async def run_idempotent_mutation(
     request_payload: Any = None,
     ttl: int = IDEMPOTENCY_TTL_SECONDS,
     in_progress_ttl: int = IDEMPOTENCY_IN_PROGRESS_TTL_SECONDS,
+    safe_to_retry_on_failure: bool = False,
 ) -> Any:
     """Run a mutation once using a durable database claim.
 
@@ -114,7 +115,7 @@ async def run_idempotent_mutation(
     cannot permit a duplicate external side effect.  Claim/persist failures
     fail closed; an incomplete durable claim returns a retry-safe 409.
     """
-    _ = ttl, in_progress_ttl
+    _ = ttl
     if session is None:
         raise HTTPException(
             status_code=503, detail="Durable idempotency storage unavailable"
@@ -133,12 +134,13 @@ async def run_idempotent_mutation(
         )
     ).first()
     if existing:
-        return _durable_replay_or_raise(existing, request_hash, operation)
+        return _durable_replay_or_raise(existing, request_hash, operation, session)
     record = IdempotencyRecord(
         workspace_id=workspace_id,
         operation=operation,
         idempotency_key=idempotency_key,
         request_hash=request_hash,
+        lease_expires_at=datetime.now(UTC) + timedelta(seconds=in_progress_ttl),
     )
     session.add(record)
     try:
@@ -153,7 +155,7 @@ async def run_idempotent_mutation(
             )
         ).first()
         if existing:
-            return _durable_replay_or_raise(existing, request_hash, operation)
+            return _durable_replay_or_raise(existing, request_hash, operation, session)
         raise HTTPException(status_code=503, detail="Durable idempotency claim failed")
     except Exception as exc:  # noqa: BLE001
         session.rollback()
@@ -163,7 +165,13 @@ async def run_idempotent_mutation(
 
     try:
         response_data = await _maybe_await(mutation())
-    except Exception:
+    except Exception as exc:
+        _mark_failure(
+            session,
+            record.id,
+            "retryable_failure" if safe_to_retry_on_failure else "unknown",
+            type(exc).__name__,
+        )
         raise
     record = session.get(IdempotencyRecord, record.id)
     if record is None:
@@ -176,6 +184,7 @@ async def run_idempotent_mutation(
         session.commit()
     except Exception as exc:  # noqa: BLE001
         session.rollback()
+        _mark_failure(session, record.id, "unknown", "completion_persistence_failed")
         raise HTTPException(
             status_code=503, detail="Durable idempotency response persistence failed"
         ) from exc
@@ -183,7 +192,7 @@ async def run_idempotent_mutation(
 
 
 def _durable_replay_or_raise(
-    record: IdempotencyRecord, request_hash: str, operation: str
+    record: IdempotencyRecord, request_hash: str, operation: str, session: Session
 ) -> Any:
     if record.request_hash != request_hash:
         _raise_idempotency_conflict(
@@ -193,11 +202,54 @@ def _durable_replay_or_raise(
         )
     if record.state == "completed":
         return record.response_data
+    if record.state == "retryable_failure":
+        record.state = "in_progress"
+        record.failure_reason = None
+        record.lease_expires_at = datetime.now(UTC) + timedelta(
+            seconds=IDEMPOTENCY_IN_PROGRESS_TTL_SECONDS
+        )
+        session.add(record)
+        session.commit()
+        _raise_idempotency_conflict(
+            "IDEMPOTENCY_RETRY_REQUIRED",
+            "Retry the request after the prior attempt failed before side effects",
+            {"operation": operation},
+        )
+    if (
+        record.state == "in_progress"
+        and record.lease_expires_at
+        and record.lease_expires_at <= datetime.now(UTC)
+    ):
+        record.state = "unknown"
+        record.failure_reason = "lease_expired_requires_reconciliation"
+        session.add(record)
+        session.commit()
+    if record.state == "unknown":
+        _raise_idempotency_conflict(
+            "IDEMPOTENCY_RECONCILIATION_REQUIRED",
+            "The prior request outcome is unknown; reconcile before retrying",
+            {"operation": operation},
+        )
     _raise_idempotency_conflict(
         "IDEMPOTENCY_IN_PROGRESS",
         "A request with this Idempotency-Key is already in progress",
         {"operation": operation},
     )
+
+
+def _mark_failure(session: Session, record_id: Any, state: str, reason: str) -> None:
+    """Best-effort durable terminal state; never release an uncertain claim."""
+    try:
+        record = session.get(IdempotencyRecord, record_id)
+        if record is None:
+            return
+        record.state = state
+        record.failure_reason = reason
+        record.lease_expires_at = None
+        session.add(record)
+        session.commit()
+    except Exception:  # noqa: BLE001
+        session.rollback()
 
 
 _NO_REPLAY = object()

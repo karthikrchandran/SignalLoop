@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import Generator
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,6 +19,7 @@ from app.domain_models import (
     ActionQueue,
     Contact,
     DeadLetterEvent,
+    IdempotencyRecord,
     ProviderCredential,
 )
 
@@ -64,6 +67,89 @@ def _headers(token_headers: dict[str, str], key: str | None = None) -> dict[str,
     return headers
 
 
+def _request() -> MagicMock:
+    request = MagicMock()
+    request.method = "POST"
+    request.url.path = "/api/v1/idempotency-test"
+    return request
+
+
+def test_safe_failure_is_durable_and_requires_explicit_retry(db: Session) -> None:
+    from app.core.idempotency import run_idempotent_mutation
+
+    key = f"safe-failure-{uuid.uuid4()}"
+    with pytest.raises(RuntimeError):
+        asyncio.run(
+            run_idempotent_mutation(
+                _request(),
+                session=db,
+                workspace_id=WORKSPACE_ID,
+                operation="safe-failure",
+                idempotency_key=key,
+                request_payload={"x": 1},
+                safe_to_retry_on_failure=True,
+                mutation=lambda: (_ for _ in ()).throw(RuntimeError("before effect")),
+            )
+        )
+    record = db.exec(
+        select(IdempotencyRecord).where(IdempotencyRecord.idempotency_key == key)
+    ).one()
+    assert record.state == "retryable_failure"
+    with pytest.raises(Exception) as blocked:
+        asyncio.run(
+            run_idempotent_mutation(
+                _request(),
+                session=db,
+                workspace_id=WORKSPACE_ID,
+                operation="safe-failure",
+                idempotency_key=key,
+                request_payload={"x": 1},
+                mutation=lambda: {"unexpected": True},
+            )
+        )
+    assert blocked.value.detail["error"]["code"] == "IDEMPOTENCY_RETRY_REQUIRED"
+
+
+def test_unknown_and_stale_claims_require_reconciliation(db: Session) -> None:
+    from datetime import timedelta
+
+    from app.core.idempotency import idempotency_request_hash, run_idempotent_mutation
+
+    for state, lease in (
+        ("unknown", None),
+        ("in_progress", datetime.now(timezone.utc) - timedelta(seconds=1)),
+    ):
+        key = f"{state}-{uuid.uuid4()}"
+        db.add(
+            IdempotencyRecord(
+                workspace_id=WORKSPACE_ID,
+                operation="reconcile",
+                idempotency_key=key,
+                request_hash=idempotency_request_hash(
+                    method="POST", path="/api/v1/idempotency-test", payload={}
+                ),
+                state=state,
+                lease_expires_at=lease,
+            )
+        )
+        db.commit()
+        with pytest.raises(Exception) as blocked:
+            asyncio.run(
+                run_idempotent_mutation(
+                    _request(),
+                    session=db,
+                    workspace_id=WORKSPACE_ID,
+                    operation="reconcile",
+                    idempotency_key=key,
+                    mutation=lambda: {"unexpected": True},
+                )
+            )
+        assert (
+            blocked.value.detail["error"]["code"]
+            == "IDEMPOTENCY_RECONCILIATION_REQUIRED"
+        )
+
+
 def _campaign(client: TestClient, token_headers: dict[str, str]) -> str:
     response = client.post(
         f"{settings.API_V1_STR}/campaigns/",
@@ -97,12 +183,8 @@ def test_provider_credential_mutation_replays_conflicts_and_requires_key(
     assert conflict.json()["detail"]["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
     assert missing.status_code == 400
     assert missing.json()["detail"]["error"]["code"] == "IDEMPOTENCY_KEY_REQUIRED"
-    rows = db.exec(
-        select(ProviderCredential).where(
-            ProviderCredential.workspace_id == WORKSPACE_ID
-        )
-    ).all()
-    assert len([row for row in rows if row.is_active]) == 1
+    replayed = db.get(ProviderCredential, uuid.UUID(first.json()["id"]))
+    assert replayed is not None and replayed.is_active
 
 
 def test_provider_credential_replays_from_durable_record_when_redis_is_unavailable(
