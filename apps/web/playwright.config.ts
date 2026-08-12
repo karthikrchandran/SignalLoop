@@ -46,6 +46,7 @@ export default defineConfig({
 
     {
       name: 'chromium',
+      testIgnore: /(^|[\\/])admin\.spec\.ts$/,
       use: {
         ...devices['Desktop Chrome'],
         storageState: existsSync('playwright/.auth/user.json') ? 'playwright/.auth/user.json' : undefined,

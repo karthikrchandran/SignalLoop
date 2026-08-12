@@ -289,7 +289,9 @@ test.describe("Admin page access control", () => {
     const email = randomEmail()
     const password = randomPassword()
 
-    await createUser({ email, password })
+    // This direct API call is test setup for a non-superuser, not an admin UI mutation.
+    const createdUser = await createUser({ email, password })
+    expect(createdUser).toBeDefined()
     await logInUser(page, email, password)
 
     await page.goto("/admin")
