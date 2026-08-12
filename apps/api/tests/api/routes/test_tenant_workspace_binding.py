@@ -2,10 +2,18 @@ from __future__ import annotations
 
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from threading import Barrier
+from unittest.mock import patch
 
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from sqlmodel import Session, select
+from sqlmodel import Session, SQLModel, create_engine, select
 
+from app.api.routes.tenant_admin import (
+    TenantWorkspaceBindingChange,
+    _attest_workspace_binding_once,
+)
 from app.core.config import settings
 from app.domain.audit.audit_events import AuditEvent
 from app.domain.tenants.models import (
@@ -333,43 +341,73 @@ def test_changed_payload_for_workspace_binding_key_conflicts_without_extra_mutat
     assert len(_audit_events(db, installation)) == 1
 
 
-def test_concurrent_workspace_binding_claim_creates_one_binding_and_one_audit_event(
-    client: TestClient,
-    superuser_token_headers: dict[str, str],
-    db: Session,
+def test_forced_two_session_binding_race_returns_one_success_and_one_conflict(
+    tmp_path,
 ) -> None:
-    tenant = _tenant("binding-race")
+    """Two SQLite connections cross the unique-binding boundary together."""
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'binding-race.db'}",
+        connect_args={"check_same_thread": False, "timeout": 15},
+    )
+    SQLModel.metadata.create_all(
+        engine,
+        tables=[
+            User.__table__,
+            Tenant.__table__,
+            ProductInstallation.__table__,
+            Workspace.__table__,
+            TenantWorkspaceBinding.__table__,
+            AuditEvent.__table__,
+        ],
+    )
+    tenant = _tenant("forced-binding-race")
     workspace = Workspace(id=f"ws-{uuid.uuid4().hex[:12]}")
-    db.add_all([tenant, workspace])
-    db.flush()
-    installation = _installation(tenant, workspace.id)
-    db.add(installation)
-    db.commit()
+    workspace_id = workspace.id
+    actor = User(email=f"binding-{uuid.uuid4().hex}@example.com", hashed_password="test")
+    with Session(engine) as setup:
+        setup.add_all([tenant, workspace, actor])
+        setup.flush()
+        installation = _installation(tenant, workspace_id)
+        setup.add(installation)
+        setup.commit()
+        tenant_id, installation_id, actor_id = tenant.id, installation.id, actor.id
 
-    url = _binding_url(tenant, installation)
-    headers = {**superuser_token_headers, "Idempotency-Key": "binding-race-v1"}
+    barrier = Barrier(2)
+    first, second = Session(engine), Session(engine)
+    original_begin_nested = Session.begin_nested
 
-    def attest() -> int:
-        return client.put(
-            url,
-            headers=headers,
-            json={"workspace_id": workspace.id, "status": "ACTIVE"},
-        ).status_code
+    @contextmanager
+    def synchronized_begin_nested(session: Session):
+        barrier.wait(timeout=10)
+        with original_begin_nested(session) as transaction:
+            yield transaction
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        statuses = list(executor.map(lambda _: attest(), range(2)))
-
-    # The completed claim may be replayed as the same 200 response; an in-flight
-    # loser is also allowed to return a retry-safe 409.  In either case the
-    # persistent mutation below proves only one request crossed the boundary.
-    assert statuses.count(200) in {1, 2}
-    assert all(status in {200, 409} for status in statuses)
-    db.expire_all()
-    assert len(
-        db.exec(
-            select(TenantWorkspaceBinding).where(
-                TenantWorkspaceBinding.installation_id == installation.id
+    def attempt_status(session: Session) -> int:
+        try:
+            actor_for_attempt = session.get(User, actor_id)
+            tenant_for_attempt = session.get(Tenant, tenant_id)
+            installation_for_attempt = session.get(ProductInstallation, installation_id)
+            assert actor_for_attempt and tenant_for_attempt and installation_for_attempt
+            _attest_workspace_binding_once(
+                session=session,
+                user=actor_for_attempt,
+                tenant=tenant_for_attempt,
+                installation=installation_for_attempt,
+                payload=TenantWorkspaceBindingChange(workspace_id=workspace_id),
             )
-        ).all()
-    ) == 1
-    assert len(_audit_events(db, installation)) == 1
+            return 200
+        except HTTPException as exc:
+            return exc.status_code
+
+    try:
+        with patch.object(Session, "begin_nested", synchronized_begin_nested):
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                statuses = list(executor.map(attempt_status, (first, second)))
+    finally:
+        first.close()
+        second.close()
+
+    assert sorted(statuses) == [200, 409]
+    with Session(engine) as verify:
+        assert len(verify.exec(select(TenantWorkspaceBinding)).all()) == 1
+        assert len(_audit_events(verify, installation)) == 1
