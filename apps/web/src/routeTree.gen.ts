@@ -24,7 +24,9 @@ import { Route as LayoutSchedulingRouteImport } from './routes/_layout/schedulin
 import { Route as LayoutRevenueOsRouteImport } from './routes/_layout/revenue-os'
 import { Route as LayoutReportingRouteImport } from './routes/_layout/reporting'
 import { Route as LayoutProspectingRouteImport } from './routes/_layout/prospecting'
+import { Route as LayoutPlatformRouteImport } from './routes/_layout/platform'
 import { Route as LayoutOfferPacksRouteImport } from './routes/_layout/offer-packs'
+import { Route as LayoutHomeRouteImport } from './routes/_layout/home'
 import { Route as LayoutGovernanceRouteImport } from './routes/_layout/governance'
 import { Route as LayoutDashboardRouteImport } from './routes/_layout/dashboard'
 import { Route as LayoutCustomer360RouteImport } from './routes/_layout/customer-360'
@@ -35,6 +37,14 @@ import { Route as LayoutCampaignsRouteImport } from './routes/_layout/campaigns'
 import { Route as LayoutAnalyticsRouteImport } from './routes/_layout/analytics'
 import { Route as LayoutAdminRouteImport } from './routes/_layout/admin'
 import { Route as LayoutSettingsProvidersRouteImport } from './routes/_layout/settings.providers'
+import { Route as LayoutPlatformUsageHealthRouteImport } from './routes/_layout/platform.usage-health'
+import { Route as LayoutPlatformTenantsRouteImport } from './routes/_layout/platform.tenants'
+import { Route as LayoutPlatformSupportAccessRouteImport } from './routes/_layout/platform.support-access'
+import { Route as LayoutPlatformProviderPoliciesRouteImport } from './routes/_layout/platform.provider-policies'
+import { Route as LayoutPlatformProductsRouteImport } from './routes/_layout/platform.products'
+import { Route as LayoutPlatformMessagingRouteImport } from './routes/_layout/platform.messaging'
+import { Route as LayoutPlatformIdentityRouteImport } from './routes/_layout/platform.identity'
+import { Route as LayoutPlatformAuditRouteImport } from './routes/_layout/platform.audit'
 import { Route as LayoutCustomer360AccountIdRouteImport } from './routes/_layout/customer-360.$accountId'
 import { Route as LayoutChatbotSettingsRouteImport } from './routes/_layout/chatbot.settings'
 import { Route as LayoutChatbotKnowledgeBaseRouteImport } from './routes/_layout/chatbot.knowledge-base'
@@ -44,6 +54,15 @@ import { Route as LayoutChatbotAnalyticsRouteImport } from './routes/_layout/cha
 import { Route as LayoutCampaignsRunningRouteImport } from './routes/_layout/campaigns.running'
 import { Route as LayoutCampaignsPausedRouteImport } from './routes/_layout/campaigns.paused'
 import { Route as LayoutCampaignsDraftRouteImport } from './routes/_layout/campaigns.draft'
+import { Route as LayoutAdminSignalLoopRouteImport } from './routes/_layout/admin.signal-loop'
+import { Route as LayoutAdminSecurityRouteImport } from './routes/_layout/admin.security'
+import { Route as LayoutAdminRevenueOsRouteImport } from './routes/_layout/admin.revenue-os'
+import { Route as LayoutAdminProductsRouteImport } from './routes/_layout/admin.products'
+import { Route as LayoutAdminMessagingRouteImport } from './routes/_layout/admin.messaging'
+import { Route as LayoutAdminMembersRouteImport } from './routes/_layout/admin.members'
+import { Route as LayoutAdminCommitArcRouteImport } from './routes/_layout/admin.commit-arc'
+import { Route as LayoutAdminBrandingRouteImport } from './routes/_layout/admin.branding'
+import { Route as LayoutAdminAuditRouteImport } from './routes/_layout/admin.audit'
 import { Route as LayoutChatbotInboxThreadIdRouteImport } from './routes/_layout/chatbot.inbox.$threadId'
 import { Route as LayoutAdminChatbotDeadLettersRouteImport } from './routes/_layout/admin.chatbot.dead-letters'
 
@@ -121,9 +140,19 @@ const LayoutProspectingRoute = LayoutProspectingRouteImport.update({
   path: '/prospecting',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutPlatformRoute = LayoutPlatformRouteImport.update({
+  id: '/platform',
+  path: '/platform',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutOfferPacksRoute = LayoutOfferPacksRouteImport.update({
   id: '/offer-packs',
   path: '/offer-packs',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutHomeRoute = LayoutHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutGovernanceRoute = LayoutGovernanceRouteImport.update({
@@ -176,6 +205,49 @@ const LayoutSettingsProvidersRoute = LayoutSettingsProvidersRouteImport.update({
   path: '/providers',
   getParentRoute: () => LayoutSettingsRoute,
 } as any)
+const LayoutPlatformUsageHealthRoute =
+  LayoutPlatformUsageHealthRouteImport.update({
+    id: '/usage-health',
+    path: '/usage-health',
+    getParentRoute: () => LayoutPlatformRoute,
+  } as any)
+const LayoutPlatformTenantsRoute = LayoutPlatformTenantsRouteImport.update({
+  id: '/tenants',
+  path: '/tenants',
+  getParentRoute: () => LayoutPlatformRoute,
+} as any)
+const LayoutPlatformSupportAccessRoute =
+  LayoutPlatformSupportAccessRouteImport.update({
+    id: '/support-access',
+    path: '/support-access',
+    getParentRoute: () => LayoutPlatformRoute,
+  } as any)
+const LayoutPlatformProviderPoliciesRoute =
+  LayoutPlatformProviderPoliciesRouteImport.update({
+    id: '/provider-policies',
+    path: '/provider-policies',
+    getParentRoute: () => LayoutPlatformRoute,
+  } as any)
+const LayoutPlatformProductsRoute = LayoutPlatformProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => LayoutPlatformRoute,
+} as any)
+const LayoutPlatformMessagingRoute = LayoutPlatformMessagingRouteImport.update({
+  id: '/messaging',
+  path: '/messaging',
+  getParentRoute: () => LayoutPlatformRoute,
+} as any)
+const LayoutPlatformIdentityRoute = LayoutPlatformIdentityRouteImport.update({
+  id: '/identity',
+  path: '/identity',
+  getParentRoute: () => LayoutPlatformRoute,
+} as any)
+const LayoutPlatformAuditRoute = LayoutPlatformAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => LayoutPlatformRoute,
+} as any)
 const LayoutCustomer360AccountIdRoute =
   LayoutCustomer360AccountIdRouteImport.update({
     id: '/$accountId',
@@ -223,6 +295,51 @@ const LayoutCampaignsDraftRoute = LayoutCampaignsDraftRouteImport.update({
   path: '/draft',
   getParentRoute: () => LayoutCampaignsRoute,
 } as any)
+const LayoutAdminSignalLoopRoute = LayoutAdminSignalLoopRouteImport.update({
+  id: '/signal-loop',
+  path: '/signal-loop',
+  getParentRoute: () => LayoutAdminRoute,
+} as any)
+const LayoutAdminSecurityRoute = LayoutAdminSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => LayoutAdminRoute,
+} as any)
+const LayoutAdminRevenueOsRoute = LayoutAdminRevenueOsRouteImport.update({
+  id: '/revenue-os',
+  path: '/revenue-os',
+  getParentRoute: () => LayoutAdminRoute,
+} as any)
+const LayoutAdminProductsRoute = LayoutAdminProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => LayoutAdminRoute,
+} as any)
+const LayoutAdminMessagingRoute = LayoutAdminMessagingRouteImport.update({
+  id: '/messaging',
+  path: '/messaging',
+  getParentRoute: () => LayoutAdminRoute,
+} as any)
+const LayoutAdminMembersRoute = LayoutAdminMembersRouteImport.update({
+  id: '/members',
+  path: '/members',
+  getParentRoute: () => LayoutAdminRoute,
+} as any)
+const LayoutAdminCommitArcRoute = LayoutAdminCommitArcRouteImport.update({
+  id: '/commit-arc',
+  path: '/commit-arc',
+  getParentRoute: () => LayoutAdminRoute,
+} as any)
+const LayoutAdminBrandingRoute = LayoutAdminBrandingRouteImport.update({
+  id: '/branding',
+  path: '/branding',
+  getParentRoute: () => LayoutAdminRoute,
+} as any)
+const LayoutAdminAuditRoute = LayoutAdminAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => LayoutAdminRoute,
+} as any)
 const LayoutChatbotInboxThreadIdRoute =
   LayoutChatbotInboxThreadIdRouteImport.update({
     id: '/$threadId',
@@ -251,7 +368,9 @@ export interface FileRoutesByFullPath {
   '/customer-360': typeof LayoutCustomer360RouteWithChildren
   '/dashboard': typeof LayoutDashboardRoute
   '/governance': typeof LayoutGovernanceRoute
+  '/home': typeof LayoutHomeRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
+  '/platform': typeof LayoutPlatformRouteWithChildren
   '/prospecting': typeof LayoutProspectingRoute
   '/reporting': typeof LayoutReportingRoute
   '/revenue-os': typeof LayoutRevenueOsRoute
@@ -261,6 +380,15 @@ export interface FileRoutesByFullPath {
   '/signalloop-ai': typeof LayoutSignalloopAiRoute
   '/templates': typeof LayoutTemplatesRoute
   '/voice-agents': typeof LayoutVoiceAgentsRoute
+  '/admin/audit': typeof LayoutAdminAuditRoute
+  '/admin/branding': typeof LayoutAdminBrandingRoute
+  '/admin/commit-arc': typeof LayoutAdminCommitArcRoute
+  '/admin/members': typeof LayoutAdminMembersRoute
+  '/admin/messaging': typeof LayoutAdminMessagingRoute
+  '/admin/products': typeof LayoutAdminProductsRoute
+  '/admin/revenue-os': typeof LayoutAdminRevenueOsRoute
+  '/admin/security': typeof LayoutAdminSecurityRoute
+  '/admin/signal-loop': typeof LayoutAdminSignalLoopRoute
   '/campaigns/draft': typeof LayoutCampaignsDraftRoute
   '/campaigns/paused': typeof LayoutCampaignsPausedRoute
   '/campaigns/running': typeof LayoutCampaignsRunningRoute
@@ -270,6 +398,14 @@ export interface FileRoutesByFullPath {
   '/chatbot/knowledge-base': typeof LayoutChatbotKnowledgeBaseRoute
   '/chatbot/settings': typeof LayoutChatbotSettingsRoute
   '/customer-360/$accountId': typeof LayoutCustomer360AccountIdRoute
+  '/platform/audit': typeof LayoutPlatformAuditRoute
+  '/platform/identity': typeof LayoutPlatformIdentityRoute
+  '/platform/messaging': typeof LayoutPlatformMessagingRoute
+  '/platform/products': typeof LayoutPlatformProductsRoute
+  '/platform/provider-policies': typeof LayoutPlatformProviderPoliciesRoute
+  '/platform/support-access': typeof LayoutPlatformSupportAccessRoute
+  '/platform/tenants': typeof LayoutPlatformTenantsRoute
+  '/platform/usage-health': typeof LayoutPlatformUsageHealthRoute
   '/settings/providers': typeof LayoutSettingsProvidersRoute
   '/admin/chatbot/dead-letters': typeof LayoutAdminChatbotDeadLettersRoute
   '/chatbot/inbox/$threadId': typeof LayoutChatbotInboxThreadIdRoute
@@ -288,7 +424,9 @@ export interface FileRoutesByTo {
   '/customer-360': typeof LayoutCustomer360RouteWithChildren
   '/dashboard': typeof LayoutDashboardRoute
   '/governance': typeof LayoutGovernanceRoute
+  '/home': typeof LayoutHomeRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
+  '/platform': typeof LayoutPlatformRouteWithChildren
   '/prospecting': typeof LayoutProspectingRoute
   '/reporting': typeof LayoutReportingRoute
   '/revenue-os': typeof LayoutRevenueOsRoute
@@ -299,6 +437,15 @@ export interface FileRoutesByTo {
   '/templates': typeof LayoutTemplatesRoute
   '/voice-agents': typeof LayoutVoiceAgentsRoute
   '/': typeof LayoutIndexRoute
+  '/admin/audit': typeof LayoutAdminAuditRoute
+  '/admin/branding': typeof LayoutAdminBrandingRoute
+  '/admin/commit-arc': typeof LayoutAdminCommitArcRoute
+  '/admin/members': typeof LayoutAdminMembersRoute
+  '/admin/messaging': typeof LayoutAdminMessagingRoute
+  '/admin/products': typeof LayoutAdminProductsRoute
+  '/admin/revenue-os': typeof LayoutAdminRevenueOsRoute
+  '/admin/security': typeof LayoutAdminSecurityRoute
+  '/admin/signal-loop': typeof LayoutAdminSignalLoopRoute
   '/campaigns/draft': typeof LayoutCampaignsDraftRoute
   '/campaigns/paused': typeof LayoutCampaignsPausedRoute
   '/campaigns/running': typeof LayoutCampaignsRunningRoute
@@ -308,6 +455,14 @@ export interface FileRoutesByTo {
   '/chatbot/knowledge-base': typeof LayoutChatbotKnowledgeBaseRoute
   '/chatbot/settings': typeof LayoutChatbotSettingsRoute
   '/customer-360/$accountId': typeof LayoutCustomer360AccountIdRoute
+  '/platform/audit': typeof LayoutPlatformAuditRoute
+  '/platform/identity': typeof LayoutPlatformIdentityRoute
+  '/platform/messaging': typeof LayoutPlatformMessagingRoute
+  '/platform/products': typeof LayoutPlatformProductsRoute
+  '/platform/provider-policies': typeof LayoutPlatformProviderPoliciesRoute
+  '/platform/support-access': typeof LayoutPlatformSupportAccessRoute
+  '/platform/tenants': typeof LayoutPlatformTenantsRoute
+  '/platform/usage-health': typeof LayoutPlatformUsageHealthRoute
   '/settings/providers': typeof LayoutSettingsProvidersRoute
   '/admin/chatbot/dead-letters': typeof LayoutAdminChatbotDeadLettersRoute
   '/chatbot/inbox/$threadId': typeof LayoutChatbotInboxThreadIdRoute
@@ -328,7 +483,9 @@ export interface FileRoutesById {
   '/_layout/customer-360': typeof LayoutCustomer360RouteWithChildren
   '/_layout/dashboard': typeof LayoutDashboardRoute
   '/_layout/governance': typeof LayoutGovernanceRoute
+  '/_layout/home': typeof LayoutHomeRoute
   '/_layout/offer-packs': typeof LayoutOfferPacksRoute
+  '/_layout/platform': typeof LayoutPlatformRouteWithChildren
   '/_layout/prospecting': typeof LayoutProspectingRoute
   '/_layout/reporting': typeof LayoutReportingRoute
   '/_layout/revenue-os': typeof LayoutRevenueOsRoute
@@ -339,6 +496,15 @@ export interface FileRoutesById {
   '/_layout/templates': typeof LayoutTemplatesRoute
   '/_layout/voice-agents': typeof LayoutVoiceAgentsRoute
   '/_layout/': typeof LayoutIndexRoute
+  '/_layout/admin/audit': typeof LayoutAdminAuditRoute
+  '/_layout/admin/branding': typeof LayoutAdminBrandingRoute
+  '/_layout/admin/commit-arc': typeof LayoutAdminCommitArcRoute
+  '/_layout/admin/members': typeof LayoutAdminMembersRoute
+  '/_layout/admin/messaging': typeof LayoutAdminMessagingRoute
+  '/_layout/admin/products': typeof LayoutAdminProductsRoute
+  '/_layout/admin/revenue-os': typeof LayoutAdminRevenueOsRoute
+  '/_layout/admin/security': typeof LayoutAdminSecurityRoute
+  '/_layout/admin/signal-loop': typeof LayoutAdminSignalLoopRoute
   '/_layout/campaigns/draft': typeof LayoutCampaignsDraftRoute
   '/_layout/campaigns/paused': typeof LayoutCampaignsPausedRoute
   '/_layout/campaigns/running': typeof LayoutCampaignsRunningRoute
@@ -348,6 +514,14 @@ export interface FileRoutesById {
   '/_layout/chatbot/knowledge-base': typeof LayoutChatbotKnowledgeBaseRoute
   '/_layout/chatbot/settings': typeof LayoutChatbotSettingsRoute
   '/_layout/customer-360/$accountId': typeof LayoutCustomer360AccountIdRoute
+  '/_layout/platform/audit': typeof LayoutPlatformAuditRoute
+  '/_layout/platform/identity': typeof LayoutPlatformIdentityRoute
+  '/_layout/platform/messaging': typeof LayoutPlatformMessagingRoute
+  '/_layout/platform/products': typeof LayoutPlatformProductsRoute
+  '/_layout/platform/provider-policies': typeof LayoutPlatformProviderPoliciesRoute
+  '/_layout/platform/support-access': typeof LayoutPlatformSupportAccessRoute
+  '/_layout/platform/tenants': typeof LayoutPlatformTenantsRoute
+  '/_layout/platform/usage-health': typeof LayoutPlatformUsageHealthRoute
   '/_layout/settings/providers': typeof LayoutSettingsProvidersRoute
   '/_layout/admin/chatbot/dead-letters': typeof LayoutAdminChatbotDeadLettersRoute
   '/_layout/chatbot/inbox/$threadId': typeof LayoutChatbotInboxThreadIdRoute
@@ -369,7 +543,9 @@ export interface FileRouteTypes {
     | '/customer-360'
     | '/dashboard'
     | '/governance'
+    | '/home'
     | '/offer-packs'
+    | '/platform'
     | '/prospecting'
     | '/reporting'
     | '/revenue-os'
@@ -379,6 +555,15 @@ export interface FileRouteTypes {
     | '/signalloop-ai'
     | '/templates'
     | '/voice-agents'
+    | '/admin/audit'
+    | '/admin/branding'
+    | '/admin/commit-arc'
+    | '/admin/members'
+    | '/admin/messaging'
+    | '/admin/products'
+    | '/admin/revenue-os'
+    | '/admin/security'
+    | '/admin/signal-loop'
     | '/campaigns/draft'
     | '/campaigns/paused'
     | '/campaigns/running'
@@ -388,6 +573,14 @@ export interface FileRouteTypes {
     | '/chatbot/knowledge-base'
     | '/chatbot/settings'
     | '/customer-360/$accountId'
+    | '/platform/audit'
+    | '/platform/identity'
+    | '/platform/messaging'
+    | '/platform/products'
+    | '/platform/provider-policies'
+    | '/platform/support-access'
+    | '/platform/tenants'
+    | '/platform/usage-health'
     | '/settings/providers'
     | '/admin/chatbot/dead-letters'
     | '/chatbot/inbox/$threadId'
@@ -406,7 +599,9 @@ export interface FileRouteTypes {
     | '/customer-360'
     | '/dashboard'
     | '/governance'
+    | '/home'
     | '/offer-packs'
+    | '/platform'
     | '/prospecting'
     | '/reporting'
     | '/revenue-os'
@@ -417,6 +612,15 @@ export interface FileRouteTypes {
     | '/templates'
     | '/voice-agents'
     | '/'
+    | '/admin/audit'
+    | '/admin/branding'
+    | '/admin/commit-arc'
+    | '/admin/members'
+    | '/admin/messaging'
+    | '/admin/products'
+    | '/admin/revenue-os'
+    | '/admin/security'
+    | '/admin/signal-loop'
     | '/campaigns/draft'
     | '/campaigns/paused'
     | '/campaigns/running'
@@ -426,6 +630,14 @@ export interface FileRouteTypes {
     | '/chatbot/knowledge-base'
     | '/chatbot/settings'
     | '/customer-360/$accountId'
+    | '/platform/audit'
+    | '/platform/identity'
+    | '/platform/messaging'
+    | '/platform/products'
+    | '/platform/provider-policies'
+    | '/platform/support-access'
+    | '/platform/tenants'
+    | '/platform/usage-health'
     | '/settings/providers'
     | '/admin/chatbot/dead-letters'
     | '/chatbot/inbox/$threadId'
@@ -445,7 +657,9 @@ export interface FileRouteTypes {
     | '/_layout/customer-360'
     | '/_layout/dashboard'
     | '/_layout/governance'
+    | '/_layout/home'
     | '/_layout/offer-packs'
+    | '/_layout/platform'
     | '/_layout/prospecting'
     | '/_layout/reporting'
     | '/_layout/revenue-os'
@@ -456,6 +670,15 @@ export interface FileRouteTypes {
     | '/_layout/templates'
     | '/_layout/voice-agents'
     | '/_layout/'
+    | '/_layout/admin/audit'
+    | '/_layout/admin/branding'
+    | '/_layout/admin/commit-arc'
+    | '/_layout/admin/members'
+    | '/_layout/admin/messaging'
+    | '/_layout/admin/products'
+    | '/_layout/admin/revenue-os'
+    | '/_layout/admin/security'
+    | '/_layout/admin/signal-loop'
     | '/_layout/campaigns/draft'
     | '/_layout/campaigns/paused'
     | '/_layout/campaigns/running'
@@ -465,6 +688,14 @@ export interface FileRouteTypes {
     | '/_layout/chatbot/knowledge-base'
     | '/_layout/chatbot/settings'
     | '/_layout/customer-360/$accountId'
+    | '/_layout/platform/audit'
+    | '/_layout/platform/identity'
+    | '/_layout/platform/messaging'
+    | '/_layout/platform/products'
+    | '/_layout/platform/provider-policies'
+    | '/_layout/platform/support-access'
+    | '/_layout/platform/tenants'
+    | '/_layout/platform/usage-health'
     | '/_layout/settings/providers'
     | '/_layout/admin/chatbot/dead-letters'
     | '/_layout/chatbot/inbox/$threadId'
@@ -585,11 +816,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProspectingRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/platform': {
+      id: '/_layout/platform'
+      path: '/platform'
+      fullPath: '/platform'
+      preLoaderRoute: typeof LayoutPlatformRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/offer-packs': {
       id: '/_layout/offer-packs'
       path: '/offer-packs'
       fullPath: '/offer-packs'
       preLoaderRoute: typeof LayoutOfferPacksRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/home': {
+      id: '/_layout/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof LayoutHomeRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/governance': {
@@ -662,6 +907,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSettingsProvidersRouteImport
       parentRoute: typeof LayoutSettingsRoute
     }
+    '/_layout/platform/usage-health': {
+      id: '/_layout/platform/usage-health'
+      path: '/usage-health'
+      fullPath: '/platform/usage-health'
+      preLoaderRoute: typeof LayoutPlatformUsageHealthRouteImport
+      parentRoute: typeof LayoutPlatformRoute
+    }
+    '/_layout/platform/tenants': {
+      id: '/_layout/platform/tenants'
+      path: '/tenants'
+      fullPath: '/platform/tenants'
+      preLoaderRoute: typeof LayoutPlatformTenantsRouteImport
+      parentRoute: typeof LayoutPlatformRoute
+    }
+    '/_layout/platform/support-access': {
+      id: '/_layout/platform/support-access'
+      path: '/support-access'
+      fullPath: '/platform/support-access'
+      preLoaderRoute: typeof LayoutPlatformSupportAccessRouteImport
+      parentRoute: typeof LayoutPlatformRoute
+    }
+    '/_layout/platform/provider-policies': {
+      id: '/_layout/platform/provider-policies'
+      path: '/provider-policies'
+      fullPath: '/platform/provider-policies'
+      preLoaderRoute: typeof LayoutPlatformProviderPoliciesRouteImport
+      parentRoute: typeof LayoutPlatformRoute
+    }
+    '/_layout/platform/products': {
+      id: '/_layout/platform/products'
+      path: '/products'
+      fullPath: '/platform/products'
+      preLoaderRoute: typeof LayoutPlatformProductsRouteImport
+      parentRoute: typeof LayoutPlatformRoute
+    }
+    '/_layout/platform/messaging': {
+      id: '/_layout/platform/messaging'
+      path: '/messaging'
+      fullPath: '/platform/messaging'
+      preLoaderRoute: typeof LayoutPlatformMessagingRouteImport
+      parentRoute: typeof LayoutPlatformRoute
+    }
+    '/_layout/platform/identity': {
+      id: '/_layout/platform/identity'
+      path: '/identity'
+      fullPath: '/platform/identity'
+      preLoaderRoute: typeof LayoutPlatformIdentityRouteImport
+      parentRoute: typeof LayoutPlatformRoute
+    }
+    '/_layout/platform/audit': {
+      id: '/_layout/platform/audit'
+      path: '/audit'
+      fullPath: '/platform/audit'
+      preLoaderRoute: typeof LayoutPlatformAuditRouteImport
+      parentRoute: typeof LayoutPlatformRoute
+    }
     '/_layout/customer-360/$accountId': {
       id: '/_layout/customer-360/$accountId'
       path: '/$accountId'
@@ -725,6 +1026,69 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutCampaignsDraftRouteImport
       parentRoute: typeof LayoutCampaignsRoute
     }
+    '/_layout/admin/signal-loop': {
+      id: '/_layout/admin/signal-loop'
+      path: '/signal-loop'
+      fullPath: '/admin/signal-loop'
+      preLoaderRoute: typeof LayoutAdminSignalLoopRouteImport
+      parentRoute: typeof LayoutAdminRoute
+    }
+    '/_layout/admin/security': {
+      id: '/_layout/admin/security'
+      path: '/security'
+      fullPath: '/admin/security'
+      preLoaderRoute: typeof LayoutAdminSecurityRouteImport
+      parentRoute: typeof LayoutAdminRoute
+    }
+    '/_layout/admin/revenue-os': {
+      id: '/_layout/admin/revenue-os'
+      path: '/revenue-os'
+      fullPath: '/admin/revenue-os'
+      preLoaderRoute: typeof LayoutAdminRevenueOsRouteImport
+      parentRoute: typeof LayoutAdminRoute
+    }
+    '/_layout/admin/products': {
+      id: '/_layout/admin/products'
+      path: '/products'
+      fullPath: '/admin/products'
+      preLoaderRoute: typeof LayoutAdminProductsRouteImport
+      parentRoute: typeof LayoutAdminRoute
+    }
+    '/_layout/admin/messaging': {
+      id: '/_layout/admin/messaging'
+      path: '/messaging'
+      fullPath: '/admin/messaging'
+      preLoaderRoute: typeof LayoutAdminMessagingRouteImport
+      parentRoute: typeof LayoutAdminRoute
+    }
+    '/_layout/admin/members': {
+      id: '/_layout/admin/members'
+      path: '/members'
+      fullPath: '/admin/members'
+      preLoaderRoute: typeof LayoutAdminMembersRouteImport
+      parentRoute: typeof LayoutAdminRoute
+    }
+    '/_layout/admin/commit-arc': {
+      id: '/_layout/admin/commit-arc'
+      path: '/commit-arc'
+      fullPath: '/admin/commit-arc'
+      preLoaderRoute: typeof LayoutAdminCommitArcRouteImport
+      parentRoute: typeof LayoutAdminRoute
+    }
+    '/_layout/admin/branding': {
+      id: '/_layout/admin/branding'
+      path: '/branding'
+      fullPath: '/admin/branding'
+      preLoaderRoute: typeof LayoutAdminBrandingRouteImport
+      parentRoute: typeof LayoutAdminRoute
+    }
+    '/_layout/admin/audit': {
+      id: '/_layout/admin/audit'
+      path: '/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof LayoutAdminAuditRouteImport
+      parentRoute: typeof LayoutAdminRoute
+    }
     '/_layout/chatbot/inbox/$threadId': {
       id: '/_layout/chatbot/inbox/$threadId'
       path: '/$threadId'
@@ -743,10 +1107,28 @@ declare module '@tanstack/react-router' {
 }
 
 interface LayoutAdminRouteChildren {
+  LayoutAdminAuditRoute: typeof LayoutAdminAuditRoute
+  LayoutAdminBrandingRoute: typeof LayoutAdminBrandingRoute
+  LayoutAdminCommitArcRoute: typeof LayoutAdminCommitArcRoute
+  LayoutAdminMembersRoute: typeof LayoutAdminMembersRoute
+  LayoutAdminMessagingRoute: typeof LayoutAdminMessagingRoute
+  LayoutAdminProductsRoute: typeof LayoutAdminProductsRoute
+  LayoutAdminRevenueOsRoute: typeof LayoutAdminRevenueOsRoute
+  LayoutAdminSecurityRoute: typeof LayoutAdminSecurityRoute
+  LayoutAdminSignalLoopRoute: typeof LayoutAdminSignalLoopRoute
   LayoutAdminChatbotDeadLettersRoute: typeof LayoutAdminChatbotDeadLettersRoute
 }
 
 const LayoutAdminRouteChildren: LayoutAdminRouteChildren = {
+  LayoutAdminAuditRoute: LayoutAdminAuditRoute,
+  LayoutAdminBrandingRoute: LayoutAdminBrandingRoute,
+  LayoutAdminCommitArcRoute: LayoutAdminCommitArcRoute,
+  LayoutAdminMembersRoute: LayoutAdminMembersRoute,
+  LayoutAdminMessagingRoute: LayoutAdminMessagingRoute,
+  LayoutAdminProductsRoute: LayoutAdminProductsRoute,
+  LayoutAdminRevenueOsRoute: LayoutAdminRevenueOsRoute,
+  LayoutAdminSecurityRoute: LayoutAdminSecurityRoute,
+  LayoutAdminSignalLoopRoute: LayoutAdminSignalLoopRoute,
   LayoutAdminChatbotDeadLettersRoute: LayoutAdminChatbotDeadLettersRoute,
 }
 
@@ -812,6 +1194,32 @@ const LayoutCustomer360RouteChildren: LayoutCustomer360RouteChildren = {
 const LayoutCustomer360RouteWithChildren =
   LayoutCustomer360Route._addFileChildren(LayoutCustomer360RouteChildren)
 
+interface LayoutPlatformRouteChildren {
+  LayoutPlatformAuditRoute: typeof LayoutPlatformAuditRoute
+  LayoutPlatformIdentityRoute: typeof LayoutPlatformIdentityRoute
+  LayoutPlatformMessagingRoute: typeof LayoutPlatformMessagingRoute
+  LayoutPlatformProductsRoute: typeof LayoutPlatformProductsRoute
+  LayoutPlatformProviderPoliciesRoute: typeof LayoutPlatformProviderPoliciesRoute
+  LayoutPlatformSupportAccessRoute: typeof LayoutPlatformSupportAccessRoute
+  LayoutPlatformTenantsRoute: typeof LayoutPlatformTenantsRoute
+  LayoutPlatformUsageHealthRoute: typeof LayoutPlatformUsageHealthRoute
+}
+
+const LayoutPlatformRouteChildren: LayoutPlatformRouteChildren = {
+  LayoutPlatformAuditRoute: LayoutPlatformAuditRoute,
+  LayoutPlatformIdentityRoute: LayoutPlatformIdentityRoute,
+  LayoutPlatformMessagingRoute: LayoutPlatformMessagingRoute,
+  LayoutPlatformProductsRoute: LayoutPlatformProductsRoute,
+  LayoutPlatformProviderPoliciesRoute: LayoutPlatformProviderPoliciesRoute,
+  LayoutPlatformSupportAccessRoute: LayoutPlatformSupportAccessRoute,
+  LayoutPlatformTenantsRoute: LayoutPlatformTenantsRoute,
+  LayoutPlatformUsageHealthRoute: LayoutPlatformUsageHealthRoute,
+}
+
+const LayoutPlatformRouteWithChildren = LayoutPlatformRoute._addFileChildren(
+  LayoutPlatformRouteChildren,
+)
+
 interface LayoutSettingsRouteChildren {
   LayoutSettingsProvidersRoute: typeof LayoutSettingsProvidersRoute
 }
@@ -834,7 +1242,9 @@ interface LayoutRouteChildren {
   LayoutCustomer360Route: typeof LayoutCustomer360RouteWithChildren
   LayoutDashboardRoute: typeof LayoutDashboardRoute
   LayoutGovernanceRoute: typeof LayoutGovernanceRoute
+  LayoutHomeRoute: typeof LayoutHomeRoute
   LayoutOfferPacksRoute: typeof LayoutOfferPacksRoute
+  LayoutPlatformRoute: typeof LayoutPlatformRouteWithChildren
   LayoutProspectingRoute: typeof LayoutProspectingRoute
   LayoutReportingRoute: typeof LayoutReportingRoute
   LayoutRevenueOsRoute: typeof LayoutRevenueOsRoute
@@ -857,7 +1267,9 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutCustomer360Route: LayoutCustomer360RouteWithChildren,
   LayoutDashboardRoute: LayoutDashboardRoute,
   LayoutGovernanceRoute: LayoutGovernanceRoute,
+  LayoutHomeRoute: LayoutHomeRoute,
   LayoutOfferPacksRoute: LayoutOfferPacksRoute,
+  LayoutPlatformRoute: LayoutPlatformRouteWithChildren,
   LayoutProspectingRoute: LayoutProspectingRoute,
   LayoutReportingRoute: LayoutReportingRoute,
   LayoutRevenueOsRoute: LayoutRevenueOsRoute,
