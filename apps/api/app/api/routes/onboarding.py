@@ -3,11 +3,12 @@ from __future__ import annotations
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlmodel import select
 
 from app.api.deps import AdminUser, CurrentUser, SessionDep
+from app.core.idempotency import run_idempotent_mutation
 from app.domain.audit.audit_events import (
     append_audit_event_to_session,
     audit_actor_role,
@@ -78,7 +79,8 @@ def retry_run(*, session: SessionDep, _current_user: AdminUser, run_id: uuid.UUI
 
 
 @router.post("/runs/{run_id}/stages/{stage_id}/reconcile")
-def reconcile_run_stage(
+async def reconcile_run_stage(
+    request: Request,
     *,
     session: SessionDep,
     current_user: CurrentUser,
@@ -97,6 +99,37 @@ def reconcile_run_stage(
     stage = session.get(OnboardingStageRecord, stage_id)
     if stage is None or stage.run_id != run.id:
         raise HTTPException(status_code=404, detail="Onboarding stage not found")
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=str(tenant.id),
+        operation=f"onboarding:external-outcome-reconcile:{run.id}:{stage.id}",
+        request_payload={
+            "run_id": str(run.id),
+            "stage_id": str(stage.id),
+            **body.model_dump(),
+        },
+        mutation=lambda: _reconcile_once(
+            session=session,
+            current_user=current_user,
+            tenant=tenant,
+            run=run,
+            stage=stage,
+            body=body,
+        ),
+    )
+
+
+def _reconcile_once(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    tenant: Tenant,
+    run: OnboardingRunRecord,
+    stage: OnboardingStageRecord,
+    body: OnboardingReconciliation,
+) -> dict[str, object]:
     try:
         reconcile_unknown_external_outcome(session, run, stage, body.decision)
     except ValueError as exc:
