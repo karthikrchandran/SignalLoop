@@ -66,3 +66,43 @@ def test_record_twilio_provider_event_returns_false_for_replay() -> None:
     assert first is True
     assert replay is False
     assert len(rows) == 1
+
+
+def test_record_twilio_provider_event_treats_unique_conflict_as_replay(
+    monkeypatch,
+) -> None:
+    """A callback race must not escape as a database integrity failure."""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine, tables=[ProviderEventLog.__table__])
+
+    with Session(engine) as session:
+        session.add(
+            ProviderEventLog(
+                workspace_id="ws",
+                provider=NotificationProvider.twilio,
+                provider_event_id="twilio:status:raced",
+                event_type="twilio_call_status",
+            )
+        )
+        session.commit()
+
+        # Model the narrow window where another callback commits after our
+        # duplicate pre-check but before our insert is flushed.
+        original_exec = session.exec
+        monkeypatch.setattr(
+            session,
+            "exec",
+            lambda statement: type("NoExistingEvent", (), {"first": lambda self: None})(),
+        )
+        replay = _record_twilio_provider_event(
+            session,
+            workspace_id="ws",
+            provider_event_id="twilio:status:raced",
+            event_type="twilio_call_status",
+            raw_payload={"CallSid": "CA123", "CallStatus": "ringing"},
+            normalized_event={"call_sid": "CA123", "call_status": "ringing"},
+        )
+        monkeypatch.setattr(session, "exec", original_exec)
+
+        assert replay is False
+        session.commit()
