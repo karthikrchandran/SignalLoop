@@ -23,6 +23,7 @@ from typing import Any
 
 from fastapi import HTTPException, Request, status
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -138,14 +139,36 @@ async def run_idempotent_mutation(
             existing.state == "retryable_failure"
             and existing.request_hash == request_hash
         ):
-            existing.state = "in_progress"
-            existing.failure_reason = None
-            existing.lease_expires_at = datetime.now(UTC) + timedelta(
-                seconds=in_progress_ttl
+            claimed = session.execute(
+                update(IdempotencyRecord)
+                .where(
+                    IdempotencyRecord.id == existing.id,
+                    IdempotencyRecord.state == "retryable_failure",
+                )
+                .values(
+                    state="in_progress",
+                    failure_reason=None,
+                    lease_expires_at=datetime.now(UTC)
+                    + timedelta(seconds=in_progress_ttl),
+                )
             )
-            session.add(existing)
             session.commit()
-            record = existing
+            if claimed.rowcount == 1:
+                record = session.get(IdempotencyRecord, existing.id)
+                if record is None:
+                    raise HTTPException(
+                        status_code=503, detail="Durable idempotency record lost"
+                    )
+            else:
+                session.expire_all()
+                current = session.get(IdempotencyRecord, existing.id)
+                if current is None:
+                    raise HTTPException(
+                        status_code=503, detail="Durable idempotency record lost"
+                    )
+                return _durable_replay_or_raise(
+                    current, request_hash, operation, session
+                )
         else:
             return _durable_replay_or_raise(existing, request_hash, operation, session)
     else:
