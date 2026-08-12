@@ -179,6 +179,10 @@ def change_operational_control(
 ) -> dict[str, object]:
     """Pause or resume one product's worker dispatch for one tenant."""
     _authorize(session, user, tenant_id, "tenant.settings.manage")
+    # This is deliberately the same row lock acquired by RevenueOS dispatch
+    # claims.  It defines the linearization point: a completed pause blocks
+    # all later claims, while a claim that already committed is in flight.
+    session.exec(select(Tenant).where(Tenant.id == tenant_id).with_for_update()).one()
     row = _operational_control(session, tenant_id, product_code)
     if row is None:
         # The unique key is the concurrency boundary.  The nested transaction

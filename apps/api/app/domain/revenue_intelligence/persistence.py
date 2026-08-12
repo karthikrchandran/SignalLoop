@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from uuid import UUID
 
@@ -450,26 +451,22 @@ class RevenueInterventionStore:
         return dispatch
 
     def claim_due_dispatches(
-        self, *, tenant_id: UUID, limit: int = 50, lease_seconds: int = 60
+        self,
+        *,
+        tenant_id: UUID,
+        limit: int = 50,
+        lease_seconds: int = 60,
+        after_tenant_lock: Callable[[], None] | None = None,
     ) -> list[RevenueInterventionDispatch]:
         now = utc_now()
-        paused_product = (
-            select(TenantOperationalControl.id)
-            .where(
-                TenantOperationalControl.tenant_id == tenant_id,
-                TenantOperationalControl.product_code.in_(
-                    (ProductCode.REVENUE_OS, ProductCode.SIGNAL_LOOP)
-                ),
-                TenantOperationalControl.paused == True,  # noqa: E712
-            )
-            .exists()
-        )
+        if not self._tenant_execution_claim_allowed(tenant_id, after_tenant_lock):
+            self.session.commit()
+            return []
         rows = list(
             self.session.exec(
                 select(RevenueInterventionDispatch)
                 .where(
                     RevenueInterventionDispatch.tenant_id == tenant_id,
-                    ~paused_product,
                     RevenueInterventionDispatch.status.in_(("PENDING", "RETRY_SCHEDULED")),
                     (RevenueInterventionDispatch.next_attempt_at.is_(None))
                     | (RevenueInterventionDispatch.next_attempt_at <= now),
@@ -493,6 +490,33 @@ class RevenueInterventionStore:
             )
         self.session.commit()
         return rows
+
+    def _tenant_execution_claim_allowed(
+        self, tenant_id: UUID, after_tenant_lock: Callable[[], None] | None = None
+    ) -> bool:
+        """Lock the shared boundary and return whether a new claim may start."""
+        # The tenant row is the shared serialization boundary with the
+        # tenant-admin pause/resume endpoint.  Once that endpoint commits a
+        # pause, a later claim cannot pass this control check.  A claim that
+        # acquired this lock first is intentionally allowed to finish as an
+        # already-in-flight operation.
+        self.session.exec(
+            select(Tenant).where(Tenant.id == tenant_id).with_for_update()
+        ).one()
+        if after_tenant_lock is not None:
+            after_tenant_lock()
+        paused_product = self.session.exec(
+            select(TenantOperationalControl.id)
+            .where(
+                TenantOperationalControl.tenant_id == tenant_id,
+                TenantOperationalControl.product_code.in_(
+                    (ProductCode.REVENUE_OS, ProductCode.SIGNAL_LOOP)
+                ),
+                TenantOperationalControl.paused == True,  # noqa: E712
+            )
+            .limit(1)
+        ).one_or_none()
+        return paused_product is None
 
     def recover_expired_dispatch_leases(self) -> int:
         now = utc_now()
