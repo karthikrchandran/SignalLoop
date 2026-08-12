@@ -29,16 +29,16 @@ from worker_app.revenue_intervention_worker import process_claimed_revenue_inter
 class AcceptingDelivery:
     def __init__(self) -> None:
         self.calls = 0
+        self.envelopes = []
 
-    async def deliver(
-        self, *, action: str, payload: dict[str, object], idempotency_key: str
-    ) -> InterventionDeliveryResult:
+    async def deliver(self, *, envelope) -> InterventionDeliveryResult:
         self.calls += 1
+        self.envelopes.append(envelope)
         return InterventionDeliveryResult(
             provider="email",
             accepted=True,
             retryable=False,
-            receipt={"status_code": 202, "message_id": idempotency_key},
+            receipt={"status_code": 202, "message_id": envelope.idempotency_key},
         )
 
 
@@ -145,6 +145,11 @@ def test_worker_dispatches_due_revenue_intervention() -> None:
         assert dispatch.status == "ACKNOWLEDGED"
         assert deliveries[0][0] == "ws-ara"
         assert deliveries[0][1].calls == 1
+        envelope = deliveries[0][1].envelopes[0]
+        assert envelope.workspace_id == "ws-ara"
+        assert envelope.destination_ref == "owner@example.test"
+        assert envelope.idempotency_key == str(dispatch.id)
+        assert dispatch.attempt_envelope is not None
 
 
 def test_worker_recovers_expired_revenue_dispatch_lease() -> None:

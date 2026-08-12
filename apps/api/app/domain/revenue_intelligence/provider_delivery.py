@@ -12,7 +12,7 @@ from app.infrastructure.providers.registry import (
     get_strict_adapter,
 )
 
-from .dispatcher import InterventionDeliveryResult
+from .dispatcher import InterventionAttemptEnvelope, InterventionDeliveryResult
 
 
 class ConfiguredEmailInterventionDelivery:
@@ -23,8 +23,20 @@ class ConfiguredEmailInterventionDelivery:
         self.workspace_id = workspace_id
 
     async def deliver(
-        self, *, action: str, payload: dict[str, object], idempotency_key: str
+        self,
+        *,
+        envelope: InterventionAttemptEnvelope | None = None,
+        action: str | None = None,
+        payload: dict[str, object] | None = None,
+        idempotency_key: str | None = None,
     ) -> InterventionDeliveryResult:
+        """Use an immutable envelope in workers; retain direct adapter compatibility."""
+        if envelope is not None:
+            action = envelope.action
+            payload = envelope.payload
+            idempotency_key = envelope.idempotency_key
+        if action is None or payload is None or idempotency_key is None:
+            raise ValueError("attempt envelope or explicit delivery command is required")
         if action != "send_email":
             return InterventionDeliveryResult(
                 provider="validation",

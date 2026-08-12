@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -25,11 +27,52 @@ class InterventionDeliveryResult:
     reason: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class InterventionAttemptEnvelope:
+    """Immutable provider command captured once per durable dispatch."""
+
+    attempt_id: UUID
+    intervention_id: UUID
+    workspace_id: str
+    channel: str
+    destination_ref: str
+    policy_decision_ref: str
+    knowledge_release_refs: tuple[str, ...]
+    idempotency_key: str
+    scheduled_for: datetime
+    action: str
+    action_payload_json: str
+
+    @property
+    def payload(self) -> dict[str, object]:
+        """Return a fresh payload copy; callers cannot mutate the stored command."""
+        value = json.loads(self.action_payload_json)
+        if not isinstance(value, dict):
+            raise ValueError("attempt envelope payload must be an object")
+        return value
+
+    @classmethod
+    def from_persisted(cls, value: dict[str, object]) -> InterventionAttemptEnvelope:
+        return cls(
+            attempt_id=UUID(str(value["attempt_id"])),
+            intervention_id=UUID(str(value["intervention_id"])),
+            workspace_id=str(value["workspace_id"]),
+            channel=str(value["channel"]),
+            destination_ref=str(value["destination_ref"]),
+            policy_decision_ref=str(value["policy_decision_ref"]),
+            knowledge_release_refs=tuple(str(item) for item in value["knowledge_release_refs"]),
+            idempotency_key=str(value["idempotency_key"]),
+            scheduled_for=datetime.fromisoformat(str(value["scheduled_for"])),
+            action=str(value["action"]),
+            action_payload_json=str(value["action_payload_json"]),
+        )
+
+
 class InterventionDelivery(Protocol):
     """Production provider seam; test doubles use the same contract."""
 
     async def deliver(
-        self, *, action: str, payload: dict[str, object], idempotency_key: str
+        self, *, envelope: InterventionAttemptEnvelope
     ) -> InterventionDeliveryResult:
         """Deliver one explicitly described intervention."""
 
@@ -60,15 +103,27 @@ class RevenueInterventionDispatcher:
         self.enforcement_gate = enforcement_gate or PersistedSignalEnforcementGate()
 
     async def dispatch(
-        self, store: RevenueInterventionStore, *, tenant_id: UUID, dispatch_id: UUID
+        self,
+        store: RevenueInterventionStore,
+        *,
+        tenant_id: UUID,
+        dispatch_id: UUID,
+        workspace_id: str,
     ) -> None:
         dispatch, intervention, signal = store.dispatch_context(
             tenant_id=tenant_id,
             dispatch_id=dispatch_id,
         )
+        envelope = InterventionAttemptEnvelope.from_persisted(
+            store.prepare_dispatch_attempt(
+                tenant_id=tenant_id,
+                dispatch_id=dispatch.id,
+                workspace_id=workspace_id,
+            )
+        )
         decision = self.enforcement_gate.evaluate(
-            action=intervention.action,
-            payload=intervention.action_payload,
+            action=envelope.action,
+            payload=envelope.payload,
             signal=signal,
         )
         if not decision.allowed:
@@ -81,9 +136,7 @@ class RevenueInterventionDispatcher:
             return
         try:
             result = await self.delivery.deliver(
-                action=intervention.action,
-                payload=intervention.action_payload,
-                idempotency_key=str(dispatch.id),
+                envelope=envelope,
             )
         except Exception as exc:  # provider boundary: transport faults are retryable
             store.record_dispatch_failure(

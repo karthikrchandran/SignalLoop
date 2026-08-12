@@ -72,6 +72,11 @@ async def process_claimed_revenue_interventions(
                     retryable=False,
                 )
                 continue
+            store.prepare_dispatch_attempt(
+                tenant_id=tenant_id,
+                dispatch_id=dispatch.id,
+                workspace_id=installation.local_identifier,
+            )
             delivery = (
                 delivery_factory(session, installation.local_identifier)
                 if delivery_factory is not None
@@ -90,6 +95,7 @@ async def process_claimed_revenue_interventions(
                 store,
                 tenant_id=tenant_id,
                 dispatch_id=dispatch.id,
+                workspace_id=installation.local_identifier,
             )
     return processed
 

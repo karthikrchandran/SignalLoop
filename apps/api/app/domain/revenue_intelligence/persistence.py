@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 from uuid import UUID
 
@@ -602,9 +603,9 @@ class RevenueInterventionStore:
         dispatch.lease_expires_at = None
         dispatch.updated_at = utc_now()
         if next_attempt_at is None:
-            dispatch.status = "POLICY_DENIED"
+            dispatch.status = "SUPPRESSED"
             dispatch.next_attempt_at = None
-            intervention.status = "DENIED"
+            intervention.status = "SUPPRESSED"
             intervention.denial_reason = dispatch.last_error
             event_name = "revenueos.intervention.dispatch_policy_denied"
         else:
@@ -630,6 +631,49 @@ class RevenueInterventionStore:
         self.session.commit()
         self.session.refresh(dispatch)
         return dispatch
+
+    def prepare_dispatch_attempt(
+        self, *, tenant_id: UUID, dispatch_id: UUID, workspace_id: str
+    ) -> dict[str, object]:
+        """Return the immutable command snapshot for one actively leased dispatch."""
+        dispatch, intervention, signal = self.dispatch_context(
+            tenant_id=tenant_id, dispatch_id=dispatch_id
+        )
+        workspace = _require_text(workspace_id, "workspace_id")
+        if dispatch.attempt_envelope is not None:
+            if dispatch.attempt_envelope.get("workspace_id") != workspace:
+                raise RevenueInterventionConflict("dispatch envelope workspace conflicts")
+            return dict(dispatch.attempt_envelope)
+        destination = intervention.action_payload.get("to")
+        if not isinstance(destination, str) or not destination.strip():
+            destination = str(intervention.action_payload.get("contact_id") or "")
+        envelope: dict[str, object] = {
+            "attempt_id": str(dispatch.id),
+            "intervention_id": str(intervention.id),
+            "workspace_id": workspace,
+            "channel": intervention.action.removeprefix("send_") or intervention.action,
+            "destination_ref": destination.strip(),
+            "policy_decision_ref": signal.evidence_hash,
+            "knowledge_release_refs": list(intervention.evidence_refs),
+            "idempotency_key": str(dispatch.id),
+            "scheduled_for": dispatch.created_at.isoformat(),
+            "action": intervention.action,
+            "action_payload_json": json.dumps(
+                intervention.action_payload, sort_keys=True, separators=(",", ":")
+            ),
+        }
+        dispatch.attempt_envelope = envelope
+        dispatch.updated_at = utc_now()
+        self.session.add(dispatch)
+        self._audit(
+            tenant_id=tenant_id,
+            event_name="revenueos.intervention.attempt_prepared",
+            resource_type="revenue_intervention_dispatch",
+            resource_id=str(dispatch.id),
+            payload={"intervention_id": str(intervention.id), "workspace_id": workspace},
+        )
+        self.session.commit()
+        return dict(envelope)
 
     def _intervention(self, tenant_id: UUID, intervention_id: UUID) -> RevenueInterventionRecord:
         intervention = self.session.exec(

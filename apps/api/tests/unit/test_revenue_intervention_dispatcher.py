@@ -21,12 +21,10 @@ from app.domain.tenants.models import Tenant
 
 
 class AcceptingDelivery:
-    async def deliver(
-        self, *, action: str, payload: dict[str, object], idempotency_key: str
-    ) -> InterventionDeliveryResult:
-        assert action == "send_email"
-        assert payload["to"] == "owner@example.test"
-        assert idempotency_key
+    async def deliver(self, *, envelope) -> InterventionDeliveryResult:
+        assert envelope.action == "send_email"
+        assert envelope.payload["to"] == "owner@example.test"
+        assert envelope.idempotency_key
         return InterventionDeliveryResult(
             provider="sendgrid",
             accepted=True,
@@ -91,6 +89,7 @@ def test_dispatcher_executes_approved_intervention_with_explicit_payload() -> No
                 store,
                 tenant_id=tenant.id,
                 dispatch_id=dispatch.id,
+                workspace_id="ws-ara",
             )
         )
 
