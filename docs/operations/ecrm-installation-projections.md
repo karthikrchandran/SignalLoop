@@ -1,5 +1,7 @@
 # eCRM installation projections
 
+This is the SignalLoop/RevenueOS installation binding and projection operations runbook. All examples require an authenticated workspace context; a body, query, or ordinary header cannot choose another workspace or eCRM cell. Synthetic acceptance uses only `.synthetic.invalid` identities and injected local transports, with no provider calls.
+
 SignalLoop binds each authenticated workspace to one eCRM cell through
 `ecrm_installation_binding`. The binding is server-owned: request bodies, query
 parameters, and worker arguments cannot replace the authenticated workspace or
@@ -62,6 +64,27 @@ Run one source comparison:
 ```powershell
 uv run python -m app.scripts.reconcile_ecrm_installations --workspace-id WS --stream-key installation:primary --source-count 10 --source-checkpoint 10
 ```
+
+## Binding verification and suspension
+
+Before activation, verify the deployment-owned endpoint and secret-reference IDs resolve to the same immutable eCRM cell; the base URL is an HTTPS origin; the authenticated workspace owns the binding; capabilities are the minimum required; and RevenueOS entitlement gates reads without deleting projection/recovery evidence.
+
+Project `SUSPENDED` immediately and confirm new delivery is denied with no projection advance. Resume only after the authoritative eCRM lifecycle projection is active and reconciliation shows no unresolved version gap.
+
+## Secret rotation
+
+1. Provision a new deployment secret reference for the same immutable cell. Never send the secret value through the binding API.
+2. Update the binding with `source_version = previous + 1` and a rotation timestamp. A secret-reference change without the next source version fails closed; cell ID, cell key, base URL, and workspace remain immutable.
+3. Deploy the new secret value, send a synthetic canary, and verify an explicit matching acknowledgement plus RevenueOS checkpoint.
+4. Verify the retired credential fails and audit evidence contains reference/version only. Remove the old deployment secret after the approved overlap policy.
+
+## Recovery operations
+
+Timeouts and transient responses use bounded retry; repeated client-side destination failures degrade the binding and open its circuit. Projection exceptions use exponential retry and dead-letter after the configured maximum. Replay only through the workspace-scoped admin endpoint with an incident reason, then run reconciliation. A source version gap remains `HELD_GAP` and creates a repair candidate; never silently renumber or copy state from another workspace. A worker crash after the atomic projection/checkpoint/receipt commit is safe to rerun and must not double-apply the side effect.
+
+## Activation boundary
+
+Real eCRM provider endpoints, API keys/secrets, and cloud installation activation were not exercised by local acceptance. Deployment configuration must fail closed when an endpoint, secret allowlist entry, or authority is missing. Do not treat local acknowledgements as proof of live provider or customer readiness.
 
 Mismatches create a deduplicated repair candidate. Inspect receipt status,
 checkpoint counts, and repair IDs at `GET /api/v1/ecrm-installations/operations`.

@@ -44,13 +44,26 @@ class EcrmInstallationRepository:
                 "ecrm_cell_id",
                 "ecrm_cell_key",
                 "base_url",
-                "credential_secret_ref",
             )
             if any(
                 getattr(existing, field) != getattr(binding, field)
                 for field in immutable_destination
             ):
                 raise ValueError("installation destination is immutable")
+            secret_rotated = (
+                existing.credential_secret_ref != binding.credential_secret_ref
+            )
+            if secret_rotated and (
+                binding.rotated_at is None
+                or binding.source_version != existing.source_version + 1
+            ):
+                raise ValueError(
+                    "installation secret rotation requires the next source version"
+                )
+            if not secret_rotated and binding.source_version < existing.source_version:
+                raise ValueError("installation source version cannot move backwards")
+            if secret_rotated:
+                existing.credential_secret_ref = binding.credential_secret_ref
             for field in (
                 "capabilities", "status", "verified_at", "rotated_at", "source_version",
             ):
