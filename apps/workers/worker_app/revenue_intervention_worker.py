@@ -135,4 +135,3 @@ def _signal_loop_installation(
             ProductInstallation.status == "ACTIVE",
         )
     ).one_or_none()
-
