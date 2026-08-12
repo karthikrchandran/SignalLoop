@@ -277,6 +277,7 @@ def test_setup_overview_returns_workspace_setup_summary(
     _upsert_worker_heartbeat(db, "sequence_worker")
     _upsert_worker_heartbeat(db, "call_worker")
     _upsert_worker_heartbeat(db, "postcall_worker")
+    _upsert_worker_heartbeat(db, "ecrm_installation_projection_worker")
     db.commit()
 
     class _OkRedis:
@@ -332,6 +333,7 @@ def test_setup_overview_returns_workspace_setup_summary(
     assert worker_readiness["sequence_worker"]["ready"] is True
     assert worker_readiness["call_worker"]["ready"] is True
     assert worker_readiness["postcall_worker"]["ready"] is False
+    assert worker_readiness["ecrm_installation_projection_worker"]["ready"] is True
 
 
 def test_setup_overview_reports_missing_runtime_dependencies(

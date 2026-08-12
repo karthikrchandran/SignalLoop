@@ -115,6 +115,20 @@ services:
       REDIS_URL: redis://redis:6379/0
     restart: unless-stopped
 
+  ecrm-installation-projection-worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ["python", "-m", "app.workers.installation_projection_worker"]
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      POSTGRES_SERVER: db
+    restart: unless-stopped
+
 volumes:
   postgres-data:
   redis-data:

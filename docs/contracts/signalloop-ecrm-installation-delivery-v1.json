@@ -1,0 +1,30 @@
+{
+  "contract_version": 1,
+  "route": "/api/v1/ecrm-installations/deliveries",
+  "request": {
+    "headers": {
+      "Authorization": "Bearer route-token",
+      "Idempotency-Key": "shared-record:record-1:7",
+      "X-Correlation-Id": "corr-1",
+      "X-ECRM-Cell-Id": "cell-ara",
+      "X-ECRM-Cell-Key": "ara-global",
+      "X-Workspace-Id": "workspace-ara"
+    },
+    "body": {
+      "source_event_id": "shared-record:record-1:7",
+      "source_version": 7,
+      "stream_key": "shared-record:record-1",
+      "event_kind": "SHARED_RECORD",
+      "payload": {
+        "recordId": "record-1"
+      }
+    }
+  },
+  "acknowledgement": {
+    "receipt_id": "00000000-0000-0000-0000-000000000001",
+    "workspace_id": "workspace-ara",
+    "source_event_id": "shared-record:record-1:7",
+    "source_version": 7,
+    "status": "RECEIVED"
+  }
+}

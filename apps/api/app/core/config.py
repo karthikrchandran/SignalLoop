@@ -163,6 +163,10 @@ class Settings(BaseSettings):
     # Route-adapter cutover flag; intentionally unused by the low-level client.
     USE_ECRM_SHARED_RECORDS: bool = True
     USE_LOCAL_SHARED_RECORDS: bool = False
+    ECRM_INSTALLATION_PROJECTION_POLL_INTERVAL_SECONDS: int = 10
+    ECRM_INSTALLATION_PROJECTION_BATCH_SIZE: int = 100
+    ECRM_INSTALLATION_ENDPOINTS: dict[str, dict[str, str]] = {}
+    ECRM_INSTALLATION_SECRET_REFERENCES: dict[str, dict[str, str]] = {}
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_PHONE_NUMBER: str = ""
