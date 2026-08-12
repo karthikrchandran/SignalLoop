@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 import uuid
 from collections.abc import Generator
 from datetime import datetime, timezone
@@ -349,3 +350,52 @@ def test_campaign_strategy_segment_mutations_replay_conflict_and_require_key(
     assert strategy_replay.json() == strategy_first.json()
     assert strategy_conflict.status_code == 409
     assert strategy_missing.status_code == 400
+
+
+def test_concurrent_retryable_claim_executes_one_handler(db: Session) -> None:
+    """Two separate sessions contend for one retryable durable claim."""
+    from app.core.idempotency import idempotency_request_hash, run_idempotent_mutation
+
+    key = f"concurrent-{uuid.uuid4()}"
+    db.add(
+        IdempotencyRecord(
+            workspace_id=WORKSPACE_ID,
+            operation="concurrent-retry",
+            idempotency_key=key,
+            request_hash=idempotency_request_hash(
+                method="POST", path="/api/v1/idempotency-test", payload={}
+            ),
+            state="retryable_failure",
+        )
+    )
+    db.commit()
+    barrier = threading.Barrier(2)
+    executions: list[int] = []
+    outcomes: list[object] = []
+
+    def contender() -> None:
+        with Session(db.get_bind()) as separate:
+            barrier.wait()
+            try:
+                outcomes.append(
+                    asyncio.run(
+                        run_idempotent_mutation(
+                            _request(),
+                            session=separate,
+                            workspace_id=WORKSPACE_ID,
+                            operation="concurrent-retry",
+                            idempotency_key=key,
+                            mutation=lambda: executions.append(1) or {"ok": True},
+                        )
+                    )
+                )
+            except Exception as exc:
+                outcomes.append(exc)
+
+    threads = [threading.Thread(target=contender) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert executions == [1]
+    assert any(outcome == {"ok": True} for outcome in outcomes)
