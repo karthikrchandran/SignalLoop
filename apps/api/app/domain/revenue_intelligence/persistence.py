@@ -10,7 +10,12 @@ from uuid import UUID
 from sqlmodel import Session, select
 
 from app.domain.audit.audit_events import AuditEvent, append_audit_event_to_session
-from app.domain.tenants.models import Tenant, utc_now
+from app.domain.tenants.models import (
+    ProductCode,
+    Tenant,
+    TenantOperationalControl,
+    utc_now,
+)
 
 from .persistence_models import (
     RevenueInterventionDispatch,
@@ -448,11 +453,23 @@ class RevenueInterventionStore:
         self, *, tenant_id: UUID, limit: int = 50, lease_seconds: int = 60
     ) -> list[RevenueInterventionDispatch]:
         now = utc_now()
+        paused_product = (
+            select(TenantOperationalControl.id)
+            .where(
+                TenantOperationalControl.tenant_id == tenant_id,
+                TenantOperationalControl.product_code.in_(
+                    (ProductCode.REVENUE_OS, ProductCode.SIGNAL_LOOP)
+                ),
+                TenantOperationalControl.paused == True,  # noqa: E712
+            )
+            .exists()
+        )
         rows = list(
             self.session.exec(
                 select(RevenueInterventionDispatch)
                 .where(
                     RevenueInterventionDispatch.tenant_id == tenant_id,
+                    ~paused_product,
                     RevenueInterventionDispatch.status.in_(("PENDING", "RETRY_SCHEDULED")),
                     (RevenueInterventionDispatch.next_attempt_at.is_(None))
                     | (RevenueInterventionDispatch.next_attempt_at <= now),

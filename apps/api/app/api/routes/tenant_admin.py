@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep
@@ -178,14 +179,25 @@ def change_operational_control(
 ) -> dict[str, object]:
     """Pause or resume one product's worker dispatch for one tenant."""
     _authorize(session, user, tenant_id, "tenant.settings.manage")
-    row = session.exec(
-        select(TenantOperationalControl).where(
-            TenantOperationalControl.tenant_id == tenant_id,
-            TenantOperationalControl.product_code == product_code,
-        )
-    ).one_or_none()
+    row = _operational_control(session, tenant_id, product_code)
     if row is None:
-        row = TenantOperationalControl(tenant_id=tenant_id, product_code=product_code)
+        # The unique key is the concurrency boundary.  The nested transaction
+        # lets a loser recover its session and re-read the winner rather than
+        # returning a 500 when two operators create the first control together.
+        try:
+            with session.begin_nested():
+                row = TenantOperationalControl(
+                    tenant_id=tenant_id, product_code=product_code
+                )
+                session.add(row)
+                session.flush()
+        except IntegrityError:
+            row = _operational_control(session, tenant_id, product_code)
+            if row is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Operational control creation conflicted; retry the request",
+                )
     row.paused = payload.paused
     row.paused_reason = payload.reason if payload.paused else None
     row.changed_by = user.id
@@ -216,6 +228,17 @@ def change_operational_control(
         "paused_reason": row.paused_reason,
         "changed_at": row.changed_at,
     }
+
+
+def _operational_control(
+    session: SessionDep, tenant_id: uuid.UUID, product_code: ProductCode
+) -> TenantOperationalControl | None:
+    return session.exec(
+        select(TenantOperationalControl).where(
+            TenantOperationalControl.tenant_id == tenant_id,
+            TenantOperationalControl.product_code == product_code,
+        )
+    ).one_or_none()
 
 
 @router.post("/tenants/{tenant_id}/memberships", status_code=status.HTTP_201_CREATED)

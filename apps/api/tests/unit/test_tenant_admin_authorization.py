@@ -6,8 +6,8 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.routes.tenant_admin import BrandingDraftCreate, _authorize
-from app.domain.tenants.capabilities import SuiteContext
-from app.domain.tenants.models import Tenant
+from app.domain.tenants.capabilities import SuiteContext, has_capability
+from app.domain.tenants.models import RoleBundle, Tenant
 
 
 class _Session:
@@ -50,3 +50,8 @@ def test_member_without_capability_is_denied(monkeypatch: pytest.MonkeyPatch) ->
     with pytest.raises(HTTPException) as error:
         _authorize(_Session(tenant), user, tenant.id, "tenant.settings.manage")
     assert error.value.status_code == 403
+
+
+def test_tenant_owner_permission_explicitly_includes_operational_controls() -> None:
+    """A tenant owner may invoke the tenant.settings.manage control boundary."""
+    assert has_capability(RoleBundle.TENANT_OWNER, "tenant.settings.manage")

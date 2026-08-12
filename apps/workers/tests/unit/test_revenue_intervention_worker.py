@@ -31,6 +31,7 @@ from app.domain.tenants.models import (
     utc_now,
 )
 from app.domain_models import ActionQueue, Contact, GlobalControlState, GovernancePolicy
+from worker_app import revenue_intervention_worker
 from worker_app.revenue_intervention_worker import process_claimed_revenue_interventions
 
 
@@ -96,19 +97,24 @@ def _session() -> Session:
     return Session(engine)
 
 
-def _approved_dispatch(session: Session) -> tuple[Tenant, RevenueInterventionDispatch]:
-    tenant = Tenant(key="ara-global", display_name="ARA Global")
+def _approved_dispatch(
+    session: Session,
+    *,
+    tenant_key: str = "ara-global",
+    workspace_id: str = "ws-ara",
+) -> tuple[Tenant, RevenueInterventionDispatch]:
+    tenant = Tenant(key=tenant_key, display_name="ARA Global")
     session.add(tenant)
     session.flush()
     session.add(
         ProductInstallation(
             tenant_id=tenant.id,
             product_code=ProductCode.SIGNAL_LOOP,
-            local_identifier="ws-ara",
+            local_identifier=workspace_id,
         )
     )
     contact = Contact(
-        workspace_id="ws-ara",
+        workspace_id=workspace_id,
         email="owner@example.test",
         consent_email=True,
     )
@@ -235,6 +241,116 @@ def test_worker_honors_the_signal_loop_switch_for_revenueos_delivery() -> None:
         assert processed == 0
         assert delivery.calls == 0
         assert dispatch.status == "PENDING"
+
+
+def test_pause_between_tenant_enumeration_and_claim_prevents_provider_delivery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _session() as session:
+        tenant, dispatch = _approved_dispatch(session)
+        original_claim = RevenueInterventionStore.claim_due_dispatches
+
+        def pause_then_claim(
+            store: RevenueInterventionStore, *, tenant_id, **kwargs
+        ) -> list[RevenueInterventionDispatch]:
+            session.add(
+                TenantOperationalControl(
+                    tenant_id=tenant_id,
+                    product_code=ProductCode.REVENUE_OS,
+                    paused=True,
+                    paused_reason="incident race guard",
+                )
+            )
+            session.commit()
+            return original_claim(store, tenant_id=tenant_id, **kwargs)
+
+        monkeypatch.setattr(
+            revenue_intervention_worker.RevenueInterventionStore,
+            "claim_due_dispatches",
+            pause_then_claim,
+        )
+        delivery = AcceptingDelivery()
+
+        processed = asyncio.run(
+            process_claimed_revenue_interventions(
+                session,
+                delivery_factory=lambda _session, _workspace_id: delivery,
+            )
+        )
+
+        session.refresh(dispatch)
+        assert processed == 0
+        assert delivery.calls == 0
+        assert dispatch.status == "PENDING"
+
+
+def test_resume_after_paused_claim_attempt_preserves_pending_dispatch() -> None:
+    with _session() as session:
+        tenant, dispatch = _approved_dispatch(session)
+        control = TenantOperationalControl(
+            tenant_id=tenant.id,
+            product_code=ProductCode.REVENUE_OS,
+            paused=True,
+            paused_reason="incident recovery",
+        )
+        session.add(control)
+        session.commit()
+
+        assert asyncio.run(process_claimed_revenue_interventions(session)) == 0
+        session.refresh(dispatch)
+        assert dispatch.status == "PENDING"
+
+        control.paused = False
+        control.paused_reason = None
+        session.add(control)
+        session.commit()
+        delivery = AcceptingDelivery()
+
+        processed = asyncio.run(
+            process_claimed_revenue_interventions(
+                session,
+                delivery_factory=lambda _session, _workspace_id: delivery,
+            )
+        )
+
+        session.refresh(dispatch)
+        assert processed == 1
+        assert delivery.calls == 1
+        assert dispatch.status == "ACKNOWLEDGED"
+
+
+def test_tenant_pause_does_not_halt_another_tenants_dispatch() -> None:
+    with _session() as session:
+        tenant_a, dispatch_a = _approved_dispatch(session)
+        _tenant_b, dispatch_b = _approved_dispatch(
+            session,
+            tenant_key="tenant-b",
+            workspace_id="ws-tenant-b",
+        )
+        session.add(
+            TenantOperationalControl(
+                tenant_id=tenant_a.id,
+                product_code=ProductCode.REVENUE_OS,
+                paused=True,
+                paused_reason="tenant A incident",
+            )
+        )
+        session.commit()
+        delivery = AcceptingDelivery()
+
+        processed = asyncio.run(
+            process_claimed_revenue_interventions(
+                session,
+                delivery_factory=lambda _session, _workspace_id: delivery,
+            )
+        )
+
+        session.refresh(dispatch_a)
+        session.refresh(dispatch_b)
+        assert processed == 1
+        assert delivery.calls == 1
+        assert dispatch_a.status == "PENDING"
+        assert dispatch_b.status == "ACKNOWLEDGED"
 
 
 def test_worker_recovers_expired_revenue_dispatch_lease() -> None:
