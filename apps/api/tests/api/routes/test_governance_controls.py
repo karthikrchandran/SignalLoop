@@ -2,18 +2,11 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session, SQLModel
+from sqlmodel import Session
 
 from app.core.config import settings
-from app.core.db import engine
 from app.domain_models import Campaign
-
-
-@pytest.fixture(scope="module", autouse=True)
-def ensure_governance_tables() -> None:
-    SQLModel.metadata.create_all(engine)
 
 
 def _headers(

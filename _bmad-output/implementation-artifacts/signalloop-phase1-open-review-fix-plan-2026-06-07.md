@@ -275,7 +275,12 @@ Acceptance criteria:
 
 ### P2: Remove The Route-Test Pgvector Blocker Without Docker
 
-The current local route-test blocker is not Docker itself; it is that the test database attempts to create chatbot vector columns without pgvector installed.
+Status: resolved for the shared route-test suite on 2026-08-12. The root test
+fixture attempts to enable pgvector and otherwise excludes vector-backed tables;
+route modules must not bypass it with an unfiltered `SQLModel.metadata.create_all`.
+`tests/unit/test_route_database_portability.py` enforces that guard.
+
+The original local route-test blocker was not Docker itself; it was that the test database attempted to create chatbot vector columns without pgvector installed.
 
 Observed issue:
 
