@@ -5,7 +5,8 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep
@@ -27,6 +28,7 @@ from app.domain.tenants.models import (
     SuiteRoleAssignment,
     Tenant,
     TenantEntitlement,
+    TenantOperationalControl,
 )
 
 router = APIRouter(prefix="/tenant-admin", tags=["tenant-admin"])
@@ -40,6 +42,21 @@ class TenantCreate(BaseModel):
 class EntitlementChange(BaseModel):
     product_code: ProductCode
     status: str = Field(default="ACTIVE", pattern=r"^(ACTIVE|DISABLED)$")
+
+
+class TenantOperationalControlChange(BaseModel):
+    """Explicit, reversible product execution control for one tenant."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    paused: bool
+    reason: str | None = Field(default=None, min_length=3, max_length=500)
+
+    @model_validator(mode="after")
+    def reason_required_for_pause(self) -> TenantOperationalControlChange:
+        if self.paused and not self.reason:
+            raise ValueError("reason is required when pausing product execution")
+        return self
 
 
 class MembershipCreate(BaseModel):
@@ -149,6 +166,83 @@ def change_entitlement(
         payload={"product_code": payload.product_code.value, "status": payload.status},
     )
     return row
+
+
+@router.put("/tenants/{tenant_id}/operations/{product_code}/control")
+def change_operational_control(
+    *,
+    session: SessionDep,
+    user: CurrentUser,
+    tenant_id: uuid.UUID,
+    product_code: ProductCode,
+    payload: TenantOperationalControlChange,
+) -> dict[str, object]:
+    """Pause or resume one product's worker dispatch for one tenant."""
+    _authorize(session, user, tenant_id, "tenant.settings.manage")
+    # This is deliberately the same row lock acquired by RevenueOS dispatch
+    # claims.  It defines the linearization point: a completed pause blocks
+    # all later claims, while a claim that already committed is in flight.
+    session.exec(select(Tenant).where(Tenant.id == tenant_id).with_for_update()).one()
+    row = _operational_control(session, tenant_id, product_code)
+    if row is None:
+        # The unique key is the concurrency boundary.  The nested transaction
+        # lets a loser recover its session and re-read the winner rather than
+        # returning a 500 when two operators create the first control together.
+        try:
+            with session.begin_nested():
+                row = TenantOperationalControl(
+                    tenant_id=tenant_id, product_code=product_code
+                )
+                session.add(row)
+                session.flush()
+        except IntegrityError:
+            row = _operational_control(session, tenant_id, product_code)
+            if row is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Operational control creation conflicted; retry the request",
+                )
+    row.paused = payload.paused
+    row.paused_reason = payload.reason if payload.paused else None
+    row.changed_by = user.id
+    row.changed_at = datetime.now(timezone.utc)
+    session.add(row)
+    session.flush()
+    append_audit_event_to_session(
+        session,
+        event_name="tenant.operational_control.changed",
+        workspace_id=str(tenant_id),
+        actor_id=user.id,
+        actor_role=audit_actor_role(user),
+        resource_type="tenant_operational_control",
+        resource_id=str(row.id),
+        payload={
+            "product_code": product_code.value,
+            "paused": payload.paused,
+            "reason": row.paused_reason,
+        },
+    )
+    session.commit()
+    session.refresh(row)
+    return {
+        "id": str(row.id),
+        "tenant_id": str(tenant_id),
+        "product_code": product_code.value,
+        "paused": row.paused,
+        "paused_reason": row.paused_reason,
+        "changed_at": row.changed_at,
+    }
+
+
+def _operational_control(
+    session: SessionDep, tenant_id: uuid.UUID, product_code: ProductCode
+) -> TenantOperationalControl | None:
+    return session.exec(
+        select(TenantOperationalControl).where(
+            TenantOperationalControl.tenant_id == tenant_id,
+            TenantOperationalControl.product_code == product_code,
+        )
+    ).one_or_none()
 
 
 @router.post("/tenants/{tenant_id}/memberships", status_code=status.HTTP_201_CREATED)

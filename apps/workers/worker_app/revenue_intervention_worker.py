@@ -30,7 +30,11 @@ from app.domain.revenue_intelligence.persistence_models import (  # noqa: E402
 from app.domain.revenue_intelligence.provider_delivery import (  # noqa: E402
     ConfiguredEmailInterventionDelivery,
 )
-from app.domain.tenants.models import ProductCode, ProductInstallation, utc_now  # noqa: E402
+from app.domain.tenants.models import (  # noqa: E402
+    ProductCode,
+    ProductInstallation,
+    utc_now,
+)
 
 logger = logging.getLogger(__name__)
 
