@@ -11,7 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
-openapi.json
+# This is a checked-in generation contract, not a local API download.
 
 # Editor directories and files
 .vscode/*

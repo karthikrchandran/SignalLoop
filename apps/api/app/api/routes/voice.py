@@ -15,6 +15,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 from xml.sax.saxutils import quoteattr
 
+from anyio.to_thread import run_sync
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 from sqlalchemy.exc import IntegrityError
@@ -593,11 +594,11 @@ async def _close_stt_safely(conv_engine: ConversationEngine) -> None:
         await asyncio.wait_for(conv_engine.close_stt(), timeout=MEDIA_STREAM_CLOSE_TIMEOUT_SECONDS)
 
 
-async def _load_engine_for_call(
+def _load_engine_for_call_sync(
     call_sid: str,
     account_sid: str,
 ) -> ConversationEngine | None:
-    """Load the voice script and contact info for a call."""
+    """Load the voice script and contact info for a call outside the event loop."""
     with Session(engine) as session:
         call_context = _resolve_twilio_call_context(
             session, call_sid=call_sid, account_sid=account_sid
@@ -649,6 +650,14 @@ async def _load_engine_for_call(
         tts=tts,
         llm=llm,
     )
+
+
+async def _load_engine_for_call(
+    call_sid: str,
+    account_sid: str,
+) -> ConversationEngine | None:
+    """Load blocking database and provider configuration work off the event loop."""
+    return await run_sync(_load_engine_for_call_sync, call_sid, account_sid)
 
 
 async def _stt_receive_loop(
