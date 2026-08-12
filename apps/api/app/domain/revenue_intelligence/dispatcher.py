@@ -139,12 +139,13 @@ class RevenueInterventionDispatcher:
                 envelope=envelope,
             )
         except Exception as exc:  # provider boundary: transport faults are retryable
-            store.record_dispatch_failure(
+            # Once a provider call raises, we cannot safely establish whether it
+            # accepted the command.  Hold for reconciliation, not a blind retry.
+            store.record_dispatch_unknown_provider_outcome(
                 tenant_id=tenant_id,
                 dispatch_id=dispatch.id,
                 provider="provider-transport",
                 reason=f"TRANSPORT_{type(exc).__name__}",
-                retryable=True,
             )
             return
         if result.accepted:

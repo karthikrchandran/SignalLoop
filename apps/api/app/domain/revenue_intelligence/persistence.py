@@ -9,7 +9,7 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from app.domain.audit.audit_events import append_audit_event_to_session
+from app.domain.audit.audit_events import AuditEvent, append_audit_event_to_session
 from app.domain.tenants.models import Tenant, utc_now
 
 from .persistence_models import (
@@ -663,6 +663,14 @@ class RevenueInterventionStore:
                 != _envelope_digest(dispatch.attempt_envelope)
             ):
                 raise RevenueInterventionConflict("immutable dispatch envelope was changed")
+            snapshot = self.session.exec(
+                select(AuditEvent).where(
+                    AuditEvent.event_name == "revenueos.intervention.attempt_prepared",
+                    AuditEvent.resource_id == str(dispatch.id),
+                )
+            ).one_or_none()
+            if snapshot is None or snapshot.payload.get("envelope") != dispatch.attempt_envelope:
+                raise RevenueInterventionConflict("immutable dispatch envelope snapshot was changed")
             return dict(dispatch.attempt_envelope)
         destination = intervention.action_payload.get("to")
         if not isinstance(destination, str) or not destination.strip():
@@ -691,7 +699,11 @@ class RevenueInterventionStore:
             event_name="revenueos.intervention.attempt_prepared",
             resource_type="revenue_intervention_dispatch",
             resource_id=str(dispatch.id),
-            payload={"intervention_id": str(intervention.id), "workspace_id": workspace},
+            payload={
+                "intervention_id": str(intervention.id),
+                "workspace_id": workspace,
+                "envelope": envelope,
+            },
         )
         self.session.commit()
         return dict(envelope)
@@ -701,19 +713,21 @@ class RevenueInterventionStore:
         *,
         tenant_id: UUID,
         dispatch_id: UUID,
-        actor_id: str,
+        actor_id: UUID,
         provider: str,
         receipt: dict[str, object] | None,
         provider_accepted: bool,
+        operator_capabilities: frozenset[str],
     ) -> RevenueInterventionDispatch:
         """Operator/provider evidence is required before an unknown command can settle."""
         dispatch = self._dispatch(tenant_id, dispatch_id)
         if dispatch.status != "UNKNOWN_PROVIDER_OUTCOME":
             raise ValueError(f"dispatch is not awaiting reconciliation (state={dispatch.status})")
-        _require_text(actor_id, "actor_id")
+        if "revenueos.admin.manage" not in operator_capabilities:
+            raise PermissionError("revenueos.admin.manage capability is required")
+        if not receipt or not isinstance(receipt.get("provider_receipt_id"), str) or not receipt["provider_receipt_id"].strip():
+            raise ValueError("durable provider receipt is required for reconciliation")
         if provider_accepted:
-            if receipt is None:
-                raise ValueError("provider receipt is required for accepted reconciliation")
             return self.record_dispatch_success(
                 tenant_id=tenant_id,
                 dispatch_id=dispatch_id,
@@ -731,7 +745,42 @@ class RevenueInterventionStore:
             event_name="revenueos.intervention.dispatch_unknown_reconciled_for_replay",
             resource_type="revenue_intervention_dispatch",
             resource_id=str(dispatch.id),
-            payload={"actor_subject": actor_id, "provider": provider},
+            payload={
+                "actor_subject": str(actor_id),
+                "provider": provider,
+                "provider_receipt_id": receipt["provider_receipt_id"],
+            },
+        )
+        self.session.commit()
+        self.session.refresh(dispatch)
+        return dispatch
+
+    def record_dispatch_unknown_provider_outcome(
+        self,
+        *,
+        tenant_id: UUID,
+        dispatch_id: UUID,
+        provider: str,
+        reason: str,
+    ) -> RevenueInterventionDispatch:
+        """Hold an ambiguous provider call for evidence-backed reconciliation."""
+        dispatch = self._dispatch(tenant_id, dispatch_id)
+        intervention = self._intervention(tenant_id, dispatch.intervention_id)
+        if dispatch.status != "IN_FLIGHT":
+            raise ValueError(f"dispatch is not leased (state={dispatch.status})")
+        dispatch.provider = _require_text(provider, "provider")
+        dispatch.status = "UNKNOWN_PROVIDER_OUTCOME"
+        dispatch.last_error = _require_text(reason, "reason")
+        dispatch.lease_expires_at = None
+        dispatch.next_attempt_at = None
+        dispatch.updated_at = utc_now()
+        self.session.add(dispatch)
+        self._audit(
+            tenant_id=tenant_id,
+            event_name="revenueos.intervention.dispatch_provider_outcome_unknown",
+            resource_type="revenue_intervention_dispatch",
+            resource_id=str(dispatch.id),
+            payload={"intervention_id": str(intervention.id), "provider": dispatch.provider, "reason": dispatch.last_error},
         )
         self.session.commit()
         self.session.refresh(dispatch)

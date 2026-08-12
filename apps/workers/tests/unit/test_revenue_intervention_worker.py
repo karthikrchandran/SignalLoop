@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 from datetime import timedelta
+from uuid import uuid4
 
 import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
@@ -56,6 +59,16 @@ class LostResponseDelivery:
         del envelope
         self.calls += 1
         raise KeyboardInterrupt("worker terminated after provider acceptance")
+
+
+class TimedOutDelivery:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def deliver(self, *, envelope) -> InterventionDeliveryResult:
+        del envelope
+        self.calls += 1
+        raise TimeoutError("response lost after provider acceptance")
 
 
 def _session() -> Session:
@@ -223,6 +236,32 @@ def test_lost_provider_response_is_held_for_reconciliation_not_redispatched() ->
         assert lost.calls == 1
 
 
+def test_provider_timeout_after_invocation_is_not_automatically_redispatched() -> None:
+    with _session() as session:
+        _tenant, dispatch = _approved_dispatch(session)
+        timed_out = TimedOutDelivery()
+        processed = asyncio.run(
+            process_claimed_revenue_interventions(
+                session,
+                delivery_factory=lambda _session, _workspace_id: timed_out,
+            )
+        )
+        session.refresh(dispatch)
+        assert processed == 1
+        assert timed_out.calls == 1
+        assert dispatch.status == "UNKNOWN_PROVIDER_OUTCOME"
+
+        processed = asyncio.run(
+            process_claimed_revenue_interventions(
+                session,
+                delivery_factory=lambda _session, _workspace_id: AcceptingDelivery(),
+            )
+        )
+        assert processed == 0
+        assert timed_out.calls == 1
+        assert dispatch.status == "UNKNOWN_PROVIDER_OUTCOME"
+
+
 def test_attempt_envelope_tampering_is_rejected_before_provider_execution() -> None:
     with _session() as session:
         tenant, dispatch = _approved_dispatch(session)
@@ -236,6 +275,9 @@ def test_attempt_envelope_tampering_is_rejected_before_provider_execution() -> N
         tampered = dict(dispatch.attempt_envelope)
         tampered["destination_ref"] = "attacker@example.test"
         dispatch.attempt_envelope = tampered
+        dispatch.attempt_envelope_digest = hashlib.sha256(
+            json.dumps(tampered, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
         session.add(dispatch)
         session.commit()
 
@@ -245,7 +287,7 @@ def test_attempt_envelope_tampering_is_rejected_before_provider_execution() -> N
             )
 
 
-def test_unknown_provider_outcome_requires_receipt_before_settling_accepted() -> None:
+def test_unknown_provider_outcome_requires_authorized_operator_and_evidence() -> None:
     with _session() as session:
         tenant, dispatch = _approved_dispatch(session)
         store = RevenueInterventionStore(session)
@@ -258,21 +300,33 @@ def test_unknown_provider_outcome_requires_receipt_before_settling_accepted() ->
         session.commit()
         store.recover_expired_dispatch_leases()
 
+        with pytest.raises(PermissionError, match="capability"):
+            store.reconcile_unknown_provider_outcome(
+                tenant_id=tenant.id,
+                dispatch_id=dispatch.id,
+                actor_id=uuid4(),
+                provider="email",
+                receipt={"provider_receipt_id": "provider-1"},
+                provider_accepted=True,
+                operator_capabilities=frozenset(),
+            )
         with pytest.raises(ValueError, match="receipt"):
             store.reconcile_unknown_provider_outcome(
                 tenant_id=tenant.id,
                 dispatch_id=dispatch.id,
-                actor_id="operator-1",
+                actor_id=uuid4(),
                 provider="email",
                 receipt=None,
-                provider_accepted=True,
+                provider_accepted=False,
+                operator_capabilities=frozenset({"revenueos.admin.manage"}),
             )
         reconciled = store.reconcile_unknown_provider_outcome(
             tenant_id=tenant.id,
             dispatch_id=dispatch.id,
-            actor_id="operator-1",
+            actor_id=uuid4(),
             provider="email",
-            receipt={"message_id": "provider-1", "status_code": 202},
+            receipt={"provider_receipt_id": "provider-1", "status_code": 202},
             provider_accepted=True,
+            operator_capabilities=frozenset({"revenueos.admin.manage"}),
         )
         assert reconciled.status == "ACKNOWLEDGED"
