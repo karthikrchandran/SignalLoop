@@ -9,6 +9,8 @@ const __dirname = path.dirname(__filename)
 
 dotenv.config({ path: path.join(__dirname, '../../.env') })
 
+const apiBaseUrl = process.env.PLAYWRIGHT_API_URL ?? process.env.VITE_API_URL ?? 'http://localhost:8001'
+
 /**
  * Read environment variables from file.
  * https://github.com/motdotla/dotenv
@@ -49,6 +51,17 @@ export default defineConfig({
         storageState: existsSync('playwright/.auth/user.json') ? 'playwright/.auth/user.json' : undefined,
       },
       dependencies: ['setup'],
+    },
+
+    {
+      name: 'admin-chromium',
+      testMatch: /admin\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: existsSync('playwright/.auth/user.json') ? 'playwright/.auth/user.json' : undefined,
+      },
+      dependencies: ['setup'],
+      workers: 1,
     },
 
     // {
@@ -93,6 +106,11 @@ export default defineConfig({
   /* Run your local dev server before starting the tests */
   webServer: {
     command: 'npm run dev',
+    // Run isolated admin E2E with PLAYWRIGHT_API_URL=http://localhost:8001 npx playwright test --project=admin-chromium.
+    env: {
+      ...process.env,
+      VITE_API_URL: apiBaseUrl,
+    },
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
   },
