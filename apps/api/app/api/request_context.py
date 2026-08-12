@@ -15,6 +15,7 @@ from app.domain.support_access.service import (
 )
 from app.domain.tenants.models import Tenant
 from app.domain.workspaces.service import (
+    WORKSPACE_ADMIN_ROLES,
     normalize_workspace_id,
     user_has_workspace_access,
 )
@@ -109,7 +110,12 @@ def require_workspace_id(
 ) -> str:
     """Validate admin workspace access and return workspace id."""
     workspace_id = _validated_workspace_header(x_workspace_id)
-    if user_has_workspace_access(session, user=admin_user, workspace_id=workspace_id):
+    if user_has_workspace_access(
+        session,
+        user=admin_user,
+        workspace_id=workspace_id,
+        allowed_roles=WORKSPACE_ADMIN_ROLES,
+    ):
         return workspace_id
     _workspace_access_denied_error(workspace_id)
     raise AssertionError("unreachable")
