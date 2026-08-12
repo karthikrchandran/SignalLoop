@@ -50,12 +50,16 @@ class DestinationEnvelope(BaseModel):
 
 
 def _payload_hash(envelope: DestinationEnvelope) -> str:
-    raw = json.dumps(envelope.model_dump(), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    raw = json.dumps(
+        envelope.model_dump(), sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    )
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 class EcrmDestinationService:
-    def __init__(self, repository: EcrmInstallationRepository, secrets: SecretResolver) -> None:
+    def __init__(
+        self, repository: EcrmInstallationRepository, secrets: SecretResolver
+    ) -> None:
         self.repository = repository
         self.secrets = secrets
 
@@ -63,12 +67,18 @@ class EcrmDestinationService:
         self,
         *,
         ecrm_cell_id: str,
+        ecrm_cell_key: str | None = None,
+        workspace_id: str | None = None,
         credential: str,
         idempotency_key: str,
         envelope: DestinationEnvelope,
     ) -> DestinationReceipt:
         binding = self.repository.get_binding_by_cell(ecrm_cell_id)
         if binding is None:
+            raise InstallationAuthError("installation authentication failed")
+        if (ecrm_cell_key is not None and binding.ecrm_cell_key != ecrm_cell_key) or (
+            workspace_id is not None and binding.workspace_id != workspace_id
+        ):
             raise InstallationAuthError("installation authentication failed")
         try:
             expected = self.secrets.resolve(binding.credential_secret_ref)
@@ -193,13 +203,19 @@ class EcrmDestinationService:
 
 
 class InstallationProjectionWorker:
-    def __init__(self, repository: EcrmInstallationRepository, *, max_attempts: int = 5) -> None:
+    def __init__(
+        self, repository: EcrmInstallationRepository, *, max_attempts: int = 5
+    ) -> None:
         self.repository = repository
         self.max_attempts = max_attempts
 
-    def run_once(self, *, workspace_id: str | None = None, limit: int = 100) -> dict[str, int]:
+    def run_once(
+        self, *, workspace_id: str | None = None, limit: int = 100
+    ) -> dict[str, int]:
         result = {"applied": 0, "held": 0, "failed": 0}
-        rows = self.repository.claim_due_receipts(workspace_id=workspace_id, limit=limit)
+        rows = self.repository.claim_due_receipts(
+            workspace_id=workspace_id, limit=limit
+        )
         for row in rows:
             fence_token = row.fence_token
             try:
@@ -241,10 +257,14 @@ class InstallationProjectionWorker:
         ).one_or_none()
         if receipt is None:
             raise StaleReceiptFence("receipt lease is no longer current")
-        binding = self.repository.get_binding(receipt.workspace_id, ecrm_cell_id=receipt.ecrm_cell_id)
+        binding = self.repository.get_binding(
+            receipt.workspace_id, ecrm_cell_id=receipt.ecrm_cell_id
+        )
         if binding is None or binding.status == "SUSPENDED":
             raise SuspendedInstallation("installation is not active")
-        checkpoint = self.repository.checkpoint(receipt.workspace_id, receipt.stream_key)
+        checkpoint = self.repository.checkpoint(
+            receipt.workspace_id, receipt.stream_key
+        )
         current_version = checkpoint.source_version if checkpoint else 0
         if receipt.source_version < current_version:
             return self._settle(receipt, "STALE", fence_token=fence_token)
@@ -261,9 +281,7 @@ class InstallationProjectionWorker:
                 and projection.source_event_id == receipt.source_event_id
                 and projection.payload_hash == receipt.payload_hash
             ):
-                return self._settle(
-                    receipt, "DUPLICATE", fence_token=fence_token
-                )
+                return self._settle(receipt, "DUPLICATE", fence_token=fence_token)
             return self._settle(
                 receipt,
                 "CONFLICT",
@@ -381,7 +399,9 @@ class InstallationProjectionWorker:
             event_name = "ecrm.installation.projection_dead_lettered"
         else:
             receipt.status = "RETRY_SCHEDULED"
-            receipt.next_attempt_at = utc_now() + timedelta(seconds=min(300, 10 * (2 ** (receipt.attempt_count - 1))))
+            receipt.next_attempt_at = utc_now() + timedelta(
+                seconds=min(300, 10 * (2 ** (receipt.attempt_count - 1)))
+            )
             event_name = "ecrm.installation.projection_retry_scheduled"
         self.repository.session.add(receipt)
         append_audit_event_to_session(
@@ -390,7 +410,10 @@ class InstallationProjectionWorker:
             workspace_id=receipt.workspace_id,
             resource_type="ecrm_destination_receipt",
             resource_id=str(receipt.id),
-            payload={"attempt_count": receipt.attempt_count, "error_code": receipt.last_error},
+            payload={
+                "attempt_count": receipt.attempt_count,
+                "error_code": receipt.last_error,
+            },
         )
         self.repository.session.commit()
         return receipt

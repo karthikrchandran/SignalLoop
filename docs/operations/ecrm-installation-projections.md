@@ -9,9 +9,12 @@ the stored cell URL, cell identity, or credential reference.
 
 ## Configuration
 
-Set the secret named by each binding's `credential_secret_ref`. The built-in
-resolver accepts only `env://NAME`; it fails closed when the variable is absent.
-Store only the reference, never the credential value. Production secret-manager
+Provision `ECRM_INSTALLATION_ENDPOINTS` and
+`ECRM_INSTALLATION_SECRET_REFERENCES` in deployment configuration. Each public
+secret-reference ID maps to one allowlisted environment variable and one eCRM
+cell; callers can never submit an environment-variable name. The built-in
+resolver fails closed when either the reference or its value is absent. Store
+only the reference, never the credential value. Production secret-manager
 adapters implement `SecretResolver` and are injected at deployment time. OIDC
 and external CRM connectors remain intentionally inactive.
 
@@ -22,17 +25,19 @@ cd apps/api
 uv run alembic upgrade head
 ```
 
-Create or rotate a binding through `PUT /api/v1/ecrm-installations/binding`
-while authenticated as a workspace admin and sending `X-Workspace-Id`. The
-response deliberately omits `credential_secret_ref` and all secret values.
+Create a binding through `PUT /api/v1/ecrm-installations/binding` while
+authenticated as a workspace admin and sending `X-Workspace-Id`. The response
+deliberately omits `credential_secret_ref` and all secret values.
 
 ## Delivery and recovery
 
 The authenticated destination is
-`POST /api/v1/ecrm-installations/deliveries`. It requires `X-ECRM-Cell-Id`, a
-Bearer cell credential, and `Idempotency-Key`. A receipt is committed before the
-202 response. Identical replay is acknowledged; changed content for the same key
-is rejected with 409.
+`POST /api/v1/ecrm-installations/deliveries`. It requires `X-ECRM-Cell-Id`,
+`X-ECRM-Cell-Key`, the exact bound `X-Workspace-Id`, a Bearer cell credential,
+`X-Correlation-Id`, and `Idempotency-Key`. A receipt is committed before the 202
+response. Identical replay returns the same ACK; changed content for the same
+key is rejected with 409. The versioned request and ACK example is checked in at
+`docs/contracts/signalloop-ecrm-installation-delivery-v1.json`.
 
 The checked-in Compose service `ecrm-installation-projection-worker` runs
 continuously. It polls every 10 seconds and claims up to 100 receipts per pass by
@@ -73,10 +78,10 @@ Project `SUSPENDED` immediately and confirm new delivery is denied with no proje
 
 ## Secret rotation
 
-1. Provision a new deployment secret reference for the same immutable cell. Never send the secret value through the binding API.
-2. Update the binding with `source_version = previous + 1` and a rotation timestamp. A secret-reference change without the next source version fails closed; cell ID, cell key, base URL, and workspace remain immutable.
-3. Deploy the new secret value, send a synthetic canary, and verify an explicit matching acknowledgement plus RevenueOS checkpoint.
-4. Verify the retired credential fails and audit evidence contains reference/version only. Remove the old deployment secret after the approved overlap policy.
+1. Provision a new allowlisted deployment secret reference for the same immutable cell. Never send the secret value through the API.
+2. As a workspace admin, call `POST /api/v1/ecrm-installations/binding/credential-rotations` with `X-Workspace-Id` and `{"secret_reference_id":"secret-v2","expected_source_version":1}`.
+3. The compare-and-swap accepts only the current version, increments it by one, records a server-owned monotonic `rotated_at`, preserves workspace/cell/key/base URL, and emits `ecrm.installation.credential_rotated` audit evidence. A stale or concurrent loser receives 409; an unprovisioned or cross-cell reference receives 422.
+4. After commit, delivery resolves only the new reference. Verify the retired credential fails and the new credential returns a matching ACK, then remove the old deployment secret according to policy.
 
 ## Recovery operations
 

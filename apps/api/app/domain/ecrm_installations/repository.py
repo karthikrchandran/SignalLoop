@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -27,6 +27,10 @@ from app.domain.tenants.models import ProductCode, Tenant, TenantEntitlement
 def _canonical_hash(value: object) -> str:
     raw = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+class StaleBindingVersion(ValueError):
+    pass
 
 
 class EcrmInstallationRepository:
@@ -65,7 +69,11 @@ class EcrmInstallationRepository:
             if secret_rotated:
                 existing.credential_secret_ref = binding.credential_secret_ref
             for field in (
-                "capabilities", "status", "verified_at", "rotated_at", "source_version",
+                "capabilities",
+                "status",
+                "verified_at",
+                "rotated_at",
+                "source_version",
             ):
                 setattr(existing, field, getattr(binding, field))
             existing.updated_at = utc_now()
@@ -78,7 +86,10 @@ class EcrmInstallationRepository:
             workspace_id=binding.workspace_id,
             resource_type="ecrm_installation_binding",
             resource_id=binding.ecrm_cell_id,
-            payload={"status": binding.status, "source_version": binding.source_version},
+            payload={
+                "status": binding.status,
+                "source_version": binding.source_version,
+            },
         )
         return binding
 
@@ -88,12 +99,64 @@ class EcrmInstallationRepository:
         clauses = [EcrmInstallationBinding.workspace_id == workspace_id]
         if ecrm_cell_id is not None:
             clauses.append(EcrmInstallationBinding.ecrm_cell_id == ecrm_cell_id)
-        return self.session.exec(select(EcrmInstallationBinding).where(*clauses)).one_or_none()
+        return self.session.exec(
+            select(EcrmInstallationBinding).where(*clauses)
+        ).one_or_none()
 
     def get_binding_by_cell(self, ecrm_cell_id: str) -> EcrmInstallationBinding | None:
         return self.session.exec(
-            select(EcrmInstallationBinding).where(EcrmInstallationBinding.ecrm_cell_id == ecrm_cell_id)
+            select(EcrmInstallationBinding).where(
+                EcrmInstallationBinding.ecrm_cell_id == ecrm_cell_id
+            )
         ).one_or_none()
+
+    def rotate_credential(
+        self,
+        *,
+        workspace_id: str,
+        expected_source_version: int,
+        secret_reference: str,
+        rotated_at: datetime,
+        actor_id: UUID,
+        actor_role: str,
+    ) -> EcrmInstallationBinding:
+        workspace_column = cast(Any, EcrmInstallationBinding.workspace_id)
+        version_column = cast(Any, EcrmInstallationBinding.source_version)
+        secret_column = cast(Any, EcrmInstallationBinding.credential_secret_ref)
+        result = cast(
+            Any,
+            self.session.execute(
+                update(EcrmInstallationBinding)
+                .where(
+                    workspace_column == workspace_id,
+                    version_column == expected_source_version,
+                    secret_column != secret_reference,
+                )
+                .values(
+                    credential_secret_ref=secret_reference,
+                    source_version=expected_source_version + 1,
+                    rotated_at=rotated_at,
+                    updated_at=rotated_at,
+                )
+            ),
+        )
+        if result.rowcount != 1:
+            raise StaleBindingVersion("installation binding version is stale")
+        self.session.expire_all()
+        binding = self.session.get(EcrmInstallationBinding, workspace_id)
+        if binding is None:
+            raise StaleBindingVersion("installation binding version is stale")
+        append_audit_event_to_session(
+            self.session,
+            event_name="ecrm.installation.credential_rotated",
+            workspace_id=workspace_id,
+            actor_id=actor_id,
+            actor_role=actor_role,
+            resource_type="ecrm_installation_binding",
+            resource_id=binding.ecrm_cell_id,
+            payload={"source_version": binding.source_version},
+        )
+        return binding
 
     def list_receipts(self, workspace_id: str) -> list[DestinationReceipt]:
         received_at = cast(Any, DestinationReceipt.received_at)
@@ -153,7 +216,9 @@ class EcrmInstallationRepository:
         self.session.commit()
         return rows
 
-    def checkpoint(self, workspace_id: str, stream_key: str) -> InstallationProjectionCheckpoint | None:
+    def checkpoint(
+        self, workspace_id: str, stream_key: str
+    ) -> InstallationProjectionCheckpoint | None:
         return self.session.exec(
             select(InstallationProjectionCheckpoint).where(
                 InstallationProjectionCheckpoint.workspace_id == workspace_id,
@@ -161,8 +226,12 @@ class EcrmInstallationRepository:
             )
         ).one_or_none()
 
-    def get_revenueos_projection(self, workspace_id: str) -> RevenueOsInstallationProjection | None:
-        tenant = self.session.exec(select(Tenant).where(Tenant.key == workspace_id)).one_or_none()
+    def get_revenueos_projection(
+        self, workspace_id: str
+    ) -> RevenueOsInstallationProjection | None:
+        tenant = self.session.exec(
+            select(Tenant).where(Tenant.key == workspace_id)
+        ).one_or_none()
         if tenant is None:
             return None
         entitlement = self.session.exec(
@@ -238,9 +307,7 @@ class EcrmInstallationRepository:
             self.session.flush()
         except IntegrityError:
             self.session.rollback()
-            existing = self._repair_candidate(
-                workspace_id, stream_key, mismatch_hash
-            )
+            existing = self._repair_candidate(workspace_id, stream_key, mismatch_hash)
             if existing is None:
                 raise
             return existing

@@ -65,6 +65,31 @@ class ProvisionedInstallationRegistry:
             for reference in self._secret_references.values()
         }
 
+    def rotation_secret(
+        self,
+        *,
+        ecrm_cell_id: str,
+        ecrm_cell_key: str,
+        base_url: str,
+        secret_reference_id: str,
+    ) -> SecretReference:
+        endpoint_is_still_provisioned = any(
+            endpoint.ecrm_cell_id == ecrm_cell_id
+            and endpoint.ecrm_cell_key == ecrm_cell_key
+            and endpoint.base_url == base_url
+            for endpoint in self._endpoints.values()
+        )
+        try:
+            secret_reference = self._secret_references[secret_reference_id]
+        except KeyError as exc:
+            raise LookupError("installation destination is not provisioned") from exc
+        if (
+            not endpoint_is_still_provisioned
+            or secret_reference.ecrm_cell_id != ecrm_cell_id
+        ):
+            raise LookupError("installation destination is not provisioned")
+        return secret_reference
+
 
 def _validate_origin(value: str) -> str:
     parsed = urlsplit(value)
