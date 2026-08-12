@@ -27,6 +27,7 @@ from app.domain.tenants.models import (
     ProductCode,
     ProductInstallation,
     Tenant,
+    TenantOperationalControl,
     utc_now,
 )
 from app.domain_models import ActionQueue, Contact, GlobalControlState, GovernancePolicy
@@ -78,6 +79,7 @@ def _session() -> Session:
         tables=[
             Tenant.__table__,
             ProductInstallation.__table__,
+            TenantOperationalControl.__table__,
             Contact.__table__,
             EmailSuppression.__table__,
             GovernancePolicy.__table__,
@@ -179,6 +181,60 @@ def test_worker_dispatches_due_revenue_intervention() -> None:
         assert envelope.destination_ref == "owner@example.test"
         assert envelope.idempotency_key == str(dispatch.id)
         assert dispatch.attempt_envelope is not None
+
+
+def test_worker_does_not_claim_a_tenant_product_paused_by_an_operator() -> None:
+    with _session() as session:
+        tenant, dispatch = _approved_dispatch(session)
+        session.add(
+            TenantOperationalControl(
+                tenant_id=tenant.id,
+                product_code=ProductCode.REVENUE_OS,
+                paused=True,
+                paused_reason="provider incident INC-42",
+            )
+        )
+        session.commit()
+        delivery = AcceptingDelivery()
+
+        processed = asyncio.run(
+            process_claimed_revenue_interventions(
+                session,
+                delivery_factory=lambda _session, _workspace_id: delivery,
+            )
+        )
+
+        session.refresh(dispatch)
+        assert processed == 0
+        assert delivery.calls == 0
+        assert dispatch.status == "PENDING"
+
+
+def test_worker_honors_the_signal_loop_switch_for_revenueos_delivery() -> None:
+    with _session() as session:
+        tenant, dispatch = _approved_dispatch(session)
+        session.add(
+            TenantOperationalControl(
+                tenant_id=tenant.id,
+                product_code=ProductCode.SIGNAL_LOOP,
+                paused=True,
+                paused_reason="SignalLoop provider maintenance",
+            )
+        )
+        session.commit()
+        delivery = AcceptingDelivery()
+
+        processed = asyncio.run(
+            process_claimed_revenue_interventions(
+                session,
+                delivery_factory=lambda _session, _workspace_id: delivery,
+            )
+        )
+
+        session.refresh(dispatch)
+        assert processed == 0
+        assert delivery.calls == 0
+        assert dispatch.status == "PENDING"
 
 
 def test_worker_recovers_expired_revenue_dispatch_lease() -> None:

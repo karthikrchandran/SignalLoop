@@ -30,7 +30,12 @@ from app.domain.revenue_intelligence.persistence_models import (  # noqa: E402
 from app.domain.revenue_intelligence.provider_delivery import (  # noqa: E402
     ConfiguredEmailInterventionDelivery,
 )
-from app.domain.tenants.models import ProductCode, ProductInstallation, utc_now  # noqa: E402
+from app.domain.tenants.models import (  # noqa: E402
+    ProductCode,
+    ProductInstallation,
+    TenantOperationalControl,
+    utc_now,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +61,12 @@ async def process_claimed_revenue_interventions(
     for tenant_id in _tenant_ids_with_due_dispatches(session):
         if processed >= batch_size:
             break
+        if any(
+            _product_execution_paused(session, tenant_id, product_code)
+            for product_code in (ProductCode.REVENUE_OS, ProductCode.SIGNAL_LOOP)
+        ):
+            logger.warning("RevenueOS execution is paused for tenant_id=%s", tenant_id)
+            continue
         installation = _signal_loop_installation(session, tenant_id)
         claimed = store.claim_due_dispatches(
             tenant_id=tenant_id,
@@ -131,3 +142,19 @@ def _signal_loop_installation(
             ProductInstallation.status == "ACTIVE",
         )
     ).one_or_none()
+
+
+def _product_execution_paused(
+    session: Session, tenant_id: UUID, product_code: ProductCode
+) -> bool:
+    """Return only an explicit active tenant/product kill switch."""
+    return (
+        session.exec(
+            select(TenantOperationalControl).where(
+                TenantOperationalControl.tenant_id == tenant_id,
+                TenantOperationalControl.product_code == product_code,
+                TenantOperationalControl.paused == True,  # noqa: E712
+            )
+        ).one_or_none()
+        is not None
+    )

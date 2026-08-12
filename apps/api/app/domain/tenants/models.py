@@ -77,6 +77,35 @@ class TenantEntitlement(SQLModel, table=True):
     )
 
 
+class TenantOperationalControl(SQLModel, table=True):
+    """Fail-closed tenant/product execution switch set by an authorized operator."""
+
+    __tablename__ = "suite_tenant_operational_control"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "product_code", name="uq_suite_tenant_operational_control"
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    tenant_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("suite_tenant.id", ondelete="CASCADE"), nullable=False, index=True
+        )
+    )
+    product_code: ProductCode = Field(sa_column=Column(String(32), nullable=False))
+    paused: bool = Field(default=False, nullable=False)
+    paused_reason: str | None = Field(default=None, max_length=500)
+    changed_by: uuid.UUID | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
+    )
+    changed_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
 class TenantInvitation(SQLModel, table=True):
     __tablename__ = "suite_tenant_invitation"
 

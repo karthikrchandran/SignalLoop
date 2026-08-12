@@ -149,6 +149,7 @@ from app.domain.tenants.models import (  # noqa: E402, F401
     Tenant,
     TenantEntitlement,
     TenantInvitation,
+    TenantOperationalControl,
 )
 from app.domain.onboarding.persistence import (  # noqa: E402, F401
     OnboardingEvidenceBundleRecord,
