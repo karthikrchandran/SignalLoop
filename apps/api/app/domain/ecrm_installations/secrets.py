@@ -28,15 +28,16 @@ class DictSecretResolver:
 
 
 class EnvSecretResolver:
-    """Production-compatible reference resolver with an explicit env scheme."""
+    """Resolve only deployment-provisioned opaque references from the environment."""
+
+    def __init__(self, environment_allowlist: dict[str, str]) -> None:
+        self._environment_allowlist = dict(environment_allowlist)
 
     def resolve(self, reference: str) -> str:
-        prefix = "env://"
-        if not reference.startswith(prefix):
-            raise ValueError("only env:// secret references are supported")
-        name = reference[len(prefix) :]
-        if not name or not name.replace("_", "").isalnum():
-            raise ValueError("invalid environment secret reference")
+        try:
+            name = self._environment_allowlist[reference]
+        except KeyError as exc:
+            raise LookupError("secret reference is unavailable") from exc
         value = os.environ.get(name)
         if not value:
             raise LookupError("secret reference is unavailable")

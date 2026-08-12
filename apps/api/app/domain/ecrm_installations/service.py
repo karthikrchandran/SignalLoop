@@ -87,9 +87,11 @@ class EcrmDestinationService:
             idempotency_key=idempotency_key,
             source_event_id=envelope.source_event_id,
             event_kind=envelope.event_kind,
+            stream_key=envelope.stream_key,
+            source_version=envelope.source_version,
         )
         if existing is not None:
-            if existing.payload_hash != digest:
+            if not self._is_identical_version(existing, envelope, digest):
                 raise ConflictingReplay("receipt key already has different content")
             return existing
         receipt = DestinationReceipt(
@@ -115,8 +117,12 @@ class EcrmDestinationService:
                 idempotency_key=idempotency_key,
                 source_event_id=envelope.source_event_id,
                 event_kind=envelope.event_kind,
+                stream_key=envelope.stream_key,
+                source_version=envelope.source_version,
             )
-            if existing is None or existing.payload_hash != digest:
+            if existing is None or not self._is_identical_version(
+                existing, envelope, digest
+            ):
                 raise ConflictingReplay("receipt key already has different content")
             return existing
         append_audit_event_to_session(
@@ -141,11 +147,15 @@ class EcrmDestinationService:
         idempotency_key: str,
         source_event_id: str,
         event_kind: str,
+        stream_key: str,
+        source_version: int,
     ) -> DestinationReceipt | None:
         receipt_workspace_id = cast(Any, DestinationReceipt.workspace_id)
         receipt_idempotency_key = cast(Any, DestinationReceipt.idempotency_key)
         receipt_source_event_id = cast(Any, DestinationReceipt.source_event_id)
         receipt_event_kind = cast(Any, DestinationReceipt.event_kind)
+        receipt_stream_key = cast(Any, DestinationReceipt.stream_key)
+        receipt_source_version = cast(Any, DestinationReceipt.source_version)
         rows = list(
             self.repository.session.exec(
                 select(DestinationReceipt).where(
@@ -156,6 +166,10 @@ class EcrmDestinationService:
                             (receipt_source_event_id == source_event_id)
                             & (receipt_event_kind == event_kind)
                         ),
+                        (
+                            (receipt_stream_key == stream_key)
+                            & (receipt_source_version == source_version)
+                        ),
                     ),
                 )
             ).all()
@@ -165,6 +179,17 @@ class EcrmDestinationService:
         if any(row.id != rows[0].id for row in rows[1:]):
             raise ConflictingReplay("receipt keys identify different deliveries")
         return rows[0]
+
+    @staticmethod
+    def _is_identical_version(
+        existing: DestinationReceipt,
+        envelope: DestinationEnvelope,
+        payload_hash: str,
+    ) -> bool:
+        return (
+            existing.source_event_id == envelope.source_event_id
+            and existing.payload_hash == payload_hash
+        )
 
 
 class InstallationProjectionWorker:
@@ -221,8 +246,30 @@ class InstallationProjectionWorker:
             raise SuspendedInstallation("installation is not active")
         checkpoint = self.repository.checkpoint(receipt.workspace_id, receipt.stream_key)
         current_version = checkpoint.source_version if checkpoint else 0
-        if receipt.source_version <= current_version:
-            return self._settle(receipt, "APPLIED", fence_token=fence_token)
+        if receipt.source_version < current_version:
+            return self._settle(receipt, "STALE", fence_token=fence_token)
+        if receipt.source_version == current_version:
+            projection = session.exec(
+                select(RevenueOsInstallationProjection).where(
+                    RevenueOsInstallationProjection.workspace_id
+                    == receipt.workspace_id,
+                    RevenueOsInstallationProjection.stream_key == receipt.stream_key,
+                )
+            ).one_or_none()
+            if (
+                projection is not None
+                and projection.source_event_id == receipt.source_event_id
+                and projection.payload_hash == receipt.payload_hash
+            ):
+                return self._settle(
+                    receipt, "DUPLICATE", fence_token=fence_token
+                )
+            return self._settle(
+                receipt,
+                "CONFLICT",
+                fence_token=fence_token,
+                last_error="SOURCE_VERSION_CONFLICT",
+            )
         if receipt.source_version > current_version + 1:
             receipt.status = "HELD_GAP"
             receipt.last_error = f"EXPECTED_VERSION_{current_version + 1}"
@@ -289,12 +336,17 @@ class InstallationProjectionWorker:
         return settled
 
     def _settle(
-        self, receipt: DestinationReceipt, status: str, *, fence_token: int
+        self,
+        receipt: DestinationReceipt,
+        status: str,
+        *,
+        fence_token: int,
+        last_error: str | None = None,
     ) -> DestinationReceipt:
         if receipt.fence_token != fence_token or receipt.status != "IN_FLIGHT":
             raise StaleReceiptFence("receipt lease is no longer current")
         receipt.status = status
-        receipt.last_error = None
+        receipt.last_error = last_error
         receipt.next_attempt_at = None
         receipt.lease_owner = None
         receipt.lease_expires_at = None

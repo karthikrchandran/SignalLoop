@@ -11,12 +11,14 @@ from sqlmodel import select
 
 from app.api.deps import SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep
+from app.core.config import settings
 from app.domain.ecrm_installations.models import (
     DestinationReceipt,
     EcrmInstallationBinding,
     InstallationProjectionCheckpoint,
     InstallationRepairCandidate,
 )
+from app.domain.ecrm_installations.registry import ProvisionedInstallationRegistry
 from app.domain.ecrm_installations.repository import EcrmInstallationRepository
 from app.domain.ecrm_installations.secrets import EnvSecretResolver
 from app.domain.ecrm_installations.service import (
@@ -31,12 +33,10 @@ router = APIRouter(prefix="/ecrm-installations", tags=["ecrm-installations"])
 
 
 class BindingPut(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="forbid")
 
-    ecrm_cell_id: str = Field(min_length=1, max_length=128)
-    ecrm_cell_key: str = Field(min_length=1, max_length=128)
-    base_url: str = Field(pattern="^https://", max_length=2048)
-    credential_secret_ref: str = Field(min_length=1, max_length=1024)
+    endpoint_id: str = Field(min_length=1, max_length=128)
+    secret_reference_id: str = Field(min_length=1, max_length=128)
     capabilities: list[str] = Field(min_length=1)
     status: str = Field(pattern="^(ACTIVE|SUSPENDED|DEGRADED)$")
     source_version: int = Field(ge=1)
@@ -58,10 +58,35 @@ def _binding_public(row: EcrmInstallationBinding) -> BindingPublic:
     return BindingPublic.model_validate(row, from_attributes=True)
 
 
+def _installation_registry() -> ProvisionedInstallationRegistry:
+    return ProvisionedInstallationRegistry(
+        settings.ECRM_INSTALLATION_ENDPOINTS,
+        settings.ECRM_INSTALLATION_SECRET_REFERENCES,
+    )
+
+
 @router.put("/binding", response_model=BindingPublic, dependencies=[Depends(require_admin)])
 def put_binding(*, session: SessionDep, workspace_id: WorkspaceIdDep, body: BindingPut) -> BindingPublic:
     repository = EcrmInstallationRepository(session)
-    row = repository.save_binding(EcrmInstallationBinding(workspace_id=workspace_id, **body.model_dump()))
+    try:
+        endpoint, secret_reference = _installation_registry().destination(
+            body.endpoint_id, body.secret_reference_id
+        )
+        row = repository.save_binding(
+            EcrmInstallationBinding(
+                workspace_id=workspace_id,
+                ecrm_cell_id=endpoint.ecrm_cell_id,
+                ecrm_cell_key=endpoint.ecrm_cell_key,
+                base_url=endpoint.base_url,
+                credential_secret_ref=secret_reference.identifier,
+                capabilities=body.capabilities,
+                status=body.status,
+                source_version=body.source_version,
+            )
+        )
+    except (LookupError, ValueError) as exc:
+        session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
     session.commit()
     return _binding_public(row)
 
@@ -88,7 +113,8 @@ def receive_delivery(
         raise HTTPException(status_code=401, detail="Installation authentication failed")
     try:
         receipt = EcrmDestinationService(
-            EcrmInstallationRepository(session), EnvSecretResolver()
+            EcrmInstallationRepository(session),
+            EnvSecretResolver(_installation_registry().environment_allowlist()),
         ).receive(
             ecrm_cell_id=ecrm_cell_id,
             credential=credential,

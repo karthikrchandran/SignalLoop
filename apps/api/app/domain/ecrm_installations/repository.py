@@ -9,6 +9,7 @@ from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import and_, or_
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.domain.audit.audit_events import append_audit_event_to_session
@@ -35,14 +36,22 @@ class EcrmInstallationRepository:
         self.session = session
 
     def save_binding(self, binding: EcrmInstallationBinding) -> EcrmInstallationBinding:
-        if "://" not in binding.credential_secret_ref:
-            raise ValueError("credential_secret_ref must be an opaque reference")
         if not binding.base_url.startswith("https://"):
             raise ValueError("eCRM base_url must use https")
         existing = self.session.get(EcrmInstallationBinding, binding.workspace_id)
         if existing is not None and existing is not binding:
+            immutable_destination = (
+                "ecrm_cell_id",
+                "ecrm_cell_key",
+                "base_url",
+                "credential_secret_ref",
+            )
+            if any(
+                getattr(existing, field) != getattr(binding, field)
+                for field in immutable_destination
+            ):
+                raise ValueError("installation destination is immutable")
             for field in (
-                "ecrm_cell_id", "ecrm_cell_key", "base_url", "credential_secret_ref",
                 "capabilities", "status", "verified_at", "rotated_at", "source_version",
             ):
                 setattr(existing, field, getattr(binding, field))
@@ -199,13 +208,7 @@ class EcrmInstallationRepository:
         mismatch_hash = _canonical_hash(
             [source_count, source_checkpoint, local_count, local_checkpoint]
         )
-        existing = self.session.exec(
-            select(InstallationRepairCandidate).where(
-                InstallationRepairCandidate.workspace_id == workspace_id,
-                InstallationRepairCandidate.stream_key == stream_key,
-                InstallationRepairCandidate.mismatch_hash == mismatch_hash,
-            )
-        ).one_or_none()
+        existing = self._repair_candidate(workspace_id, stream_key, mismatch_hash)
         if existing is not None:
             return existing
         repair = InstallationRepairCandidate(
@@ -218,7 +221,16 @@ class EcrmInstallationRepository:
             local_checkpoint=local_checkpoint,
         )
         self.session.add(repair)
-        self.session.flush()
+        try:
+            self.session.flush()
+        except IntegrityError:
+            self.session.rollback()
+            existing = self._repair_candidate(
+                workspace_id, stream_key, mismatch_hash
+            )
+            if existing is None:
+                raise
+            return existing
         append_audit_event_to_session(
             self.session,
             event_name="ecrm.installation.repair_candidate_created",
@@ -234,6 +246,17 @@ class EcrmInstallationRepository:
             },
         )
         return repair
+
+    def _repair_candidate(
+        self, workspace_id: str, stream_key: str, mismatch_hash: str
+    ) -> InstallationRepairCandidate | None:
+        return self.session.exec(
+            select(InstallationRepairCandidate).where(
+                InstallationRepairCandidate.workspace_id == workspace_id,
+                InstallationRepairCandidate.stream_key == stream_key,
+                InstallationRepairCandidate.mismatch_hash == mismatch_hash,
+            )
+        ).one_or_none()
 
     def resolve_repair(
         self, workspace_id: str, repair_id: UUID, *, resolution: str

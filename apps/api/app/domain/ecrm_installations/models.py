@@ -38,6 +38,12 @@ class DestinationReceipt(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint("workspace_id", "source_event_id", "event_kind", name="uq_ecrm_receipt_workspace_event_kind"),
         UniqueConstraint("workspace_id", "idempotency_key", name="uq_ecrm_receipt_workspace_idempotency"),
+        UniqueConstraint(
+            "workspace_id",
+            "stream_key",
+            "source_version",
+            name="uq_ecrm_receipt_workspace_stream_version",
+        ),
         Index("ix_ecrm_receipt_due", "status", "next_attempt_at"),
     )
 

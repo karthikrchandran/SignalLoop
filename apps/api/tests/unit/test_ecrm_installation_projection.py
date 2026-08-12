@@ -271,6 +271,107 @@ def test_worker_is_cross_workspace_safe_and_same_version_is_noop(session: Sessio
     assert worker.run_once(workspace_id="ws-a") == {"applied": 0, "held": 0, "failed": 0}
 
 
+def test_worker_acknowledges_only_identical_same_version_as_duplicate(
+    session: Session,
+) -> None:
+    repo = EcrmInstallationRepository(session)
+    repo.save_binding(_binding("ws-a"))
+    destination = EcrmDestinationService(
+        repo, DictSecretResolver({"secret://ws-a": "token-a"})
+    )
+    receipt = destination.receive(
+        ecrm_cell_id="cell-ws-a",
+        credential="token-a",
+        idempotency_key="evt-1",
+        envelope=_envelope(),
+    )
+    session.commit()
+    worker = InstallationProjectionWorker(repo)
+    assert worker.run_once() == {"applied": 1, "held": 0, "failed": 0}
+
+    receipt.status = "IN_FLIGHT"
+    receipt.fence_token += 1
+    duplicate_fence = receipt.fence_token
+    session.add(receipt)
+    session.commit()
+
+    assert worker.process(receipt.id, fence_token=duplicate_fence).status == "DUPLICATE"
+
+
+def test_worker_dead_letters_conflicting_same_version_without_mutating_projection(
+    session: Session,
+) -> None:
+    repo = EcrmInstallationRepository(session)
+    repo.save_binding(_binding("ws-a"))
+    destination = EcrmDestinationService(
+        repo, DictSecretResolver({"secret://ws-a": "token-a"})
+    )
+    receipt = destination.receive(
+        ecrm_cell_id="cell-ws-a",
+        credential="token-a",
+        idempotency_key="evt-1",
+        envelope=_envelope(payload={"value": 1}),
+    )
+    session.commit()
+    worker = InstallationProjectionWorker(repo)
+    worker.run_once()
+    projection = session.exec(select(RevenueOsInstallationProjection)).one()
+    original_hash = projection.payload_hash
+
+    receipt.source_event_id = "evt-conflict"
+    receipt.payload_hash = "f" * 64
+    receipt.payload = {"value": 2}
+    receipt.status = "IN_FLIGHT"
+    receipt.fence_token += 1
+    conflict_fence = receipt.fence_token
+    session.add(receipt)
+    session.commit()
+
+    assert worker.process(receipt.id, fence_token=conflict_fence).status == "CONFLICT"
+    session.refresh(projection)
+    assert projection.source_event_id == "evt-1"
+    assert projection.payload_hash == original_hash
+    assert projection.projection == {"value": 1}
+
+
+def test_worker_marks_older_receipt_stale_without_mutating_projection(
+    session: Session,
+) -> None:
+    repo = EcrmInstallationRepository(session)
+    repo.save_binding(_binding("ws-a"))
+    destination = EcrmDestinationService(
+        repo, DictSecretResolver({"secret://ws-a": "token-a"})
+    )
+    first = destination.receive(
+        ecrm_cell_id="cell-ws-a",
+        credential="token-a",
+        idempotency_key="evt-1",
+        envelope=_envelope(event_id="evt-1", version=1, payload={"value": 1}),
+    )
+    second = destination.receive(
+        ecrm_cell_id="cell-ws-a",
+        credential="token-a",
+        idempotency_key="evt-2",
+        envelope=_envelope(event_id="evt-2", version=2, payload={"value": 2}),
+    )
+    session.commit()
+    worker = InstallationProjectionWorker(repo)
+    worker.run_once()
+    projection = session.exec(select(RevenueOsInstallationProjection)).one()
+    assert projection.source_event_id == second.source_event_id
+
+    first.status = "IN_FLIGHT"
+    first.fence_token += 1
+    stale_fence = first.fence_token
+    session.add(first)
+    session.commit()
+
+    assert worker.process(first.id, fence_token=stale_fence).status == "STALE"
+    session.refresh(projection)
+    assert projection.source_event_id == second.source_event_id
+    assert projection.projection == {"value": 2}
+
+
 def test_retry_exhaustion_and_replay(session: Session) -> None:
     repo = EcrmInstallationRepository(session)
     repo.save_binding(_binding("ws-a"))
@@ -557,9 +658,11 @@ def test_cell_client_requires_explicit_2xx_matching_ack(
 
 
 def test_production_secret_resolver_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("ECRM_CELL_SECRET", raising=False)
-    resolver = EnvSecretResolver()
+    monkeypatch.setenv("ECRM_CELL_SECRET", "allowed-token")
+    monkeypatch.setenv("DATABASE_URL", "exfiltrated-database-url")
+    resolver = EnvSecretResolver({"secret-primary": "ECRM_CELL_SECRET"})
+    assert resolver.resolve("secret-primary") == "allowed-token"
     with pytest.raises(LookupError):
-        resolver.resolve("env://ECRM_CELL_SECRET")
-    with pytest.raises(ValueError):
-        resolver.resolve("plaintext-token")
+        resolver.resolve("env://DATABASE_URL")
+    with pytest.raises(LookupError):
+        resolver.resolve("DATABASE_URL")
