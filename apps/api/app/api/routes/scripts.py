@@ -87,6 +87,7 @@ async def create_script(
     """Create script."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="scripts.create",
@@ -201,6 +202,7 @@ async def update_script(
     """Update script."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="scripts.update",
@@ -264,6 +266,7 @@ async def delete_script(
     """Delete script."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="scripts.delete",

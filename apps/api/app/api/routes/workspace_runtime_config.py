@@ -1,16 +1,18 @@
 """Workspace runtime-config endpoints for non-provider settings."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlmodel import select
 
 from app.api.deps import SessionDep, require_admin
-from app.api.request_context import WorkspaceIdDep
+from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
 from app.api.routes.workspace_admin import router as workspace_admin_router
 from app.core.encryption import encrypt
+from app.core.idempotency import run_idempotent_mutation
 from app.domain.runtime_settings import resolve_workspace_runtime_config
 from app.domain_models import WorkspaceRuntimeConfig
 
@@ -36,7 +38,9 @@ class WorkspaceRuntimeConfigPublic(BaseModel):
     updated_at: datetime | None = None
 
 
-def _ensure_workspace_path_matches_header(workspace_id: str, workspace_header: str) -> None:
+def _ensure_workspace_path_matches_header(
+    workspace_id: str, workspace_header: str
+) -> None:
     if workspace_id != workspace_header:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -78,7 +82,9 @@ def get_workspace_runtime_config(
 
     _ensure_workspace_path_matches_header(workspace_id, workspace_header)
     row = session.exec(
-        select(WorkspaceRuntimeConfig).where(WorkspaceRuntimeConfig.workspace_id == workspace_id)
+        select(WorkspaceRuntimeConfig).where(
+            WorkspaceRuntimeConfig.workspace_id == workspace_id
+        )
     ).first()
     return _serialize_runtime_config(session, workspace_id, row)
 
@@ -88,9 +94,30 @@ def get_workspace_runtime_config(
     response_model=WorkspaceRuntimeConfigPublic,
     dependencies=[Depends(require_admin)],
 )
-def upsert_workspace_runtime_config(
+async def upsert_workspace_runtime_config(
     workspace_id: str,
     workspace_header: WorkspaceIdDep,
+    session: SessionDep,
+    body: WorkspaceRuntimeConfigUpsert,
+    request: Request,
+    idempotency_key: IdempotencyKeyDep,
+) -> WorkspaceRuntimeConfigPublic:
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="workspace-runtime-config-upsert",
+        request_payload=body.model_dump(mode="json"),
+        mutation=lambda: _upsert_workspace_runtime_config_once(
+            workspace_id, workspace_header, session, body
+        ),
+    )
+
+
+def _upsert_workspace_runtime_config_once(
+    workspace_id: str,
+    workspace_header: str,
     session: SessionDep,
     body: WorkspaceRuntimeConfigUpsert,
 ) -> WorkspaceRuntimeConfigPublic:
@@ -98,18 +125,24 @@ def upsert_workspace_runtime_config(
 
     _ensure_workspace_path_matches_header(workspace_id, workspace_header)
     row = session.exec(
-        select(WorkspaceRuntimeConfig).where(WorkspaceRuntimeConfig.workspace_id == workspace_id)
+        select(WorkspaceRuntimeConfig).where(
+            WorkspaceRuntimeConfig.workspace_id == workspace_id
+        )
     ).first()
     if row is None:
         row = WorkspaceRuntimeConfig(workspace_id=workspace_id)
 
     provided_fields = body.model_fields_set
     if not provided_fields:
-        raise HTTPException(status_code=422, detail="At least one field must be provided")
+        raise HTTPException(
+            status_code=422, detail="At least one field must be provided"
+        )
 
     if "deepgram_api_key" in provided_fields:
         deepgram_value = (body.deepgram_api_key or "").strip()
-        row.encrypted_deepgram_api_key = encrypt(deepgram_value) if deepgram_value else None
+        row.encrypted_deepgram_api_key = (
+            encrypt(deepgram_value) if deepgram_value else None
+        )
 
     if "groq_api_key" in provided_fields:
         groq_value = (body.groq_api_key or "").strip()
@@ -117,7 +150,9 @@ def upsert_workspace_runtime_config(
 
     if "team_notification_email" in provided_fields:
         row.team_notification_email = (
-            str(body.team_notification_email).strip() if body.team_notification_email else None
+            str(body.team_notification_email).strip()
+            if body.team_notification_email
+            else None
         )
 
     row.updated_at = datetime.now(timezone.utc)

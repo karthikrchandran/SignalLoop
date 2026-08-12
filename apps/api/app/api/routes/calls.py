@@ -561,6 +561,7 @@ async def send_demo_email(
     """Send demo email."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation=f"calls:{call_request_id}:send-demo-email",
@@ -655,6 +656,7 @@ async def flag_for_sales(
     """Flag for sales."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation=f"calls:{call_request_id}:flag-for-sales",
@@ -748,6 +750,7 @@ async def pause_contact_sequence(
     """Pause contact sequence."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation=f"calls:{call_request_id}:pause-sequence",

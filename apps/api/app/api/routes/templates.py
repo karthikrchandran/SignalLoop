@@ -90,6 +90,7 @@ async def create_template(
     """Create template."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="templates.create",
@@ -165,6 +166,7 @@ async def update_template(
     """Update template."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="templates.update",
@@ -258,6 +260,7 @@ async def clone_template(
     """Clone template."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="templates.clone",
@@ -364,6 +367,7 @@ async def publish_template(
     """Publish template."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="templates.publish",

@@ -18,7 +18,11 @@ WORKSPACE_ID = "ws-providers"
 
 
 def _headers(token_headers: dict[str, str]) -> dict[str, str]:
-    return {**token_headers, "X-Workspace-Id": WORKSPACE_ID}
+    return {
+        **token_headers,
+        "X-Workspace-Id": WORKSPACE_ID,
+        "Idempotency-Key": f"provider-{uuid.uuid4()}",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +113,11 @@ def test_provider_selection_rejects_unsupported_provider_for_capability(
     workspace_id = f"ws-providers-{uuid.uuid4().hex[:8]}"
     resp = client.put(
         f"{settings.API_V1_STR}/workspaces/{workspace_id}/provider-selection",
-        headers={**superuser_token_headers, "X-Workspace-Id": workspace_id},
+        headers={
+            **superuser_token_headers,
+            "X-Workspace-Id": workspace_id,
+            "Idempotency-Key": f"provider-{uuid.uuid4()}",
+        },
         json={"capability": "email", "provider": "elevenlabs"},
     )
 
@@ -127,7 +135,11 @@ def test_provider_selection_accepts_vapi_for_voice(
     workspace_id = f"ws-vapi-{uuid.uuid4().hex[:8]}"
     resp = client.put(
         f"{settings.API_V1_STR}/workspaces/{workspace_id}/provider-selection",
-        headers={**superuser_token_headers, "X-Workspace-Id": workspace_id},
+        headers={
+            **superuser_token_headers,
+            "X-Workspace-Id": workspace_id,
+            "Idempotency-Key": f"provider-{uuid.uuid4()}",
+        },
         json={"capability": "voice", "provider": "vapi"},
     )
 

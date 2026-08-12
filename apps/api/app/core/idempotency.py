@@ -11,16 +11,23 @@ Usage in a route
     await store_idempotent_response(request, idempotency_key, result.model_dump())
     return result
 """
+
 from __future__ import annotations
 
 import hashlib
 import inspect
 import json
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException, Request, status
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import update
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, select
+
+from app.domain_models import IdempotencyRecord
 
 IDEMPOTENCY_TTL_SECONDS = 86_400
 IDEMPOTENCY_IN_PROGRESS_TTL_SECONDS = 300
@@ -97,85 +104,180 @@ async def run_idempotent_mutation(
     workspace_id: str,
     operation: str,
     mutation: Callable[[], Any],
+    session: Session | None = None,
     request_payload: Any = None,
     ttl: int = IDEMPOTENCY_TTL_SECONDS,
     in_progress_ttl: int = IDEMPOTENCY_IN_PROGRESS_TTL_SECONDS,
+    safe_to_retry_on_failure: bool = False,
 ) -> Any:
-    """Run a mutation once for a workspace/operation/idempotency key.
+    """Run a mutation once using a durable database claim.
 
-    Same key + same request hash replays the stored response. Same key with a
-    different request hash returns 409. Concurrent duplicates return 409 while
-    the first request is in progress. Redis outages fail open so local/demo
-    environments can still operate without Redis.
+    Redis is deliberately not authoritative: a restart or cache write failure
+    cannot permit a duplicate external side effect.  Claim/persist failures
+    fail closed; an incomplete durable claim returns a retry-safe 409.
     """
-    redis = _redis_client(request)
-    if redis is None:
-        return await _maybe_await(mutation())
-
-    storage_key = idempotency_storage_key(
-        workspace_id=workspace_id,
-        operation=operation,
-        idempotency_key=idempotency_key,
-    )
+    _ = ttl
+    if session is None:
+        raise HTTPException(
+            status_code=503, detail="Durable idempotency storage unavailable"
+        )
     request_hash = idempotency_request_hash(
         method=request.method,
         path=request.url.path,
         payload=request_payload,
     )
 
-    try:
-        existing = await _read_record(redis, storage_key)
-        replay = _replay_or_raise(existing, request_hash)
-        if replay is not _NO_REPLAY:
-            return replay
-
-        in_progress = json.dumps(
-            {"state": "in_progress", "request_hash": request_hash},
-            default=str,
+    existing = session.exec(
+        select(IdempotencyRecord).where(
+            IdempotencyRecord.workspace_id == workspace_id,
+            IdempotencyRecord.operation == operation,
+            IdempotencyRecord.idempotency_key == idempotency_key,
         )
-        created = await redis.set(
-            storage_key,
-            in_progress,
-            ex=in_progress_ttl,
-            nx=True,
-        )
-        if not created:
-            existing = await _read_record(redis, storage_key)
-            replay = _replay_or_raise(existing, request_hash)
-            if replay is not _NO_REPLAY:
-                return replay
-            _raise_idempotency_conflict(
-                "IDEMPOTENCY_IN_PROGRESS",
-                "A request with this Idempotency-Key is already in progress",
-                {"operation": operation},
+    ).first()
+    if existing:
+        if (
+            existing.state == "retryable_failure"
+            and existing.request_hash == request_hash
+        ):
+            claimed = session.execute(
+                update(IdempotencyRecord)
+                .where(
+                    IdempotencyRecord.id == existing.id,
+                    IdempotencyRecord.state == "retryable_failure",
+                )
+                .values(
+                    state="in_progress",
+                    failure_reason=None,
+                    lease_expires_at=datetime.now(UTC)
+                    + timedelta(seconds=in_progress_ttl),
+                )
             )
-    except HTTPException:
-        raise
-    except Exception:  # noqa: BLE001
-        return await _maybe_await(mutation())
+            session.commit()
+            if claimed.rowcount == 1:
+                record = session.get(IdempotencyRecord, existing.id)
+                if record is None:
+                    raise HTTPException(
+                        status_code=503, detail="Durable idempotency record lost"
+                    )
+            else:
+                session.expire_all()
+                current = session.get(IdempotencyRecord, existing.id)
+                if current is None:
+                    raise HTTPException(
+                        status_code=503, detail="Durable idempotency record lost"
+                    )
+                return _durable_replay_or_raise(
+                    current, request_hash, operation, session
+                )
+        else:
+            return _durable_replay_or_raise(existing, request_hash, operation, session)
+    else:
+        record = IdempotencyRecord(
+            workspace_id=workspace_id,
+            operation=operation,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            lease_expires_at=datetime.now(UTC) + timedelta(seconds=in_progress_ttl),
+        )
+        session.add(record)
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            existing = session.exec(
+                select(IdempotencyRecord).where(
+                    IdempotencyRecord.workspace_id == workspace_id,
+                    IdempotencyRecord.operation == operation,
+                    IdempotencyRecord.idempotency_key == idempotency_key,
+                )
+            ).first()
+            if existing:
+                return _durable_replay_or_raise(
+                    existing, request_hash, operation, session
+                )
+            raise HTTPException(
+                status_code=503, detail="Durable idempotency claim failed"
+            )
+        except Exception as exc:  # noqa: BLE001
+            session.rollback()
+            raise HTTPException(
+                status_code=503, detail="Durable idempotency claim failed"
+            ) from exc
 
     try:
         response_data = await _maybe_await(mutation())
-    except Exception:
-        await _delete_record(redis, storage_key)
-        raise
-
-    try:
-        await redis.setex(
-            storage_key,
-            ttl,
-            json.dumps(
-                {
-                    "state": "completed",
-                    "request_hash": request_hash,
-                    "response_data": jsonable_encoder(response_data),
-                },
-                default=str,
-            ),
+    except Exception as exc:
+        _mark_failure(
+            session,
+            record.id,
+            "retryable_failure" if safe_to_retry_on_failure else "unknown",
+            type(exc).__name__,
         )
-    except Exception:  # noqa: BLE001
-        pass
+        raise
+    record = session.get(IdempotencyRecord, record.id)
+    if record is None:
+        raise HTTPException(status_code=503, detail="Durable idempotency record lost")
+    record.state = "completed"
+    record.response_data = jsonable_encoder(response_data)
+    record.completed_at = datetime.now(UTC)
+    session.add(record)
+    try:
+        session.commit()
+    except Exception as exc:  # noqa: BLE001
+        session.rollback()
+        _mark_failure(session, record.id, "unknown", "completion_persistence_failed")
+        raise HTTPException(
+            status_code=503, detail="Durable idempotency response persistence failed"
+        ) from exc
     return response_data
+
+
+def _durable_replay_or_raise(
+    record: IdempotencyRecord, request_hash: str, operation: str, session: Session
+) -> Any:
+    if record.request_hash != request_hash:
+        _raise_idempotency_conflict(
+            "IDEMPOTENCY_KEY_REUSED",
+            "Idempotency-Key was already used for a different request",
+            {},
+        )
+    if record.state == "completed":
+        return record.response_data
+    if (
+        record.state == "in_progress"
+        and record.lease_expires_at
+        and record.lease_expires_at <= datetime.now(UTC)
+    ):
+        record.state = "unknown"
+        record.failure_reason = "lease_expired_requires_reconciliation"
+        session.add(record)
+        session.commit()
+    if record.state == "unknown":
+        _raise_idempotency_conflict(
+            "IDEMPOTENCY_RECONCILIATION_REQUIRED",
+            "The prior request outcome is unknown; reconcile before retrying",
+            {"operation": operation},
+        )
+    _raise_idempotency_conflict(
+        "IDEMPOTENCY_IN_PROGRESS",
+        "A request with this Idempotency-Key is already in progress",
+        {"operation": operation},
+    )
+
+
+def _mark_failure(session: Session, record_id: Any, state: str, reason: str) -> None:
+    """Best-effort durable terminal state; never release an uncertain claim."""
+    try:
+        record = session.get(IdempotencyRecord, record_id)
+        if record is None:
+            return
+        record.state = state
+        record.failure_reason = reason
+        record.lease_expires_at = None
+        session.add(record)
+        session.commit()
+    except Exception:  # noqa: BLE001
+        session.rollback()
 
 
 _NO_REPLAY = object()

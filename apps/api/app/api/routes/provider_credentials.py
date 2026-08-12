@@ -4,18 +4,20 @@ Workspace admins use this endpoint to store provider API keys.
 Keys are encrypted with Fernet (AES-128-CBC + HMAC) before being written to
 the database.  The plaintext is never logged or returned to the caller.
 """
+
 from __future__ import annotations
 
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
-from app.api.request_context import WorkspaceIdDep
+from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
 from app.core.encryption import encrypt
+from app.core.idempotency import run_idempotent_mutation
 from app.domain.audit.audit_events import (
     append_audit_event_to_session,
     audit_actor_role,
@@ -45,6 +47,7 @@ router = APIRouter(
 
 class ProviderCredentialCreate(BaseModel):
     """Request payload for creating provider credential."""
+
     provider: NotificationProvider
     channel: str = Field(
         max_length=32,
@@ -63,6 +66,7 @@ class ProviderCredentialCreate(BaseModel):
 
 class ProviderCredentialPublic(BaseModel):
     """API response model: provider credential."""
+
     id: uuid.UUID
     workspace_id: str
     provider: NotificationProvider
@@ -76,11 +80,14 @@ class ProviderCredentialPublic(BaseModel):
 
 class ProviderCredentialsPublic(BaseModel):
     """API response model: provider credentials."""
+
     data: list[ProviderCredentialPublic]
     count: int
 
 
-def _ensure_workspace_path_matches_header(workspace_id: str, workspace_header: str) -> None:
+def _ensure_workspace_path_matches_header(
+    workspace_id: str, workspace_header: str
+) -> None:
     if workspace_id != workspace_header:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -167,8 +174,7 @@ def _ensure_provider_supported_for_capability(
     provider: NotificationProvider,
 ) -> None:
     supported = {
-        option["provider"]
-        for option in PROVIDER_CATALOG.get(capability.value, [])
+        option["provider"] for option in PROVIDER_CATALOG.get(capability.value, [])
     }
     if provider.value in supported:
         return
@@ -205,10 +211,37 @@ def _ensure_provider_supported_for_capability(
     dependencies=[Depends(require_admin)],
     summary="Store provider credentials for a workspace",
 )
-def upsert_provider_credentials(
+async def upsert_provider_credentials(
     *,
     workspace_id: str,
     workspace_header: WorkspaceIdDep,
+    current_user: CurrentUser,
+    session: SessionDep,
+    body: ProviderCredentialCreate,
+    request: Request,
+    idempotency_key: IdempotencyKeyDep,
+) -> ProviderCredentialPublic:
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="provider-credential-upsert",
+        request_payload=body.model_dump(mode="json"),
+        mutation=lambda: _upsert_provider_credentials_once(
+            workspace_id=workspace_id,
+            workspace_header=workspace_header,
+            current_user=current_user,
+            session=session,
+            body=body,
+        ),
+    )
+
+
+def _upsert_provider_credentials_once(
+    *,
+    workspace_id: str,
+    workspace_header: str,
     current_user: CurrentUser,
     session: SessionDep,
     body: ProviderCredentialCreate,
@@ -322,10 +355,32 @@ def list_provider_credentials(
     dependencies=[Depends(require_admin)],
     summary="Deactivate a stored credential",
 )
-def deactivate_provider_credential(
+async def deactivate_provider_credential(
     workspace_id: str,
     credential_id: uuid.UUID,
     workspace_header: WorkspaceIdDep,
+    current_user: CurrentUser,
+    session: SessionDep,
+    request: Request,
+    idempotency_key: IdempotencyKeyDep,
+) -> None:
+    await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="provider-credential-deactivate",
+        request_payload={"credential_id": str(credential_id)},
+        mutation=lambda: _deactivate_provider_credential_once(
+            workspace_id, credential_id, workspace_header, current_user, session
+        ),
+    )
+
+
+def _deactivate_provider_credential_once(
+    workspace_id: str,
+    credential_id: uuid.UUID,
+    workspace_header: str,
     current_user: CurrentUser,
     session: SessionDep,
 ) -> None:
@@ -456,10 +511,32 @@ def list_provider_selections(
     dependencies=[Depends(require_admin)],
     summary="Choose which provider to use for a capability in this workspace",
 )
-def upsert_provider_selection(
+async def upsert_provider_selection(
     *,
     workspace_id: str,
     workspace_header: WorkspaceIdDep,
+    current_user: CurrentUser,
+    session: SessionDep,
+    body: ProviderSelectionUpsert,
+    request: Request,
+    idempotency_key: IdempotencyKeyDep,
+) -> ProviderSelectionPublic:
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="provider-selection-upsert",
+        request_payload=body.model_dump(mode="json"),
+        mutation=lambda: _upsert_provider_selection_once(
+            workspace_id, workspace_header, current_user, session, body
+        ),
+    )
+
+
+def _upsert_provider_selection_once(
+    workspace_id: str,
+    workspace_header: str,
     current_user: CurrentUser,
     session: SessionDep,
     body: ProviderSelectionUpsert,
@@ -590,4 +667,3 @@ def test_provider_credential(
             channel=cred.channel,
             detail=str(exc),
         )
-

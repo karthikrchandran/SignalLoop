@@ -1,18 +1,19 @@
 from __future__ import annotations
 
+import uuid
+
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app.core.config import settings
 
-
 WORKSPACE_ID = "ws-story-1-2"
 
 
-def _headers(token_headers: dict[str, str], *, idempotency: bool = False) -> dict[str, str]:
+def _headers(token_headers: dict[str, str], *, idempotency: bool = True) -> dict[str, str]:
     headers = {**token_headers, "X-Workspace-Id": WORKSPACE_ID}
     if idempotency:
-        headers["Idempotency-Key"] = "test-idempotency-key"
+        headers["Idempotency-Key"] = f"test-idempotency-key-{uuid.uuid4()}"
     return headers
 
 
@@ -107,7 +108,7 @@ def test_campaign_end_to_end_intake_flow_contract(
     assert any(item["id"] == campaign_id and item["status"] == "draft" for item in listing["data"])
 
 
-def test_campaign_create_does_not_require_idempotency_without_deduping(
+def test_campaign_create_requires_idempotency_key(
     client: TestClient,
     superuser_token_headers: dict[str, str],
 ) -> None:
@@ -116,5 +117,5 @@ def test_campaign_create_does_not_require_idempotency_without_deduping(
         headers=_headers(superuser_token_headers, idempotency=False),
         json={"name": "No Idempotency Contract Yet"},
     )
-    assert response.status_code == 200
-    assert response.json()["name"] == "No Idempotency Contract Yet"
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"]["code"] == "IDEMPOTENCY_KEY_REQUIRED"

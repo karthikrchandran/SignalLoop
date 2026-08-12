@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlmodel import Session, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
-from app.api.request_context import WorkspaceIdDep
+from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
+from app.core.idempotency import run_idempotent_mutation
 from app.domain.audit.audit_events import (
     append_audit_event_to_session,
     audit_actor_role,
@@ -178,6 +179,27 @@ async def create_campaign(
     current_user: CurrentUser,
     workspace_id: WorkspaceIdDep,
     body: CampaignCreate,
+    request: Request,
+    idempotency_key: IdempotencyKeyDep,
+) -> CampaignPublic:
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="campaign-create",
+        request_payload=body.model_dump(mode="json"),
+        mutation=lambda: _create_campaign_once(
+            session, current_user, workspace_id, body
+        ),
+    )
+
+
+def _create_campaign_once(
+    session: SessionDep,
+    current_user: CurrentUser,
+    workspace_id: str,
+    body: CampaignCreate,
 ) -> CampaignPublic:
     """Create campaign."""
     campaign = Campaign(
@@ -217,10 +239,37 @@ async def import_contacts(
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
     file: UploadFile = File(...),
+    request: Request,
+    idempotency_key: IdempotencyKeyDep,
 ) -> CampaignImportPublic:
     """Import contacts."""
-    _get_campaign_or_404(session, campaign_id, workspace_id, owner_id=current_user.id)
     file_bytes = await file.read()
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="campaign-contact-import",
+        request_payload={
+            "filename": file.filename,
+            "content": file_bytes.decode("utf-8", errors="replace"),
+        },
+        mutation=lambda: _import_contacts_once(
+            session, current_user, campaign_id, workspace_id, file.filename, file_bytes
+        ),
+    )
+
+
+def _import_contacts_once(
+    session: SessionDep,
+    current_user: CurrentUser,
+    campaign_id: uuid.UUID,
+    workspace_id: str,
+    filename: str | None,
+    file_bytes: bytes,
+) -> CampaignImportPublic:
+    """Persist one parsed campaign contact import."""
+    _get_campaign_or_404(session, campaign_id, workspace_id, owner_id=current_user.id)
     if len(file_bytes) > MAX_UPLOAD_SIZE_BYTES:
         raise HTTPException(
             status_code=413, detail="CSV file too large. Maximum size is 10MB"
@@ -231,7 +280,7 @@ async def import_contacts(
 
     campaign_import = CampaignContactImport(
         campaign_id=campaign_id,
-        source_file_name=file.filename or "contacts.csv",
+        source_file_name=filename or "contacts.csv",
         total_rows=len(rows),
         valid_rows=len(valid_rows),
         invalid_rows=len([error for error in errors if error.row_number > 0]),
@@ -291,12 +340,34 @@ async def import_contacts(
     response_model=ImportPreviewPublic,
     dependencies=[Depends(require_admin)],
 )
-def persist_mapping(
+async def persist_mapping(
     *,
     session: SessionDep,
     current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
+    body: CampaignMappingRequest,
+    request: Request,
+    idempotency_key: IdempotencyKeyDep,
+) -> ImportPreviewPublic:
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="campaign-contact-mapping",
+        request_payload=body.model_dump(mode="json"),
+        mutation=lambda: _persist_mapping_once(
+            session, current_user, campaign_id, workspace_id, body
+        ),
+    )
+
+
+def _persist_mapping_once(
+    session: SessionDep,
+    current_user: CurrentUser,
+    campaign_id: uuid.UUID,
+    workspace_id: str,
     body: CampaignMappingRequest,
 ) -> ImportPreviewPublic:
     """Persist mapping."""
@@ -369,12 +440,34 @@ def persist_mapping(
     response_model=CampaignAudiencePublic,
     dependencies=[Depends(require_admin)],
 )
-def assign_existing_contacts_to_campaign(
+async def assign_existing_contacts_to_campaign(
     *,
     session: SessionDep,
     current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
+    body: CampaignAudienceRequest,
+    request: Request,
+    idempotency_key: IdempotencyKeyDep,
+) -> CampaignAudiencePublic:
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="campaign-audience-assign",
+        request_payload=body.model_dump(mode="json"),
+        mutation=lambda: _assign_existing_contacts_to_campaign_once(
+            session, current_user, campaign_id, workspace_id, body
+        ),
+    )
+
+
+def _assign_existing_contacts_to_campaign_once(
+    session: SessionDep,
+    current_user: CurrentUser,
+    campaign_id: uuid.UUID,
+    workspace_id: str,
     body: CampaignAudienceRequest,
 ) -> CampaignAudiencePublic:
     """Assign existing canonical contacts to a campaign audience."""
@@ -506,12 +599,34 @@ def get_import_preview(
     response_model=CampaignSegmentPublic,
     dependencies=[Depends(require_admin)],
 )
-def create_segment(
+async def create_segment(
     *,
     session: SessionDep,
     current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
+    body: CampaignSegmentCreate,
+    request: Request,
+    idempotency_key: IdempotencyKeyDep,
+) -> CampaignSegmentPublic:
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="campaign-segment-create",
+        request_payload=body.model_dump(mode="json"),
+        mutation=lambda: _create_segment_once(
+            session, current_user, campaign_id, workspace_id, body
+        ),
+    )
+
+
+def _create_segment_once(
+    session: SessionDep,
+    current_user: CurrentUser,
+    campaign_id: uuid.UUID,
+    workspace_id: str,
     body: CampaignSegmentCreate,
 ) -> CampaignSegmentPublic:
     """Create segment."""
@@ -574,12 +689,34 @@ def create_segment(
     response_model=StrategyPublic,
     dependencies=[Depends(require_admin)],
 )
-def assign_strategy(
+async def assign_strategy(
     *,
     session: SessionDep,
     current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
+    body: StrategyRequest,
+    request: Request,
+    idempotency_key: IdempotencyKeyDep,
+) -> StrategyPublic:
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="campaign-strategy-assign",
+        request_payload=body.model_dump(mode="json"),
+        mutation=lambda: _assign_strategy_once(
+            session, current_user, campaign_id, workspace_id, body
+        ),
+    )
+
+
+def _assign_strategy_once(
+    session: SessionDep,
+    current_user: CurrentUser,
+    campaign_id: uuid.UUID,
+    workspace_id: str,
     body: StrategyRequest,
 ) -> StrategyPublic:
     """Assign strategy."""
@@ -658,6 +795,27 @@ async def pause_campaign(
     current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
+    request: Request,
+    idempotency_key: IdempotencyKeyDep,
+) -> dict[str, str]:
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="campaign-pause",
+        request_payload={"campaign_id": str(campaign_id)},
+        mutation=lambda: _pause_campaign_once(
+            session, current_user, campaign_id, workspace_id
+        ),
+    )
+
+
+def _pause_campaign_once(
+    session: SessionDep,
+    current_user: CurrentUser,
+    campaign_id: uuid.UUID,
+    workspace_id: str,
 ) -> dict[str, str]:
     """Pause campaign."""
     from app.domain_models import Campaign
@@ -691,6 +849,27 @@ async def resume_campaign(
     current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
+    request: Request,
+    idempotency_key: IdempotencyKeyDep,
+) -> dict[str, str]:
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="campaign-resume",
+        request_payload={"campaign_id": str(campaign_id)},
+        mutation=lambda: _resume_campaign_once(
+            session, current_user, campaign_id, workspace_id
+        ),
+    )
+
+
+def _resume_campaign_once(
+    session: SessionDep,
+    current_user: CurrentUser,
+    campaign_id: uuid.UUID,
+    workspace_id: str,
 ) -> dict[str, str]:
     """Resume campaign."""
     from app.domain_models import Campaign

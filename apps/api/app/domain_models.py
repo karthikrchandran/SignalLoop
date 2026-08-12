@@ -510,7 +510,7 @@ class ProspectingSnapshot(SQLModel, table=True):
     workspace_id: str = Field(sa_type=String(64), index=True)
     shared_contact_id: uuid.UUID = Field(
         alias="contact_id",
-        sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=False),
     )
     contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     created_by: uuid.UUID | None = Field(default=None, index=True)
@@ -541,7 +541,7 @@ class ContactProgression(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     shared_contact_id: uuid.UUID = Field(
         alias="contact_id",
-        sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=False),
     )
     contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
@@ -563,7 +563,7 @@ class ContactStateHistory(SQLModel, table=True):
     workspace_id: str = Field(sa_type=String(64), index=True)
     shared_contact_id: uuid.UUID = Field(
         alias="contact_id",
-        sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=False),
     )
     contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
@@ -600,6 +600,36 @@ class OutboxEvent(SQLModel, table=True):
     published_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
 
 
+class IdempotencyRecord(SQLModel, table=True):
+    """Durable claim and replay record for HTTP mutations."""
+
+    __tablename__ = "idempotency_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id",
+            "operation",
+            "idempotency_key",
+            name="uq_idempotency_workspace_operation_key",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: str = Field(max_length=64, index=True)
+    operation: str = Field(max_length=128)
+    idempotency_key: str = Field(max_length=255)
+    request_hash: str = Field(max_length=64)
+    state: str = Field(default="in_progress", max_length=32)
+    response_data: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    failure_reason: str | None = Field(default=None, max_length=128)
+    lease_expires_at: datetime | None = Field(
+        default=None, sa_type=DateTime(timezone=True)
+    )
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
+    )
+    completed_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+
+
 class ActionQueue(SQLModel, table=True):
     """Work item for the delivery worker — one outbound action per row."""
 
@@ -621,7 +651,7 @@ class ActionQueue(SQLModel, table=True):
     workspace_id: str = Field(max_length=64, index=True)
     shared_contact_id: uuid.UUID = Field(
         alias="contact_id",
-        sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=False),
     )
     contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
@@ -778,7 +808,7 @@ class ContactEvent(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     shared_contact_id: uuid.UUID = Field(
         alias="contact_id",
-        sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=False),
     )
     contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
@@ -812,7 +842,7 @@ class RoutingDecision(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     shared_contact_id: uuid.UUID = Field(
         alias="contact_id",
-        sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=False),
     )
     contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
@@ -1478,7 +1508,7 @@ class DeadLetterEvent(SQLModel, table=True):
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     shared_contact_id: uuid.UUID = Field(
         alias="contact_id",
-        sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
+        sa_column=Column("contact_id", Uuid(), index=True, nullable=False),
     )
     contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
     workspace_id: str = Field(sa_type=String(64), index=True)

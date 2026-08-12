@@ -1,4 +1,5 @@
 """Campaign health and dead-letter visibility endpoints (Story 5.3)."""
+
 from __future__ import annotations
 
 import json
@@ -10,8 +11,9 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
-from app.api.request_context import WorkspaceIdDep
+from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
 from app.core.config import settings
+from app.core.idempotency import run_idempotent_mutation
 from app.domain.outreach.action_queue_service import _now
 from app.domain_models import (
     ActionQueue,
@@ -60,12 +62,16 @@ async def _get_cached_health(request: Request, key: str) -> CampaignHealthPublic
     return None
 
 
-async def _cache_health(request: Request, key: str, health: CampaignHealthPublic) -> None:
+async def _cache_health(
+    request: Request, key: str, health: CampaignHealthPublic
+) -> None:
     try:
         redis = request.app.state.redis_manager.client
         if redis is None:
             return
-        await redis.setex(key, _HEALTH_CACHE_TTL, json.dumps(health.model_dump(), default=str))
+        await redis.setex(
+            key, _HEALTH_CACHE_TTL, json.dumps(health.model_dump(), default=str)
+        )
     except Exception:  # noqa: BLE001
         pass
 
@@ -235,6 +241,28 @@ async def retry_dead_letter(
     session: SessionDep,
     workspace_id: WorkspaceIdDep,
     current_user: CurrentUser,
+    idempotency_key: IdempotencyKeyDep,
+) -> DeadLetterItemPublic:
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="dead-letter-retry",
+        request_payload={"campaign_id": str(campaign_id), "item_id": str(item_id)},
+        mutation=lambda: _retry_dead_letter_once(
+            campaign_id, item_id, request, session, workspace_id, current_user
+        ),
+    )
+
+
+async def _retry_dead_letter_once(
+    campaign_id: uuid.UUID,
+    item_id: uuid.UUID,
+    request: Request,
+    session: SessionDep,
+    workspace_id: str,
+    current_user: CurrentUser,
 ) -> DeadLetterItemPublic:
     """Re-queue a dead-letter item (validates retry eligibility)."""
     _ensure_campaign_in_workspace(session, campaign_id, workspace_id)
@@ -290,7 +318,7 @@ async def retry_dead_letter(
     try:
         redis = request.app.state.redis_manager.client
         if redis is not None:
-                await redis.delete(_health_cache_key(campaign_id, workspace_id))
+            await redis.delete(_health_cache_key(campaign_id, workspace_id))
     except Exception:  # noqa: BLE001
         pass
 
@@ -316,6 +344,28 @@ async def dismiss_dead_letter(
     request: Request,
     session: SessionDep,
     workspace_id: WorkspaceIdDep,
+    current_user: CurrentUser,
+    idempotency_key: IdempotencyKeyDep,
+) -> DeadLetterItemPublic:
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="dead-letter-dismiss",
+        request_payload={"campaign_id": str(campaign_id), "item_id": str(item_id)},
+        mutation=lambda: _dismiss_dead_letter_once(
+            campaign_id, item_id, request, session, workspace_id, current_user
+        ),
+    )
+
+
+async def _dismiss_dead_letter_once(
+    campaign_id: uuid.UUID,
+    item_id: uuid.UUID,
+    request: Request,
+    session: SessionDep,
+    workspace_id: str,
     current_user: CurrentUser,
 ) -> DeadLetterItemPublic:
     """Dismiss a dead-letter item (clears from queue with operator attribution)."""
