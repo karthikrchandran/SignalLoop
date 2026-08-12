@@ -65,7 +65,7 @@ def _shared_helper_bindings(tree: ast.Module) -> tuple[set[str], set[str]]:
         for node in ast.walk(tree)
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
     )
-    return helper_names - local_names, helper_modules
+    return helper_names - local_names, helper_modules - local_names
 
 
 def _uses_shared_filtered_table_helper(
@@ -180,6 +180,24 @@ def test_schema_guard_allows_a_qualified_shared_helper(tmp_path: Path) -> None:
     )
 
     assert _full_schema_creators(tmp_path) == []
+
+
+def test_schema_guard_rejects_a_shadowed_shared_module_alias(tmp_path: Path) -> None:
+    route_test = tmp_path / "test_shadowed_module.py"
+    route_test.write_text(
+        "import tests.conftest as shared\n"
+        "\n"
+        "shared = object()\n"
+        "SQLModel.metadata.create_all(\n"
+        "    engine,\n"
+        "    tables=shared._metadata_tables_for_available_extensions(\n"
+        "        pgvector_available\n"
+        "    ),\n"
+        ")\n",
+        encoding="utf-8",
+    )
+
+    assert _full_schema_creators(tmp_path) == ["test_shadowed_module.py:4"]
 
 
 def test_schema_guard_rejects_a_local_same_named_helper(tmp_path: Path) -> None:
