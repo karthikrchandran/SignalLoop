@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Protocol
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from .evidence import EvidenceBundle, EvidenceRecord, redact_payload
@@ -17,7 +18,7 @@ from .persistence import (
     OnboardingRunRecord,
     OnboardingStageRecord,
 )
-from .providers import FakeProviderHub
+from .providers import FakeProviderHub, ProviderOutcomeUnknownError
 
 
 def _now() -> datetime:
@@ -74,18 +75,27 @@ def create_or_resume(
     )).first()
     if run is None:
         run = OnboardingRunRecord(tenant_key=tenant_key, idempotency_key=idempotency_key, desired_version=desired_version, input_hash=input_hash, actor=actor)
-        session.add(run)
-        session.flush()
-        for stage in OnboardingStage:
-            session.add(OnboardingStageRecord(run_id=run.id, stage=stage.value))
+        try:
+            with session.begin_nested():
+                session.add(run)
+                session.flush()
+                for stage in OnboardingStage:
+                    session.add(OnboardingStageRecord(run_id=run.id, stage=stage.value))
+        except IntegrityError:
+            run = session.exec(select(OnboardingRunRecord).where(
+                OnboardingRunRecord.tenant_key == tenant_key,
+                OnboardingRunRecord.desired_version == desired_version,
+                OnboardingRunRecord.idempotency_key == idempotency_key,
+                OnboardingRunRecord.input_hash == input_hash,
+            )).one()
     execute(session, run, providers or FakeProviderHub(), canary=canary, evidence_signer=evidence_signer)
     session.commit()
     session.refresh(run)
     return run
 
 
-def retry(session: Session, run: OnboardingRunRecord, *, canary: ScopedCanary | None = None, evidence_signer: Ed25519PrivateKey | None = None) -> OnboardingRunRecord:
-    execute(session, run, FakeProviderHub(), canary=canary, evidence_signer=evidence_signer)
+def retry(session: Session, run: OnboardingRunRecord, *, providers: FakeProviderHub | None = None, canary: ScopedCanary | None = None, evidence_signer: Ed25519PrivateKey | None = None) -> OnboardingRunRecord:
+    execute(session, run, providers or FakeProviderHub(), canary=canary, evidence_signer=evidence_signer)
     session.commit()
     session.refresh(run)
     return run
@@ -99,6 +109,10 @@ def execute(session: Session, run: OnboardingRunRecord, providers: FakeProviderH
     stages = session.exec(select(OnboardingStageRecord).where(OnboardingStageRecord.run_id == run.id)).all()
     stage_order = {stage.value: index for index, stage in enumerate(OnboardingStage)}
     stages.sort(key=lambda stage: stage_order[stage.stage])
+    if any(stage.result_code == "UNKNOWN_EXTERNAL_OUTCOME" for stage in stages):
+        run.status = StageStatus.FAILED.value
+        run.lease_expires_at = None
+        return
     for stage in stages:
         if stage.status == StageStatus.SUCCEEDED.value:
             continue
@@ -122,6 +136,9 @@ def execute(session: Session, run: OnboardingRunRecord, providers: FakeProviderH
                 if outcome != "CANARY_OK":
                     _fail_stage(session, run, stage, outcome, payload)
                     return
+        except ProviderOutcomeUnknownError:
+            _fail_stage(session, run, stage, "UNKNOWN_EXTERNAL_OUTCOME", payload)
+            return
         except Exception:
             _fail_stage(session, run, stage, "PROVIDER_EXCEPTION", payload)
             return
@@ -143,13 +160,31 @@ def recover_expired(session: Session, run: OnboardingRunRecord) -> None:
     for stage in stages:
         if stage.status == StageStatus.RUNNING.value and stage.lease_expires_at and _as_utc(stage.lease_expires_at) <= now:
             stage.status = StageStatus.FAILED.value
-            stage.result_code = "LEASE_EXPIRED_RECONCILE_REQUIRED"
+            stage.result_code = "UNKNOWN_EXTERNAL_OUTCOME" if _is_external_stage(stage.stage) else "LEASE_EXPIRED_RECONCILE_REQUIRED"
             stage.completed_at = now
             stage.lease_expires_at = None
-            _record_evidence(session, run, stage, stage.result_code, {"tenant_key": run.tenant_key, "compensation": "NONE_RECONCILE_ON_RETRY"})
+            _record_evidence(session, run, stage, stage.result_code, {"tenant_key": run.tenant_key, "compensation": "NONE_RECONCILE_ON_RETRY", "reconciliation_required": _is_external_stage(stage.stage)})
     if run.status == StageStatus.RUNNING.value and run.lease_expires_at and _as_utc(run.lease_expires_at) <= now:
         run.status = StageStatus.FAILED.value
         run.lease_expires_at = None
+
+
+def reconcile_unknown_external_outcome(session: Session, run: OnboardingRunRecord, stage: OnboardingStageRecord, receipt: str) -> None:
+    """Release an unknown provider outcome only after a scoped receipt decision."""
+    if stage.run_id != run.id or stage.result_code != "UNKNOWN_EXTERNAL_OUTCOME":
+        raise ValueError("stage is not awaiting external outcome reconciliation")
+    if receipt not in {"NOT_ACCEPTED", "OPERATOR_APPROVED_SAFE_RETRY"}:
+        raise ValueError("receipt does not authorize a safe retry")
+    stage.status = StageStatus.PENDING.value
+    stage.result_code = None
+    stage.completed_at = None
+    _record_evidence(session, run, stage, "SAFE_RETRY_AUTHORIZED", {"tenant_key": run.tenant_key, "receipt": receipt})
+    session.commit()
+    session.refresh(stage)
+
+
+def _is_external_stage(stage: str) -> bool:
+    return stage in {OnboardingStage.TENANT_DRAFTED.value, OnboardingStage.NATIVE_INTEGRATION_VERIFIED.value}
 
 
 def _record_evidence(session: Session, run: OnboardingRunRecord, stage: OnboardingStageRecord, outcome: str, payload: dict[str, object]) -> None:

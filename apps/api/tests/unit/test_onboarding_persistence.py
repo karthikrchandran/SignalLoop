@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -14,6 +15,7 @@ from app.domain.onboarding.persistence_service import (
     _now,
     create_or_resume,
     execute,
+    reconcile_unknown_external_outcome,
     retry,
 )
 from app.domain.onboarding.providers import FakeProviderHub
@@ -123,7 +125,43 @@ def test_expired_running_lease_requires_reconciliation_then_resumes() -> None:
         stage.lease_expires_at = _now() - timedelta(seconds=1)
         session.commit()
 
+        assert retry(session, run).status == "FAILED"
+        reconcile_unknown_external_outcome(session, run, stage, "NOT_ACCEPTED")
         recovered = retry(session, run)
         assert recovered.status == "SUCCEEDED"
-        evidence = session.exec(select(OnboardingEvidenceRecord).where(OnboardingEvidenceRecord.run_id == run.id, OnboardingEvidenceRecord.result_code == "LEASE_EXPIRED_RECONCILE_REQUIRED")).one()
+        evidence = session.exec(select(OnboardingEvidenceRecord).where(OnboardingEvidenceRecord.run_id == run.id, OnboardingEvidenceRecord.result_code == "UNKNOWN_EXTERNAL_OUTCOME")).one()
         assert evidence.payload["compensation"] == "NONE_RECONCILE_ON_RETRY"
+
+
+def test_identical_two_session_requests_converge_on_one_persisted_run(tmp_path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'onboarding-race.db'}", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+
+    def request() -> str:
+        with Session(engine) as session:
+            return str(create_or_resume(session, "ara-global", "race-key", input_payload={"requested_by": "admin"}).id)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        run_ids = list(executor.map(lambda _: request(), range(2)))
+
+    with Session(engine) as session:
+        assert len(set(run_ids)) == 1
+        assert len(session.exec(select(OnboardingRunRecord)).all()) == 1
+
+
+def test_accepted_then_crash_is_unknown_until_reconciliation_allows_safe_retry() -> None:
+    providers = FakeProviderHub(accepted_then_crash_for={"ara-global"})
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        run = create_or_resume(session, "ara-global", "unknown-provider", providers=providers)
+        stage = session.exec(select(OnboardingStageRecord).where(OnboardingStageRecord.run_id == run.id, OnboardingStageRecord.stage == OnboardingStage.TENANT_DRAFTED.value)).one()
+        assert run.status == "FAILED"
+        assert stage.result_code == "UNKNOWN_EXTERNAL_OUTCOME"
+        assert providers.calls.count("tenant:ara-global") == 1
+
+        retry(session, run, providers=providers)
+        assert providers.calls.count("tenant:ara-global") == 1
+        reconcile_unknown_external_outcome(session, run, stage, "OPERATOR_APPROVED_SAFE_RETRY")
+        retry(session, run, providers=providers)
+        assert providers.calls.count("tenant:ara-global") == 2
