@@ -186,6 +186,41 @@ class ProductInstallation(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
 
 
+class TenantWorkspaceBinding(SQLModel, table=True):
+    """Verified one-to-one ownership binding from a suite installation to a SignalLoop workspace."""
+
+    __tablename__ = "suite_tenant_workspace_binding"
+    __table_args__ = (
+        UniqueConstraint("installation_id", name="uq_suite_workspace_binding_installation"),
+        UniqueConstraint("workspace_id", name="uq_suite_workspace_binding_workspace"),
+        UniqueConstraint("tenant_id", "workspace_id", name="uq_suite_workspace_binding_tenant_workspace"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    tenant_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("suite_tenant.id", ondelete="CASCADE"), nullable=False, index=True
+        )
+    )
+    installation_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("suite_product_installation.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    workspace_id: str = Field(
+        sa_column=Column(
+            String(64), ForeignKey("workspaces.id", ondelete="RESTRICT"), nullable=False, index=True
+        )
+    )
+    status: str = Field(default="ACTIVE", max_length=32, index=True)
+    verified_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
 class SuiteProjectionOutbox(SQLModel, table=True):
     """An immutable, retryable projection intent owned by the suite control plane."""
 

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlmodel import select
+from sqlmodel import func, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.domain.revenue_intelligence.persistence import (
@@ -29,6 +29,7 @@ from app.domain.tenants.models import (
     SuiteProjectionOutbox,
     Tenant,
     TenantEntitlement,
+    TenantWorkspaceBinding,
 )
 from app.domain_models import (
     ProviderCapability,
@@ -155,14 +156,84 @@ def _status_counts(
 ) -> dict[str, int]:
     counts: dict[str, int] = {}
     for row in rows:
-        row_status = row.status
-        counts[row_status] = counts.get(row_status, 0) + 1
+        counts[row.status] = counts.get(row.status, 0) + 1
     return counts
+
+
+def _grouped_status_counts(
+    session: SessionDep,
+    model: type[RevenueInterventionDispatch] | type[SuiteProjectionOutbox],
+    tenant_id: UUID,
+) -> dict[str, int]:
+    """Return tenant-local aggregate state without loading operational histories."""
+    rows = session.exec(
+        select(model.status, func.count())
+        .where(model.tenant_id == tenant_id)
+        .group_by(model.status)
+    ).all()
+    return {str(status): int(count) for status, count in rows}
 
 
 def _enum_value(value: object) -> str:
     raw = getattr(value, "value", value)
     return str(raw)
+
+
+def _operational_readiness(
+    dispatch_counts: dict[str, int],
+    projection_counts: dict[str, int],
+    setup_blockers: list[str],
+) -> dict[str, object]:
+    """Summarize durable recovery state without exposing provider error detail."""
+    blocked_reasons = list(setup_blockers)
+    blocked_reasons.extend(
+        reason
+        for status, reason in (
+            ("CONFIGURATION_BLOCKED", "PROJECTION_CONFIGURATION_BLOCKED"),
+            ("DEAD_LETTER", "PROJECTION_DEAD_LETTER"),
+        )
+        if projection_counts.get(status, 0)
+    )
+    blocked_reasons.extend(
+        reason
+        for status, reason in (
+            ("DEAD_LETTER", "DISPATCH_DEAD_LETTER"),
+            ("UNKNOWN_PROVIDER_OUTCOME", "DISPATCH_PROVIDER_OUTCOME_UNKNOWN"),
+        )
+        if dispatch_counts.get(status, 0)
+    )
+    if blocked_reasons:
+        return {
+            "status": "BLOCKED",
+            "requires_operator_action": True,
+            "reasons": blocked_reasons,
+        }
+
+    degraded_reasons = [
+        reason
+        for status, reason in (
+            ("PENDING", "PROJECTION_BACKLOG"),
+            ("RETRY_SCHEDULED", "PROJECTION_RETRY_SCHEDULED"),
+            ("IN_FLIGHT", "PROJECTION_EXECUTING"),
+        )
+        if projection_counts.get(status, 0)
+    ]
+    degraded_reasons.extend(
+        reason
+        for status, reason in (
+            ("PENDING", "DISPATCH_BACKLOG"),
+            ("RETRY_SCHEDULED", "DISPATCH_RETRY_SCHEDULED"),
+            ("IN_FLIGHT", "DISPATCH_EXECUTING"),
+        )
+        if dispatch_counts.get(status, 0)
+    )
+    if degraded_reasons:
+        return {
+            "status": "DEGRADED",
+            "requires_operator_action": False,
+            "reasons": degraded_reasons,
+        }
+    return {"status": "READY", "requires_operator_action": False, "reasons": []}
 
 
 @router.get("")
@@ -238,70 +309,76 @@ def operational_health(
 ):
     """Return tenant-scoped execution readiness and durable failure state."""
     tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
-    dispatches = RevenueInterventionStore(session).list_dispatches(tenant_id=tenant.id)
-    projections = list(
-        session.exec(
-            select(SuiteProjectionOutbox).where(SuiteProjectionOutbox.tenant_id == tenant.id)
-        ).all()
-    )
+    dispatch_counts = _grouped_status_counts(session, RevenueInterventionDispatch, tenant.id)
+    projection_counts = _grouped_status_counts(session, SuiteProjectionOutbox, tenant.id)
     installations = list(
         session.exec(
             select(ProductInstallation).where(ProductInstallation.tenant_id == tenant.id)
         ).all()
     )
-    signal_loop = next(
-        (
-            item
-            for item in installations
-            if _enum_value(item.product_code) == ProductCode.SIGNAL_LOOP.value
-        ),
-        None,
-    )
-    email_provider: dict[str, object] = {
-        "provider": None,
-        "selection_configured": False,
-        "credential_configured": False,
-    }
-    if signal_loop is not None:
-        selection = session.exec(
-            select(WorkspaceProviderSelection).where(
-                WorkspaceProviderSelection.workspace_id == signal_loop.local_identifier,
-                WorkspaceProviderSelection.capability == ProviderCapability.email,
-                WorkspaceProviderSelection.is_active == True,  # noqa: E712
+    signal_loop = next((item for item in installations if item.product_code == ProductCode.SIGNAL_LOOP), None)
+    setup_blockers: list[str] = []
+    if signal_loop is None:
+        setup_blockers.append("SIGNAL_LOOP_INSTALLATION_MISSING")
+    elif not (
+        signal_loop.status == "ACTIVE"
+        and signal_loop.local_identifier
+        and signal_loop.projection_endpoint
+        and signal_loop.workload_key_id
+        and signal_loop.workload_key_status == "ACTIVE"
+    ):
+        setup_blockers.append("SIGNAL_LOOP_INSTALLATION_NOT_READY")
+    else:
+        binding = session.exec(
+            select(TenantWorkspaceBinding).where(
+                TenantWorkspaceBinding.tenant_id == tenant.id,
+                TenantWorkspaceBinding.installation_id == signal_loop.id,
+                TenantWorkspaceBinding.status == "ACTIVE",
             )
         ).one_or_none()
-        if selection is not None:
-            provider = _enum_value(selection.provider)
-            credential = session.exec(
-                select(ProviderCredential).where(
-                    ProviderCredential.workspace_id == signal_loop.local_identifier,
-                    ProviderCredential.provider == selection.provider,
-                    ProviderCredential.channel == "email",
-                    ProviderCredential.is_active == True,  # noqa: E712
+        if binding is None:
+            setup_blockers.append("SIGNAL_LOOP_WORKSPACE_BINDING_MISSING")
+        elif binding.workspace_id != signal_loop.local_identifier:
+            setup_blockers.append("SIGNAL_LOOP_WORKSPACE_BINDING_MISMATCH")
+        else:
+            selection = session.exec(
+                select(WorkspaceProviderSelection).where(
+                    WorkspaceProviderSelection.workspace_id == binding.workspace_id,
+                    WorkspaceProviderSelection.capability == ProviderCapability.email,
+                    WorkspaceProviderSelection.is_active == True,  # noqa: E712
                 )
-            ).first()
-            email_provider = {
-                "provider": provider,
-                "selection_configured": True,
-                "credential_configured": credential is not None,
-            }
-    unacknowledged = [item for item in projections if item.status != "ACKNOWLEDGED"]
+            ).one_or_none()
+            if selection is None:
+                setup_blockers.append("SIGNAL_LOOP_PROVIDER_READINESS_UNAVAILABLE")
+            else:
+                credential_count = session.exec(
+                    select(func.count())
+                    .select_from(ProviderCredential)
+                    .where(
+                        ProviderCredential.workspace_id == binding.workspace_id,
+                        ProviderCredential.provider == selection.provider,
+                        ProviderCredential.channel == "email",
+                        ProviderCredential.is_active == True,  # noqa: E712
+                    )
+                ).one()
+                if credential_count == 0:
+                    setup_blockers.append("SIGNAL_LOOP_PROVIDER_READINESS_UNAVAILABLE")
     return {
         "tenant_key": tenant.key,
+        "readiness": _operational_readiness(dispatch_counts, projection_counts, setup_blockers),
         "dispatches": {
-            "counts": _status_counts(dispatches),
-            "policy_denial_count": sum(item.status == "POLICY_DENIED" for item in dispatches),
-            "dead_letter_count": sum(item.status == "DEAD_LETTER" for item in dispatches),
+            "counts": dispatch_counts,
+            "policy_denial_count": dispatch_counts.get("POLICY_DENIED", 0),
+            "dead_letter_count": dispatch_counts.get("DEAD_LETTER", 0),
         },
         "projections": {
-            "counts": _status_counts(projections),
-            "unacknowledged_count": len(unacknowledged),
-            "dead_letter_count": sum(item.status == "DEAD_LETTER" for item in projections),
-            "configuration_blocked_count": sum(
-                item.status == "CONFIGURATION_BLOCKED" for item in projections
+            "counts": projection_counts,
+            "unacknowledged_count": sum(
+                count for item_status, count in projection_counts.items() if item_status != "ACKNOWLEDGED"
             ),
+            "dead_letter_count": projection_counts.get("DEAD_LETTER", 0),
+            "configuration_blocked_count": projection_counts.get("CONFIGURATION_BLOCKED", 0),
         },
-        "provider": {"email": email_provider},
         "installations": [
             {
                 "product_code": _enum_value(item.product_code),
