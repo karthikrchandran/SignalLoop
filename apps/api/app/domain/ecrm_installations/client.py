@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 
 import httpx
@@ -40,6 +40,18 @@ class HttpxCellTransport:
 
 
 class EcrmCellUnavailable(RuntimeError):
+    pass
+
+
+class EcrmCellAuthError(EcrmCellUnavailable):
+    pass
+
+
+class EcrmCellConflict(EcrmCellUnavailable):
+    pass
+
+
+class EcrmCellRetryable(EcrmCellUnavailable):
     pass
 
 
@@ -95,17 +107,36 @@ class EcrmCellClient:
                 },
                 timeout=deadline_seconds,
             )
-        except (httpx.HTTPError, OSError):
-            binding.consecutive_failures += 1
-            if binding.consecutive_failures >= self.circuit_threshold:
-                from datetime import timedelta
+        except (httpx.HTTPError, OSError) as exc:
+            self._record_retryable_failure(binding)
+            raise EcrmCellRetryable("eCRM delivery transport failure") from exc
 
-                binding.status = "DEGRADED"
-                binding.circuit_open_until = utc_now() + timedelta(minutes=1)
+        if response.status_code in {401, 403}:
+            binding.status = "DEGRADED"
             binding.updated_at = utc_now()
             self.repository.session.add(binding)
             self.repository.session.commit()
-            raise
+            raise EcrmCellAuthError("eCRM delivery authentication rejected")
+        if response.status_code == 409:
+            raise EcrmCellConflict("eCRM delivery idempotency conflict")
+        if response.status_code == 429 or 500 <= response.status_code <= 599:
+            self._record_retryable_failure(binding)
+            raise EcrmCellRetryable(
+                f"eCRM delivery temporarily unavailable ({response.status_code})"
+            )
+        if not 200 <= response.status_code <= 299:
+            raise EcrmCellUnavailable(f"eCRM delivery rejected ({response.status_code})")
+        if not self._is_expected_ack(
+            response,
+            source_event_id=source_event_id,
+            source_version=source_version,
+        ):
+            binding.status = "DEGRADED"
+            binding.updated_at = utc_now()
+            self.repository.session.add(binding)
+            self.repository.session.commit()
+            raise EcrmCellUnavailable("eCRM delivery returned an invalid acknowledgement")
+
         binding.consecutive_failures = 0
         binding.circuit_open_until = None
         if binding.status == "DEGRADED":
@@ -115,3 +146,28 @@ class EcrmCellClient:
         self.repository.session.add(binding)
         self.repository.session.commit()
         return response
+
+    def _record_retryable_failure(self, binding: Any) -> None:
+        binding.consecutive_failures += 1
+        if binding.consecutive_failures >= self.circuit_threshold:
+            binding.status = "DEGRADED"
+            binding.circuit_open_until = utc_now() + timedelta(minutes=1)
+        binding.updated_at = utc_now()
+        self.repository.session.add(binding)
+        self.repository.session.commit()
+
+    @staticmethod
+    def _is_expected_ack(
+        response: CellDeliveryResponse,
+        *,
+        source_event_id: str,
+        source_version: int,
+    ) -> bool:
+        body = response.body
+        return (
+            isinstance(body.get("receipt_id"), str)
+            and bool(body["receipt_id"])
+            and body.get("source_event_id") == source_event_id
+            and body.get("source_version") == source_version
+            and body.get("status") in {"RECEIVED", "APPLIED", "ACKNOWLEDGED", "DUPLICATE"}
+        )

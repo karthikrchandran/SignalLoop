@@ -580,6 +580,12 @@ async def setup_overview(
             },
             heartbeat=heartbeats.get("postcall_worker"),
         ),
+        _worker_readiness(
+            "ecrm_installation_projection_worker",
+            "eCRM installation projection worker",
+            requirements={"postgres": postgres},
+            heartbeat=heartbeats.get("ecrm_installation_projection_worker"),
+        ),
     ]
 
     return SetupOverviewPublic(

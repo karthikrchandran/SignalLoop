@@ -32,14 +32,24 @@ Bearer cell credential, and `Idempotency-Key`. A receipt is committed before the
 202 response. Identical replay is acknowledged; changed content for the same key
 is rejected with 409.
 
-Run one worker pass:
+The checked-in Compose service `ecrm-installation-projection-worker` runs
+continuously. It polls every 10 seconds and claims up to 100 receipts per pass by
+default. Override these deployment settings with
+`ECRM_INSTALLATION_PROJECTION_POLL_INTERVAL_SECONDS` and
+`ECRM_INSTALLATION_PROJECTION_BATCH_SIZE`. Every pass advances due received,
+retry, held-gap, and expired in-flight receipts without operator intervention.
+The worker publishes `ecrm_installation_projection_worker` heartbeat records for
+readiness and error inspection.
+
+Run the continuous worker directly:
 
 ```powershell
 cd apps/api
-uv run python -m app.workers.installation_projection_worker --limit 100
+uv run python -m app.workers.installation_projection_worker --batch-size 100 --poll-interval 10
 ```
 
-Optionally restrict operations to one workspace with `--workspace-id`. This is
+For an operator-controlled one-shot pass, add `--once`. Optionally restrict
+operations to one workspace with `--workspace-id`. This is
 an operational filter only; every job derives its workspace and cell from the
 receipt. Failed work uses bounded exponential backoff and then dead-letters.
 Replay a dead letter through

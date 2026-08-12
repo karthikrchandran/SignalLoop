@@ -6,10 +6,12 @@ import hashlib
 import hmac
 import json
 from datetime import timedelta
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.domain.audit.audit_events import append_audit_event_to_session
@@ -32,6 +34,10 @@ class SuspendedInstallation(ValueError):
 
 
 class ConflictingReplay(ValueError):
+    pass
+
+
+class StaleReceiptFence(RuntimeError):
     pass
 
 
@@ -76,15 +82,15 @@ class EcrmDestinationService:
             raise InstallationAuthError("installation capability denied")
 
         digest = _payload_hash(envelope)
-        existing = self.repository.session.exec(
-            select(DestinationReceipt).where(
-                DestinationReceipt.workspace_id == binding.workspace_id,
-                DestinationReceipt.idempotency_key == idempotency_key,
-            )
-        ).one_or_none()
+        existing = self._find_existing(
+            workspace_id=binding.workspace_id,
+            idempotency_key=idempotency_key,
+            source_event_id=envelope.source_event_id,
+            event_kind=envelope.event_kind,
+        )
         if existing is not None:
             if existing.payload_hash != digest:
-                raise ConflictingReplay("idempotency key already has different content")
+                raise ConflictingReplay("receipt key already has different content")
             return existing
         receipt = DestinationReceipt(
             workspace_id=binding.workspace_id,
@@ -98,7 +104,21 @@ class EcrmDestinationService:
             payload=envelope.payload,
         )
         self.repository.session.add(receipt)
-        self.repository.session.flush()
+        try:
+            self.repository.session.flush()
+        except IntegrityError:
+            # PostgreSQL can report either unique key when two deliveries race.
+            # The failed transaction must be rolled back before deterministic reload.
+            self.repository.session.rollback()
+            existing = self._find_existing(
+                workspace_id=binding.workspace_id,
+                idempotency_key=idempotency_key,
+                source_event_id=envelope.source_event_id,
+                event_kind=envelope.event_kind,
+            )
+            if existing is None or existing.payload_hash != digest:
+                raise ConflictingReplay("receipt key already has different content")
+            return existing
         append_audit_event_to_session(
             self.repository.session,
             event_name="ecrm.installation.destination_received",
@@ -114,6 +134,38 @@ class EcrmDestinationService:
         )
         return receipt
 
+    def _find_existing(
+        self,
+        *,
+        workspace_id: str,
+        idempotency_key: str,
+        source_event_id: str,
+        event_kind: str,
+    ) -> DestinationReceipt | None:
+        receipt_workspace_id = cast(Any, DestinationReceipt.workspace_id)
+        receipt_idempotency_key = cast(Any, DestinationReceipt.idempotency_key)
+        receipt_source_event_id = cast(Any, DestinationReceipt.source_event_id)
+        receipt_event_kind = cast(Any, DestinationReceipt.event_kind)
+        rows = list(
+            self.repository.session.exec(
+                select(DestinationReceipt).where(
+                    receipt_workspace_id == workspace_id,
+                    or_(
+                        receipt_idempotency_key == idempotency_key,
+                        (
+                            (receipt_source_event_id == source_event_id)
+                            & (receipt_event_kind == event_kind)
+                        ),
+                    ),
+                )
+            ).all()
+        )
+        if not rows:
+            return None
+        if any(row.id != rows[0].id for row in rows[1:]):
+            raise ConflictingReplay("receipt keys identify different deliveries")
+        return rows[0]
+
 
 class InstallationProjectionWorker:
     def __init__(self, repository: EcrmInstallationRepository, *, max_attempts: int = 5) -> None:
@@ -124,10 +176,19 @@ class InstallationProjectionWorker:
         result = {"applied": 0, "held": 0, "failed": 0}
         rows = self.repository.claim_due_receipts(workspace_id=workspace_id, limit=limit)
         for row in rows:
+            fence_token = row.fence_token
             try:
-                settled = self.process(row.id)
+                settled = self.process(row.id, fence_token=fence_token)
+            except StaleReceiptFence:
+                self.repository.session.rollback()
+                continue
             except Exception as exc:
-                settled = self._record_failure(row, exc)
+                self.repository.session.rollback()
+                try:
+                    settled = self._record_failure(row.id, fence_token, exc)
+                except StaleReceiptFence:
+                    self.repository.session.rollback()
+                    continue
             if settled.status == "APPLIED":
                 result["applied"] += 1
             elif settled.status == "HELD_GAP":
@@ -136,18 +197,32 @@ class InstallationProjectionWorker:
                 result["failed"] += 1
         return result
 
-    def process(self, receipt_id: UUID, *, crash_after_side_effect: bool = False) -> DestinationReceipt:
+    def process(
+        self,
+        receipt_id: UUID,
+        *,
+        fence_token: int,
+        crash_after_commit: bool = False,
+    ) -> DestinationReceipt:
         session = self.repository.session
-        receipt = session.get(DestinationReceipt, receipt_id)
+        receipt = session.exec(
+            select(DestinationReceipt)
+            .where(
+                DestinationReceipt.id == receipt_id,
+                DestinationReceipt.status == "IN_FLIGHT",
+                DestinationReceipt.fence_token == fence_token,
+            )
+            .with_for_update()
+        ).one_or_none()
         if receipt is None:
-            raise KeyError("receipt not found")
+            raise StaleReceiptFence("receipt lease is no longer current")
         binding = self.repository.get_binding(receipt.workspace_id, ecrm_cell_id=receipt.ecrm_cell_id)
         if binding is None or binding.status == "SUSPENDED":
             raise SuspendedInstallation("installation is not active")
         checkpoint = self.repository.checkpoint(receipt.workspace_id, receipt.stream_key)
         current_version = checkpoint.source_version if checkpoint else 0
         if receipt.source_version <= current_version:
-            return self._settle(receipt, "APPLIED")
+            return self._settle(receipt, "APPLIED", fence_token=fence_token)
         if receipt.source_version > current_version + 1:
             receipt.status = "HELD_GAP"
             receipt.last_error = f"EXPECTED_VERSION_{current_version + 1}"
@@ -184,10 +259,6 @@ class InstallationProjectionWorker:
             projection.projection = receipt.payload
             projection.updated_at = utc_now()
         session.add(projection)
-        session.commit()  # Side effect is durable before receipt acknowledgement.
-        if crash_after_side_effect:
-            raise RuntimeError("simulated crash")
-
         if checkpoint is None:
             checkpoint = InstallationProjectionCheckpoint(
                 workspace_id=receipt.workspace_id,
@@ -212,9 +283,16 @@ class InstallationProjectionWorker:
                 "source_version": receipt.source_version,
             },
         )
-        return self._settle(receipt, "APPLIED")
+        settled = self._settle(receipt, "APPLIED", fence_token=fence_token)
+        if crash_after_commit:
+            raise RuntimeError("simulated crash after commit")
+        return settled
 
-    def _settle(self, receipt: DestinationReceipt, status: str) -> DestinationReceipt:
+    def _settle(
+        self, receipt: DestinationReceipt, status: str, *, fence_token: int
+    ) -> DestinationReceipt:
+        if receipt.fence_token != fence_token or receipt.status != "IN_FLIGHT":
+            raise StaleReceiptFence("receipt lease is no longer current")
         receipt.status = status
         receipt.last_error = None
         receipt.next_attempt_at = None
@@ -225,7 +303,20 @@ class InstallationProjectionWorker:
         self.repository.session.commit()
         return receipt
 
-    def _record_failure(self, receipt: DestinationReceipt, error: Exception) -> DestinationReceipt:
+    def _record_failure(
+        self, receipt_id: UUID, fence_token: int, error: Exception
+    ) -> DestinationReceipt:
+        receipt = self.repository.session.exec(
+            select(DestinationReceipt)
+            .where(
+                DestinationReceipt.id == receipt_id,
+                DestinationReceipt.status == "IN_FLIGHT",
+                DestinationReceipt.fence_token == fence_token,
+            )
+            .with_for_update()
+        ).one_or_none()
+        if receipt is None:
+            raise StaleReceiptFence("receipt lease is no longer current")
         receipt.attempt_count += 1
         receipt.last_error = type(error).__name__
         receipt.lease_owner = None

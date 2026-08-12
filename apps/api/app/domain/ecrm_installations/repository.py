@@ -8,6 +8,7 @@ from datetime import timedelta
 from typing import Any, cast
 from uuid import UUID
 
+from sqlalchemy import and_, or_
 from sqlmodel import Session, select
 
 from app.domain.audit.audit_events import append_audit_event_to_session
@@ -93,13 +94,24 @@ class EcrmInstallationRepository:
         now = utc_now()
         receipt_status = cast(Any, DestinationReceipt.status)
         next_attempt_at = cast(Any, DestinationReceipt.next_attempt_at)
+        lease_expires_at = cast(Any, DestinationReceipt.lease_expires_at)
         received_at = cast(Any, DestinationReceipt.received_at)
         clauses = [
-            receipt_status.in_(("RECEIVED", "RETRY_SCHEDULED", "HELD_GAP")),
-            next_attempt_at.is_(None) | (next_attempt_at <= now),
+            or_(
+                and_(
+                    receipt_status.in_(("RECEIVED", "RETRY_SCHEDULED", "HELD_GAP")),
+                    next_attempt_at.is_(None) | (next_attempt_at <= now),
+                ),
+                and_(
+                    receipt_status == "IN_FLIGHT",
+                    lease_expires_at.is_not(None),
+                    lease_expires_at <= now,
+                ),
+            )
         ]
         if workspace_id is not None:
-            clauses.append(DestinationReceipt.workspace_id == workspace_id)
+            receipt_workspace_id = cast(Any, DestinationReceipt.workspace_id)
+            clauses.append(receipt_workspace_id == workspace_id)
         rows = list(
             self.session.exec(
                 select(DestinationReceipt)

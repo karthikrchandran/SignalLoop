@@ -8,7 +8,10 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.domain.ecrm_installations.client import (
     CellDeliveryResponse,
+    EcrmCellAuthError,
     EcrmCellClient,
+    EcrmCellConflict,
+    EcrmCellRetryable,
     EcrmCellUnavailable,
 )
 from app.domain.ecrm_installations.models import (
@@ -24,6 +27,7 @@ from app.domain.ecrm_installations.service import (
     EcrmDestinationService,
     InstallationAuthError,
     InstallationProjectionWorker,
+    StaleReceiptFence,
     SuspendedInstallation,
 )
 from app.domain.tenants.models import ProductCode, Tenant, TenantEntitlement
@@ -134,6 +138,51 @@ def test_destination_rejects_conflicting_replay(session: Session) -> None:
             ecrm_cell_id="cell-ws-a",
             credential="token-a",
             idempotency_key="idem-1",
+            envelope=_envelope(payload={"value": 2}),
+        )
+
+
+def test_destination_deduplicates_by_source_event_and_kind(session: Session) -> None:
+    repo = EcrmInstallationRepository(session)
+    repo.save_binding(_binding("ws-a"))
+    session.commit()
+    service = EcrmDestinationService(repo, DictSecretResolver({"secret://ws-a": "token-a"}))
+    first = service.receive(
+        ecrm_cell_id="cell-ws-a",
+        credential="token-a",
+        idempotency_key="request-1",
+        envelope=_envelope(),
+    )
+    session.commit()
+
+    replay = service.receive(
+        ecrm_cell_id="cell-ws-a",
+        credential="token-a",
+        idempotency_key="request-2",
+        envelope=_envelope(),
+    )
+
+    assert replay.id == first.id
+
+
+def test_destination_rejects_conflicting_source_event_replay(session: Session) -> None:
+    repo = EcrmInstallationRepository(session)
+    repo.save_binding(_binding("ws-a"))
+    session.commit()
+    service = EcrmDestinationService(repo, DictSecretResolver({"secret://ws-a": "token-a"}))
+    service.receive(
+        ecrm_cell_id="cell-ws-a",
+        credential="token-a",
+        idempotency_key="request-1",
+        envelope=_envelope(payload={"value": 1}),
+    )
+    session.commit()
+
+    with pytest.raises(ConflictingReplay):
+        service.receive(
+            ecrm_cell_id="cell-ws-a",
+            credential="token-a",
+            idempotency_key="request-2",
             envelope=_envelope(payload={"value": 2}),
         )
 
@@ -264,11 +313,45 @@ def test_crash_after_projection_insert_is_idempotently_recovered(session: Sessio
     session.commit()
     worker = InstallationProjectionWorker(repo)
 
-    with pytest.raises(RuntimeError, match="simulated crash"):
-        worker.process(receipt.id, crash_after_side_effect=True)
+    claimed = repo.claim_due_receipts()
+    assert claimed == [receipt]
+    with pytest.raises(RuntimeError, match="simulated crash after commit"):
+        worker.process(
+            receipt.id,
+            fence_token=claimed[0].fence_token,
+            crash_after_commit=True,
+        )
     session.expire_all()
     assert session.exec(select(RevenueOsInstallationProjection)).one().source_event_id == "evt-1"
-    assert worker.process(receipt.id).status == "APPLIED"
+    session.refresh(receipt)
+    assert receipt.status == "APPLIED"
+    assert repo.claim_due_receipts() == []
+
+
+def test_stale_fence_cannot_acknowledge_reclaimed_receipt(session: Session) -> None:
+    repo = EcrmInstallationRepository(session)
+    repo.save_binding(_binding("ws-a"))
+    destination = EcrmDestinationService(repo, DictSecretResolver({"secret://ws-a": "token-a"}))
+    receipt = destination.receive(
+        ecrm_cell_id="cell-ws-a",
+        credential="token-a",
+        idempotency_key="evt-1",
+        envelope=_envelope(),
+    )
+    session.commit()
+    first = repo.claim_due_receipts(worker_id="worker-a")[0]
+    stale_fence = first.fence_token
+    first.lease_expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    session.add(first)
+    session.commit()
+    current = repo.claim_due_receipts(worker_id="worker-b")[0]
+
+    with pytest.raises(StaleReceiptFence):
+        InstallationProjectionWorker(repo).process(receipt.id, fence_token=stale_fence)
+
+    assert InstallationProjectionWorker(repo).process(
+        receipt.id, fence_token=current.fence_token
+    ).status == "APPLIED"
 
 
 def test_reconciliation_creates_one_deduplicated_repair_candidate(session: Session) -> None:
@@ -304,7 +387,15 @@ def test_cell_client_uses_only_persisted_binding_and_operational_headers(session
     class Transport:
         def post(self, url: str, *, json: dict, headers: dict[str, str], timeout: float) -> CellDeliveryResponse:
             calls.append((url, headers, timeout))
-            return CellDeliveryResponse(202, {"event_id": json["source_event_id"]})
+            return CellDeliveryResponse(
+                202,
+                {
+                    "receipt_id": "receipt-1",
+                    "source_event_id": json["source_event_id"],
+                    "source_version": json["source_version"],
+                    "status": "RECEIVED",
+                },
+            )
 
     client = EcrmCellClient(repo, DictSecretResolver({"secret://ws-a": "token-a"}), Transport())
     response = client.send(
@@ -358,13 +449,111 @@ def test_cell_client_opens_circuit_after_failures(session: Session) -> None:
         "payload": {},
         "correlation_id": "corr-1",
     }
-    with pytest.raises(httpx.ConnectError):
+    with pytest.raises(EcrmCellRetryable, match="transport failure"):
         client.send(**kwargs)
-    with pytest.raises(httpx.ConnectError):
+    with pytest.raises(EcrmCellRetryable, match="transport failure"):
         client.send(**kwargs)
     with pytest.raises(EcrmCellUnavailable):
         client.send(**kwargs)
     assert repo.get_binding("ws-a").status == "DEGRADED"
+
+
+@pytest.mark.parametrize("status_code", [401, 403])
+def test_cell_client_treats_auth_response_as_terminal_and_degraded(
+    session: Session, status_code: int
+) -> None:
+    repo = EcrmInstallationRepository(session)
+    repo.save_binding(_binding("ws-a"))
+    session.commit()
+
+    class Transport:
+        def post(self, *args, **kwargs):
+            return CellDeliveryResponse(status_code, {"detail": "token-a must never escape"})
+
+    client = EcrmCellClient(repo, DictSecretResolver({"secret://ws-a": "token-a"}), Transport())
+    with pytest.raises(EcrmCellAuthError) as error:
+        client.send(
+            workspace_id="ws-a", source_event_id="evt-1", source_version=1,
+            event_kind="WORKFLOW_EVENT", stream_key="installation:primary",
+            payload={}, correlation_id="corr-1",
+        )
+
+    assert "token-a" not in str(error.value)
+    assert repo.get_binding("ws-a").status == "DEGRADED"
+
+
+def test_cell_client_treats_conflict_as_deterministic_terminal_failure(session: Session) -> None:
+    repo = EcrmInstallationRepository(session)
+    repo.save_binding(_binding("ws-a"))
+    session.commit()
+
+    class Transport:
+        def post(self, *args, **kwargs):
+            return CellDeliveryResponse(409, {"detail": "conflict"})
+
+    client = EcrmCellClient(repo, DictSecretResolver({"secret://ws-a": "token-a"}), Transport())
+    with pytest.raises(EcrmCellConflict):
+        client.send(
+            workspace_id="ws-a", source_event_id="evt-1", source_version=1,
+            event_kind="WORKFLOW_EVENT", stream_key="installation:primary",
+            payload={}, correlation_id="corr-1",
+        )
+
+    assert repo.get_binding("ws-a").consecutive_failures == 0
+
+
+@pytest.mark.parametrize("status_code", [429, 500, 503])
+def test_cell_client_retries_transient_statuses_and_opens_circuit(
+    session: Session, status_code: int
+) -> None:
+    repo = EcrmInstallationRepository(session)
+    repo.save_binding(_binding("ws-a"))
+    session.commit()
+
+    class Transport:
+        def post(self, *args, **kwargs):
+            return CellDeliveryResponse(status_code, {"detail": "secret-token"})
+
+    client = EcrmCellClient(
+        repo, DictSecretResolver({"secret://ws-a": "token-a"}), Transport(), circuit_threshold=1
+    )
+    with pytest.raises(EcrmCellRetryable) as error:
+        client.send(
+            workspace_id="ws-a", source_event_id="evt-1", source_version=1,
+            event_kind="WORKFLOW_EVENT", stream_key="installation:primary",
+            payload={}, correlation_id="corr-1",
+        )
+
+    assert "secret-token" not in str(error.value)
+    assert repo.get_binding("ws-a").status == "DEGRADED"
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        CellDeliveryResponse(200, {}),
+        CellDeliveryResponse(202, {"receipt_id": "r", "source_event_id": "wrong", "source_version": 1, "status": "RECEIVED"}),
+        CellDeliveryResponse(302, {"receipt_id": "r", "source_event_id": "evt-1", "source_version": 1, "status": "RECEIVED"}),
+    ],
+)
+def test_cell_client_requires_explicit_2xx_matching_ack(
+    session: Session, response: CellDeliveryResponse
+) -> None:
+    repo = EcrmInstallationRepository(session)
+    repo.save_binding(_binding("ws-a"))
+    session.commit()
+
+    class Transport:
+        def post(self, *args, **kwargs):
+            return response
+
+    client = EcrmCellClient(repo, DictSecretResolver({"secret://ws-a": "token-a"}), Transport())
+    with pytest.raises(EcrmCellUnavailable):
+        client.send(
+            workspace_id="ws-a", source_event_id="evt-1", source_version=1,
+            event_kind="WORKFLOW_EVENT", stream_key="installation:primary",
+            payload={}, correlation_id="corr-1",
+        )
 
 
 def test_production_secret_resolver_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
