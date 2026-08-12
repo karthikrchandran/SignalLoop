@@ -1,4 +1,11 @@
-from app.domain.onboarding.manifest import load_phase1_manifests
+import pytest
+
+from app.domain.onboarding.fixtures import phase1_dry_run_fixtures
+from app.domain.onboarding.manifest import (
+    TenantManifest,
+    load_phase1_manifests,
+    validate_manifest,
+)
 from app.domain.onboarding.models import OnboardingStage, StageStatus, can_transition
 from app.domain.onboarding.providers import FakeProviderHub, ProviderEgressError
 from app.domain.onboarding.service import InMemoryOnboardingService
@@ -19,6 +26,38 @@ def test_phase1_manifests_only_include_supported_launch_tenants() -> None:
         for manifest in manifests.values()
     )
     assert "haloehs" not in manifests
+
+
+def test_phase1_manifests_are_versioned_and_contain_only_secret_references() -> None:
+    manifests = load_phase1_manifests()
+    for manifest in manifests.values():
+        validate_manifest(manifest)
+        assert manifest.schema_version == "phase1.v1"
+        assert manifest.product_editions["revenueos"]
+        assert manifest.compliance_packs
+        assert all("=" not in reference for reference in manifest.secret_refs)
+
+
+def test_manifest_rejects_inline_secret_and_unsupported_product() -> None:
+    manifest = TenantManifest(
+        key="tenant-test", legal_name="Tenant Test", display_name="Tenant Test",
+        region="US", locale="en-US", timezone="America/New_York", currency="USD",
+        products=("revenueos", "unknown"), product_editions={"revenueos": "enterprise"},
+        compliance_packs=("us-consent",), owner_email="owner@tenant.test",
+        allowed_email_domains=("tenant.test",), admin_role_bundles=("TENANT_OWNER",),
+        secret_refs=("provider.client_secret=not-allowed",), consent_policy="us-consent-required",
+        branding_mode="neutral",
+    )
+    with pytest.raises(ValueError, match="inline secret|unsupported product"):
+        validate_manifest(manifest)
+
+
+def test_dry_run_fixtures_cover_launch_tenants_and_halo_rejection() -> None:
+    fixtures = phase1_dry_run_fixtures()
+    assert fixtures["ara-global"].expected_status == "READY_FOR_ACCEPTANCE"
+    assert fixtures["ai-consulting"].expected_status == "READY_FOR_ACCEPTANCE"
+    assert fixtures["haloehs"].expected_status == "UNSUPPORTED_TENANT"
+    assert all(fixture.owner_email.endswith(".test") for fixture in fixtures.values())
 
 
 def test_retry_is_idempotent_and_preserves_completed_stages() -> None:
