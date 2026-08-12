@@ -53,6 +53,11 @@ def _local_binding_names(tree: ast.Module) -> set[str]:
         for node in ast.walk(tree)
         if isinstance(node, ast.MatchAs | ast.MatchStar) and node.name is not None
     )
+    names.update(
+        node.rest
+        for node in ast.walk(tree)
+        if isinstance(node, ast.MatchMapping) and node.rest is not None
+    )
     return names
 
 
@@ -252,6 +257,8 @@ def schema(parameter_shadow):
             pass
         case [*match_star_shadow]:
             pass
+        case {"helper": _, **match_mapping_rest_shadow}:
+            pass
 """
 
 
@@ -268,6 +275,7 @@ def test_local_binding_names_covers_supported_shadow_forms(
         "parameter_shadow",
         "match_as_shadow",
         "match_star_shadow",
+        "match_mapping_rest_shadow",
     }
 
 
@@ -289,6 +297,26 @@ def test_schema_guard_rejects_a_match_capture_of_shared_module(tmp_path: Path) -
     )
 
     assert _full_schema_creators(tmp_path) == ["test_match_shadow.py:6"]
+
+
+def test_schema_guard_rejects_a_match_mapping_rest_capture(tmp_path: Path) -> None:
+    route_test = tmp_path / "test_mapping_rest_shadow.py"
+    route_test.write_text(
+        "import tests.conftest as shared\n"
+        "\n"
+        "def create_schema(value):\n"
+        "    match value:\n"
+        "        case {\"helper\": _, **shared}:\n"
+        "            SQLModel.metadata.create_all(\n"
+        "                engine,\n"
+        "                tables=shared._metadata_tables_for_available_extensions(\n"
+        "                    pgvector_available\n"
+        "                ),\n"
+        "            )\n",
+        encoding="utf-8",
+    )
+
+    assert _full_schema_creators(tmp_path) == ["test_mapping_rest_shadow.py:6"]
 
 
 def test_schema_guard_rejects_a_local_same_named_helper(tmp_path: Path) -> None:
