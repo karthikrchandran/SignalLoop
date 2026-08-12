@@ -274,13 +274,15 @@ def dispatch_projection_events(
     apply: Callable[[ProjectionDispatchEvent], object],
     max_attempts: int = 3,
     now: datetime | None = None,
+    clock: Callable[[], datetime] = _now,
 ) -> int:
     """Apply pending events, retaining failures until their retry budget is exhausted."""
 
     if max_attempts < 1:
         raise ValueError("max_attempts must be at least one")
 
-    timestamp = now or _now()
+    timestamp = now or clock()
+    completion_clock = clock if now is None or clock is not _now else lambda: timestamp
     event_ids = session.exec(
         select(ProjectionDispatchEvent.id)
         .where(
@@ -310,7 +312,7 @@ def dispatch_projection_events(
                 lease_token=lease_token,
                 error=error,
                 max_attempts=max_attempts,
-                now=timestamp,
+                now=completion_clock(),
             )
             continue
 
@@ -320,7 +322,7 @@ def dispatch_projection_events(
             event_id=event.id,
             payload_digest=_payload_digest(event.payload),
             lease_token=lease_token,
-            now=timestamp,
+            now=completion_clock(),
         ):
             dispatched += 1
     return dispatched

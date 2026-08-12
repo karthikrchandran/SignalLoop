@@ -406,3 +406,34 @@ def test_interleaved_lease_completion_allows_only_the_current_owner_to_transitio
             payload_digest=_digest(event.payload),
             lease_token=second,
         ) is True
+
+
+def test_dispatch_rejects_completion_when_apply_outlives_its_lease() -> None:
+    with _session() as session:
+        installation = _installation(session)
+        event = enqueue_projection_event(
+            session,
+            installation_id=installation.id,
+            tenant_id=installation.tenant_id,
+            event_type="membership.changed",
+            payload={},
+            idempotency_key="completion-clock-v1",
+        )
+        current = datetime.now(timezone.utc)
+
+        def clock() -> datetime:
+            return current
+
+        def slow_apply(_item: object) -> None:
+            nonlocal current
+            current += timedelta(minutes=6)
+
+        assert dispatch_projection_events(
+            session,
+            installation_id=installation.id,
+            apply=slow_apply,
+            now=current,
+            clock=clock,
+        ) == 0
+        session.refresh(event)
+        assert event.status == "IN_PROGRESS"
