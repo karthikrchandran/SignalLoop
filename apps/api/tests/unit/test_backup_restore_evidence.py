@@ -81,6 +81,20 @@ def test_restore_plan_contains_no_credentials_and_requires_explicit_confirmation
     assert "--clean" not in plan["command"]
 
 
+def test_restore_plan_literal_quotes_adversarial_backup_path(tmp_path: Path) -> None:
+    tool = _load_tool()
+    backup = tmp_path / "safe$(whoami)'s.dump"
+    backup.write_bytes(b"safe test backup")
+
+    plan = tool.build_restore_plan(
+        backup=backup,
+        target_url="postgresql://restore:secret@recovery.example/signalloop_restore",
+    )
+
+    assert "safe$(whoami)''s.dump" in plan["command"]
+    assert "'" + str(backup).replace("'", "''") + "'" in plan["command"]
+
+
 def test_evidence_requires_a_nonempty_migration_head(tmp_path: Path) -> None:
     tool = _load_tool()
     backup = tmp_path / "tenant.dump"
@@ -95,3 +109,39 @@ def test_evidence_requires_a_nonempty_migration_head(tmp_path: Path) -> None:
             migration_head="",
             row_validation={},
         )
+
+
+def test_evidence_rejects_unsafe_row_validation_keys(tmp_path: Path) -> None:
+    tool = _load_tool()
+    backup = tmp_path / "tenant.dump"
+    backup.write_bytes(b"safe test backup")
+
+    with pytest.raises(ValueError, match="row validation key"):
+        tool.build_evidence(
+            backup=backup,
+            source_url="postgresql://backup:secret@db.example/signalloop",
+            target_url="postgresql://restore:secret@recovery.example/signalloop_restore",
+            tool_versions={"pg_dump": "pg_dump (PostgreSQL) 16.4"},
+            migration_head="phase1_head",
+            row_validation={"password=top-secret": 1},
+        )
+
+
+def test_evidence_does_not_include_operator_controlled_backup_filename(
+    tmp_path: Path,
+) -> None:
+    tool = _load_tool()
+    backup = tmp_path / "backup_password=top-secret.dump"
+    backup.write_bytes(b"safe test backup")
+
+    evidence = tool.build_evidence(
+        backup=backup,
+        source_url="postgresql://backup:secret@db.example/signalloop",
+        target_url="postgresql://restore:secret@recovery.example/signalloop_restore",
+        tool_versions={"pg_dump": "pg_dump (PostgreSQL) 16.4"},
+        migration_head="phase1_head",
+        row_validation={},
+    )
+
+    assert "backup_password" not in tool.canonical_json(evidence)
+    assert "top-secret" not in tool.canonical_json(evidence)

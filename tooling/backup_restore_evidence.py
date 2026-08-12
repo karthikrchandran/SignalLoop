@@ -8,6 +8,7 @@ manual restore command that an approved operator may run after review.
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 from datetime import datetime, timezone
@@ -16,6 +17,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 ISOLATION_MARKERS = ("_restore", "_recovery", "_isolated")
+ROW_VALIDATION_KEY = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,62}$")
 
 
 def database_name(connection_url: str) -> str:
@@ -54,6 +56,11 @@ def canonical_json(value: dict[str, Any]) -> str:
     return json.dumps(value, indent=2, sort_keys=True) + "\n"
 
 
+def powershell_literal(value: str) -> str:
+    """Quote a value as a PowerShell single-quoted literal."""
+    return "'" + value.replace("'", "''") + "'"
+
+
 def build_evidence(
     *,
     backup: Path,
@@ -70,13 +77,14 @@ def build_evidence(
     if not migration_head.strip():
         raise ValueError("migration head is required")
     source_database, target_database = validate_isolated_restore_target(source_url, target_url)
+    if any(not ROW_VALIDATION_KEY.fullmatch(key) for key in row_validation):
+        raise ValueError("row validation key must be a safe table identifier")
     if any(not isinstance(count, int) or count < 0 for count in row_validation.values()):
         raise ValueError("row validation counts must be non-negative integers")
     return {
         "schema_version": 1,
         "created_at": created_at or datetime.now(timezone.utc).isoformat(),
         "backup": {
-            "filename": backup.name,
             "bytes": backup.stat().st_size,
             "sha256": sha256_file(backup),
         },
@@ -100,7 +108,7 @@ def build_restore_plan(*, backup: Path, target_url: str) -> dict[str, Any]:
         "command": (
             "pg_restore --exit-on-error --no-owner --no-privileges "
             '--dbname "$env:RECOVERY_DATABASE_URL" '
-            f'"{backup}"'
+            + powershell_literal(str(backup))
         ),
         "safety_notes": [
             "Run only after confirming RECOVERY_DATABASE_URL points to the isolated target.",
