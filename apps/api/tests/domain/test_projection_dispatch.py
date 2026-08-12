@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -9,9 +10,11 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from app.domain.installations.projection_dispatch import (
     acknowledge_projection_event,
+    claim_projection_event,
     dispatch_projection_events,
     enqueue_projection_event,
     reconcile_projection_status,
+    record_projection_failure,
     repair_projection_events,
     replay_dead_letter_projection_event,
 )
@@ -135,18 +138,25 @@ def test_acknowledgement_is_idempotent_and_rejects_wrong_installation() -> None:
             installation_id=other.id,
             event_id=event.id,
             payload_digest=_digest(event.payload),
+            lease_token=uuid.uuid4(),
         ) is False
+        lease_token = claim_projection_event(
+            session, installation_id=installation.id, event_id=event.id
+        )
+        assert lease_token is not None
         assert acknowledge_projection_event(
             session,
             installation_id=installation.id,
             event_id=event.id,
             payload_digest=_digest(event.payload),
+            lease_token=lease_token,
         ) is True
         assert acknowledge_projection_event(
             session,
             installation_id=installation.id,
             event_id=event.id,
             payload_digest=_digest(event.payload),
+            lease_token=lease_token,
         ) is True
 
 
@@ -210,6 +220,7 @@ def test_acknowledgement_rejects_a_digest_that_does_not_match_the_queued_payload
             installation_id=installation.id,
             event_id=event.id,
             payload_digest="x" * 64,
+            lease_token=uuid.uuid4(),
         ) is False
         assert reconcile_projection_status(session, installation_id=installation.id).pending == 1
 
@@ -283,8 +294,79 @@ def test_failed_dispatch_uses_backoff_and_dead_letter_replay_is_explicit() -> No
         assert event.status == "DEAD_LETTER"
 
         assert replay_dead_letter_projection_event(
-            session, installation_id=installation.id, event_id=event.id, now=now + timedelta(seconds=2)
+            session,
+            installation_id=installation.id,
+            event_id=event.id,
+            actor_id=uuid.uuid4(),
+            actor_role="REVENUE_OS_ADMIN",
+            now=now + timedelta(seconds=2),
         ) is True
         session.refresh(event)
         assert event.status == "PENDING"
         assert event.attempt_count == 0
+
+
+def test_stale_dispatcher_cannot_acknowledge_or_fail_a_reclaimed_lease() -> None:
+    with _session() as session:
+        installation = _installation(session)
+        event = enqueue_projection_event(
+            session,
+            installation_id=installation.id,
+            tenant_id=installation.tenant_id,
+            event_type="membership.changed",
+            payload={"user_id": "u1"},
+            idempotency_key="lease-race-v1",
+        )
+        first_lease = claim_projection_event(
+            session, installation_id=installation.id, event_id=event.id
+        )
+        assert first_lease is not None
+        event.lease_expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        session.add(event)
+        session.commit()
+        assert repair_projection_events(session, installation_id=installation.id) == 1
+        second_lease = claim_projection_event(
+            session, installation_id=installation.id, event_id=event.id
+        )
+        assert second_lease is not None and second_lease != first_lease
+        assert acknowledge_projection_event(
+            session,
+            installation_id=installation.id,
+            event_id=event.id,
+            payload_digest=_digest(event.payload),
+            lease_token=first_lease,
+        ) is False
+        assert record_projection_failure(
+            session,
+            installation_id=installation.id,
+            event_id=event.id,
+            lease_token=first_lease,
+            error=RuntimeError("late failure"),
+            max_attempts=3,
+        ) is False
+        assert acknowledge_projection_event(
+            session,
+            installation_id=installation.id,
+            event_id=event.id,
+            payload_digest=_digest(event.payload),
+            lease_token=second_lease,
+        ) is True
+
+
+def test_repair_requeues_acknowledged_event_with_missing_or_corrupt_receipt() -> None:
+    with _session() as session:
+        installation = _installation(session)
+        event = enqueue_projection_event(
+            session,
+            installation_id=installation.id,
+            tenant_id=installation.tenant_id,
+            event_type="membership.changed",
+            payload={},
+            idempotency_key="receipt-repair-v1",
+        )
+        event.status = "ACKNOWLEDGED"
+        session.add(event)
+        session.commit()
+        assert repair_projection_events(session, installation_id=installation.id) == 1
+        session.refresh(event)
+        assert event.status == "PENDING"

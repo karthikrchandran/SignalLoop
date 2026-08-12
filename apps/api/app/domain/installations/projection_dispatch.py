@@ -14,6 +14,7 @@ from sqlalchemy import desc, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
+from app.domain.audit.audit_events import append_audit_event_to_session
 from app.domain.tenants.models import (
     NativeProjectionReceipt,
     ProductInstallation,
@@ -103,6 +104,7 @@ def acknowledge_projection_event(
     installation_id: uuid.UUID,
     event_id: uuid.UUID,
     payload_digest: str,
+    lease_token: uuid.UUID,
     now: datetime | None = None,
 ) -> bool:
     """Acknowledge an installation-owned event exactly once, safely on replay."""
@@ -114,6 +116,16 @@ def acknowledge_projection_event(
         )
     ).first()
     if event is None:
+        return False
+    if event.status == "ACKNOWLEDGED":
+        receipt = session.exec(
+            select(NativeProjectionReceipt).where(
+                NativeProjectionReceipt.installation_id == installation_id,
+                NativeProjectionReceipt.event_id == event_id,
+            )
+        ).first()
+        return receipt is not None and receipt.payload_digest == payload_digest
+    if event.status != "IN_PROGRESS" or event.lease_token != lease_token:
         return False
     if payload_digest != _payload_digest(event.payload):
         return False
@@ -139,6 +151,8 @@ def acknowledge_projection_event(
     event.status = "ACKNOWLEDGED"
     event.acknowledged_at = timestamp
     event.last_error = None
+    event.lease_token = None
+    event.lease_expires_at = None
     event.updated_at = timestamp
     session.add(event)
     try:
@@ -151,6 +165,76 @@ def acknowledge_projection_event(
                 NativeProjectionReceipt.event_id == event_id,
             )
         ).first() is not None
+    return True
+
+
+def claim_projection_event(
+    session: Session,
+    *,
+    installation_id: uuid.UUID,
+    event_id: uuid.UUID,
+    now: datetime | None = None,
+) -> uuid.UUID | None:
+    """Atomically lease due work to a dispatcher, returning its ownership token."""
+
+    timestamp = now or _now()
+    lease_token = uuid.uuid4()
+    claim = session.exec(
+        update(ProjectionDispatchEvent)
+        .where(
+            _EVENT_TABLE.c.id == event_id,
+            _EVENT_TABLE.c.installation_id == installation_id,
+            _EVENT_TABLE.c.status == "PENDING",
+            _EVENT_TABLE.c.available_at <= timestamp,
+        )
+        .values(
+            status="IN_PROGRESS",
+            lease_token=lease_token,
+            lease_expires_at=timestamp + timedelta(minutes=5),
+            updated_at=timestamp,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    session.commit()
+    return lease_token if claim.rowcount == 1 else None
+
+
+def record_projection_failure(
+    session: Session,
+    *,
+    installation_id: uuid.UUID,
+    event_id: uuid.UUID,
+    lease_token: uuid.UUID,
+    error: Exception,
+    max_attempts: int,
+    now: datetime | None = None,
+) -> bool:
+    """Release/retry a lease only when the caller still owns that exact lease."""
+
+    timestamp = now or _now()
+    event = session.exec(
+        select(ProjectionDispatchEvent).where(
+            ProjectionDispatchEvent.id == event_id,
+            ProjectionDispatchEvent.installation_id == installation_id,
+            ProjectionDispatchEvent.status == "IN_PROGRESS",
+            ProjectionDispatchEvent.lease_token == lease_token,
+        )
+    ).first()
+    if event is None:
+        return False
+    event.attempt_count += 1
+    event.last_error = str(error)[:500]
+    event.updated_at = timestamp
+    event.lease_token = None
+    event.lease_expires_at = None
+    if event.attempt_count >= max_attempts:
+        event.status = "DEAD_LETTER"
+        event.dead_lettered_at = timestamp
+    else:
+        event.status = "PENDING"
+        event.available_at = timestamp + timedelta(seconds=2 ** (event.attempt_count - 1))
+    session.add(event)
+    session.commit()
     return True
 
 
@@ -179,25 +263,10 @@ def dispatch_projection_events(
     ).all()
     dispatched = 0
     for event_id in event_ids:
-        lease_token = uuid.uuid4()
-        claim = session.exec(
-            update(ProjectionDispatchEvent)
-            .where(
-                _EVENT_TABLE.c.id == event_id,
-                _EVENT_TABLE.c.installation_id == installation_id,
-                _EVENT_TABLE.c.status == "PENDING",
-                _EVENT_TABLE.c.available_at <= timestamp,
-            )
-            .values(
-                status="IN_PROGRESS",
-                lease_token=lease_token,
-                lease_expires_at=timestamp + timedelta(minutes=5),
-                updated_at=timestamp,
-            )
-            .execution_options(synchronize_session=False)
+        lease_token = claim_projection_event(
+            session, installation_id=installation_id, event_id=event_id, now=timestamp
         )
-        session.commit()
-        if claim.rowcount != 1:
+        if lease_token is None:
             continue
         event = session.get(ProjectionDispatchEvent, event_id)
         if event is None:
@@ -205,21 +274,15 @@ def dispatch_projection_events(
         try:
             apply(event)
         except Exception as error:
-            event.attempt_count += 1
-            event.last_error = str(error)[:500]
-            event.updated_at = timestamp
-            event.lease_token = None
-            event.lease_expires_at = None
-            if event.attempt_count >= max_attempts:
-                event.status = "DEAD_LETTER"
-                event.dead_lettered_at = timestamp
-            else:
-                event.status = "PENDING"
-                event.available_at = timestamp + timedelta(
-                    seconds=2 ** (event.attempt_count - 1)
-                )
-            session.add(event)
-            session.commit()
+            record_projection_failure(
+                session,
+                installation_id=installation_id,
+                event_id=event.id,
+                lease_token=lease_token,
+                error=error,
+                max_attempts=max_attempts,
+                now=timestamp,
+            )
             continue
 
         if acknowledge_projection_event(
@@ -227,6 +290,7 @@ def dispatch_projection_events(
             installation_id=installation_id,
             event_id=event.id,
             payload_digest=_payload_digest(event.payload),
+            lease_token=lease_token,
             now=timestamp,
         ):
             dispatched += 1
@@ -302,7 +366,32 @@ def repair_projection_events(
         .execution_options(synchronize_session=False)
     )
     session.commit()
-    return result.rowcount
+    repaired = result.rowcount
+    corrupt_acknowledgements = session.exec(
+        select(ProjectionDispatchEvent).where(
+            ProjectionDispatchEvent.installation_id == installation_id,
+            ProjectionDispatchEvent.status == "ACKNOWLEDGED",
+        )
+    ).all()
+    for event in corrupt_acknowledgements:
+        receipt = session.exec(
+            select(NativeProjectionReceipt).where(
+                NativeProjectionReceipt.installation_id == installation_id,
+                NativeProjectionReceipt.event_id == event.id,
+            )
+        ).first()
+        if receipt is None or receipt.payload_digest != _payload_digest(event.payload):
+            if receipt is not None:
+                session.delete(receipt)
+            event.status = "PENDING"
+            event.acknowledged_at = None
+            event.available_at = timestamp
+            event.last_error = "acknowledgement receipt integrity repair"
+            event.updated_at = timestamp
+            session.add(event)
+            repaired += 1
+    session.commit()
+    return repaired
 
 
 def replay_dead_letter_projection_event(
@@ -310,11 +399,25 @@ def replay_dead_letter_projection_event(
     *,
     installation_id: uuid.UUID,
     event_id: uuid.UUID,
+    actor_id: uuid.UUID,
+    actor_role: str,
     now: datetime | None = None,
 ) -> bool:
     """Explicitly replay one dead-letter event after operator review."""
 
     timestamp = now or _now()
+    event = session.exec(
+        select(ProjectionDispatchEvent).where(
+            ProjectionDispatchEvent.id == event_id,
+            ProjectionDispatchEvent.installation_id == installation_id,
+            ProjectionDispatchEvent.status == "DEAD_LETTER",
+        )
+    ).first()
+    if event is None:
+        return False
+    installation = session.get(ProductInstallation, installation_id)
+    if installation is None or installation.tenant_id != event.tenant_id:
+        return False
     result = session.exec(
         update(ProjectionDispatchEvent)
         .where(
@@ -334,5 +437,16 @@ def replay_dead_letter_projection_event(
         )
         .execution_options(synchronize_session=False)
     )
+    if result.rowcount == 1:
+        append_audit_event_to_session(
+            session,
+            event_name="revenueos.projection_dead_letter_replayed",
+            workspace_id=str(event.tenant_id),
+            actor_id=actor_id,
+            actor_role=actor_role,
+            resource_type="projection_dispatch_event",
+            resource_id=str(event.id),
+            payload={"installation_id": str(installation_id), "event_type": event.event_type},
+        )
     session.commit()
     return result.rowcount == 1

@@ -14,8 +14,18 @@ depends_on: str | tuple[str, ...] | None = None
 def upgrade() -> None:
     op.add_column(
         "projection_dispatch_event",
-        sa.Column("available_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "available_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+        ),
     )
+    op.execute(
+        "UPDATE projection_dispatch_event SET available_at = created_at "
+        "WHERE available_at IS NULL"
+    )
+    op.alter_column("projection_dispatch_event", "available_at", server_default=None)
     op.add_column(
         "projection_dispatch_event", sa.Column("lease_token", sa.Uuid(), nullable=True)
     )
