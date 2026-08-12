@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlmodel import Session, select
 
-from app.domain.audit.audit_events import append_audit_event_to_session
+from app.domain.audit.audit_events import AuditEvent, append_audit_event_to_session
 from app.domain.tenants.models import Tenant, utc_now
 
 from .persistence_models import (
@@ -486,14 +488,27 @@ class RevenueInterventionStore:
             ).all()
         )
         for dispatch in rows:
-            dispatch.status = "PENDING"
+            # A crash after the provider accepts a command but before its
+            # receipt is recorded is indistinguishable from no send. Never
+            # retry that command automatically.
+            dispatch.status = (
+                "UNKNOWN_PROVIDER_OUTCOME"
+                if dispatch.attempt_envelope is not None
+                else "PENDING"
+            )
             dispatch.lease_expires_at = None
-            dispatch.last_error = "WORKER_LEASE_EXPIRED"
+            dispatch.last_error = (
+                "PROVIDER_OUTCOME_UNKNOWN" if dispatch.attempt_envelope is not None else "WORKER_LEASE_EXPIRED"
+            )
             dispatch.updated_at = now
             self.session.add(dispatch)
             self._audit(
                 tenant_id=dispatch.tenant_id,
-                event_name="revenueos.intervention.dispatch_lease_recovered",
+                event_name=(
+                    "revenueos.intervention.dispatch_provider_outcome_unknown"
+                    if dispatch.attempt_envelope is not None
+                    else "revenueos.intervention.dispatch_lease_recovered"
+                ),
                 resource_type="revenue_intervention_dispatch",
                 resource_id=str(dispatch.id),
                 payload={"intervention_id": str(dispatch.intervention_id)},
@@ -602,9 +617,9 @@ class RevenueInterventionStore:
         dispatch.lease_expires_at = None
         dispatch.updated_at = utc_now()
         if next_attempt_at is None:
-            dispatch.status = "POLICY_DENIED"
+            dispatch.status = "SUPPRESSED"
             dispatch.next_attempt_at = None
-            intervention.status = "DENIED"
+            intervention.status = "SUPPRESSED"
             intervention.denial_reason = dispatch.last_error
             event_name = "revenueos.intervention.dispatch_policy_denied"
         else:
@@ -626,6 +641,146 @@ class RevenueInterventionStore:
                     dispatch.next_attempt_at.isoformat() if dispatch.next_attempt_at else None
                 ),
             },
+        )
+        self.session.commit()
+        self.session.refresh(dispatch)
+        return dispatch
+
+    def prepare_dispatch_attempt(
+        self, *, tenant_id: UUID, dispatch_id: UUID, workspace_id: str
+    ) -> dict[str, object]:
+        """Return the immutable command snapshot for one actively leased dispatch."""
+        dispatch, intervention, signal = self.dispatch_context(
+            tenant_id=tenant_id, dispatch_id=dispatch_id
+        )
+        workspace = _require_text(workspace_id, "workspace_id")
+        if dispatch.attempt_envelope is not None:
+            if dispatch.attempt_envelope.get("workspace_id") != workspace:
+                raise RevenueInterventionConflict("dispatch envelope workspace conflicts")
+            if (
+                not dispatch.attempt_envelope_digest
+                or dispatch.attempt_envelope_digest
+                != _envelope_digest(dispatch.attempt_envelope)
+            ):
+                raise RevenueInterventionConflict("immutable dispatch envelope was changed")
+            snapshot = self.session.exec(
+                select(AuditEvent).where(
+                    AuditEvent.event_name == "revenueos.intervention.attempt_prepared",
+                    AuditEvent.resource_id == str(dispatch.id),
+                )
+            ).one_or_none()
+            if snapshot is None or snapshot.payload.get("envelope") != dispatch.attempt_envelope:
+                raise RevenueInterventionConflict("immutable dispatch envelope snapshot was changed")
+            return dict(dispatch.attempt_envelope)
+        destination = intervention.action_payload.get("to")
+        if not isinstance(destination, str) or not destination.strip():
+            destination = str(intervention.action_payload.get("contact_id") or "")
+        envelope: dict[str, object] = {
+            "attempt_id": str(dispatch.id),
+            "intervention_id": str(intervention.id),
+            "workspace_id": workspace,
+            "channel": intervention.action.removeprefix("send_") or intervention.action,
+            "destination_ref": destination.strip(),
+            "policy_decision_ref": signal.evidence_hash,
+            "knowledge_release_refs": list(intervention.evidence_refs),
+            "idempotency_key": str(dispatch.id),
+            "scheduled_for": dispatch.created_at.isoformat(),
+            "action": intervention.action,
+            "action_payload_json": json.dumps(
+                intervention.action_payload, sort_keys=True, separators=(",", ":")
+            ),
+        }
+        dispatch.attempt_envelope = envelope
+        dispatch.attempt_envelope_digest = _envelope_digest(envelope)
+        dispatch.updated_at = utc_now()
+        self.session.add(dispatch)
+        self._audit(
+            tenant_id=tenant_id,
+            event_name="revenueos.intervention.attempt_prepared",
+            resource_type="revenue_intervention_dispatch",
+            resource_id=str(dispatch.id),
+            payload={
+                "intervention_id": str(intervention.id),
+                "workspace_id": workspace,
+                "envelope": envelope,
+            },
+        )
+        self.session.commit()
+        return dict(envelope)
+
+    def reconcile_unknown_provider_outcome(
+        self,
+        *,
+        tenant_id: UUID,
+        dispatch_id: UUID,
+        actor_id: UUID,
+        provider: str,
+        receipt: dict[str, object] | None,
+        provider_accepted: bool,
+        operator_capabilities: frozenset[str],
+    ) -> RevenueInterventionDispatch:
+        """Operator/provider evidence is required before an unknown command can settle."""
+        dispatch = self._dispatch(tenant_id, dispatch_id)
+        if dispatch.status != "UNKNOWN_PROVIDER_OUTCOME":
+            raise ValueError(f"dispatch is not awaiting reconciliation (state={dispatch.status})")
+        if "revenueos.admin.manage" not in operator_capabilities:
+            raise PermissionError("revenueos.admin.manage capability is required")
+        if not receipt or not isinstance(receipt.get("provider_receipt_id"), str) or not receipt["provider_receipt_id"].strip():
+            raise ValueError("durable provider receipt is required for reconciliation")
+        if provider_accepted:
+            return self.record_dispatch_success(
+                tenant_id=tenant_id,
+                dispatch_id=dispatch_id,
+                provider=provider,
+                receipt=receipt,
+            )
+        dispatch.status = "PENDING"
+        dispatch.lease_expires_at = None
+        dispatch.next_attempt_at = None
+        dispatch.last_error = "RECONCILED_NOT_ACCEPTED"
+        dispatch.updated_at = utc_now()
+        self.session.add(dispatch)
+        self._audit(
+            tenant_id=tenant_id,
+            event_name="revenueos.intervention.dispatch_unknown_reconciled_for_replay",
+            resource_type="revenue_intervention_dispatch",
+            resource_id=str(dispatch.id),
+            payload={
+                "actor_subject": str(actor_id),
+                "provider": provider,
+                "provider_receipt_id": receipt["provider_receipt_id"],
+            },
+        )
+        self.session.commit()
+        self.session.refresh(dispatch)
+        return dispatch
+
+    def record_dispatch_unknown_provider_outcome(
+        self,
+        *,
+        tenant_id: UUID,
+        dispatch_id: UUID,
+        provider: str,
+        reason: str,
+    ) -> RevenueInterventionDispatch:
+        """Hold an ambiguous provider call for evidence-backed reconciliation."""
+        dispatch = self._dispatch(tenant_id, dispatch_id)
+        intervention = self._intervention(tenant_id, dispatch.intervention_id)
+        if dispatch.status != "IN_FLIGHT":
+            raise ValueError(f"dispatch is not leased (state={dispatch.status})")
+        dispatch.provider = _require_text(provider, "provider")
+        dispatch.status = "UNKNOWN_PROVIDER_OUTCOME"
+        dispatch.last_error = _require_text(reason, "reason")
+        dispatch.lease_expires_at = None
+        dispatch.next_attempt_at = None
+        dispatch.updated_at = utc_now()
+        self.session.add(dispatch)
+        self._audit(
+            tenant_id=tenant_id,
+            event_name="revenueos.intervention.dispatch_provider_outcome_unknown",
+            resource_type="revenue_intervention_dispatch",
+            resource_id=str(dispatch.id),
+            payload={"intervention_id": str(intervention.id), "provider": dispatch.provider, "reason": dispatch.last_error},
         )
         self.session.commit()
         self.session.refresh(dispatch)
@@ -802,3 +957,9 @@ class RevenueInterventionStore:
 
 def _retry_delay(attempt_count: int) -> timedelta:
     return timedelta(seconds=min(300, 10 * (2 ** max(0, attempt_count - 1))))
+
+
+def _envelope_digest(envelope: dict[str, object]) -> str:
+    return hashlib.sha256(
+        json.dumps(envelope, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()

@@ -86,6 +86,10 @@ class RevenueInterventionDispatch(SQLModel, table=True):
     lease_expires_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
     provider: str | None = Field(default=None, max_length=128)
     provider_receipt: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
+    # Snapshot the exact provider command before the first invocation.  Later
+    # policy rechecks are deliberately live, but may not rewrite this command.
+    attempt_envelope: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
+    attempt_envelope_digest: str | None = Field(default=None, max_length=64)
     dead_letter_reason: str | None = Field(default=None, max_length=1000)
     last_error: str | None = Field(default=None, max_length=1000)
     created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))

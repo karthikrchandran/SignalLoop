@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 from datetime import timedelta
+from uuid import uuid4
 
+import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.domain.audit.audit_events import AuditEvent
 from app.domain.revenue_intelligence.dispatcher import InterventionDeliveryResult
-from app.domain.revenue_intelligence.persistence import RevenueInterventionStore
+from app.domain.revenue_intelligence.persistence import (
+    RevenueInterventionConflict,
+    RevenueInterventionStore,
+)
 from app.domain.revenue_intelligence.persistence_models import (
     RevenueInterventionDispatch,
     RevenueInterventionOutcome,
@@ -29,17 +36,39 @@ from worker_app.revenue_intervention_worker import process_claimed_revenue_inter
 class AcceptingDelivery:
     def __init__(self) -> None:
         self.calls = 0
+        self.envelopes = []
 
-    async def deliver(
-        self, *, action: str, payload: dict[str, object], idempotency_key: str
-    ) -> InterventionDeliveryResult:
+    async def deliver(self, *, envelope) -> InterventionDeliveryResult:
         self.calls += 1
+        self.envelopes.append(envelope)
         return InterventionDeliveryResult(
             provider="email",
             accepted=True,
             retryable=False,
-            receipt={"status_code": 202, "message_id": idempotency_key},
+            receipt={"status_code": 202, "message_id": envelope.idempotency_key},
         )
+
+
+class LostResponseDelivery:
+    """Provider accepted the command but the worker dies before a receipt arrives."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def deliver(self, *, envelope) -> InterventionDeliveryResult:
+        del envelope
+        self.calls += 1
+        raise KeyboardInterrupt("worker terminated after provider acceptance")
+
+
+class TimedOutDelivery:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def deliver(self, *, envelope) -> InterventionDeliveryResult:
+        del envelope
+        self.calls += 1
+        raise TimeoutError("response lost after provider acceptance")
 
 
 def _session() -> Session:
@@ -145,6 +174,11 @@ def test_worker_dispatches_due_revenue_intervention() -> None:
         assert dispatch.status == "ACKNOWLEDGED"
         assert deliveries[0][0] == "ws-ara"
         assert deliveries[0][1].calls == 1
+        envelope = deliveries[0][1].envelopes[0]
+        assert envelope.workspace_id == "ws-ara"
+        assert envelope.destination_ref == "owner@example.test"
+        assert envelope.idempotency_key == str(dispatch.id)
+        assert dispatch.attempt_envelope is not None
 
 
 def test_worker_recovers_expired_revenue_dispatch_lease() -> None:
@@ -166,3 +200,133 @@ def test_worker_recovers_expired_revenue_dispatch_lease() -> None:
         session.refresh(dispatch)
         assert processed == 1
         assert dispatch.status == "ACKNOWLEDGED"
+
+
+def test_lost_provider_response_is_held_for_reconciliation_not_redispatched() -> None:
+    with _session() as session:
+        tenant, dispatch = _approved_dispatch(session)
+        lost = LostResponseDelivery()
+
+        with pytest.raises(KeyboardInterrupt, match="provider acceptance"):
+            asyncio.run(
+                process_claimed_revenue_interventions(
+                    session,
+                    delivery_factory=lambda _session, _workspace_id: lost,
+                )
+            )
+
+        session.refresh(dispatch)
+        assert lost.calls == 1
+        assert dispatch.status == "IN_FLIGHT"
+        assert dispatch.attempt_envelope is not None
+        dispatch.lease_expires_at = utc_now() - timedelta(seconds=1)
+        session.add(dispatch)
+        session.commit()
+
+        processed = asyncio.run(
+            process_claimed_revenue_interventions(
+                session,
+                delivery_factory=lambda _session, _workspace_id: AcceptingDelivery(),
+            )
+        )
+
+        session.refresh(dispatch)
+        assert processed == 0
+        assert dispatch.status == "UNKNOWN_PROVIDER_OUTCOME"
+        assert lost.calls == 1
+
+
+def test_provider_timeout_after_invocation_is_not_automatically_redispatched() -> None:
+    with _session() as session:
+        _tenant, dispatch = _approved_dispatch(session)
+        timed_out = TimedOutDelivery()
+        processed = asyncio.run(
+            process_claimed_revenue_interventions(
+                session,
+                delivery_factory=lambda _session, _workspace_id: timed_out,
+            )
+        )
+        session.refresh(dispatch)
+        assert processed == 1
+        assert timed_out.calls == 1
+        assert dispatch.status == "UNKNOWN_PROVIDER_OUTCOME"
+
+        processed = asyncio.run(
+            process_claimed_revenue_interventions(
+                session,
+                delivery_factory=lambda _session, _workspace_id: AcceptingDelivery(),
+            )
+        )
+        assert processed == 0
+        assert timed_out.calls == 1
+        assert dispatch.status == "UNKNOWN_PROVIDER_OUTCOME"
+
+
+def test_attempt_envelope_tampering_is_rejected_before_provider_execution() -> None:
+    with _session() as session:
+        tenant, dispatch = _approved_dispatch(session)
+        store = RevenueInterventionStore(session)
+        store.claim_due_dispatches(tenant_id=tenant.id)
+        original = store.prepare_dispatch_attempt(
+            tenant_id=tenant.id, dispatch_id=dispatch.id, workspace_id="ws-ara"
+        )
+        assert original["destination_ref"] == "owner@example.test"
+        assert dispatch.attempt_envelope is not None
+        tampered = dict(dispatch.attempt_envelope)
+        tampered["destination_ref"] = "attacker@example.test"
+        dispatch.attempt_envelope = tampered
+        dispatch.attempt_envelope_digest = hashlib.sha256(
+            json.dumps(tampered, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        session.add(dispatch)
+        session.commit()
+
+        with pytest.raises(RevenueInterventionConflict, match="immutable"):
+            store.prepare_dispatch_attempt(
+                tenant_id=tenant.id, dispatch_id=dispatch.id, workspace_id="ws-ara"
+            )
+
+
+def test_unknown_provider_outcome_requires_authorized_operator_and_evidence() -> None:
+    with _session() as session:
+        tenant, dispatch = _approved_dispatch(session)
+        store = RevenueInterventionStore(session)
+        store.claim_due_dispatches(tenant_id=tenant.id)
+        store.prepare_dispatch_attempt(
+            tenant_id=tenant.id, dispatch_id=dispatch.id, workspace_id="ws-ara"
+        )
+        dispatch.lease_expires_at = utc_now() - timedelta(seconds=1)
+        session.add(dispatch)
+        session.commit()
+        store.recover_expired_dispatch_leases()
+
+        with pytest.raises(PermissionError, match="capability"):
+            store.reconcile_unknown_provider_outcome(
+                tenant_id=tenant.id,
+                dispatch_id=dispatch.id,
+                actor_id=uuid4(),
+                provider="email",
+                receipt={"provider_receipt_id": "provider-1"},
+                provider_accepted=True,
+                operator_capabilities=frozenset(),
+            )
+        with pytest.raises(ValueError, match="receipt"):
+            store.reconcile_unknown_provider_outcome(
+                tenant_id=tenant.id,
+                dispatch_id=dispatch.id,
+                actor_id=uuid4(),
+                provider="email",
+                receipt=None,
+                provider_accepted=False,
+                operator_capabilities=frozenset({"revenueos.admin.manage"}),
+            )
+        reconciled = store.reconcile_unknown_provider_outcome(
+            tenant_id=tenant.id,
+            dispatch_id=dispatch.id,
+            actor_id=uuid4(),
+            provider="email",
+            receipt={"provider_receipt_id": "provider-1", "status_code": 202},
+            provider_accepted=True,
+            operator_capabilities=frozenset({"revenueos.admin.manage"}),
+        )
+        assert reconciled.status == "ACKNOWLEDGED"

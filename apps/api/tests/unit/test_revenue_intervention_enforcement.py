@@ -37,15 +37,13 @@ class CountingDelivery:
     def __init__(self) -> None:
         self.calls = 0
 
-    async def deliver(
-        self, *, action: str, payload: dict[str, object], idempotency_key: str
-    ) -> InterventionDeliveryResult:
+    async def deliver(self, *, envelope) -> InterventionDeliveryResult:
         self.calls += 1
         return InterventionDeliveryResult(
             provider="sendgrid",
             accepted=True,
             retryable=False,
-            receipt={"message_id": idempotency_key},
+            receipt={"message_id": envelope.idempotency_key},
         )
 
 
@@ -134,12 +132,12 @@ def test_dispatch_rechecks_revoked_consent_without_calling_provider() -> None:
                     session=session,
                     workspace_id="ws-ara",
                 ),
-            ).dispatch(store, tenant_id=tenant.id, dispatch_id=dispatch.id)
+            ).dispatch(store, tenant_id=tenant.id, dispatch_id=dispatch.id, workspace_id="ws-ara")
         )
 
         session.refresh(dispatch)
         assert delivery.calls == 0
-        assert dispatch.status == "POLICY_DENIED"
+        assert dispatch.status == "SUPPRESSED"
         assert dispatch.last_error == "CONSENT_MISSING"
 
 
@@ -171,7 +169,7 @@ def test_dispatch_defers_quiet_hours_without_consuming_provider_attempt() -> Non
 
         asyncio.run(
             RevenueInterventionDispatcher(delivery, enforcement_gate=gate).dispatch(
-                store, tenant_id=tenant.id, dispatch_id=dispatch.id
+                store, tenant_id=tenant.id, dispatch_id=dispatch.id, workspace_id="ws-ara"
             )
         )
 
@@ -208,12 +206,12 @@ def test_live_gate_blocks_suppressed_recipient() -> None:
                     session=session,
                     workspace_id="ws-ara",
                 ),
-            ).dispatch(store, tenant_id=tenant.id, dispatch_id=dispatch.id)
+            ).dispatch(store, tenant_id=tenant.id, dispatch_id=dispatch.id, workspace_id="ws-ara")
         )
 
         session.refresh(dispatch)
         assert delivery.calls == 0
-        assert dispatch.status == "POLICY_DENIED"
+        assert dispatch.status == "SUPPRESSED"
         assert dispatch.last_error == "EMAIL_SUPPRESSED"
 
 
@@ -243,7 +241,7 @@ def test_live_gate_defers_while_workspace_is_paused() -> None:
                     workspace_id="ws-ara",
                     now=lambda: datetime(2026, 8, 11, 15, 0, tzinfo=UTC),
                 ),
-            ).dispatch(store, tenant_id=tenant.id, dispatch_id=dispatch.id)
+            ).dispatch(store, tenant_id=tenant.id, dispatch_id=dispatch.id, workspace_id="ws-ara")
         )
 
         session.refresh(dispatch)
