@@ -61,6 +61,30 @@ test("User mutation helper matches exact update and delete endpoints", async ({
   }
 })
 
+test("User mutation helper ignores /users/signup before exact update and delete responses", async ({
+  page,
+}) => {
+  await page.goto("/")
+
+  await page.route("**/api/v1/users/signup", async (route) => {
+    await route.fulfill({ status: 200, body: "signup response" })
+  })
+  await page.route("**/api/v1/users/user-456", async (route) => {
+    await route.fulfill({ status: 200, body: "user mutation response" })
+  })
+
+  for (const method of ["PATCH", "DELETE"] as const) {
+    const response = await submitAndExpectUserMutation(page, method, () =>
+      page.evaluate(async (requestMethod) => {
+        await fetch("/api/v1/users/signup", { method: requestMethod })
+        await fetch("/api/v1/users/user-456", { method: requestMethod })
+      }, method),
+    )
+
+    expect(new URL(response.url()).pathname).toBe("/api/v1/users/user-456")
+  }
+})
+
 test("Admin page is accessible and shows correct title", async ({ page }) => {
   await page.goto("/admin")
   await expect(

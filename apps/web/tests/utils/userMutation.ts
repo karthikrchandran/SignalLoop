@@ -8,7 +8,7 @@ function isUserMutationPath(pathname: string, method: UserMutationMethod) {
   }
 
   const match = /^\/api\/v1\/users\/([^/]+)$/.exec(pathname)
-  return match?.[1] !== undefined && match[1] !== "me"
+  return match?.[1] !== undefined && !["me", "signup"].includes(match[1])
 }
 
 export async function submitAndExpectUserMutation(
