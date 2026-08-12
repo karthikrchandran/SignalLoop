@@ -159,6 +159,13 @@ from app.domain.branding.models import (  # noqa: E402, F401
     TenantBrandAsset,
     TenantBrandingVersion,
 )
+from app.domain.ecrm_installations.models import (  # noqa: E402, F401
+    DestinationReceipt,
+    EcrmInstallationBinding,
+    InstallationProjectionCheckpoint,
+    InstallationRepairCandidate,
+    RevenueOsInstallationProjection,
+)
 
 from app.domain.audit.audit_events import AuditEvent  # noqa: E402
 from app.domain.sequences.models import (  # noqa: E402

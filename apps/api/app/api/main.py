@@ -13,6 +13,7 @@ from app.api.routes import (
     customer_360,
     dashboard,
     engagement_intelligence,
+    ecrm_installations,
     kpis,
     login,
     oidc,
@@ -58,6 +59,7 @@ api_router.include_router(signals.router)
 api_router.include_router(triggers.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(engagement_intelligence.router)
+api_router.include_router(ecrm_installations.router)
 api_router.include_router(calls.router)
 api_router.include_router(customer_360.router)
 api_router.include_router(accounts.router)
