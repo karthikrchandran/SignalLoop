@@ -8,15 +8,57 @@ import { submitAndExpectUserMutation } from "./utils/userMutation"
 test("User mutation helper reports a failed response status and text", async ({ page }) => {
   await page.goto("/")
 
-  await page.route("**/api/v1/users", async (route) => {
+  await page.route("**/api/v1/users/", async (route) => {
     await route.fulfill({ status: 503, body: "test failure response" })
   })
 
   await expect(
     submitAndExpectUserMutation(page, "POST", () =>
-      page.evaluate(() => fetch("/api/v1/users", { method: "POST" })),
+      page.evaluate(() => fetch("/api/v1/users/", { method: "POST" })),
     ),
   ).rejects.toThrow(/status 503.*test failure response/)
+})
+
+test("User mutation helper ignores /users/me before an exact create response", async ({
+  page,
+}) => {
+  await page.goto("/")
+
+  await page.route("**/api/v1/users/me", async (route) => {
+    await route.fulfill({ status: 200, body: "current user" })
+  })
+  await page.route("**/api/v1/users/", async (route) => {
+    await route.fulfill({ status: 201, body: "created user" })
+  })
+
+  const response = await submitAndExpectUserMutation(page, "POST", () =>
+    page.evaluate(async () => {
+      await fetch("/api/v1/users/me", { method: "POST" })
+      await fetch("/api/v1/users/", { method: "POST" })
+    }),
+  )
+
+  expect(new URL(response.url()).pathname).toBe("/api/v1/users/")
+})
+
+test("User mutation helper matches exact update and delete endpoints", async ({
+  page,
+}) => {
+  await page.goto("/")
+
+  await page.route("**/api/v1/users/user-123", async (route) => {
+    await route.fulfill({ status: 200, body: "updated user" })
+  })
+
+  for (const method of ["PATCH", "DELETE"] as const) {
+    const response = await submitAndExpectUserMutation(page, method, () =>
+      page.evaluate((requestMethod) =>
+        fetch("/api/v1/users/user-123", { method: requestMethod }),
+      method),
+    )
+
+    expect(new URL(response.url()).pathname).toBe("/api/v1/users/user-123")
+  }
 })
 
 test("Admin page is accessible and shows correct title", async ({ page }) => {

@@ -55,7 +55,7 @@ export default defineConfig({
 
     {
       name: 'admin-chromium',
-      testMatch: /admin\.spec\.ts/,
+      testMatch: /(^|[\\/])admin\.spec\.ts$/,
       use: {
         ...devices['Desktop Chrome'],
         storageState: existsSync('playwright/.auth/user.json') ? 'playwright/.auth/user.json' : undefined,

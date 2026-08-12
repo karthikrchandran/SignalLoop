@@ -1,13 +1,24 @@
 import { expect, type Page } from "@playwright/test"
 
+type UserMutationMethod = "POST" | "PATCH" | "DELETE"
+
+function isUserMutationPath(pathname: string, method: UserMutationMethod) {
+  if (method === "POST") {
+    return pathname === "/api/v1/users/"
+  }
+
+  const match = /^\/api\/v1\/users\/([^/]+)$/.exec(pathname)
+  return match?.[1] !== undefined && match[1] !== "me"
+}
+
 export async function submitAndExpectUserMutation(
   page: Page,
-  method: string,
+  method: UserMutationMethod,
   trigger: () => Promise<unknown>,
 ) {
   const responsePromise = page.waitForResponse(
     (response) =>
-      response.url().includes("/api/v1/users") &&
+      isUserMutationPath(new URL(response.url()).pathname, method) &&
       response.request().method() === method,
   )
 
