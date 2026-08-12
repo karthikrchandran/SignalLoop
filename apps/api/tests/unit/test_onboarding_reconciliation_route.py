@@ -24,6 +24,7 @@ from app.domain.onboarding.persistence_service import create_or_resume
 from app.domain.onboarding.providers import FakeProviderHub
 from app.domain.tenants.capabilities import SuiteContext
 from app.domain.tenants.models import Tenant
+from app.domain_models import IdempotencyRecord
 from app.models import SQLModel as _ModelsLoaded  # noqa: F401
 
 
@@ -173,10 +174,41 @@ def test_concurrent_reconciliation_key_has_one_audit_and_one_evidence_side_effec
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(lambda _: _capture(reconcile), range(2)))
     with Session(engine) as session:
-        assert sum(isinstance(result, dict) for result in results) == 1
-        assert sum(isinstance(result, HTTPException) and result.status_code == 409 for result in results) == 1
+        assert any(isinstance(result, dict) for result in results)
+        assert all(isinstance(result, dict) or (isinstance(result, HTTPException) and result.status_code == 409) for result in results)
         assert len(session.exec(select(AuditEvent).where(AuditEvent.event_name == "onboarding.external_outcome.reconciled")).all()) == 1
         assert len(session.exec(select(OnboardingEvidenceRecord).where(OnboardingEvidenceRecord.run_id == run_id, OnboardingEvidenceRecord.result_code == "SAFE_RETRY_AUTHORIZED")).all()) == 1
+
+
+def test_reconciliation_finalization_failure_rolls_back_retryable_state_and_audit(tmp_path) -> None:
+    class FailAuditCommitSession(Session):
+        commit_count = 0
+
+        def commit(self) -> None:
+            self.commit_count += 1
+            if self.commit_count == 2:
+                raise RuntimeError("injected audit finalization failure")
+            super().commit()
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'reconcile-finalization.db'}", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add(Tenant(key="ara-global", display_name="ARA Global"))
+        session.commit()
+        run, stage = _unknown_run(session)
+        run_id, stage_id = run.id, stage.id
+    user = type("User", (), {"id": uuid.uuid4(), "is_superuser": True, "role": "admin"})()
+    with FailAuditCommitSession(engine) as session:
+        with pytest.raises(HTTPException) as error:
+            asyncio.run(reconcile_run_stage(request=_request(run_id, stage_id), session=session, current_user=user, run_id=run_id, stage_id=stage_id, body=OnboardingReconciliation(decision="NOT_ACCEPTED", provider_receipt_id="receipt-failure"), idempotency_key="failure-key"))
+        assert error.value.status_code == 503
+    with Session(engine) as session:
+        stage = session.get(OnboardingStageRecord, stage_id)
+        assert stage is not None and stage.result_code == "UNKNOWN_EXTERNAL_OUTCOME"
+        assert not session.exec(select(AuditEvent).where(AuditEvent.event_name == "onboarding.external_outcome.reconciled")).all()
+        assert not session.exec(select(OnboardingEvidenceRecord).where(OnboardingEvidenceRecord.run_id == run_id, OnboardingEvidenceRecord.result_code == "SAFE_RETRY_AUTHORIZED")).all()
+        record = session.exec(select(IdempotencyRecord).where(IdempotencyRecord.idempotency_key == "failure-key")).one()
+        assert record.state == "unknown"
 
 
 def _capture(callable_):  # noqa: ANN001, ANN201

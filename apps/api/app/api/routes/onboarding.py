@@ -149,7 +149,6 @@ def _reconcile_once(
             "provider_receipt_id": body.provider_receipt_id,
         },
     )
-    session.commit()
     return _view(session, run)
 
 

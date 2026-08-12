@@ -179,8 +179,6 @@ def reconcile_unknown_external_outcome(session: Session, run: OnboardingRunRecor
     stage.result_code = None
     stage.completed_at = None
     _record_evidence(session, run, stage, "SAFE_RETRY_AUTHORIZED", {"tenant_key": run.tenant_key, "receipt": receipt})
-    session.commit()
-    session.refresh(stage)
 
 
 def _is_external_stage(stage: str) -> bool:
