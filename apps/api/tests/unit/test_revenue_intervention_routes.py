@@ -39,8 +39,11 @@ from app.domain.tenants.models import (
     SupportAccessGrant,
     Tenant,
     TenantEntitlement,
+    TenantOperationalControl,
+    TenantWorkspaceBinding,
     utc_now,
 )
+from app.domain.workspaces.models import Workspace, WorkspaceMembership
 from app.domain_models import (
     NotificationProvider,
     ProviderCapability,
@@ -58,10 +61,14 @@ def _session() -> Session:
             User.__table__,
             Tenant.__table__,
             TenantEntitlement.__table__,
+            TenantOperationalControl.__table__,
+            TenantWorkspaceBinding.__table__,
             ProductInstallation.__table__,
             SuiteProjectionOutbox.__table__,
             ProviderCredential.__table__,
             WorkspaceProviderSelection.__table__,
+            Workspace.__table__,
+            WorkspaceMembership.__table__,
             SuiteMembership.__table__,
             SuiteRoleAssignment.__table__,
             SupportAccessGrant.__table__,
@@ -99,6 +106,22 @@ def _user_and_tenant(session: Session) -> tuple[User, Tenant]:
     )
     session.commit()
     return user, tenant
+
+
+def _bind_signalloop_workspace(
+    session: Session, tenant: Tenant, installation: ProductInstallation
+) -> None:
+    if session.get(Workspace, installation.local_identifier) is None:
+        session.add(Workspace(id=installation.local_identifier))
+        session.flush()
+    session.add(
+        TenantWorkspaceBinding(
+            tenant_id=tenant.id,
+            installation_id=installation.id,
+            workspace_id=installation.local_identifier,
+        )
+    )
+    session.flush()
 
 
 def test_revenue_intervention_route_uses_durable_store_without_caller_policy_flags() -> None:
@@ -372,6 +395,7 @@ def test_operational_health_reports_projection_provider_and_dispatch_state() -> 
         )
         session.add(installation)
         session.flush()
+        _bind_signalloop_workspace(session, tenant, installation)
         session.add(
             SuiteProjectionOutbox(
                 tenant_id=tenant.id,
@@ -413,9 +437,296 @@ def test_operational_health_reports_projection_provider_and_dispatch_state() -> 
         assert health["tenant_key"] == tenant.key
         assert health["projections"]["counts"]["DEAD_LETTER"] == 1
         assert health["projections"]["unacknowledged_count"] == 1
-        assert health["provider"]["email"]["provider"] == "sendgrid"
-        assert health["provider"]["email"]["credential_configured"] is True
+        assert "provider" not in health
         assert health["installations"][0]["projection_ready"] is True
+
+
+def test_operational_health_derives_redacted_tenant_readiness_without_cross_tenant_backlog() -> None:
+    with _session() as session:
+        user, tenant = _user_and_tenant(session)
+        other_tenant = Tenant(key="other-tenant", display_name="Other Tenant")
+        session.add(other_tenant)
+        session.flush()
+        installation = ProductInstallation(
+            tenant_id=tenant.id,
+            product_code=ProductCode.SIGNAL_LOOP,
+            local_identifier="ws-readiness",
+            projection_endpoint="https://signalloop.example.test/projections",
+            workload_key_id="key-readiness",
+            workload_key_status="ACTIVE",
+        )
+        other_installation = ProductInstallation(
+            tenant_id=other_tenant.id,
+            product_code=ProductCode.SIGNAL_LOOP,
+            local_identifier="ws-other-readiness",
+        )
+        session.add_all([installation, other_installation])
+        session.flush()
+        _bind_signalloop_workspace(session, tenant, installation)
+        session.add_all(
+            [
+                WorkspaceProviderSelection(
+                    workspace_id="ws-readiness",
+                    capability=ProviderCapability.email,
+                    provider=NotificationProvider.sendgrid,
+                    is_active=True,
+                ),
+                ProviderCredential(
+                    workspace_id="ws-readiness",
+                    provider=NotificationProvider.sendgrid,
+                    channel="email",
+                    encrypted_api_key="encrypted-test-key",
+                    is_active=True,
+                ),
+                SuiteProjectionOutbox(
+                    tenant_id=tenant.id,
+                    installation_id=installation.id,
+                    projection_kind="tenant_settings",
+                    projection_version=1,
+                    payload={"safe": "value"},
+                    payload_digest="a" * 64,
+                    status="CONFIGURATION_BLOCKED",
+                ),
+                SuiteProjectionOutbox(
+                    tenant_id=other_tenant.id,
+                    installation_id=other_installation.id,
+                    projection_kind="tenant_settings",
+                    projection_version=1,
+                    payload={"not": "visible"},
+                    payload_digest="b" * 64,
+                    status="DEAD_LETTER",
+                ),
+            ]
+        )
+        session.commit()
+
+        health = operational_health(
+            session=session,
+            current_user=user,
+            x_tenant_key=tenant.key,
+        )
+
+        assert health["readiness"] == {
+            "status": "BLOCKED",
+            "requires_operator_action": True,
+            "reasons": ["PROJECTION_CONFIGURATION_BLOCKED"],
+        }
+        assert health["projections"]["dead_letter_count"] == 0
+
+
+def test_operational_health_blocks_without_a_usable_signalloop_installation() -> None:
+    with _session() as session:
+        user, tenant = _user_and_tenant(session)
+
+        health = operational_health(
+            session=session,
+            current_user=user,
+            x_tenant_key=tenant.key,
+        )
+
+        assert health["readiness"] == {
+            "status": "BLOCKED",
+            "requires_operator_action": True,
+            "reasons": ["SIGNAL_LOOP_INSTALLATION_MISSING"],
+        }
+
+
+def test_operational_health_blocks_without_an_active_email_provider_credential() -> None:
+    with _session() as session:
+        user, tenant = _user_and_tenant(session)
+        installation = ProductInstallation(
+                tenant_id=tenant.id,
+                product_code=ProductCode.SIGNAL_LOOP,
+                local_identifier="ws-no-provider",
+                projection_endpoint="https://signalloop.example.test/projections",
+                workload_key_id="key-no-provider",
+                workload_key_status="ACTIVE",
+            )
+        session.add(installation)
+        session.flush()
+        _bind_signalloop_workspace(session, tenant, installation)
+        session.commit()
+
+        health = operational_health(
+            session=session,
+            current_user=user,
+            x_tenant_key=tenant.key,
+        )
+
+        assert health["readiness"] == {
+            "status": "BLOCKED",
+            "requires_operator_action": True,
+            "reasons": ["SIGNAL_LOOP_PROVIDER_READINESS_UNAVAILABLE"],
+        }
+
+
+def test_operational_health_treats_inflight_projection_as_degraded_execution() -> None:
+    with _session() as session:
+        user, tenant = _user_and_tenant(session)
+        installation = ProductInstallation(
+            tenant_id=tenant.id,
+            product_code=ProductCode.SIGNAL_LOOP,
+            local_identifier="ws-inflight",
+            projection_endpoint="https://signalloop.example.test/projections",
+            workload_key_id="key-inflight",
+            workload_key_status="ACTIVE",
+        )
+        session.add(installation)
+        session.flush()
+        _bind_signalloop_workspace(session, tenant, installation)
+        session.add_all(
+            [
+                WorkspaceProviderSelection(
+                    workspace_id="ws-inflight",
+                    capability=ProviderCapability.email,
+                    provider=NotificationProvider.sendgrid,
+                    is_active=True,
+                ),
+                ProviderCredential(
+                    workspace_id="ws-inflight",
+                    provider=NotificationProvider.sendgrid,
+                    channel="email",
+                    encrypted_api_key="encrypted-test-key",
+                    is_active=True,
+                ),
+                SuiteProjectionOutbox(
+                    tenant_id=tenant.id,
+                    installation_id=installation.id,
+                    projection_kind="tenant_settings",
+                    projection_version=1,
+                    payload={"safe": "value"},
+                    payload_digest="a" * 64,
+                    status="IN_FLIGHT",
+                ),
+            ]
+        )
+        session.commit()
+
+        health = operational_health(
+            session=session,
+            current_user=user,
+            x_tenant_key=tenant.key,
+        )
+
+        assert health["readiness"] == {
+            "status": "DEGRADED",
+            "requires_operator_action": False,
+            "reasons": ["PROJECTION_EXECUTING"],
+        }
+
+
+def test_operational_health_hides_provider_state_when_workspace_binding_is_ambiguous() -> None:
+    with _session() as session:
+        user, tenant = _user_and_tenant(session)
+        other_tenant = Tenant(key="provider-collision", display_name="Provider Collision")
+        session.add(other_tenant)
+        session.flush()
+        session.add_all(
+            [
+                ProductInstallation(
+                    tenant_id=tenant.id,
+                    product_code=ProductCode.SIGNAL_LOOP,
+                    local_identifier="shared-workspace",
+                    projection_endpoint="https://signalloop.example.test/projections",
+                    workload_key_id="key-primary",
+                    workload_key_status="ACTIVE",
+                ),
+                ProductInstallation(
+                    tenant_id=other_tenant.id,
+                    product_code=ProductCode.SIGNAL_LOOP,
+                    local_identifier="shared-workspace",
+                    projection_endpoint="https://other.example.test/projections",
+                    workload_key_id="key-other",
+                    workload_key_status="ACTIVE",
+                ),
+                WorkspaceProviderSelection(
+                    workspace_id="shared-workspace",
+                    capability=ProviderCapability.email,
+                    provider=NotificationProvider.sendgrid,
+                    is_active=True,
+                ),
+                ProviderCredential(
+                    workspace_id="shared-workspace",
+                    provider=NotificationProvider.sendgrid,
+                    channel="email",
+                    encrypted_api_key="encrypted-other-tenant-key",
+                    is_active=True,
+                ),
+            ]
+        )
+        session.commit()
+
+        health = operational_health(
+            session=session,
+            current_user=user,
+            x_tenant_key=tenant.key,
+        )
+
+        assert "provider" not in health
+        assert health["readiness"] == {
+            "status": "BLOCKED",
+            "requires_operator_action": True,
+            "reasons": ["SIGNAL_LOOP_WORKSPACE_BINDING_MISSING"],
+        }
+
+
+def test_operational_health_blocks_arbitrary_existing_workspace_id_without_a_tenant_binding() -> None:
+    with _session() as session:
+        user, tenant = _user_and_tenant(session)
+        other_user = User(email="other-workspace-admin@example.test", hashed_password="not-used")
+        workspace = Workspace(id="other-tenant-workspace", display_name="Other Tenant Workspace")
+        session.add_all(
+            [
+                other_user,
+                workspace,
+                ProductInstallation(
+                    tenant_id=tenant.id,
+                    product_code=ProductCode.SIGNAL_LOOP,
+                    local_identifier=workspace.id,
+                    projection_endpoint="https://signalloop.example.test/projections",
+                    workload_key_id="key-injected",
+                    workload_key_status="ACTIVE",
+                ),
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                WorkspaceMembership(
+                    workspace_id=workspace.id,
+                    user_id=other_user.id,
+                    role="admin",
+                    status="active",
+                ),
+                WorkspaceProviderSelection(
+                    workspace_id=workspace.id,
+                    capability=ProviderCapability.email,
+                    provider=NotificationProvider.sendgrid,
+                    is_active=True,
+                ),
+                ProviderCredential(
+                    workspace_id=workspace.id,
+                    provider=NotificationProvider.sendgrid,
+                    channel="email",
+                    encrypted_api_key="encrypted-other-workspace-key",
+                    is_active=True,
+                ),
+            ]
+        )
+        session.commit()
+
+        health = operational_health(
+            session=session,
+            current_user=user,
+            x_tenant_key=tenant.key,
+        )
+
+        assert "provider" not in health
+        assert health["readiness"] == {
+            "status": "BLOCKED",
+            "requires_operator_action": True,
+            "reasons": ["SIGNAL_LOOP_WORKSPACE_BINDING_MISSING"],
+        }
 
 
 def test_operational_health_accepts_live_tenant_scoped_support_grant() -> None:
