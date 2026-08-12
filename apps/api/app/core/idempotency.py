@@ -134,34 +134,52 @@ async def run_idempotent_mutation(
         )
     ).first()
     if existing:
-        return _durable_replay_or_raise(existing, request_hash, operation, session)
-    record = IdempotencyRecord(
-        workspace_id=workspace_id,
-        operation=operation,
-        idempotency_key=idempotency_key,
-        request_hash=request_hash,
-        lease_expires_at=datetime.now(UTC) + timedelta(seconds=in_progress_ttl),
-    )
-    session.add(record)
-    try:
-        session.commit()
-    except IntegrityError:
-        session.rollback()
-        existing = session.exec(
-            select(IdempotencyRecord).where(
-                IdempotencyRecord.workspace_id == workspace_id,
-                IdempotencyRecord.operation == operation,
-                IdempotencyRecord.idempotency_key == idempotency_key,
+        if (
+            existing.state == "retryable_failure"
+            and existing.request_hash == request_hash
+        ):
+            existing.state = "in_progress"
+            existing.failure_reason = None
+            existing.lease_expires_at = datetime.now(UTC) + timedelta(
+                seconds=in_progress_ttl
             )
-        ).first()
-        if existing:
+            session.add(existing)
+            session.commit()
+            record = existing
+        else:
             return _durable_replay_or_raise(existing, request_hash, operation, session)
-        raise HTTPException(status_code=503, detail="Durable idempotency claim failed")
-    except Exception as exc:  # noqa: BLE001
-        session.rollback()
-        raise HTTPException(
-            status_code=503, detail="Durable idempotency claim failed"
-        ) from exc
+    else:
+        record = IdempotencyRecord(
+            workspace_id=workspace_id,
+            operation=operation,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            lease_expires_at=datetime.now(UTC) + timedelta(seconds=in_progress_ttl),
+        )
+        session.add(record)
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            existing = session.exec(
+                select(IdempotencyRecord).where(
+                    IdempotencyRecord.workspace_id == workspace_id,
+                    IdempotencyRecord.operation == operation,
+                    IdempotencyRecord.idempotency_key == idempotency_key,
+                )
+            ).first()
+            if existing:
+                return _durable_replay_or_raise(
+                    existing, request_hash, operation, session
+                )
+            raise HTTPException(
+                status_code=503, detail="Durable idempotency claim failed"
+            )
+        except Exception as exc:  # noqa: BLE001
+            session.rollback()
+            raise HTTPException(
+                status_code=503, detail="Durable idempotency claim failed"
+            ) from exc
 
     try:
         response_data = await _maybe_await(mutation())
@@ -202,19 +220,6 @@ def _durable_replay_or_raise(
         )
     if record.state == "completed":
         return record.response_data
-    if record.state == "retryable_failure":
-        record.state = "in_progress"
-        record.failure_reason = None
-        record.lease_expires_at = datetime.now(UTC) + timedelta(
-            seconds=IDEMPOTENCY_IN_PROGRESS_TTL_SECONDS
-        )
-        session.add(record)
-        session.commit()
-        _raise_idempotency_conflict(
-            "IDEMPOTENCY_RETRY_REQUIRED",
-            "Retry the request after the prior attempt failed before side effects",
-            {"operation": operation},
-        )
     if (
         record.state == "in_progress"
         and record.lease_expires_at

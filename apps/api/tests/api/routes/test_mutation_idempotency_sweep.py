@@ -95,19 +95,29 @@ def test_safe_failure_is_durable_and_requires_explicit_retry(db: Session) -> Non
         select(IdempotencyRecord).where(IdempotencyRecord.idempotency_key == key)
     ).one()
     assert record.state == "retryable_failure"
-    with pytest.raises(Exception) as blocked:
-        asyncio.run(
-            run_idempotent_mutation(
-                _request(),
-                session=db,
-                workspace_id=WORKSPACE_ID,
-                operation="safe-failure",
-                idempotency_key=key,
-                request_payload={"x": 1},
-                mutation=lambda: {"unexpected": True},
-            )
+    retried = asyncio.run(
+        run_idempotent_mutation(
+            _request(),
+            session=db,
+            workspace_id=WORKSPACE_ID,
+            operation="safe-failure",
+            idempotency_key=key,
+            request_payload={"x": 1},
+            mutation=lambda: {"ok": True},
         )
-    assert blocked.value.detail["error"]["code"] == "IDEMPOTENCY_RETRY_REQUIRED"
+    )
+    replayed = asyncio.run(
+        run_idempotent_mutation(
+            _request(),
+            session=db,
+            workspace_id=WORKSPACE_ID,
+            operation="safe-failure",
+            idempotency_key=key,
+            request_payload={"x": 1},
+            mutation=lambda: {"unexpected": True},
+        )
+    )
+    assert retried == replayed == {"ok": True}
 
 
 def test_unknown_and_stale_claims_require_reconciliation(db: Session) -> None:
