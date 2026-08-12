@@ -3,6 +3,7 @@
 import ast
 from pathlib import Path
 
+import pytest
 from sqlmodel import SQLModel
 
 from tests.conftest import (
@@ -30,6 +31,31 @@ def _dotted_name(node: ast.expr) -> str | None:
     return None
 
 
+def _local_binding_names(tree: ast.Module) -> set[str]:
+    """Collect names that can shadow an imported shared-helper binding."""
+    names = {
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+    }
+    names.update(
+        node.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+    )
+    names.update(
+        node.arg
+        for node in ast.walk(tree)
+        if isinstance(node, ast.arg)
+    )
+    names.update(
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.MatchAs | ast.MatchStar) and node.name is not None
+    )
+    return names
+
+
 def _shared_helper_bindings(tree: ast.Module) -> tuple[set[str], set[str]]:
     """Return names and modules demonstrably imported from ``tests.conftest``."""
     helper_names: set[str] = set()
@@ -55,21 +81,7 @@ def _shared_helper_bindings(tree: ast.Module) -> tuple[set[str], set[str]]:
                 if alias.name == "conftest"
             )
 
-    local_names = {
-        node.name
-        for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
-    }
-    local_names.update(
-        node.id
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
-    )
-    local_names.update(
-        node.arg
-        for node in ast.walk(tree)
-        if isinstance(node, ast.arg)
-    )
+    local_names = _local_binding_names(tree)
     return helper_names - local_names, helper_modules - local_names
 
 
@@ -221,6 +233,62 @@ def test_schema_guard_rejects_a_shared_module_parameter(tmp_path: Path) -> None:
     )
 
     assert _full_schema_creators(tmp_path) == ["test_parameter_shadow.py:4"]
+
+
+@pytest.fixture
+def binding_coverage_source() -> str:
+    return """
+def function_shadow():
+    pass
+
+class class_shadow:
+    pass
+
+assignment_shadow = object()
+
+def schema(parameter_shadow):
+    match parameter_shadow:
+        case {"helper": match_as_shadow}:
+            pass
+        case [*match_star_shadow]:
+            pass
+"""
+
+
+def test_local_binding_names_covers_supported_shadow_forms(
+    binding_coverage_source: str,
+) -> None:
+    tree = ast.parse(binding_coverage_source)
+
+    assert _local_binding_names(tree) == {
+        "function_shadow",
+        "class_shadow",
+        "assignment_shadow",
+        "schema",
+        "parameter_shadow",
+        "match_as_shadow",
+        "match_star_shadow",
+    }
+
+
+def test_schema_guard_rejects_a_match_capture_of_shared_module(tmp_path: Path) -> None:
+    route_test = tmp_path / "test_match_shadow.py"
+    route_test.write_text(
+        "import tests.conftest as shared\n"
+        "\n"
+        "def create_schema(value):\n"
+        "    match value:\n"
+        "        case {\"helper\": shared}:\n"
+        "            SQLModel.metadata.create_all(\n"
+        "                engine,\n"
+        "                tables=shared._metadata_tables_for_available_extensions(\n"
+        "                    pgvector_available\n"
+        "                ),\n"
+        "            )\n",
+        encoding="utf-8",
+    )
+
+    assert _full_schema_creators(tmp_path) == ["test_match_shadow.py:6"]
 
 
 def test_schema_guard_rejects_a_local_same_named_helper(tmp_path: Path) -> None:
