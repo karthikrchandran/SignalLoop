@@ -3,13 +3,15 @@ from __future__ import annotations
 import base64
 import uuid
 from datetime import datetime, timezone
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep
+from app.core.idempotency import run_idempotent_mutation
 from app.domain.audit.audit_events import (
     append_audit_event_to_session,
     audit_actor_role,
@@ -23,13 +25,16 @@ from app.domain.branding.service import BrandAssetValidationError, BrandingServi
 from app.domain.tenants.capabilities import resolve_suite_context
 from app.domain.tenants.models import (
     ProductCode,
+    ProductInstallation,
     RoleBundle,
     SuiteMembership,
     SuiteRoleAssignment,
     Tenant,
     TenantEntitlement,
     TenantOperationalControl,
+    TenantWorkspaceBinding,
 )
+from app.domain.workspaces.models import Workspace
 
 router = APIRouter(prefix="/tenant-admin", tags=["tenant-admin"])
 
@@ -57,6 +62,15 @@ class TenantOperationalControlChange(BaseModel):
         if self.paused and not self.reason:
             raise ValueError("reason is required when pausing product execution")
         return self
+
+
+class TenantWorkspaceBindingChange(BaseModel):
+    """Attest the installed SignalLoop workspace without accepting credentials."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    workspace_id: str = Field(min_length=1, max_length=64)
+    status: Literal["ACTIVE", "SUSPENDED"] = "ACTIVE"
 
 
 class MembershipCreate(BaseModel):
@@ -243,6 +257,123 @@ def _operational_control(
             TenantOperationalControl.product_code == product_code,
         )
     ).one_or_none()
+
+
+@router.put(
+    "/tenants/{tenant_id}/installations/{installation_id}/workspace-binding",
+    status_code=status.HTTP_200_OK,
+)
+async def attest_workspace_binding(
+    request: Request,
+    *,
+    session: SessionDep,
+    user: CurrentUser,
+    tenant_id: uuid.UUID,
+    installation_id: uuid.UUID,
+    payload: TenantWorkspaceBindingChange,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> dict[str, object]:
+    """Create or suspend an exact, tenant-owned SignalLoop workspace binding."""
+    tenant = _authorize(session, user, tenant_id, "tenant.settings.manage")
+    if not idempotency_key:
+        raise HTTPException(status_code=400, detail="Idempotency-Key is required")
+    installation = session.exec(
+        select(ProductInstallation).where(
+            ProductInstallation.id == installation_id,
+            ProductInstallation.tenant_id == tenant.id,
+        )
+    ).one_or_none()
+    if installation is None:
+        raise HTTPException(status_code=404, detail="Installation not found")
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=str(tenant.id),
+        operation=f"tenant-workspace-binding:{installation.id}",
+        request_payload={
+            "tenant_id": str(tenant.id),
+            "installation_id": str(installation.id),
+            **payload.model_dump(),
+        },
+        mutation=lambda: _attest_workspace_binding_once(
+            session=session,
+            user=user,
+            tenant=tenant,
+            installation=installation,
+            payload=payload,
+        ),
+    )
+
+
+def _attest_workspace_binding_once(
+    *,
+    session: SessionDep,
+    user: CurrentUser,
+    tenant: Tenant,
+    installation: ProductInstallation,
+    payload: TenantWorkspaceBindingChange,
+) -> dict[str, object]:
+    """Persist the binding and audit atomically after all relationship checks."""
+    session.exec(select(Tenant).where(Tenant.id == tenant.id).with_for_update()).one()
+    if installation.product_code != ProductCode.SIGNAL_LOOP:
+        raise HTTPException(status_code=409, detail="Only SignalLoop installations can bind workspaces")
+    if installation.local_identifier != payload.workspace_id:
+        raise HTTPException(status_code=409, detail="Workspace does not match installation identifier")
+    if session.get(Workspace, payload.workspace_id) is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    binding = session.exec(
+        select(TenantWorkspaceBinding).where(
+            TenantWorkspaceBinding.installation_id == installation.id
+        )
+    ).one_or_none()
+    workspace_binding = session.exec(
+        select(TenantWorkspaceBinding).where(
+            TenantWorkspaceBinding.workspace_id == payload.workspace_id
+        )
+    ).one_or_none()
+    if workspace_binding is not None and workspace_binding.installation_id != installation.id:
+        raise HTTPException(status_code=409, detail="Workspace is already bound")
+    if binding is not None and (
+        binding.tenant_id != tenant.id or binding.workspace_id != payload.workspace_id
+    ):
+        raise HTTPException(status_code=409, detail="Installation is already bound")
+    if binding is None:
+        try:
+            with session.begin_nested():
+                binding = TenantWorkspaceBinding(
+                    tenant_id=tenant.id,
+                    installation_id=installation.id,
+                    workspace_id=payload.workspace_id,
+                    status=payload.status,
+                )
+                session.add(binding)
+                session.flush()
+        except IntegrityError as exc:
+            raise HTTPException(status_code=409, detail="Workspace binding conflicted; retry") from exc
+    else:
+        binding.status = payload.status
+        session.add(binding)
+        session.flush()
+
+    append_audit_event_to_session(
+        session,
+        event_name="tenant.workspace_binding.attested",
+        workspace_id=str(tenant.id),
+        actor_id=user.id,
+        actor_role=audit_actor_role(user),
+        resource_type="tenant_workspace_binding",
+        resource_id=str(binding.id),
+        payload={"installation_id": str(installation.id), "status": binding.status},
+    )
+    session.commit()
+    return {
+        "tenant_id": str(tenant.id),
+        "installation_id": str(installation.id),
+        "workspace_id": binding.workspace_id,
+        "status": binding.status,
+    }
 
 
 @router.post("/tenants/{tenant_id}/memberships", status_code=status.HTTP_201_CREATED)
