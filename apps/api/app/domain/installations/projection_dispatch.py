@@ -7,17 +7,28 @@ import json
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Any, cast
 
-from sqlalchemy import desc
+from sqlalchemy import desc, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from app.domain.tenants.models import NativeProjectionReceipt, ProjectionDispatchEvent
+from app.domain.tenants.models import (
+    NativeProjectionReceipt,
+    ProductInstallation,
+    ProjectionDispatchEvent,
+)
+
+_EVENT_TABLE = cast(Any, ProjectionDispatchEvent.__table__)  # type: ignore[attr-defined]
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
 
 
 def _payload_digest(payload: dict[str, object]) -> str:
@@ -31,6 +42,8 @@ class ProjectionReconciliationStatus:
     acknowledged: int
     dead_letter: int
     last_error: str | None
+    integrity_issues: int
+    repairable: int
 
 
 def enqueue_projection_event(
@@ -43,6 +56,12 @@ def enqueue_projection_event(
     idempotency_key: str,
 ) -> ProjectionDispatchEvent:
     """Persist one projection event, returning the original for duplicate requests."""
+
+    installation = session.get(ProductInstallation, installation_id)
+    if installation is None:
+        raise ValueError("installation does not exist")
+    if installation.tenant_id != tenant_id:
+        raise ValueError("tenant does not own installation")
 
     existing = session.exec(
         select(ProjectionDispatchEvent).where(
@@ -96,6 +115,8 @@ def acknowledge_projection_event(
     ).first()
     if event is None:
         return False
+    if payload_digest != _payload_digest(event.payload):
+        return False
 
     receipt = session.exec(
         select(NativeProjectionReceipt).where(
@@ -103,6 +124,8 @@ def acknowledge_projection_event(
             NativeProjectionReceipt.event_id == event_id,
         )
     ).first()
+    if receipt is not None and receipt.payload_digest != payload_digest:
+        return False
     if receipt is None:
         receipt = NativeProjectionReceipt(
             installation_id=installation_id,
@@ -145,25 +168,56 @@ def dispatch_projection_events(
         raise ValueError("max_attempts must be at least one")
 
     timestamp = now or _now()
-    events = session.exec(
-        select(ProjectionDispatchEvent)
+    event_ids = session.exec(
+        select(ProjectionDispatchEvent.id)
         .where(
             ProjectionDispatchEvent.installation_id == installation_id,
             ProjectionDispatchEvent.status == "PENDING",
+            ProjectionDispatchEvent.available_at <= timestamp,
         )
         .order_by("created_at")
     ).all()
     dispatched = 0
-    for event in events:
+    for event_id in event_ids:
+        lease_token = uuid.uuid4()
+        claim = session.exec(
+            update(ProjectionDispatchEvent)
+            .where(
+                _EVENT_TABLE.c.id == event_id,
+                _EVENT_TABLE.c.installation_id == installation_id,
+                _EVENT_TABLE.c.status == "PENDING",
+                _EVENT_TABLE.c.available_at <= timestamp,
+            )
+            .values(
+                status="IN_PROGRESS",
+                lease_token=lease_token,
+                lease_expires_at=timestamp + timedelta(minutes=5),
+                updated_at=timestamp,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        session.commit()
+        if claim.rowcount != 1:
+            continue
+        event = session.get(ProjectionDispatchEvent, event_id)
+        if event is None:
+            continue
         try:
             apply(event)
         except Exception as error:
             event.attempt_count += 1
             event.last_error = str(error)[:500]
             event.updated_at = timestamp
+            event.lease_token = None
+            event.lease_expires_at = None
             if event.attempt_count >= max_attempts:
                 event.status = "DEAD_LETTER"
                 event.dead_lettered_at = timestamp
+            else:
+                event.status = "PENDING"
+                event.available_at = timestamp + timedelta(
+                    seconds=2 ** (event.attempt_count - 1)
+                )
             session.add(event)
             session.commit()
             continue
@@ -189,6 +243,29 @@ def reconcile_projection_status(
         .where(ProjectionDispatchEvent.installation_id == installation_id)
         .order_by(desc("updated_at"))
     ).all()
+    receipts = {
+        receipt.event_id: receipt
+        for receipt in session.exec(
+            select(NativeProjectionReceipt).where(
+                NativeProjectionReceipt.installation_id == installation_id
+            )
+        ).all()
+    }
+    now = _now()
+    integrity_issues = 0
+    repairable = 0
+    for event in events:
+        receipt = receipts.get(event.id)
+        if event.status == "ACKNOWLEDGED" and (
+            receipt is None or receipt.payload_digest != _payload_digest(event.payload)
+        ):
+            integrity_issues += 1
+        if event.status == "IN_PROGRESS" and (
+            event.lease_expires_at is None or _as_utc(event.lease_expires_at) <= now
+        ):
+            integrity_issues += 1
+            repairable += 1
+
     return ProjectionReconciliationStatus(
         pending=sum(event.status == "PENDING" for event in events),
         acknowledged=sum(event.status == "ACKNOWLEDGED" for event in events),
@@ -196,4 +273,66 @@ def reconcile_projection_status(
         last_error=next(
             (event.last_error for event in events if event.last_error is not None), None
         ),
+        integrity_issues=integrity_issues,
+        repairable=repairable,
     )
+
+
+def repair_projection_events(
+    session: Session, *, installation_id: uuid.UUID, now: datetime | None = None
+) -> int:
+    """Requeue only work whose expired lease proves no dispatcher still owns it."""
+
+    timestamp = now or _now()
+    result = session.exec(
+        update(ProjectionDispatchEvent)
+        .where(
+            _EVENT_TABLE.c.installation_id == installation_id,
+            _EVENT_TABLE.c.status == "IN_PROGRESS",
+            _EVENT_TABLE.c.lease_expires_at <= timestamp,
+        )
+        .values(
+            status="PENDING",
+            lease_token=None,
+            lease_expires_at=None,
+            available_at=timestamp,
+            last_error="dispatch lease expired",
+            updated_at=timestamp,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    session.commit()
+    return result.rowcount
+
+
+def replay_dead_letter_projection_event(
+    session: Session,
+    *,
+    installation_id: uuid.UUID,
+    event_id: uuid.UUID,
+    now: datetime | None = None,
+) -> bool:
+    """Explicitly replay one dead-letter event after operator review."""
+
+    timestamp = now or _now()
+    result = session.exec(
+        update(ProjectionDispatchEvent)
+        .where(
+            _EVENT_TABLE.c.id == event_id,
+            _EVENT_TABLE.c.installation_id == installation_id,
+            _EVENT_TABLE.c.status == "DEAD_LETTER",
+        )
+        .values(
+            status="PENDING",
+            attempt_count=0,
+            available_at=timestamp,
+            lease_token=None,
+            lease_expires_at=None,
+            dead_lettered_at=None,
+            last_error=None,
+            updated_at=timestamp,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    session.commit()
+    return result.rowcount == 1

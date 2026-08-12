@@ -203,6 +203,13 @@ class ProjectionDispatchEvent(SQLModel, table=True):
     idempotency_key: str = Field(sa_column=Column(String(255), nullable=False))
     status: str = Field(default="PENDING", max_length=32, index=True)
     attempt_count: int = Field(default=0, nullable=False)
+    available_at: datetime = Field(
+        default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False, index=True)
+    )
+    lease_token: uuid.UUID | None = Field(default=None, nullable=True, index=True)
+    lease_expires_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True, index=True)
+    )
     last_error: str | None = Field(default=None, sa_column=Column(String(500), nullable=True))
     acknowledged_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
