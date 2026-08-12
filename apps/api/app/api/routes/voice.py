@@ -17,6 +17,7 @@ from xml.sax.saxutils import quoteattr
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.api.deps import SessionDep
@@ -283,16 +284,23 @@ def _record_twilio_provider_event(
     if existing:
         return False
 
-    session.add(
-        ProviderEventLog(
-            workspace_id=workspace_id,
-            provider=NotificationProvider.twilio,
-            provider_event_id=provider_event_id,
-            event_type=event_type,
-            raw_payload=raw_payload,
-            normalized_event=normalized_event,
-        )
-    )
+    try:
+        with session.begin_nested():
+            session.add(
+                ProviderEventLog(
+                    workspace_id=workspace_id,
+                    provider=NotificationProvider.twilio,
+                    provider_event_id=provider_event_id,
+                    event_type=event_type,
+                    raw_payload=raw_payload,
+                    normalized_event=normalized_event,
+                )
+            )
+            session.flush()
+    except IntegrityError:
+        # The duplicate check above is only an optimization.  The unique
+        # constraint is authoritative when concurrent provider callbacks race.
+        return False
     return True
 
 
