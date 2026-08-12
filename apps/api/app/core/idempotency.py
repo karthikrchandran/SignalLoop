@@ -246,7 +246,7 @@ def _durable_replay_or_raise(
     if (
         record.state == "in_progress"
         and record.lease_expires_at
-        and record.lease_expires_at <= datetime.now(UTC)
+            and _as_utc(record.lease_expires_at) <= datetime.now(UTC)
     ):
         record.state = "unknown"
         record.failure_reason = "lease_expired_requires_reconciliation"
@@ -263,6 +263,11 @@ def _durable_replay_or_raise(
         "A request with this Idempotency-Key is already in progress",
         {"operation": operation},
     )
+
+
+def _as_utc(value: datetime) -> datetime:
+    """SQLite returns naive datetimes even for timezone-aware columns."""
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def _mark_failure(session: Session, record_id: Any, state: str, reason: str) -> None:
