@@ -46,6 +46,7 @@ async def pause_global(
     """Pause global."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="controls:global:pause",
@@ -109,6 +110,7 @@ async def resume_global(
     """Resume global."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="controls:global:resume",
@@ -173,6 +175,7 @@ async def pause_campaign(
     """Pause campaign."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation=f"controls:campaign:{campaign_id}:pause",
@@ -244,6 +247,7 @@ async def resume_campaign(
     """Resume campaign."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation=f"controls:campaign:{campaign_id}:resume",

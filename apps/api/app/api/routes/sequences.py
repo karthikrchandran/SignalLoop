@@ -76,6 +76,7 @@ async def create_sequence(
     """Create sequence."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="sequences.create",
@@ -176,6 +177,7 @@ async def update_sequence(
     """Update sequence."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="sequences.update",
@@ -242,6 +244,7 @@ async def update_steps(
     """Update steps."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="sequences.steps.update",
@@ -298,6 +301,7 @@ async def delete_sequence(
     """Delete sequence."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="sequences.delete",
@@ -352,6 +356,7 @@ async def enroll_contacts(
     """Enroll contacts."""
     return await run_idempotent_mutation(
         request,
+        session=session,
         idempotency_key=idempotency_key,
         workspace_id=workspace_id,
         operation="sequences.enroll",
