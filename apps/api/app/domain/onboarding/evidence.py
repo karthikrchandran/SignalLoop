@@ -16,11 +16,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 _SENSITIVE = {"password", "client_secret", "access_token", "authorization", "bearer", "credential", "token", "secret", "signing_key"}
 
 
-def _redact(value: Any) -> Any:
+def redact_payload(value: Any) -> Any:
     if isinstance(value, dict):
-        return {key: _redact(item) for key, item in value.items() if key.lower() not in _SENSITIVE}
+        return {key: redact_payload(item) for key, item in value.items() if key.lower() not in _SENSITIVE}
     if isinstance(value, list):
-        return [_redact(item) for item in value]
+        return [redact_payload(item) for item in value]
     return value
 
 
@@ -41,7 +41,7 @@ class EvidenceRecorder:
         key = (run_id, stage, result_code)
         if key in self._records:
             return self._records[key]
-        serialized = json.dumps(_redact(payload), sort_keys=True, separators=(",", ":"))
+        serialized = json.dumps(redact_payload(payload), sort_keys=True, separators=(",", ":"))
         digest = hashlib.sha256(serialized.encode()).hexdigest()
         record = EvidenceRecord(run_id, stage, result_code, serialized, digest)
         self._records[key] = record
@@ -70,12 +70,16 @@ class EvidenceBundle:
 
     @classmethod
     def from_recorder(cls, tenant_key: str, recorder: EvidenceRecorder, signer: Ed25519PrivateKey) -> EvidenceBundle:
+        return cls.from_records(tenant_key, recorder.records(), signer)
+
+    @classmethod
+    def from_records(cls, tenant_key: str, records: tuple[EvidenceRecord, ...], signer: Ed25519PrivateKey) -> EvidenceBundle:
         payload = {
             "schema_version": "phase1.evidence.v1",
             "tenant_key": tenant_key,
             "records": [
                 {"run_id": record.run_id, "stage": record.stage, "result_code": record.result_code, "payload": json.loads(record.payload_json), "digest": record.digest}
-                for record in recorder.records()
+                for record in records
             ],
         }
         canonical_payload = json.dumps(payload, sort_keys=True, separators=(",", ":"))

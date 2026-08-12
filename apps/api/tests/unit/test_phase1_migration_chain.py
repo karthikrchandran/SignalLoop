@@ -27,3 +27,8 @@ def test_phase_one_history_keeps_the_prior_sales_agent_revision_reachable() -> N
     assert sales_agent.revision == "sales_agent_20260809"
     assert sales_agent.down_revision == "psid_20260726"
     assert set(merge.down_revision) == {"sales_agent_20260809", "p1_onboard_20260810"}
+
+
+def test_onboarding_hardening_merges_current_heads_before_altering_run_scope() -> None:
+    hardening = _load("onboarding_hardening", "onboarding_hardening_20260812.py")
+    assert set(hardening.down_revision) == {"phase1_merge_20260812", "p1_ecrm_install_q_20260812"}

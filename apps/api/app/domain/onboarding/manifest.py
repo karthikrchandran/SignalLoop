@@ -6,6 +6,9 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 _SUPPORTED_PRODUCTS = frozenset({"commitarc", "revenueos", "signalloop"})
+_REGION_PROFILES = {"IN": ("en-IN", "INR"), "US": ("en-US", "USD")}
+_SUPPORTED_CHANNELS = frozenset({"email", "sms", "voice", "chat"})
+_COMPLIANCE_PACKS = frozenset({"india-dpdp", "knowledge-release", "us-consent"})
 _SECRET_REFERENCE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,127}$")
 _LOCALE = re.compile(r"^[a-z]{2,3}-[A-Z]{2}$")
 _CURRENCY = re.compile(r"^[A-Z]{3}$")
@@ -30,6 +33,7 @@ class TenantManifest:
     schema_version: str = "phase1.v1"
     product_editions: dict[str, str] = field(default_factory=dict)
     compliance_packs: tuple[str, ...] = ()
+    channels: tuple[str, ...] = ()
 
 
 _MANIFESTS = {
@@ -43,6 +47,7 @@ _MANIFESTS = {
         consent_policy="knowledge-base", branding_mode="tenant",
         product_editions={"commitarc": "enterprise", "revenueos": "enterprise", "signalloop": "enterprise"},
         compliance_packs=("india-dpdp", "knowledge-release"),
+        channels=("email", "sms", "voice", "chat"),
     ),
     "ai-consulting": TenantManifest(
         key="ai-consulting", legal_name="AI Consulting Inc", display_name="AI Consulting",
@@ -54,6 +59,7 @@ _MANIFESTS = {
         consent_policy="us-consent-required", branding_mode="neutral",
         product_editions={"commitarc": "enterprise", "revenueos": "enterprise", "signalloop": "enterprise"},
         compliance_packs=("us-consent", "knowledge-release"),
+        channels=("email", "sms", "voice", "chat"),
     ),
 }
 
@@ -66,10 +72,14 @@ def validate_manifest(manifest: TenantManifest) -> None:
         raise ValueError("unsupported product in manifest")
     if set(manifest.product_editions) != set(manifest.products) or not all(manifest.product_editions.values()):
         raise ValueError("each product requires an edition")
-    if not manifest.compliance_packs:
-        raise ValueError("at least one compliance pack is required")
+    if manifest.region not in _REGION_PROFILES or _REGION_PROFILES[manifest.region] != (manifest.locale, manifest.currency):
+        raise ValueError("unsupported region, locale, or currency combination")
     if not _LOCALE.fullmatch(manifest.locale) or not _CURRENCY.fullmatch(manifest.currency):
         raise ValueError("invalid locale or currency")
+    if not manifest.compliance_packs or not set(manifest.compliance_packs).issubset(_COMPLIANCE_PACKS):
+        raise ValueError("unsupported compliance pack")
+    if not manifest.channels or not set(manifest.channels).issubset(_SUPPORTED_CHANNELS):
+        raise ValueError("unsupported channel")
     try:
         ZoneInfo(manifest.timezone)
     except Exception as exc:

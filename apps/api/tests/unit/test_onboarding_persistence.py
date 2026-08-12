@@ -1,8 +1,21 @@
+from datetime import timedelta
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.domain.onboarding.models import OnboardingStage
-from app.domain.onboarding.persistence import OnboardingRunRecord, OnboardingStageRecord
-from app.domain.onboarding.persistence_service import create_or_resume, execute, retry
+from app.domain.onboarding.persistence import (
+    OnboardingEvidenceBundleRecord,
+    OnboardingEvidenceRecord,
+    OnboardingRunRecord,
+    OnboardingStageRecord,
+)
+from app.domain.onboarding.persistence_service import (
+    _now,
+    create_or_resume,
+    execute,
+    retry,
+)
 from app.domain.onboarding.providers import FakeProviderHub
 from app.models import SQLModel as _ModelsLoaded  # noqa: F401
 
@@ -53,3 +66,64 @@ def test_failed_scoped_canary_preserves_prior_stages_and_is_resumable() -> None:
         session.commit()
         session.refresh(run)
         assert run.status == "SUCCEEDED"
+
+
+def test_idempotency_is_scoped_by_tenant_version_and_input_hash() -> None:
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        ara = create_or_resume(session, "ara-global", "shared-key", desired_version="phase1", input_payload={"locale": "en-IN"})
+        ai = create_or_resume(session, "ai-consulting", "shared-key", desired_version="phase1", input_payload={"locale": "en-US"})
+        changed = create_or_resume(session, "ara-global", "shared-key", desired_version="phase2", input_payload={"locale": "en-IN"})
+        assert ara.id != ai.id
+        assert ara.id != changed.id
+
+
+def test_persisted_evidence_is_redacted_and_signed() -> None:
+    class SensitiveCanary:
+        def verify(self, _tenant_key: str) -> tuple[str, dict[str, object]]:
+            return "CANARY_OK", {"missing": 0, "access_token": "raw-token", "provider": {"client_secret": "raw-secret"}}
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        run = create_or_resume(session, "ara-global", "safe-evidence", canary=SensitiveCanary(), evidence_signer=Ed25519PrivateKey.generate())
+        payloads = [str(record.payload) for record in session.exec(select(OnboardingEvidenceRecord).where(OnboardingEvidenceRecord.run_id == run.id)).all()]
+        bundle = session.exec(select(OnboardingEvidenceBundleRecord).where(OnboardingEvidenceBundleRecord.run_id == run.id)).one()
+        assert all("raw-token" not in payload and "raw-secret" not in payload for payload in payloads)
+        assert "raw-token" not in bundle.canonical_payload and "raw-secret" not in bundle.canonical_payload
+        assert bundle.signature and bundle.public_key
+
+
+def test_expired_running_stage_is_recovered_after_provider_exception() -> None:
+    class BrokenProvider(FakeProviderHub):
+        def provision_tenant(self, tenant_key: str) -> str:
+            raise RuntimeError(f"provider unavailable for {tenant_key}")
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        run = create_or_resume(session, "ara-global", "recover-key", providers=BrokenProvider())
+        stage = session.exec(select(OnboardingStageRecord).where(OnboardingStageRecord.run_id == run.id, OnboardingStageRecord.stage == OnboardingStage.TENANT_DRAFTED.value)).one()
+        assert run.status == "FAILED" and stage.status == "FAILED" and stage.result_code == "PROVIDER_EXCEPTION"
+        recovered = retry(session, run)
+        assert recovered.status == "SUCCEEDED"
+        assert stage.attempt_count == 2
+
+
+def test_expired_running_lease_requires_reconciliation_then_resumes() -> None:
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        run = create_or_resume(session, "ara-global", "lease-key")
+        stage = session.exec(select(OnboardingStageRecord).where(OnboardingStageRecord.run_id == run.id, OnboardingStageRecord.stage == OnboardingStage.NATIVE_INTEGRATION_VERIFIED.value)).one()
+        run.status = "RUNNING"
+        run.lease_expires_at = _now() - timedelta(seconds=1)
+        stage.status = "RUNNING"
+        stage.lease_expires_at = _now() - timedelta(seconds=1)
+        session.commit()
+
+        recovered = retry(session, run)
+        assert recovered.status == "SUCCEEDED"
+        evidence = session.exec(select(OnboardingEvidenceRecord).where(OnboardingEvidenceRecord.run_id == run.id, OnboardingEvidenceRecord.result_code == "LEASE_EXPIRED_RECONCILE_REQUIRED")).one()
+        assert evidence.payload["compensation"] == "NONE_RECONCILE_ON_RETRY"
