@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 API_ROOT = REPOSITORY_ROOT / "apps" / "api"
 DEFAULT_OUTPUT = REPOSITORY_ROOT / "apps" / "web" / "openapi.json"

@@ -477,6 +477,122 @@
         "title": "AuditReplayItemPublic",
         "type": "object"
       },
+      "BindingPublic": {
+        "properties": {
+          "base_url": {
+            "title": "Base Url",
+            "type": "string"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "ecrm_cell_id": {
+            "title": "Ecrm Cell Id",
+            "type": "string"
+          },
+          "ecrm_cell_key": {
+            "title": "Ecrm Cell Key",
+            "type": "string"
+          },
+          "rotated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rotated At"
+          },
+          "source_version": {
+            "title": "Source Version",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "ecrm_cell_id",
+          "ecrm_cell_key",
+          "base_url",
+          "capabilities",
+          "status",
+          "verified_at",
+          "rotated_at",
+          "source_version"
+        ],
+        "title": "BindingPublic",
+        "type": "object"
+      },
+      "BindingPut": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "endpoint_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Endpoint Id",
+            "type": "string"
+          },
+          "secret_reference_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Secret Reference Id",
+            "type": "string"
+          },
+          "source_version": {
+            "minimum": 1.0,
+            "title": "Source Version",
+            "type": "integer"
+          },
+          "status": {
+            "pattern": "^(ACTIVE|SUSPENDED|DEGRADED)$",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint_id",
+          "secret_reference_id",
+          "capabilities",
+          "status",
+          "source_version"
+        ],
+        "title": "BindingPut",
+        "type": "object"
+      },
       "Body_audit-log-create_export_job": {
         "properties": {
           "action_type": {
@@ -3842,6 +3958,28 @@
         "title": "ControlStatePublic",
         "type": "object"
       },
+      "CredentialRotation": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_source_version": {
+            "minimum": 1.0,
+            "title": "Expected Source Version",
+            "type": "integer"
+          },
+          "secret_reference_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Secret Reference Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secret_reference_id",
+          "expected_source_version"
+        ],
+        "title": "CredentialRotation",
+        "type": "object"
+      },
       "Customer360AccountProfilePublic": {
         "description": "Full Account Command Center payload.",
         "properties": {
@@ -4516,6 +4654,46 @@
           "page"
         ],
         "title": "DeadLetterListPublic",
+        "type": "object"
+      },
+      "DestinationEnvelope": {
+        "properties": {
+          "event_kind": {
+            "pattern": "^(SHARED_RECORD|WORKFLOW_EVENT)$",
+            "title": "Event Kind",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "source_event_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Source Event Id",
+            "type": "string"
+          },
+          "source_version": {
+            "minimum": 1.0,
+            "title": "Source Version",
+            "type": "integer"
+          },
+          "stream_key": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Stream Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_event_id",
+          "source_version",
+          "stream_key",
+          "event_kind",
+          "payload"
+        ],
+        "title": "DestinationEnvelope",
         "type": "object"
       },
       "EngagementOverviewPublic": {
@@ -5230,6 +5408,30 @@
           "tenant_key"
         ],
         "title": "OnboardingCreate",
+        "type": "object"
+      },
+      "OnboardingReconciliation": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "NOT_ACCEPTED",
+              "OPERATOR_APPROVED_SAFE_RETRY"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "provider_receipt_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Provider Receipt Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "provider_receipt_id"
+        ],
+        "title": "OnboardingReconciliation",
         "type": "object"
       },
       "PauseRequest": {
@@ -6183,6 +6385,33 @@
           "answer"
         ],
         "title": "QAPairPublic",
+        "type": "object"
+      },
+      "ReconcileBody": {
+        "properties": {
+          "source_checkpoint": {
+            "minimum": 0.0,
+            "title": "Source Checkpoint",
+            "type": "integer"
+          },
+          "source_count": {
+            "minimum": 0.0,
+            "title": "Source Count",
+            "type": "integer"
+          },
+          "stream_key": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Stream Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stream_key",
+          "source_count",
+          "source_checkpoint"
+        ],
+        "title": "ReconcileBody",
         "type": "object"
       },
       "RevenueEssentialsResponse": {
@@ -15145,6 +15374,466 @@
         ]
       }
     },
+    "/api/v1/ecrm-installations/binding": {
+      "get": {
+        "operationId": "ecrm-installations-get_binding",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BindingPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Binding",
+        "tags": [
+          "ecrm-installations"
+        ]
+      },
+      "put": {
+        "operationId": "ecrm-installations-put_binding",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindingPut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BindingPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Put Binding",
+        "tags": [
+          "ecrm-installations"
+        ]
+      }
+    },
+    "/api/v1/ecrm-installations/binding/credential-rotations": {
+      "post": {
+        "operationId": "ecrm-installations-rotate_binding_credential",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialRotation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BindingPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Rotate Binding Credential",
+        "tags": [
+          "ecrm-installations"
+        ]
+      }
+    },
+    "/api/v1/ecrm-installations/deliveries": {
+      "post": {
+        "operationId": "ecrm-installations-receive_delivery",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "schema": {
+              "title": "Authorization",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-ECRM-Cell-Id",
+            "required": true,
+            "schema": {
+              "title": "X-Ecrm-Cell-Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-ECRM-Cell-Key",
+            "required": true,
+            "schema": {
+              "title": "X-Ecrm-Cell-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": true,
+            "schema": {
+              "title": "X-Workspace-Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DestinationEnvelope"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ecrm-Installations-Receive Delivery",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Receive Delivery",
+        "tags": [
+          "ecrm-installations"
+        ]
+      }
+    },
+    "/api/v1/ecrm-installations/operations": {
+      "get": {
+        "operationId": "ecrm-installations-operations",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ecrm-Installations-Operations",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Operations",
+        "tags": [
+          "ecrm-installations"
+        ]
+      }
+    },
+    "/api/v1/ecrm-installations/receipts/{receipt_id}/replay": {
+      "post": {
+        "operationId": "ecrm-installations-replay",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Ecrm-Installations-Replay",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Replay",
+        "tags": [
+          "ecrm-installations"
+        ]
+      }
+    },
+    "/api/v1/ecrm-installations/reconcile": {
+      "post": {
+        "operationId": "ecrm-installations-reconcile",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReconcileBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ecrm-Installations-Reconcile",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Reconcile",
+        "tags": [
+          "ecrm-installations"
+        ]
+      }
+    },
     "/api/v1/engagement-intelligence/overview": {
       "get": {
         "description": "Return next-best actions, unified work, journey, and recommendations.",
@@ -15532,6 +16221,93 @@
           }
         ],
         "summary": "Retry Run",
+        "tags": [
+          "onboarding"
+        ]
+      }
+    },
+    "/api/v1/onboarding/runs/{run_id}/stages/{stage_id}/reconcile": {
+      "post": {
+        "description": "Record an operator receipt before an unknown provider outcome can retry.",
+        "operationId": "onboarding-reconcile_run_stage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "stage_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stage Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingReconciliation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Onboarding-Reconcile Run Stage",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Reconcile Run Stage",
         "tags": [
           "onboarding"
         ]
