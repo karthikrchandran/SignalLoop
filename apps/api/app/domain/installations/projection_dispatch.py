@@ -125,8 +125,6 @@ def acknowledge_projection_event(
             )
         ).first()
         return receipt is not None and receipt.payload_digest == payload_digest
-    if event.status != "IN_PROGRESS" or event.lease_token != lease_token:
-        return False
     if payload_digest != _payload_digest(event.payload):
         return False
 
@@ -138,33 +136,49 @@ def acknowledge_projection_event(
     ).first()
     if receipt is not None and receipt.payload_digest != payload_digest:
         return False
+    timestamp = now or _now()
+    transition = session.exec(
+        update(ProjectionDispatchEvent)
+        .where(
+            _EVENT_TABLE.c.id == event_id,
+            _EVENT_TABLE.c.installation_id == installation_id,
+            _EVENT_TABLE.c.status == "IN_PROGRESS",
+            _EVENT_TABLE.c.lease_token == lease_token,
+            _EVENT_TABLE.c.lease_expires_at >= timestamp,
+        )
+        .values(
+            status="ACKNOWLEDGED",
+            acknowledged_at=timestamp,
+            last_error=None,
+            lease_token=None,
+            lease_expires_at=None,
+            updated_at=timestamp,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    if transition.rowcount != 1:
+        session.rollback()
+        return False
     if receipt is None:
         receipt = NativeProjectionReceipt(
             installation_id=installation_id,
             event_id=event_id,
             payload_digest=payload_digest,
-            acknowledged_at=now or _now(),
+            acknowledged_at=timestamp,
         )
         session.add(receipt)
 
-    timestamp = now or _now()
-    event.status = "ACKNOWLEDGED"
-    event.acknowledged_at = timestamp
-    event.last_error = None
-    event.lease_token = None
-    event.lease_expires_at = None
-    event.updated_at = timestamp
-    session.add(event)
     try:
         session.commit()
     except IntegrityError:
         session.rollback()
-        return session.exec(
+        repaired = session.exec(
             select(NativeProjectionReceipt).where(
                 NativeProjectionReceipt.installation_id == installation_id,
                 NativeProjectionReceipt.event_id == event_id,
             )
-        ).first() is not None
+        ).first()
+        return repaired is not None and repaired.payload_digest == payload_digest
     return True
 
 
@@ -222,20 +236,35 @@ def record_projection_failure(
     ).first()
     if event is None:
         return False
-    event.attempt_count += 1
-    event.last_error = str(error)[:500]
-    event.updated_at = timestamp
-    event.lease_token = None
-    event.lease_expires_at = None
-    if event.attempt_count >= max_attempts:
-        event.status = "DEAD_LETTER"
-        event.dead_lettered_at = timestamp
+    attempt_count = event.attempt_count + 1
+    values: dict[str, object] = {
+        "attempt_count": attempt_count,
+        "last_error": str(error)[:500],
+        "updated_at": timestamp,
+        "lease_token": None,
+        "lease_expires_at": None,
+    }
+    if attempt_count >= max_attempts:
+        values.update(status="DEAD_LETTER", dead_lettered_at=timestamp)
     else:
-        event.status = "PENDING"
-        event.available_at = timestamp + timedelta(seconds=2 ** (event.attempt_count - 1))
-    session.add(event)
+        values.update(
+            status="PENDING",
+            available_at=timestamp + timedelta(seconds=2 ** (attempt_count - 1)),
+        )
+    transition = session.exec(
+        update(ProjectionDispatchEvent)
+        .where(
+            _EVENT_TABLE.c.id == event_id,
+            _EVENT_TABLE.c.installation_id == installation_id,
+            _EVENT_TABLE.c.status == "IN_PROGRESS",
+            _EVENT_TABLE.c.lease_token == lease_token,
+            _EVENT_TABLE.c.lease_expires_at >= timestamp,
+        )
+        .values(**values)
+        .execution_options(synchronize_session=False)
+    )
     session.commit()
-    return True
+    return transition.rowcount == 1
 
 
 def dispatch_projection_events(
@@ -324,6 +353,7 @@ def reconcile_projection_status(
             receipt is None or receipt.payload_digest != _payload_digest(event.payload)
         ):
             integrity_issues += 1
+            repairable += 1
         if event.status == "IN_PROGRESS" and (
             event.lease_expires_at is None or _as_utc(event.lease_expires_at) <= now
         ):

@@ -12,7 +12,7 @@ from app.domain.installations.projection_dispatch import (
     dispatch_projection_events,
     repair_projection_events,
 )
-from app.domain.tenants.models import ProductInstallation
+from app.domain.tenants.models import ProductCode, ProductInstallation, Tenant
 from app.workers.heartbeat import record_worker_heartbeat
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,12 @@ class ProjectionWorker:
 
         installations = session.exec(
             select(ProductInstallation)
-            .where(ProductInstallation.status == "ACTIVE")
+            .join(Tenant, Tenant.id == ProductInstallation.tenant_id)
+            .where(
+                ProductInstallation.status == "ACTIVE",
+                ProductInstallation.product_code == ProductCode.REVENUE_OS,
+                Tenant.status == "ACTIVE",
+            )
             .order_by("created_at")
             .limit(BATCH_LIMIT)
         ).all()

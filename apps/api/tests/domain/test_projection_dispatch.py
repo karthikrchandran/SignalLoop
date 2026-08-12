@@ -370,3 +370,39 @@ def test_repair_requeues_acknowledged_event_with_missing_or_corrupt_receipt() ->
         assert repair_projection_events(session, installation_id=installation.id) == 1
         session.refresh(event)
         assert event.status == "PENDING"
+
+
+def test_interleaved_lease_completion_allows_only_the_current_owner_to_transition() -> None:
+    with _session() as session:
+        installation = _installation(session)
+        event = enqueue_projection_event(
+            session,
+            installation_id=installation.id,
+            tenant_id=installation.tenant_id,
+            event_type="membership.changed",
+            payload={},
+            idempotency_key="atomic-race-v1",
+        )
+        first = claim_projection_event(session, installation_id=installation.id, event_id=event.id)
+        assert first is not None
+        event.lease_expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        session.add(event)
+        session.commit()
+        assert repair_projection_events(session, installation_id=installation.id) == 1
+        second = claim_projection_event(session, installation_id=installation.id, event_id=event.id)
+        assert second is not None
+        assert record_projection_failure(
+            session,
+            installation_id=installation.id,
+            event_id=event.id,
+            lease_token=first,
+            error=RuntimeError("late"),
+            max_attempts=3,
+        ) is False
+        assert acknowledge_projection_event(
+            session,
+            installation_id=installation.id,
+            event_id=event.id,
+            payload_digest=_digest(event.payload),
+            lease_token=second,
+        ) is True
