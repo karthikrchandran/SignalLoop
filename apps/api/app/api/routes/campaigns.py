@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlmodel import Session, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
-from app.api.request_context import WorkspaceIdDep
+from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
+from app.core.idempotency import run_idempotent_mutation
 from app.domain.audit.audit_events import (
     append_audit_event_to_session,
     audit_actor_role,
@@ -506,12 +507,33 @@ def get_import_preview(
     response_model=CampaignSegmentPublic,
     dependencies=[Depends(require_admin)],
 )
-def create_segment(
+async def create_segment(
     *,
     session: SessionDep,
     current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
+    body: CampaignSegmentCreate,
+    request: Request,
+    idempotency_key: IdempotencyKeyDep,
+) -> CampaignSegmentPublic:
+    return await run_idempotent_mutation(
+        request,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="campaign-segment-create",
+        request_payload=body.model_dump(mode="json"),
+        mutation=lambda: _create_segment_once(
+            session, current_user, campaign_id, workspace_id, body
+        ),
+    )
+
+
+def _create_segment_once(
+    session: SessionDep,
+    current_user: CurrentUser,
+    campaign_id: uuid.UUID,
+    workspace_id: str,
     body: CampaignSegmentCreate,
 ) -> CampaignSegmentPublic:
     """Create segment."""
@@ -574,12 +596,33 @@ def create_segment(
     response_model=StrategyPublic,
     dependencies=[Depends(require_admin)],
 )
-def assign_strategy(
+async def assign_strategy(
     *,
     session: SessionDep,
     current_user: CurrentUser,
     campaign_id: uuid.UUID,
     workspace_id: WorkspaceIdDep,
+    body: StrategyRequest,
+    request: Request,
+    idempotency_key: IdempotencyKeyDep,
+) -> StrategyPublic:
+    return await run_idempotent_mutation(
+        request,
+        idempotency_key=idempotency_key,
+        workspace_id=workspace_id,
+        operation="campaign-strategy-assign",
+        request_payload=body.model_dump(mode="json"),
+        mutation=lambda: _assign_strategy_once(
+            session, current_user, campaign_id, workspace_id, body
+        ),
+    )
+
+
+def _assign_strategy_once(
+    session: SessionDep,
+    current_user: CurrentUser,
+    campaign_id: uuid.UUID,
+    workspace_id: str,
     body: StrategyRequest,
 ) -> StrategyPublic:
     """Assign strategy."""

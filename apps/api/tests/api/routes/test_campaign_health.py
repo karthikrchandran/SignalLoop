@@ -17,7 +17,11 @@ WORKSPACE_ID = "ws-story-5-3"
 
 
 def _headers(token_headers: dict[str, str]) -> dict[str, str]:
-    return {**token_headers, "X-Workspace-Id": WORKSPACE_ID}
+    return {
+        **token_headers,
+        "X-Workspace-Id": WORKSPACE_ID,
+        "Idempotency-Key": f"dead-letter-{uuid.uuid4()}",
+    }
 
 
 # ---------------------------------------------------------------------------

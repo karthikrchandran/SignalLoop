@@ -9,7 +9,11 @@ WORKSPACE_ID = "ws-runtime-config"
 
 
 def _headers(token_headers: dict[str, str], *, workspace_id: str = WORKSPACE_ID) -> dict[str, str]:
-    return {**token_headers, "X-Workspace-Id": workspace_id}
+    return {
+        **token_headers,
+        "X-Workspace-Id": workspace_id,
+        "Idempotency-Key": f"runtime-config-{workspace_id}",
+    }
 
 
 def test_runtime_config_requires_authentication(client: TestClient) -> None:

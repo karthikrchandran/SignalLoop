@@ -5,11 +5,10 @@ from sqlmodel import Session
 
 from app.core.config import settings
 
-
 WORKSPACE_ID = "ws-story-1-2"
 
 
-def _headers(token_headers: dict[str, str], *, idempotency: bool = False) -> dict[str, str]:
+def _headers(token_headers: dict[str, str], *, idempotency: bool = True) -> dict[str, str]:
     headers = {**token_headers, "X-Workspace-Id": WORKSPACE_ID}
     if idempotency:
         headers["Idempotency-Key"] = "test-idempotency-key"
