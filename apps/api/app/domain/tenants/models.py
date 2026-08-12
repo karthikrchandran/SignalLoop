@@ -256,6 +256,58 @@ class NativeProjectionReceipt(SQLModel, table=True):
     acknowledged_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
 
 
+class ProjectionDispatchEvent(SQLModel, table=True):
+    """Durable native-projection work item scoped to one installation."""
+
+    __tablename__ = "projection_dispatch_event"
+    __table_args__ = (
+        UniqueConstraint(
+            "installation_id",
+            "idempotency_key",
+            name="uq_projection_dispatch_installation_idempotency",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    installation_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("suite_product_installation.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    tenant_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("suite_tenant.id", ondelete="CASCADE"), nullable=False, index=True
+        )
+    )
+    event_type: str = Field(sa_column=Column(String(128), nullable=False))
+    payload: dict[str, object] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    idempotency_key: str = Field(sa_column=Column(String(255), nullable=False))
+    status: str = Field(default="PENDING", max_length=32, index=True)
+    attempt_count: int = Field(default=0, nullable=False)
+    available_at: datetime = Field(
+        default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False, index=True)
+    )
+    lease_token: uuid.UUID | None = Field(default=None, nullable=True, index=True)
+    lease_expires_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True, index=True)
+    )
+    last_error: str | None = Field(default=None, sa_column=Column(String(500), nullable=True))
+    acknowledged_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    dead_lettered_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    created_at: datetime = Field(
+        default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
 class NativeWorkloadReplay(SQLModel, table=True):
     """Consumed assertion JTIs, scoped to their originating installation."""
 
