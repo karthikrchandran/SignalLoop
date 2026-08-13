@@ -1,7 +1,7 @@
 # Frontend Test Stabilization Design
 
-**Date:** 2026-08-12  
-**Branch:** `codex/frontend-test-stabilization`  
+**Date:** 2026-08-12
+**Branch:** `codex/frontend-test-stabilization`
 **Status:** approved for planning
 
 ## Purpose

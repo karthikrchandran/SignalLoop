@@ -1,6 +1,6 @@
 # Admin E2E Contract Stabilization Design
 
-**Date:** 2026-08-12  
+**Date:** 2026-08-12
 **Status:** approved for implementation
 
 ## Problem
@@ -26,4 +26,3 @@ No changes to product authorization, tenant capability semantics, API endpoints,
 2. Admin CRUD tests reliably await API mutation responses and report a response failure directly.
 3. A serial, isolated API-backed admin run passes against an explicitly supplied temporary API URL.
 4. The existing mocked dashboard/contact browser tests and frontend build remain green.
-

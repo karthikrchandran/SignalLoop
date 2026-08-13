@@ -211,4 +211,3 @@ git log --oneline -3
 ```
 
 Expected: no Playwright report, `test-results`, or `node_modules` changes are staged; the stabilization commits and documentation are visible.
-

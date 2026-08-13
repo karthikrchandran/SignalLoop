@@ -47,4 +47,3 @@
 - [ ] Run mocked dashboard/contact coverage with `--no-deps`.
 - [ ] Run `npm run build`, focused Biome, `git diff --check`, and ensure status contains no generated test artifacts.
 - [ ] Commit implementation with a focused test-stabilization message.
-
