@@ -23,23 +23,30 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test("renders the Liquid Steel shell and dashboard layout", async ({ page }) => {
+test("renders the Revenue OS launcher in the application shell", async ({
+  page,
+}) => {
   await page.goto("/")
-
   await expect(page.locator("html")).toHaveClass(/light/)
+  await expect(page.getByRole("heading", { name: "Revenue OS" })).toBeVisible()
   await expect(
-    page.getByRole("heading", { name: "Campaign control at a glance" }),
+    page.getByRole("heading", { name: "Your workspaces" }),
   ).toBeVisible()
-  await expect(page.getByText("Priority queue")).toBeVisible()
-  await expect(page.getByText("System health")).toBeVisible()
-  await expect(page.getByText("Dashboard", { exact: true }).first()).toBeVisible()
-  await expect(page.getByText("Quick access")).toBeVisible()
   await expect(
-    page.getByRole("heading", { name: "Quick access" }),
-  ).not.toBeVisible()
+    page.getByText("One customer record. One operating rhythm."),
+  ).toBeVisible()
+  await expect(page.getByRole("link", { name: /EngageHub/ })).toBeVisible()
+  await expect(
+    page.getByRole("link", { name: /Platform administration/ }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "Agent workforce" }),
+  ).toBeVisible()
 })
 
-test("dashboard campaign and Customer 360 links navigate to working screens", async ({ page }) => {
+test("Revenue OS workspace links navigate to internal workspaces", async ({
+  page,
+}) => {
   await page.route("**/api/v1/campaigns/", async (route) => {
     await route.fulfill({
       status: 200,
@@ -50,15 +57,13 @@ test("dashboard campaign and Customer 360 links navigate to working screens", as
       }),
     })
   })
-
   await page.goto("/")
-
-  await page.getByRole("link", { name: /Open campaigns/i }).click()
+  await page.getByRole("link", { name: /Open EngageHub/ }).click()
   await expect(page).toHaveURL(/\/campaigns/)
-  await expect(page.getByRole("heading", { name: "Campaigns" })).toBeVisible()
-  await expect(page.getByRole("tab", { name: "Campaign List" })).toBeVisible()
-
+  await expect(
+    page.getByRole("heading", { name: "Campaign lifecycle" }),
+  ).toBeVisible()
   await page.goto("/")
-  await page.getByRole("link", { name: /Customer 360/i }).first().click()
-  await expect(page).toHaveURL(/\/customer-360/)
+  await page.getByRole("link", { name: /Open administration/ }).click()
+  await expect(page).toHaveURL(/\/admin/)
 })
