@@ -4,9 +4,10 @@
 import uuid
 from datetime import datetime, timezone
 
-from pydantic import EmailStr
 from sqlalchemy import DateTime
 from sqlmodel import Field, SQLModel
+
+from app.core.local_email import LocalUserEmail
 
 
 def get_datetime_utc() -> datetime:
@@ -17,7 +18,7 @@ def get_datetime_utc() -> datetime:
 # Shared properties
 class UserBase(SQLModel):
     """User base."""
-    email: EmailStr = Field(unique=True, index=True, max_length=255)
+    email: LocalUserEmail = Field(unique=True, index=True, max_length=255)
     is_active: bool = True
     is_superuser: bool = False
     full_name: str | None = Field(default=None, max_length=255)
@@ -32,7 +33,7 @@ class UserCreate(UserBase):
 
 class UserRegister(SQLModel):
     """User register."""
-    email: EmailStr = Field(max_length=255)
+    email: LocalUserEmail = Field(max_length=255)
     password: str = Field(min_length=8, max_length=128)
     full_name: str | None = Field(default=None, max_length=255)
 
@@ -40,14 +41,14 @@ class UserRegister(SQLModel):
 # Properties to receive via API on update, all are optional
 class UserUpdate(UserBase):
     """Request payload for updating user."""
-    email: EmailStr | None = Field(default=None, max_length=255)  # type: ignore
+    email: LocalUserEmail | None = Field(default=None, max_length=255)
     password: str | None = Field(default=None, min_length=8, max_length=128)
 
 
 class UserUpdateMe(SQLModel):
     """User update me."""
     full_name: str | None = Field(default=None, max_length=255)
-    email: EmailStr | None = Field(default=None, max_length=255)
+    email: LocalUserEmail | None = Field(default=None, max_length=255)
 
 
 class UpdatePassword(SQLModel):
