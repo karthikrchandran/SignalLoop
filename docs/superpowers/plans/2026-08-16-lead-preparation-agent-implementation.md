@@ -19,14 +19,14 @@
 - Create: `apps/api/app/alembic/versions/p1_lead_preparation_agent_20260816.py`
 - Test: `apps/api/tests/domain/test_lead_preparation_scoring.py`
 
-- [ ] Write RED tests proving the migrated default policy reproduces current
+- [x] Write RED tests proving the migrated default policy reproduces current
   scores and records feature contributions, exclusions, freshness, and policy
   version.
-- [ ] Run the focused test and observe missing-module failure.
-- [ ] Implement `LeadScoringPolicy`, `LeadScoreVersion`, `LeadEvidenceItem`, and
+- [x] Run the focused test and observe missing-module failure.
+- [x] Implement `LeadScoringPolicy`, `LeadScoreVersion`, `LeadEvidenceItem`, and
   `LeadPreparationPackage`; make published policies immutable by service contract.
-- [ ] Run scoring and migration-chain tests GREEN.
-- [ ] Commit with `feat: version lead preparation scores`.
+- [x] Run scoring and migration-chain tests GREEN.
+- [x] Commit with `feat: version lead preparation scores`.
 
 ### Task 2: Durable preparation job and autonomous loop
 

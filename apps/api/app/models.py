@@ -202,3 +202,9 @@ from app.domain.commercial_agents.models import (  # noqa: E402, F401
     AgentPlanEntitlement,
     AgentUsageLedger,
 )
+from app.domain.lead_preparation.models import (  # noqa: E402, F401
+    LeadEvidenceItem,
+    LeadPreparationPackage,
+    LeadScoringPolicy,
+    LeadScoreVersion,
+)

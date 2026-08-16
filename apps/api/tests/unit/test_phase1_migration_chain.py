@@ -51,3 +51,11 @@ def test_commercial_agent_catalog_seed_extends_the_registry_schema() -> None:
     )
     assert catalog.revision == "p1_commercial_agent_catalog_20260816"
     assert catalog.down_revision == "p1_commercial_agent_registry_20260816"
+
+
+def test_lead_preparation_schema_extends_the_commercial_agent_catalog() -> None:
+    lead_preparation = _load(
+        "lead_preparation_agent", "p1_lead_preparation_agent_20260816.py"
+    )
+    assert lead_preparation.revision == "p1_lead_preparation_agent_20260816"
+    assert lead_preparation.down_revision == "p1_commercial_agent_catalog_20260816"

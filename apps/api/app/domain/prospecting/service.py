@@ -106,34 +106,22 @@ def _has_buyer_intent(intents: set[str]) -> bool:
 
 def score_prospecting_contact(contact: Contact) -> ProspectingReadyContactPublic:
     """Score one contact for near-term prospecting follow-up."""
+    from app.domain.lead_preparation.scoring import (  # noqa: PLC0415
+        build_default_scoring_policy,
+        score_contact,
+    )
+
     tags = list(contact.tags_json or [])
     intents = list(contact.intent_json or [])
     normalized_tags = _normalized_values(tags)
-    normalized_intents = _normalized_values(intents)
     is_handoff = "chatbot-lead" in normalized_tags or bool(contact.source_channel)
-
-    score = 0
-    reasons: list[str] = []
-    if is_handoff:
-        score += 35
-        reasons.append("Captured from Messaging Hub")
-    if _has_buyer_intent(normalized_intents):
-        score += 25
-        reasons.append("Buyer intent detected")
-    if contact.phone:
-        score += 15
-        reasons.append("Voice ready")
-    if contact.company:
-        score += 10
-        reasons.append("Company known")
-    if contact.last_seen_at:
-        score += 10
-        reasons.append("Recent activity")
-    if not contact.email.endswith("@chatbot.local.invalid"):
-        score += 5
-        reasons.append("Email available")
-
-    score = min(score, 100)
+    scored = score_contact(
+        contact=contact,
+        policy=build_default_scoring_policy(
+            tenant_id=uuid.UUID(int=0), workspace_id=contact.workspace_id, version=1
+        ),
+    )
+    score = scored.score
     priority = "high" if score >= 70 else "medium" if score >= 40 else "low"
 
     return ProspectingReadyContactPublic(
@@ -150,7 +138,7 @@ def score_prospecting_contact(contact: Contact) -> ProspectingReadyContactPublic
         intents=intents,
         lead_score=score,
         priority=priority,
-        priority_reasons=reasons,
+        priority_reasons=scored.reasons,
         handoff_source=contact.source_channel if is_handoff else None,
         created_at=contact.created_at,
     )
