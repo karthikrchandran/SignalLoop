@@ -52,13 +52,13 @@
 - Modify: `apps/api/app/api/main.py`
 - Test: `apps/api/tests/api/routes/test_lead_preparation.py`
 
-- [ ] Add RED tests for policy dry-run/publish, job creation, package history,
+- [x] Add RED tests for policy dry-run/publish, job creation, package history,
   approve/reject/route, cross-workspace denial, idempotency, and dependency denial.
-- [ ] Implement strict tenant/workspace APIs using durable idempotency and audit.
-- [ ] Ensure routing to Email/Voice requires an active paid registry dependency and
+- [x] Implement strict tenant/workspace APIs using durable idempotency and audit.
+- [x] Ensure routing to Email/Voice requires an active paid registry dependency and
   passes consent/suppression again.
-- [ ] Run API/domain/worker tests and Ruff GREEN.
-- [ ] Commit with `feat: administer lead preparation agents`.
+- [x] Run API/domain/worker tests and Ruff GREEN.
+- [x] Commit with `feat: administer lead preparation agents`.
 
 ### Task 4: Recovery and outcome evaluation
 

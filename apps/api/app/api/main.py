@@ -16,6 +16,7 @@ from app.api.routes import (
     ecrm_installations,
     engagement_intelligence,
     kpis,
+    lead_preparation,
     login,
     oidc,
     onboarding,
@@ -50,6 +51,7 @@ api_router.include_router(users.router)
 api_router.include_router(utils.router)
 api_router.include_router(campaigns.router)
 api_router.include_router(commercial_agents.router)
+api_router.include_router(lead_preparation.router)
 api_router.include_router(campaign_health.router)
 api_router.include_router(templates.router)
 api_router.include_router(controls.router)
