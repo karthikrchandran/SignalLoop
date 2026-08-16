@@ -193,3 +193,12 @@ from app.domain.chatbot.models import (  # noqa: E402
     ChatbotMessage,
     ChatbotOptOut,
 )
+from app.domain.commercial_agents.models import (  # noqa: E402, F401
+    AgentCapacityOverride,
+    AgentCatalogDefinition,
+    AgentDependency,
+    AgentDeployment,
+    AgentLifecycleEvent,
+    AgentPlanEntitlement,
+    AgentUsageLedger,
+)
