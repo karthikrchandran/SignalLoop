@@ -60,6 +60,7 @@ from app.domain.lead_preparation.service import (
     record_policy_change_evidence,
     record_policy_evaluation_evidence,
     require_active_tenant_workspace_binding,
+    require_policy_evaluation_evidence,
 )
 from app.domain_models import Contact
 
@@ -407,6 +408,10 @@ async def approve_policy(
                 status_code=409,
                 detail="Policy approval requires an independent administrator",
             )
+        try:
+            evaluation = require_policy_evaluation_evidence(session, policy=policy)
+        except LeadPreparationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         policy.status = LeadScoringPolicyStatus.APPROVED
         policy.approved_by = user.id
         policy.approved_at = datetime.now(timezone.utc)
@@ -430,7 +435,12 @@ async def approve_policy(
             actor_role=audit_actor_role(user),
             resource_type="lead_scoring_policy",
             resource_id=str(policy.id),
-            payload={"tenant_id": str(tenant_id), "reason": payload.reason},
+            payload={
+                "tenant_id": str(tenant_id),
+                "reason": payload.reason,
+                "evaluation_id": str(evaluation.id),
+                "evaluation_result_digest": evaluation.result_digest,
+            },
         )
         session.flush()
         return LeadPolicyPublic.model_validate(policy).model_dump(mode="json")

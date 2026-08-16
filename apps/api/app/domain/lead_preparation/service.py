@@ -94,6 +94,28 @@ def record_policy_evaluation_evidence(
     return evidence
 
 
+def require_policy_evaluation_evidence(
+    session: Session, *, policy: LeadScoringPolicy
+) -> LeadPolicyEvaluationEvidence:
+    """Require a persisted dry-run of this exact tenant-scoped policy revision."""
+
+    evidence = session.exec(
+        select(LeadPolicyEvaluationEvidence)
+        .where(
+            LeadPolicyEvaluationEvidence.tenant_id == policy.tenant_id,
+            LeadPolicyEvaluationEvidence.workspace_id == policy.workspace_id,
+            LeadPolicyEvaluationEvidence.policy_digest == policy.policy_digest,
+        )
+        .order_by(LeadPolicyEvaluationEvidence.created_at.desc())
+        .limit(1)
+    ).one_or_none()
+    if evidence is None:
+        raise LeadPreparationError(
+            "matching persisted policy evaluation evidence is required"
+        )
+    return evidence
+
+
 def record_policy_change_evidence(
     session: Session,
     *,

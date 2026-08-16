@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from app import crud
 from app.core.config import settings
+from app.domain.audit.audit_events import AuditEvent
 from app.domain.commercial_agents.models import AgentDeployment, AgentDeploymentStatus
 from app.domain.lead_preparation import models as lead_models
 from app.domain.lead_preparation.models import (
@@ -66,6 +67,99 @@ def _second_superuser_headers(client: TestClient, db: Session) -> dict[str, str]
         user_create=UserCreate(email=email, password=password, is_superuser=True),
     )
     return user_authentication_headers(client=client, email=email, password=password)
+
+
+def test_policy_approval_requires_exact_evaluation_and_audits_it(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    tenant, workspace, _, contact = _active_lead_agent(
+        client, superuser_token_headers, db
+    )
+    prefix = f"{settings.API_V1_STR}/lead-preparation/tenants/{tenant.id}"
+    policy_payload = {
+        "workspace_id": workspace.id,
+        "name": "Evidence-gated scoring",
+        "version": 1,
+        "feature_weights": {"buyer_intent": 100},
+        "band_thresholds": {"HOT": 70, "WARM": 40},
+        "freshness_windows": {"recent_activity_days": 30},
+        "exclusion_rules": ["do_not_contact"],
+    }
+    created = client.post(
+        f"{prefix}/policies",
+        headers={
+            **superuser_token_headers,
+            "Idempotency-Key": f"policy-{uuid.uuid4()}",
+        },
+        json=policy_payload,
+    )
+    assert created.status_code == 201
+    policy_id = created.json()["id"]
+    approver_headers = _second_superuser_headers(client, db)
+
+    missing_evidence = client.post(
+        f"{prefix}/policies/{policy_id}/approve",
+        headers={
+            **approver_headers,
+            "Idempotency-Key": f"approve-missing-{uuid.uuid4()}",
+        },
+        json={"reason": "Independent review"},
+    )
+    assert missing_evidence.status_code == 409
+    assert "evaluation evidence" in missing_evidence.json()["detail"]
+
+    mismatched = client.post(
+        f"{prefix}/policies/dry-run",
+        headers=superuser_token_headers,
+        json={
+            **policy_payload,
+            "name": "A different candidate",
+            "contact_id": str(contact.id),
+        },
+    )
+    assert mismatched.status_code == 200
+    mismatched_evidence = client.post(
+        f"{prefix}/policies/{policy_id}/approve",
+        headers={
+            **approver_headers,
+            "Idempotency-Key": f"approve-mismatch-{uuid.uuid4()}",
+        },
+        json={"reason": "Independent review"},
+    )
+    assert mismatched_evidence.status_code == 409
+    assert "evaluation evidence" in mismatched_evidence.json()["detail"]
+
+    exact = client.post(
+        f"{prefix}/policies/dry-run",
+        headers=superuser_token_headers,
+        json={**policy_payload, "contact_id": str(contact.id)},
+    )
+    assert exact.status_code == 200
+    approved = client.post(
+        f"{prefix}/policies/{policy_id}/approve",
+        headers={
+            **approver_headers,
+            "Idempotency-Key": f"approve-exact-{uuid.uuid4()}",
+        },
+        json={"reason": "Independent review of evaluated policy"},
+    )
+    assert approved.status_code == 200
+
+    evaluation = db.get(
+        lead_models.LeadPolicyEvaluationEvidence,
+        uuid.UUID(exact.json()["evaluation_id"]),
+    )
+    assert evaluation is not None
+    audit = db.exec(
+        select(AuditEvent).where(
+            AuditEvent.event_name == "lead_policy.approved",
+            AuditEvent.resource_id == policy_id,
+        )
+    ).one()
+    assert audit.payload["evaluation_id"] == str(evaluation.id)
+    assert audit.payload["evaluation_result_digest"] == evaluation.result_digest
 
 
 def test_admin_publishes_policy_prepares_package_and_denies_unpaid_route(
