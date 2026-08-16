@@ -5,6 +5,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from worker_app.call_worker import POLL_INTERVAL_SECONDS as CALL_POLL_INTERVAL_SECONDS
 from worker_app.call_worker import poll_and_dispatch
+from worker_app.lead_preparation_worker import (
+    LEAD_PREPARATION_POLL_INTERVAL_SECONDS,
+    process_lead_preparation_batch,
+)
 from worker_app.policies.enforcement_gate import EnforcementGate
 from worker_app.postcall_worker import process_completed_calls
 from worker_app.projection_worker import (
@@ -87,6 +91,19 @@ async def _run_revenue_intervention_job() -> None:
         logger.exception("RevenueOS intervention worker poll failed")
 
 
+async def _run_lead_preparation_job() -> None:
+    gate = EnforcementGate()
+    if gate.is_paused():
+        logger.info("EnforcementGate paused — skipping lead preparation poll")
+        return
+    try:
+        count = process_lead_preparation_batch()
+        if count:
+            logger.info("Lead preparation worker processed %d job(s)", count)
+    except Exception:
+        logger.exception("Lead preparation worker poll failed")
+
+
 def main() -> None:
     gate = EnforcementGate()
     logger.info("SignalLoop worker initializing (paused=%s)", gate.is_paused())
@@ -132,6 +149,14 @@ def main() -> None:
         max_instances=1,
         coalesce=True,
     )
+    scheduler.add_job(
+        _run_lead_preparation_job,
+        trigger="interval",
+        seconds=LEAD_PREPARATION_POLL_INTERVAL_SECONDS,
+        id="lead_preparation_worker",
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.start()
     logger.info(
         "Sequence worker scheduled (interval=%ds)", POLL_INTERVAL_SECONDS
@@ -148,6 +173,10 @@ def main() -> None:
     logger.info(
         "RevenueOS intervention worker scheduled (interval=%ds)",
         REVENUE_INTERVENTION_POLL_INTERVAL_SECONDS,
+    )
+    logger.info(
+        "Lead preparation worker scheduled (interval=%ds)",
+        LEAD_PREPARATION_POLL_INTERVAL_SECONDS,
     )
 
     try:

@@ -59,3 +59,9 @@ def test_lead_preparation_schema_extends_the_commercial_agent_catalog() -> None:
     )
     assert lead_preparation.revision == "p1_lead_preparation_agent_20260816"
     assert lead_preparation.down_revision == "p1_commercial_agent_catalog_20260816"
+
+
+def test_lead_preparation_jobs_extend_the_score_schema() -> None:
+    jobs = _load("lead_preparation_jobs", "p1_lead_preparation_jobs_20260816.py")
+    assert jobs.revision == "p1_lead_preparation_jobs_20260816"
+    assert jobs.down_revision == "p1_lead_preparation_agent_20260816"

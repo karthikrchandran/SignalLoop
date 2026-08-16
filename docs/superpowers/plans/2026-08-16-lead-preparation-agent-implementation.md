@@ -36,13 +36,13 @@
 - Modify: `apps/workers/worker_app/main.py`
 - Test: `apps/api/tests/workers/test_lead_preparation_worker.py`
 
-- [ ] Add RED tests for event idempotency, atomic claim, stale lease recovery,
+- [x] Add RED tests for event idempotency, atomic claim, stale lease recovery,
   evidence failure retry, terminal suppression, capacity reservation, and DLQ.
-- [ ] Run and confirm the absent worker/claim behavior.
-- [ ] Implement `PENDING` through `ROUTED` transitions with conditional claims,
+- [x] Run and confirm the absent worker/claim behavior.
+- [x] Implement `PENDING` through `ROUTED` transitions with conditional claims,
   bounded backoff, no invented evidence, and atomic package/usage/audit finalization.
-- [ ] Run worker and scoring tests GREEN.
-- [ ] Commit with `feat: run autonomous lead preparation`.
+- [x] Run worker and scoring tests GREEN.
+- [x] Commit with `feat: run autonomous lead preparation`.
 
 ### Task 3: Policy administration and package routing APIs
 

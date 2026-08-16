@@ -37,6 +37,17 @@ class LeadScoreBand(str, Enum):
     NOT_ELIGIBLE = "NOT_ELIGIBLE"
 
 
+class LeadPreparationJobStatus(str, Enum):
+    PENDING = "PENDING"
+    IN_PROGRESS = "IN_PROGRESS"
+    RETRY_SCHEDULED = "RETRY_SCHEDULED"
+    COMPLETED = "COMPLETED"
+    SUPPRESSED = "SUPPRESSED"
+    ROUTED = "ROUTED"
+    DEAD_LETTER = "DEAD_LETTER"
+    UNKNOWN_OUTCOME = "UNKNOWN_OUTCOME"
+
+
 class LeadScoringPolicy(SQLModel, table=True):  # type: ignore[call-arg]
     __tablename__ = "lead_scoring_policy"
     __table_args__ = (
@@ -169,3 +180,76 @@ class LeadPreparationPackage(SQLModel, table=True):  # type: ignore[call-arg]
     review_state: str = Field(default="PENDING", max_length=32, index=True)
     content_digest: str = Field(max_length=64)
     created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
+
+
+class LeadPreparationJob(SQLModel, table=True):  # type: ignore[call-arg]
+    __tablename__ = "lead_preparation_job"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "workspace_id",
+            "event_key",
+            name="uq_lead_preparation_job_event",
+        ),
+        Index(
+            "ix_lead_preparation_job_poll",
+            "status",
+            "available_at",
+            "created_at",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    tenant_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("suite_tenant.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
+    deployment_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("agent_deployment.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    contact_id: uuid.UUID = Field(nullable=False, index=True)
+    policy_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("lead_scoring_policy.id", ondelete="RESTRICT"),
+            nullable=False,
+        )
+    )
+    event_key: str = Field(max_length=255)
+    status: LeadPreparationJobStatus = Field(
+        default=LeadPreparationJobStatus.PENDING,
+        sa_column=Column(String(32), nullable=False, index=True),
+    )
+    attempt_count: int = Field(default=0, ge=0)
+    max_attempts: int = Field(default=5, ge=1, le=20)
+    available_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
+    )
+    lease_token: uuid.UUID | None = Field(default=None, index=True)
+    lease_expires_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), index=True)
+    )
+    usage_reservation_id: uuid.UUID | None = Field(default=None, index=True)
+    score_version_id: uuid.UUID | None = Field(default=None, index=True)
+    package_id: uuid.UUID | None = Field(default=None, index=True)
+    last_error_code: str | None = Field(default=None, max_length=64)
+    last_error_detail: str | None = Field(default=None, max_length=1000)
+    completed_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True))
+    )
+    created_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
