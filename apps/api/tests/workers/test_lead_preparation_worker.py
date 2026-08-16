@@ -240,3 +240,27 @@ def test_stale_lease_is_recovered_for_safe_internal_work() -> None:
 
         assert repaired == 1
         assert job.status == LeadPreparationJobStatus.RETRY_SCHEDULED
+
+
+def test_long_running_preparation_cannot_finalize_an_expired_lease() -> None:
+    with _session() as session:
+        _, _, _, job = _context(session)
+        current = [datetime.now(timezone.utc)]
+
+        def collect(_: Contact) -> dict[str, str]:
+            current[0] += timedelta(minutes=6)
+            return {
+                "source_type": "contact_profile",
+                "source_reference": "internal:contact",
+            }
+
+        run_lead_preparation_batch(
+            session,
+            evidence_collector=collect,
+            clock=lambda: current[0],
+        )
+        session.refresh(job)
+
+        assert job.status == LeadPreparationJobStatus.RETRY_SCHEDULED
+        assert job.package_id is None
+        assert session.exec(select(func.count(LeadPreparationPackage.id))).one() == 0

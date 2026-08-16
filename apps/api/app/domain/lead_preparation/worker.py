@@ -26,6 +26,7 @@ from app.domain.lead_preparation.service import claim_preparation_job
 from app.domain_models import Contact
 
 EvidenceCollector = Callable[[Contact], dict[str, Any]]
+Clock = Callable[[], datetime]
 
 
 def _utc(value: datetime) -> datetime:
@@ -113,21 +114,23 @@ def _process_job(
     *,
     job: LeadPreparationJob,
     evidence_collector: EvidenceCollector,
-    now: datetime,
+    clock: Clock,
 ) -> None:
+    started_at = _utc(clock())
     contact = session.exec(
         select(Contact).where(Contact.id == job.contact_id).with_for_update()
     ).one_or_none()
     policy = session.get(LeadScoringPolicy, job.policy_id)
     if contact is None or contact.workspace_id != job.workspace_id or policy is None:
         raise RuntimeError("owned contact and scoring policy are required")
-    scored = score_contact(contact=contact, policy=policy, now=now)
+    scored = score_contact(contact=contact, policy=policy, now=started_at)
     if scored.exclusions:
+        completed_at = _utc(clock())
         _finalize_job_status(
             session,
             job=job,
             status=LeadPreparationJobStatus.SUPPRESSED,
-            now=now,
+            now=completed_at,
         )
         append_audit_event_to_session(
             session,
@@ -158,7 +161,7 @@ def _process_job(
         contact_id=job.contact_id,
         source_type=source_type,
         source_reference=source_reference,
-        retrieved_at=now,
+        retrieved_at=started_at,
         content_digest=evidence_digest,
         redacted_excerpt=redacted_excerpt,
     )
@@ -170,7 +173,7 @@ def _process_job(
         deployment_id=job.deployment_id,
         capacity_metric="prepared_lead",
         idempotency_key=f"lead-preparation:{job.id}",
-        now=now,
+        now=started_at,
     )
     version = int(
         session.exec(
@@ -198,7 +201,7 @@ def _process_job(
         exclusions=scored.exclusions,
         channel_eligibility=scored.channel_eligibility,
         evidence_digest=evidence_digest,
-        created_at=now,
+        created_at=started_at,
     )
     session.add(score_version)
     session.flush()
@@ -233,23 +236,24 @@ def _process_job(
         next_action=next_action,
         draft_references={},
         content_digest=_digest(package_payload),
-        created_at=now,
+        created_at=started_at,
     )
     session.add(package)
     session.flush()
+    completed_at = _utc(clock())
     finalize_capacity(
         session,
         reservation_id=reservation.id,
         provider_receipt_id=f"lead-package:{package.id}",
         finalized_units=1,
         provider_units={"prepared_leads": 1},
-        now=now,
+        now=completed_at,
     )
     _finalize_job_status(
         session,
         job=job,
         status=LeadPreparationJobStatus.COMPLETED,
-        now=now,
+        now=completed_at,
         score_version_id=score_version.id,
         package_id=package.id,
         usage_reservation_id=reservation.id,
@@ -274,13 +278,17 @@ def run_lead_preparation_batch(
     *,
     evidence_collector: EvidenceCollector,
     now: datetime | None = None,
+    clock: Clock | None = None,
     limit: int = 25,
 ) -> int:
     """Process a bounded batch; every failure is durably retried or dead-lettered."""
 
+    effective_clock: Clock = clock or (
+        (lambda: _utc(now)) if now is not None else lambda: datetime.now(timezone.utc)
+    )
     processed = 0
     for _ in range(limit):
-        claim_time = _utc(now or datetime.now(timezone.utc))
+        claim_time = _utc(effective_clock())
         job = claim_preparation_job(session, now=claim_time)
         if job is None:
             break
@@ -290,7 +298,7 @@ def run_lead_preparation_batch(
                 session,
                 job=job,
                 evidence_collector=evidence_collector,
-                now=_utc(now or datetime.now(timezone.utc)),
+                clock=effective_clock,
             )
         except Exception as exc:
             session.rollback()
@@ -298,7 +306,7 @@ def run_lead_preparation_batch(
                 session,
                 job_id=job.id,
                 lease_token=token,
-                now=_utc(now or datetime.now(timezone.utc)),
+                now=_utc(effective_clock()),
                 error=exc,
             )
         processed += 1
