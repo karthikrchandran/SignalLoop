@@ -15,7 +15,11 @@ from fastapi import HTTPException
 from sqlmodel import Session, func, select
 
 from app.domain.contacts.progression_service import transition_contact_state
+from app.domain.scheduling.availability import AvailableSlot
 from app.domain.scheduling.models import (
+    CalendarMeetingType,
+    SchedulingConfirmation,
+    SchedulingOffer,
     SchedulingRequest,
     SchedulingRequestSource,
     SchedulingRequestStatus,
@@ -34,6 +38,134 @@ def _now() -> datetime:
 
 CALENDLY_STATE_MIN_TTL_SECONDS = 60
 CALENDLY_STATE_MAX_TTL_SECONDS = 30 * 24 * 60 * 60
+
+
+def _canonical_digest(value: object) -> str:
+    canonical = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def slot_digest(slot: dict[str, str]) -> str:
+    return _canonical_digest(slot)
+
+
+def create_scheduling_offer(
+    session: Session,
+    *,
+    tenant_id: uuid.UUID,
+    workspace_id: str,
+    request_id: uuid.UUID,
+    meeting_type_id: uuid.UUID,
+    slots: list[AvailableSlot],
+    expires_at: datetime,
+    now: datetime | None = None,
+) -> SchedulingOffer:
+    """Persist an immutable, monotonically versioned offer for owned records."""
+
+    at = now or _now()
+    request = session.exec(
+        select(SchedulingRequest).where(
+            SchedulingRequest.id == request_id,
+            SchedulingRequest.workspace_id == workspace_id,
+        ).with_for_update()
+    ).one_or_none()
+    meeting_type = session.exec(
+        select(CalendarMeetingType).where(
+            CalendarMeetingType.id == meeting_type_id,
+            CalendarMeetingType.tenant_id == tenant_id,
+            CalendarMeetingType.workspace_id == workspace_id,
+            CalendarMeetingType.status == "ACTIVE",
+        )
+    ).one_or_none()
+    if request is None or meeting_type is None or expires_at <= at or not slots:
+        raise ValueError("owned request, meeting type, future expiry, and slots are required")
+    previous = session.exec(
+        select(SchedulingOffer)
+        .where(SchedulingOffer.scheduling_request_id == request_id)
+        .order_by(SchedulingOffer.version.desc())
+        .limit(1)
+    ).first()
+    version = 1 if previous is None else previous.version + 1
+    slot_values = [slot.model_dump(mode="json") for slot in slots]
+    offer = SchedulingOffer(
+        tenant_id=tenant_id,
+        workspace_id=workspace_id,
+        scheduling_request_id=request_id,
+        meeting_type_id=meeting_type_id,
+        version=version,
+        offer_digest=_canonical_digest(
+            {
+                "tenant_id": str(tenant_id),
+                "workspace_id": workspace_id,
+                "request_id": str(request_id),
+                "meeting_type_id": str(meeting_type_id),
+                "version": version,
+                "slots": slot_values,
+                "expires_at": expires_at.isoformat(),
+            }
+        ),
+        slots=slot_values,
+        expires_at=expires_at,
+        created_at=at,
+    )
+    session.add(offer)
+    session.flush()
+    return offer
+
+
+def confirm_scheduling_offer(
+    session: Session,
+    *,
+    tenant_id: uuid.UUID,
+    workspace_id: str,
+    offer_id: uuid.UUID,
+    selected_slot_digest: str,
+    confirmed_by: str,
+    confirmation_key: str,
+    now: datetime | None = None,
+) -> SchedulingConfirmation:
+    """Confirm one exact offered slot once, never an expired or replaced offer."""
+
+    at = now or _now()
+    offer = session.exec(
+        select(SchedulingOffer).where(
+            SchedulingOffer.id == offer_id,
+            SchedulingOffer.tenant_id == tenant_id,
+            SchedulingOffer.workspace_id == workspace_id,
+        ).with_for_update()
+    ).one_or_none()
+    if offer is None:
+        raise ValueError("open unexpired offer is required")
+    existing = session.exec(
+        select(SchedulingConfirmation).where(SchedulingConfirmation.offer_id == offer.id)
+    ).one_or_none()
+    if existing is not None:
+        if (
+            existing.confirmation_key != confirmation_key
+            or existing.selected_slot_digest != selected_slot_digest
+        ):
+            raise ValueError("offer is already confirmed")
+        return existing
+    expires_at = offer.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if offer.status != "OPEN" or expires_at <= at:
+        raise ValueError("open unexpired offer is required")
+    if selected_slot_digest not in {slot_digest(slot) for slot in offer.slots}:
+        raise ValueError("confirmation must select an exact offered slot")
+    confirmation = SchedulingConfirmation(
+        tenant_id=tenant_id,
+        workspace_id=workspace_id,
+        offer_id=offer.id,
+        selected_slot_digest=selected_slot_digest,
+        confirmed_by=confirmed_by,
+        confirmation_key=confirmation_key,
+        confirmed_at=at,
+    )
+    offer.status = "CONFIRMED"
+    session.add_all([confirmation, offer])
+    session.flush()
+    return confirmation
 
 
 def mint_calendly_state(

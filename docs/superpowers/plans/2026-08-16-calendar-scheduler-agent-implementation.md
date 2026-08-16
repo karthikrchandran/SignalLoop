@@ -33,12 +33,12 @@
 - Modify: `apps/api/app/domain/scheduling/service.py`
 - Test: `apps/api/tests/domain/test_calendar_availability.py`
 
-- [ ] Add RED tests for IANA timezone validation, DST boundaries, working hours,
+- [x] Add RED tests for IANA timezone validation, DST boundaries, working hours,
   holidays, buffers, notice, expiry, conflicts, and one confirmation per offer.
-- [ ] Implement provider-neutral free/busy and deterministic slot calculation.
-- [ ] Persist offer version/digest and explicit confirmation evidence.
-- [ ] Run scheduling domain tests GREEN.
-- [ ] Commit with `feat: calculate and confirm meeting slots`.
+- [x] Implement provider-neutral free/busy and deterministic slot calculation.
+- [x] Persist offer version/digest and explicit confirmation evidence.
+- [x] Run scheduling domain tests GREEN.
+- [x] Commit with `feat: calculate and confirm meeting slots`.
 
 ### Task 3: Durable booking worker and Calendly adapter
 
