@@ -66,8 +66,8 @@
 - Create: `apps/api/app/domain/lead_preparation/reconciliation.py`
 - Test: `apps/api/tests/domain/test_lead_preparation_reconciliation.py`
 
-- [ ] Add RED tests for unknown source outcome, missing terminal package, usage
+- [x] Add RED tests for unknown source outcome, missing terminal package, usage
   mismatch, audited DLQ replay, and outcome ingestion without self-modifying policy.
-- [ ] Implement reconciliation reports and authorized repair decisions.
-- [ ] Run the complete lead preparation gate and migration heads check.
-- [ ] Commit with `fix: reconcile lead preparation outcomes`.
+- [x] Implement reconciliation reports and authorized repair decisions.
+- [x] Run the complete lead preparation gate and migration heads check.
+- [x] Commit with `fix: reconcile lead preparation outcomes`.

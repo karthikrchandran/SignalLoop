@@ -65,3 +65,9 @@ def test_lead_preparation_jobs_extend_the_score_schema() -> None:
     jobs = _load("lead_preparation_jobs", "p1_lead_preparation_jobs_20260816.py")
     assert jobs.revision == "p1_lead_preparation_jobs_20260816"
     assert jobs.down_revision == "p1_lead_preparation_agent_20260816"
+
+
+def test_lead_outcomes_extend_the_autonomous_job_schema() -> None:
+    outcomes = _load("lead_outcomes", "p1_lead_outcomes_20260816.py")
+    assert outcomes.revision == "p1_lead_outcomes_20260816"
+    assert outcomes.down_revision == "p1_lead_preparation_jobs_20260816"

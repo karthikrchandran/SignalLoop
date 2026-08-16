@@ -31,7 +31,16 @@ from app.domain.lead_preparation.models import (
     LeadScoringPolicy,
     LeadScoringPolicyStatus,
 )
+from app.domain.lead_preparation.reconciliation import (
+    LeadPreparationReconciliationError,
+    LeadPreparationReconciliationReport,
+    build_lead_preparation_reconciliation_report,
+    ingest_lead_outcome,
+    replay_dead_letter_job,
+)
 from app.domain.lead_preparation.schemas import (
+    LeadOutcomeCreate,
+    LeadOutcomePublic,
     LeadPackageDecision,
     LeadPackagePublic,
     LeadPackageRoute,
@@ -172,6 +181,130 @@ async def create_policy(
         operation="lead-preparation:policy:create",
         request_payload=payload.model_dump(mode="json"),
         mutation=create_once,
+        safe_to_retry_on_failure=True,
+    )
+
+
+@router.get(
+    "/tenants/{tenant_id}/operations/reconciliation",
+    response_model=LeadPreparationReconciliationReport,
+)
+def reconciliation_report(
+    *, session: SessionDep, user: CurrentUser, tenant_id: uuid.UUID, workspace_id: str
+) -> LeadPreparationReconciliationReport:
+    _authorize_agent_admin(session, user, tenant_id)
+    return build_lead_preparation_reconciliation_report(
+        session, tenant_id=tenant_id, workspace_id=workspace_id
+    )
+
+
+@router.post(
+    "/tenants/{tenant_id}/jobs/{job_id}/replay",
+    response_model=LeadPreparationJobPublic,
+)
+async def replay_dead_letter(
+    request: Request,
+    *,
+    session: SessionDep,
+    user: CurrentUser,
+    tenant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    payload: LeadPackageDecision,
+    idempotency_key: IdempotencyKeyDep,
+) -> dict[str, Any]:
+    _authorize_agent_admin(session, user, tenant_id)
+
+    def replay_once() -> dict[str, Any]:
+        workspace = session.exec(
+            select(LeadPreparationJob.workspace_id).where(
+                LeadPreparationJob.id == job_id,
+                LeadPreparationJob.tenant_id == tenant_id,
+            )
+        ).one_or_none()
+        if workspace is None:
+            raise HTTPException(status_code=404, detail="Lead preparation job not found")
+        try:
+            job = replay_dead_letter_job(
+                session,
+                tenant_id=tenant_id,
+                workspace_id=workspace,
+                job_id=job_id,
+                actor_id=user.id,
+                actor_role=audit_actor_role(user),
+                capabilities={"agents.admin.manage"},
+                reason=payload.reason,
+            )
+        except LeadPreparationReconciliationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return LeadPreparationJobPublic.model_validate(job).model_dump(mode="json")
+
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=str(tenant_id),
+        operation=f"lead-preparation:job:{job_id}:replay",
+        request_payload=payload.model_dump(mode="json"),
+        mutation=replay_once,
+        safe_to_retry_on_failure=True,
+    )
+
+
+@router.post(
+    "/tenants/{tenant_id}/outcomes",
+    response_model=LeadOutcomePublic,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_outcome(
+    request: Request,
+    *,
+    session: SessionDep,
+    user: CurrentUser,
+    tenant_id: uuid.UUID,
+    payload: LeadOutcomeCreate,
+    idempotency_key: IdempotencyKeyDep,
+) -> dict[str, Any]:
+    _authorize_agent_admin(session, user, tenant_id)
+
+    def ingest_once() -> dict[str, Any]:
+        try:
+            observation = ingest_lead_outcome(
+                session,
+                tenant_id=tenant_id,
+                workspace_id=payload.workspace_id,
+                contact_id=payload.contact_id,
+                policy_id=payload.policy_id,
+                outcome_type=payload.outcome_type,
+                outcome_reference=payload.outcome_reference,
+                observed_at=payload.observed_at,
+                idempotency_key=idempotency_key,
+            )
+        except LeadPreparationReconciliationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        append_audit_event_to_session(
+            session,
+            event_name="lead_preparation.outcome.observed",
+            workspace_id=payload.workspace_id,
+            actor_id=user.id,
+            actor_role=audit_actor_role(user),
+            resource_type="lead_outcome_observation",
+            resource_id=str(observation.id),
+            payload={
+                "outcome_type": observation.outcome_type,
+                "policy_version": observation.policy_version,
+                "tenant_id": str(tenant_id),
+            },
+        )
+        return LeadOutcomePublic.model_validate(observation).model_dump(mode="json")
+
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=str(tenant_id),
+        operation="lead-preparation:outcome:create",
+        request_payload=payload.model_dump(mode="json"),
+        mutation=ingest_once,
         safe_to_retry_on_failure=True,
     )
 

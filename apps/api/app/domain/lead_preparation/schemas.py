@@ -135,3 +135,29 @@ class LeadPackageRoute(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     channel: str = Field(pattern=r"^(email|voice)$")
+
+
+class LeadOutcomeCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    workspace_id: str = Field(min_length=1, max_length=64)
+    contact_id: uuid.UUID
+    policy_id: uuid.UUID
+    outcome_type: str = Field(min_length=2, max_length=64)
+    outcome_reference: str = Field(min_length=1, max_length=255)
+    observed_at: datetime
+
+
+class LeadOutcomePublic(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    workspace_id: str
+    contact_id: uuid.UUID
+    policy_id: uuid.UUID
+    policy_version: int
+    outcome_type: str
+    outcome_reference: str
+    observed_at: datetime
+    created_at: datetime

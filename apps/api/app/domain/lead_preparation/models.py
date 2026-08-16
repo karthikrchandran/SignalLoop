@@ -253,3 +253,44 @@ class LeadPreparationJob(SQLModel, table=True):  # type: ignore[call-arg]
         default_factory=utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
+
+
+class LeadOutcomeObservation(SQLModel, table=True):  # type: ignore[call-arg]
+    """Immutable observed result used for evaluation, never automatic policy edits."""
+
+    __tablename__ = "lead_outcome_observation"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "workspace_id",
+            "idempotency_key",
+            name="uq_lead_outcome_observation_key",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    tenant_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("suite_tenant.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
+    contact_id: uuid.UUID = Field(nullable=False, index=True)
+    policy_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("lead_scoring_policy.id", ondelete="RESTRICT"),
+            nullable=False,
+            index=True,
+        )
+    )
+    policy_version: int = Field(ge=1)
+    outcome_type: str = Field(max_length=64, index=True)
+    outcome_reference: str = Field(max_length=255)
+    observed_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    idempotency_key: str = Field(max_length=255)
+    created_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )

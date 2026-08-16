@@ -8,6 +8,9 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.domain.commercial_agents.models import AgentDeployment, AgentDeploymentStatus
+from app.domain.lead_preparation.models import LeadPreparationJobStatus
+from app.domain.lead_preparation.scoring import build_default_scoring_policy
+from app.domain.lead_preparation.service import enqueue_preparation_job
 from app.domain.lead_preparation.worker import run_lead_preparation_batch
 from app.domain_models import Contact
 from tests.api.routes.test_commercial_agents import _create_payload, _tenant_registry
@@ -185,3 +188,71 @@ def test_job_requires_idempotency_and_hides_cross_workspace_contact(
 
     assert missing.status_code == 400
     assert hidden.status_code in {404, 409}
+
+
+def test_operator_replays_dead_letter_and_records_outcome_without_policy_change(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    tenant, workspace, deployment, contact = _active_lead_agent(
+        client, superuser_token_headers, db
+    )
+    policy = build_default_scoring_policy(
+        tenant_id=tenant.id, workspace_id=workspace.id, version=1
+    )
+    db.add(policy)
+    db.commit()
+    job = enqueue_preparation_job(
+        db,
+        tenant_id=tenant.id,
+        workspace_id=workspace.id,
+        deployment_id=deployment.id,
+        contact_id=contact.id,
+        policy_id=policy.id,
+        event_key=f"contact:{contact.id}:failed",
+    )
+    job.status = LeadPreparationJobStatus.DEAD_LETTER
+    db.add(job)
+    db.commit()
+    prefix = f"{settings.API_V1_STR}/lead-preparation/tenants/{tenant.id}"
+
+    report = client.get(
+        f"{prefix}/operations/reconciliation?workspace_id={workspace.id}",
+        headers=superuser_token_headers,
+    )
+    replay = client.post(
+        f"{prefix}/jobs/{job.id}/replay",
+        headers={
+            **superuser_token_headers,
+            "Idempotency-Key": f"replay-{uuid.uuid4()}",
+        },
+        json={"reason": "Evidence source recovered"},
+    )
+    outcome_headers = {
+        **superuser_token_headers,
+        "Idempotency-Key": f"outcome-{uuid.uuid4()}",
+    }
+    outcome_payload = {
+        "workspace_id": workspace.id,
+        "contact_id": str(contact.id),
+        "policy_id": str(policy.id),
+        "outcome_type": "MEETING_BOOKED",
+        "outcome_reference": "calendar:event:456",
+        "observed_at": datetime.now(timezone.utc).isoformat(),
+    }
+    outcome = client.post(
+        f"{prefix}/outcomes", headers=outcome_headers, json=outcome_payload
+    )
+    outcome_replay = client.post(
+        f"{prefix}/outcomes", headers=outcome_headers, json=outcome_payload
+    )
+
+    assert report.status_code == 200
+    assert report.json()["dead_letters"] == 1
+    assert replay.status_code == 200
+    assert replay.json()["status"] == "PENDING"
+    assert outcome.status_code == 201
+    assert outcome_replay.json() == outcome.json()
+    db.refresh(policy)
+    assert policy.status == "PUBLISHED"

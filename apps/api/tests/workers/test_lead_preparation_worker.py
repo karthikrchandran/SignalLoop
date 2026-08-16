@@ -19,6 +19,7 @@ from app.domain.commercial_agents.models import (
 )
 from app.domain.lead_preparation.models import (
     LeadEvidenceItem,
+    LeadOutcomeObservation,
     LeadPreparationJob,
     LeadPreparationJobStatus,
     LeadPreparationPackage,
@@ -62,6 +63,7 @@ def _session() -> Session:
             LeadScoreVersion.__table__,
             LeadPreparationPackage.__table__,
             LeadPreparationJob.__table__,
+            LeadOutcomeObservation.__table__,
         ],
     )
     return Session(engine)
@@ -98,7 +100,7 @@ def _context(
     session.flush()
     catalog = AgentCatalogDefinition(
         agent_type=AgentType.LEAD_PREPARATION,
-        catalog_version=1,
+        catalog_version=4_000_000 + int(suffix[:5], 16),
         display_name="Lead Preparation Agent",
         sellable_outcome="Prepare leads",
         default_capacity_metric="prepared_lead",
