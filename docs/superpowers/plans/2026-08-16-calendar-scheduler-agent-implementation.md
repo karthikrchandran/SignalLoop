@@ -48,12 +48,12 @@
 - Modify: `apps/workers/worker_app/main.py`
 - Test: `apps/api/tests/workers/test_calendar_scheduler_worker.py`
 
-- [ ] Add RED tests for atomic claims, final availability recheck, stable provider
+- [x] Add RED tests for atomic claims, final availability recheck, stable provider
   key, accepted-then-timeout unknown outcome, lease recovery, DLQ, and kill switch.
-- [ ] Implement command-envelope dispatch and receipt persistence. Never retry an
+- [x] Implement command-envelope dispatch and receipt persistence. Never retry an
   ambiguous invocation until provider lookup proves no event was created.
-- [ ] Run worker plus existing webhook replay tests GREEN.
-- [ ] Commit with `feat: book meetings with durable recovery`.
+- [x] Run worker plus existing webhook replay tests GREEN.
+- [x] Commit with `feat: book meetings with durable recovery`.
 
 ### Task 4: APIs, webhook integration, and reconciliation
 

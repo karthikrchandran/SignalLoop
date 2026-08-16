@@ -2,7 +2,12 @@ import asyncio
 import logging
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-
+from worker_app.calendar_scheduler_worker import (
+    CALENDAR_SCHEDULER_POLL_INTERVAL_SECONDS,
+    CalendarSchedulerConfigurationError,
+    load_calendar_provider,
+    process_calendar_scheduler_batch,
+)
 from worker_app.call_worker import POLL_INTERVAL_SECONDS as CALL_POLL_INTERVAL_SECONDS
 from worker_app.call_worker import poll_and_dispatch
 from worker_app.lead_preparation_worker import (
@@ -104,6 +109,21 @@ async def _run_lead_preparation_job() -> None:
         logger.exception("Lead preparation worker poll failed")
 
 
+async def _run_calendar_scheduler_job() -> None:
+    gate = EnforcementGate()
+    if gate.is_paused():
+        logger.info("EnforcementGate paused — skipping calendar scheduler poll")
+        return
+    try:
+        count = process_calendar_scheduler_batch(load_calendar_provider())
+        if count:
+            logger.info("Calendar scheduler processed %d booking job(s)", count)
+    except CalendarSchedulerConfigurationError as exc:
+        logger.warning("Calendar scheduler blocked by configuration: %s", exc)
+    except Exception:
+        logger.exception("Calendar scheduler poll failed")
+
+
 def main() -> None:
     gate = EnforcementGate()
     logger.info("SignalLoop worker initializing (paused=%s)", gate.is_paused())
@@ -157,6 +177,14 @@ def main() -> None:
         max_instances=1,
         coalesce=True,
     )
+    scheduler.add_job(
+        _run_calendar_scheduler_job,
+        trigger="interval",
+        seconds=CALENDAR_SCHEDULER_POLL_INTERVAL_SECONDS,
+        id="calendar_scheduler_worker",
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.start()
     logger.info(
         "Sequence worker scheduled (interval=%ds)", POLL_INTERVAL_SECONDS
@@ -177,6 +205,10 @@ def main() -> None:
     logger.info(
         "Lead preparation worker scheduled (interval=%ds)",
         LEAD_PREPARATION_POLL_INTERVAL_SECONDS,
+    )
+    logger.info(
+        "Calendar scheduler scheduled (interval=%ds)",
+        CALENDAR_SCHEDULER_POLL_INTERVAL_SECONDS,
     )
 
     try:
