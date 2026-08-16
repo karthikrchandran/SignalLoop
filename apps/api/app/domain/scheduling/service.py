@@ -64,10 +64,12 @@ def create_scheduling_offer(
 
     at = now or _now()
     request = session.exec(
-        select(SchedulingRequest).where(
+        select(SchedulingRequest)
+        .where(
             SchedulingRequest.id == request_id,
             SchedulingRequest.workspace_id == workspace_id,
-        ).with_for_update()
+        )
+        .with_for_update()
     ).one_or_none()
     meeting_type = session.exec(
         select(CalendarMeetingType).where(
@@ -78,7 +80,9 @@ def create_scheduling_offer(
         )
     ).one_or_none()
     if request is None or meeting_type is None or expires_at <= at or not slots:
-        raise ValueError("owned request, meeting type, future expiry, and slots are required")
+        raise ValueError(
+            "owned request, meeting type, future expiry, and slots are required"
+        )
     previous = session.exec(
         select(SchedulingOffer)
         .where(SchedulingOffer.scheduling_request_id == request_id)
@@ -86,6 +90,9 @@ def create_scheduling_offer(
         .limit(1)
     ).first()
     version = 1 if previous is None else previous.version + 1
+    if previous is not None and previous.status == "OPEN":
+        previous.status = "SUPERSEDED"
+        session.add(previous)
     slot_values = [slot.model_dump(mode="json") for slot in slots]
     offer = SchedulingOffer(
         tenant_id=tenant_id,
@@ -128,16 +135,20 @@ def confirm_scheduling_offer(
 
     at = now or _now()
     offer = session.exec(
-        select(SchedulingOffer).where(
+        select(SchedulingOffer)
+        .where(
             SchedulingOffer.id == offer_id,
             SchedulingOffer.tenant_id == tenant_id,
             SchedulingOffer.workspace_id == workspace_id,
-        ).with_for_update()
+        )
+        .with_for_update()
     ).one_or_none()
     if offer is None:
         raise ValueError("open unexpired offer is required")
     existing = session.exec(
-        select(SchedulingConfirmation).where(SchedulingConfirmation.offer_id == offer.id)
+        select(SchedulingConfirmation).where(
+            SchedulingConfirmation.offer_id == offer.id
+        )
     ).one_or_none()
     if existing is not None:
         if (
@@ -190,19 +201,25 @@ def mint_calendly_state(
         sort_keys=True,
     ).encode()
     encoded = base64.urlsafe_b64encode(payload).decode().rstrip("=")
-    signature = hmac.new(signing_key.encode(), encoded.encode(), hashlib.sha256).hexdigest()
+    signature = hmac.new(
+        signing_key.encode(), encoded.encode(), hashlib.sha256
+    ).hexdigest()
     return f"{encoded}.{signature}"
 
 
 def verify_calendly_state(token: str, signing_key: str) -> tuple[uuid.UUID, str] | None:
     try:
         encoded, signature = token.split(".", 1)
-        expected = hmac.new(signing_key.encode(), encoded.encode(), hashlib.sha256).hexdigest()
+        expected = hmac.new(
+            signing_key.encode(), encoded.encode(), hashlib.sha256
+        ).hexdigest()
         if not hmac.compare_digest(expected, signature):
             return None
         padded = encoded + "=" * (-len(encoded) % 4)
         payload = json.loads(base64.urlsafe_b64decode(padded))
-        if not isinstance(payload, dict) or int(payload.get("exp", 0)) < int(time.time()):
+        if not isinstance(payload, dict) or int(payload.get("exp", 0)) < int(
+            time.time()
+        ):
             return None
         workspace_id = payload.get("workspace")
         if not isinstance(workspace_id, str) or not workspace_id.strip():
@@ -372,16 +389,20 @@ def handle_calendly_booking(
     """Mark a scheduling request as booked from a Calendly webhook and advance
     the contact's campaign progression to the ``booked`` state."""
     req = session.exec(
-        select(SchedulingRequest).where(
+        select(SchedulingRequest)
+        .where(
             SchedulingRequest.id == request_id,
             SchedulingRequest.workspace_id == workspace_id,
-        ).with_for_update()
+        )
+        .with_for_update()
     ).first()
     if req is None:
         raise HTTPException(status_code=404, detail="Scheduling request not found")
     if req.status == SchedulingRequestStatus.booked:
         if req.calendly_event_id != calendly_event_id:
-            raise HTTPException(status_code=409, detail="Scheduling request already booked")
+            raise HTTPException(
+                status_code=409, detail="Scheduling request already booked"
+            )
         return req
 
     req.status = SchedulingRequestStatus.booked
@@ -421,7 +442,9 @@ def handle_calendly_booking(
                     "requestId": str(req.id),
                     "contactId": str(req.contact_id),
                     "campaignId": str(req.campaign_id),
-                    "meetingTime": req.meeting_datetime.isoformat() if req.meeting_datetime else None,
+                    "meetingTime": req.meeting_datetime.isoformat()
+                    if req.meeting_datetime
+                    else None,
                     "status": req.status.value
                     if isinstance(req.status, SchedulingRequestStatus)
                     else str(req.status),
@@ -432,6 +455,46 @@ def handle_calendly_booking(
     except Exception:
         pass
 
+    return req
+
+
+def handle_calendly_cancellation(
+    session: Session,
+    *,
+    workspace_id: str,
+    request_id: uuid.UUID,
+    calendly_event_id: str,
+    commit: bool = True,
+) -> SchedulingRequest:
+    """Apply a matching cancellation monotonically; ignore exact replay."""
+
+    req = session.exec(
+        select(SchedulingRequest)
+        .where(
+            SchedulingRequest.id == request_id,
+            SchedulingRequest.workspace_id == workspace_id,
+        )
+        .with_for_update()
+    ).one_or_none()
+    if req is None:
+        raise HTTPException(status_code=404, detail="Scheduling request not found")
+    if req.status == SchedulingRequestStatus.cancelled:
+        if req.calendly_event_id != calendly_event_id:
+            raise HTTPException(
+                status_code=409, detail="Cancellation conflicts with booked event"
+            )
+        return req
+    if (
+        req.status != SchedulingRequestStatus.booked
+        or req.calendly_event_id != calendly_event_id
+    ):
+        raise HTTPException(status_code=409, detail="Stale or mismatched cancellation")
+    req.status = SchedulingRequestStatus.cancelled
+    req.updated_at = _now()
+    session.add(req)
+    if commit:
+        session.commit()
+        session.refresh(req)
     return req
 
 

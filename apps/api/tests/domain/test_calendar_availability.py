@@ -1,10 +1,14 @@
+# ruff: noqa: E402, I001 -- preload legacy tables before lifecycle extensions.
 from __future__ import annotations
 
+import importlib
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from sqlmodel import select
+
+_legacy_scheduling = importlib.import_module("app.domain.signals.scheduling")
 
 from app.domain.scheduling.availability import (
     AvailabilityPolicy,

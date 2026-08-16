@@ -251,7 +251,13 @@ class CalendarBookingJob(SQLModel, table=True):  # type: ignore[call-arg]
     __tablename__ = "calendar_booking_job"
     __table_args__ = (
         UniqueConstraint(
-            "confirmation_id", name="uq_calendar_booking_job_confirmation"
+            "confirmation_id",
+            "operation",
+            "generation",
+            name="uq_calendar_booking_job_confirmation_operation_generation",
+        ),
+        UniqueConstraint(
+            "predecessor_job_id", name="uq_calendar_booking_job_predecessor"
         ),
         Index("ix_calendar_booking_job_poll", "status", "available_at"),
     )
@@ -283,6 +289,17 @@ class CalendarBookingJob(SQLModel, table=True):  # type: ignore[call-arg]
             ForeignKey("scheduling_confirmation.id", ondelete="CASCADE"), nullable=False
         )
     )
+    operation: str = Field(default="BOOK", max_length=32, index=True)
+    generation: int = Field(default=1, ge=1)
+    provider_event_id: str | None = Field(default=None, max_length=255)
+    predecessor_job_id: uuid.UUID | None = Field(
+        default=None,
+        sa_column=Column(
+            ForeignKey("calendar_booking_job.id", ondelete="RESTRICT"),
+            nullable=True,
+            index=True,
+        ),
+    )
     status: str = Field(default="PENDING", max_length=32, index=True)
     command_key: str = Field(max_length=255, unique=True)
     command_envelope: dict | None = Field(default=None, sa_column=Column(JSON))
@@ -313,7 +330,10 @@ class CalendarBookingReceipt(SQLModel, table=True):  # type: ignore[call-arg]
     __tablename__ = "calendar_booking_receipt"
     __table_args__ = (
         UniqueConstraint(
-            "confirmation_id", name="uq_calendar_booking_receipt_confirmation"
+            "confirmation_id",
+            "operation",
+            "generation",
+            name="uq_calendar_booking_receipt_confirmation_operation_generation",
         ),
         UniqueConstraint(
             "workspace_id",
@@ -339,6 +359,9 @@ class CalendarBookingReceipt(SQLModel, table=True):  # type: ignore[call-arg]
             index=True,
         )
     )
+    operation: str = Field(default="BOOK", max_length=32, index=True)
+    generation: int = Field(default=1, ge=1)
+    previous_provider_event_id: str | None = Field(default=None, max_length=255)
     provider: str = Field(max_length=32)
     provider_event_id: str = Field(max_length=255)
     provider_receipt_id: str = Field(max_length=255)

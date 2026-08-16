@@ -115,7 +115,8 @@ async def _run_calendar_scheduler_job() -> None:
         logger.info("EnforcementGate paused — skipping calendar scheduler poll")
         return
     try:
-        count = process_calendar_scheduler_batch(load_calendar_provider())
+        provider = load_calendar_provider()
+        count = await asyncio.to_thread(process_calendar_scheduler_batch, provider)
         if count:
             logger.info("Calendar scheduler processed %d booking job(s)", count)
     except CalendarSchedulerConfigurationError as exc:

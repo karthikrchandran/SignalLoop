@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib
+import os
 from datetime import date, datetime
 from typing import Protocol
 
@@ -16,6 +18,9 @@ class CalendarBookingCommand(BaseModel):
     schema_version: str = "calendar-booking-command.v1"
     command_key: str
     provider_account_ref: str
+    credential_secret_ref: str
+    operation: str = Field(pattern=r"^(BOOK|RESCHEDULE|CANCEL)$")
+    provider_event_id: str | None = None
     starts_at: datetime
     ends_at: datetime
     attendee_email: str
@@ -40,6 +45,7 @@ class CalendarProvider(Protocol):
         self,
         *,
         provider_account_ref: str,
+        credential_secret_ref: str,
         start_date: date,
         end_date: date,
     ) -> list[BusyInterval]: ...
@@ -48,4 +54,45 @@ class CalendarProvider(Protocol):
         self, command: CalendarBookingCommand
     ) -> CalendarProviderReceipt: ...
 
-    def lookup_event(self, command_key: str) -> CalendarProviderReceipt | None: ...
+    def reschedule_event(
+        self, command: CalendarBookingCommand
+    ) -> CalendarProviderReceipt: ...
+
+    def cancel_event(
+        self, command: CalendarBookingCommand
+    ) -> CalendarProviderReceipt: ...
+
+    def lookup_event(
+        self, command_key: str, credential_secret_ref: str
+    ) -> CalendarProviderReceipt | None: ...
+
+
+class CalendarProviderConfigurationError(RuntimeError):
+    """No credential-scoped calendar provider factory is configured."""
+
+
+def load_calendar_provider() -> CalendarProvider:
+    """Load a deployment-owned provider without request-supplied secrets."""
+
+    reference = os.environ.get("CALENDAR_PROVIDER_FACTORY", "").strip()
+    if ":" not in reference:
+        raise CalendarProviderConfigurationError(
+            "CALENDAR_PROVIDER_FACTORY must be configured as module:callable"
+        )
+    module_name, callable_name = reference.split(":", 1)
+    factory = getattr(importlib.import_module(module_name), callable_name, None)
+    if not callable(factory):
+        raise CalendarProviderConfigurationError("calendar provider factory is invalid")
+    provider = factory()
+    required = (
+        "free_busy",
+        "create_event",
+        "reschedule_event",
+        "cancel_event",
+        "lookup_event",
+    )
+    if not all(callable(getattr(provider, name, None)) for name in required):
+        raise CalendarProviderConfigurationError(
+            "calendar provider contract is incomplete"
+        )
+    return provider
