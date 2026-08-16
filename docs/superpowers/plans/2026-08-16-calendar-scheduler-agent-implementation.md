@@ -18,12 +18,12 @@
 - Create: `apps/api/app/alembic/versions/p1_calendar_scheduler_agent_20260816.py`
 - Test: `apps/api/tests/domain/test_calendar_scheduler_models.py`
 
-- [ ] Add RED tests for tenant/workspace composite ownership, immutable offer/
+- [x] Add RED tests for tenant/workspace composite ownership, immutable offer/
   receipt identity, valid transitions, and migration of current requests.
-- [ ] Implement models and a forward/backfill-safe migration preserving existing
+- [x] Implement models and a forward/backfill-safe migration preserving existing
   scheduling request IDs, statuses, timeline events, and Calendly receipts.
-- [ ] Run model, existing scheduling, and migration tests GREEN.
-- [ ] Commit with `feat: model autonomous calendar workflows`.
+- [x] Run model, existing scheduling, and migration tests GREEN.
+- [x] Commit with `feat: model autonomous calendar workflows`.
 
 ### Task 2: Time, availability, and confirmation engine
 

@@ -83,3 +83,9 @@ def test_proposal_generation_extends_the_proposal_job_schema() -> None:
     generation = _load("proposal_generation", "p1_proposal_generation_20260816.py")
     assert generation.revision == "p1_proposal_generation_20260816"
     assert generation.down_revision == "p1_proposal_agent_20260816"
+
+
+def test_calendar_scheduler_extends_the_proposal_generation_schema() -> None:
+    calendar = _load("calendar_scheduler", "p1_calendar_scheduler_agent_20260816.py")
+    assert calendar.revision == "p1_calendar_scheduler_agent_20260816"
+    assert calendar.down_revision == "p1_proposal_generation_20260816"
