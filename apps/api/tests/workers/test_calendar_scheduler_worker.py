@@ -43,10 +43,16 @@ from tests.domain.test_proposal_agent import _context, _session
 
 
 class CalendarAdapter:
-    def __init__(self, *, lose_response: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        lose_response: bool = False,
+        lose_operations: set[str] | None = None,
+    ) -> None:
         self.calls = 0
         self.operations: list[str] = []
         self.lose_response = lose_response
+        self.lose_operations = lose_operations or set()
         self.receipts: dict[str, CalendarProviderReceipt] = {}
 
     def free_busy(self, **_kwargs):
@@ -76,22 +82,27 @@ class CalendarAdapter:
         self, command: CalendarBookingCommand
     ) -> CalendarProviderReceipt:
         self.operations.append("RESCHEDULE")
-        return self._receipt(command)
+        return self._receipt(command, operation="RESCHEDULE")
 
     def cancel_event(self, command: CalendarBookingCommand) -> CalendarProviderReceipt:
         self.operations.append("CANCEL")
-        return self._receipt(command)
+        return self._receipt(command, operation="CANCEL")
 
-    def _receipt(self, command: CalendarBookingCommand) -> CalendarProviderReceipt:
+    def _receipt(
+        self, command: CalendarBookingCommand, *, operation: str
+    ) -> CalendarProviderReceipt:
         self.calls += 1
         receipt = CalendarProviderReceipt(
             command_key=command.command_key,
-            provider_event_id=f"event-{command.command_key}",
+            provider_event_id=command.provider_event_id
+            or f"event-{command.command_key}",
             provider_receipt_id=f"receipt-{command.command_key}",
             starts_at=command.starts_at,
             ends_at=command.ends_at,
         )
         self.receipts[command.command_key] = receipt
+        if operation in self.lose_operations:
+            raise TimeoutError(f"provider accepted {operation} but response was lost")
         return receipt
 
 
@@ -112,7 +123,7 @@ def test_booking_success_finalizes_one_meeting_and_receipt() -> None:
         )
 
 
-def test_book_reschedule_cancel_are_immutable_generations_with_one_capacity_unit() -> (
+def test_book_reschedule_cancel_use_immutable_per_operation_capacity() -> (
     None
 ):
     with _session() as session:
@@ -163,7 +174,7 @@ def test_book_reschedule_cancel_are_immutable_generations_with_one_capacity_unit
         ]
         assert receipts[1].previous_provider_event_id == book.provider_event_id
         assert receipts[2].previous_provider_event_id == reschedule.provider_event_id
-        assert session.exec(select(func.count(AgentUsageLedger.id))).one() == 1
+        assert session.exec(select(func.count(AgentUsageLedger.id))).one() == 3
 
 
 def test_accepted_then_timeout_is_unknown_and_never_automatically_retried() -> None:
@@ -230,6 +241,122 @@ def test_receipt_absence_with_operator_evidence_requeues_and_releases_capacity()
             session.exec(select(AgentUsageLedger)).one().state
             == AgentUsageState.RELEASED
         )
+
+
+def test_negative_book_reconciliation_retries_with_a_fresh_reservation() -> None:
+    with _session() as session:
+        job = _calendar_job(session)
+
+        class MissingReceiptAdapter(CalendarAdapter):
+            def create_event(self, _command):
+                self.calls += 1
+                raise TimeoutError("ambiguous connection close")
+
+        missing = MissingReceiptAdapter()
+        run_calendar_booking_batch(session, provider=missing)
+        reconcile_unknown_booking(
+            session,
+            tenant_id=job.tenant_id,
+            workspace_id=job.workspace_id,
+            job_id=job.id,
+            provider=missing,
+            actor_id=uuid.uuid4(),
+            actor_role="tenant_owner",
+            capabilities={"agents.admin.manage"},
+            provider_accepted=False,
+            provider_evidence_id="lookup-none-first-attempt",
+        )
+        session.commit()
+
+        assert run_calendar_booking_batch(session, provider=CalendarAdapter()) == 1
+        session.refresh(job)
+        reservations = session.exec(
+            select(AgentUsageLedger).order_by(AgentUsageLedger.created_at)
+        ).all()
+        assert job.status == "COMPLETED"
+        assert [item.state for item in reservations] == [
+            AgentUsageState.RELEASED,
+            AgentUsageState.FINALIZED,
+        ]
+        assert len({item.idempotency_key for item in reservations}) == 2
+
+
+def test_accepted_timeout_reconciliation_preserves_stable_event_lifecycle() -> None:
+    with _session() as session:
+        book = _calendar_job(session)
+        adapter = CalendarAdapter()
+        run_calendar_booking_batch(session, provider=adapter)
+        session.refresh(book)
+        stable_event_id = book.provider_event_id
+
+        for operation in ("RESCHEDULE", "CANCEL"):
+            successor = enqueue_calendar_lifecycle_job(
+                session,
+                tenant_id=book.tenant_id,
+                workspace_id=book.workspace_id,
+                deployment_id=book.deployment_id,
+                binding_id=book.binding_id,
+                confirmation_id=book.confirmation_id,
+                operation=operation,
+                predecessor_job_id=book.id,
+            )
+            session.commit()
+            adapter.lose_operations = {operation}
+            run_calendar_booking_batch(session, provider=adapter)
+            session.refresh(successor)
+            assert successor.status == "UNKNOWN_PROVIDER_OUTCOME"
+
+            reconcile_unknown_booking(
+                session,
+                tenant_id=successor.tenant_id,
+                workspace_id=successor.workspace_id,
+                job_id=successor.id,
+                provider=adapter,
+                actor_id=uuid.uuid4(),
+                actor_role="tenant_owner",
+                capabilities={"agents.admin.manage"},
+            )
+            session.commit()
+            session.refresh(successor)
+            receipt = session.exec(
+                select(CalendarBookingReceipt).where(
+                    CalendarBookingReceipt.confirmation_id == successor.confirmation_id,
+                    CalendarBookingReceipt.operation == operation,
+                    CalendarBookingReceipt.generation == successor.generation,
+                )
+            ).one()
+            assert successor.provider_event_id == stable_event_id
+            assert receipt.provider_event_id == stable_event_id
+            assert receipt.previous_provider_event_id == stable_event_id
+            book = successor
+
+
+def test_reschedule_requires_update_capability_before_provider_dispatch() -> None:
+    with _session() as session:
+        book = _calendar_job(session)
+        adapter = CalendarAdapter()
+        run_calendar_booking_batch(session, provider=adapter)
+        session.refresh(book)
+        binding = session.get(CalendarProviderBinding, book.binding_id)
+        binding.capabilities = ["free_busy.read", "event.create", "event.lookup"]
+        session.add(binding)
+        reschedule = enqueue_calendar_lifecycle_job(
+            session,
+            tenant_id=book.tenant_id,
+            workspace_id=book.workspace_id,
+            deployment_id=book.deployment_id,
+            binding_id=book.binding_id,
+            confirmation_id=book.confirmation_id,
+            operation="RESCHEDULE",
+            predecessor_job_id=book.id,
+        )
+        session.commit()
+
+        run_calendar_booking_batch(session, provider=adapter)
+        session.refresh(reschedule)
+        assert reschedule.status == "RETRY_SCHEDULED"
+        assert reschedule.provider_attempted_at is None
+        assert adapter.operations == ["BOOK"]
 
 
 def test_final_busy_recheck_requires_new_confirmation_without_provider_call() -> None:
@@ -383,7 +510,13 @@ def _calendar_job(session) -> CalendarBookingJob:
         provider="CALENDLY",
         provider_account_ref=f"account-{suffix}",
         credential_secret_ref=f"secret://calendar/{suffix}",
-        capabilities=["free_busy.read", "event.create", "event.lookup"],
+        capabilities=[
+            "free_busy.read",
+            "event.create",
+            "event.update",
+            "event.cancel",
+            "event.lookup",
+        ],
     )
     session.add_all([deployment, meeting_type, binding])
     session.flush()

@@ -338,8 +338,8 @@ class CalendarBookingReceipt(SQLModel, table=True):  # type: ignore[call-arg]
         UniqueConstraint(
             "workspace_id",
             "provider",
-            "provider_event_id",
-            name="uq_calendar_booking_receipt_event",
+            "provider_receipt_id",
+            name="uq_calendar_booking_receipt_provider_receipt",
         ),
     )
 

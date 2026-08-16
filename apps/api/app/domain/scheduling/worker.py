@@ -15,6 +15,7 @@ from app.domain.commercial_agents.capacity import (
     finalize_capacity,
     mark_capacity_unknown,
     reconcile_unknown_capacity,
+    release_capacity,
     reserve_capacity,
 )
 from app.domain.scheduling.availability import BusyInterval
@@ -189,7 +190,6 @@ def enqueue_calendar_lifecycle_job(
             or predecessor.status != "COMPLETED"
             or predecessor.operation == "CANCEL"
             or predecessor.provider_event_id is None
-            or predecessor.usage_reservation_id is None
         ):
             raise CalendarBookingError("completed bookable predecessor is required")
         if (
@@ -207,7 +207,6 @@ def enqueue_calendar_lifecycle_job(
             raise CalendarBookingError("lifecycle confirmations must own one request")
         generation = predecessor.generation + 1
         provider_event_id = predecessor.provider_event_id
-        usage_reservation_id = predecessor.usage_reservation_id
     job = CalendarBookingJob(
         tenant_id=tenant_id,
         workspace_id=workspace_id,
@@ -246,6 +245,15 @@ def _prepare_command(
         or binding.workspace_id != job.workspace_id
     ):
         raise CalendarBookingError("calendar job references cross-tenant records")
+    required_capability = {
+        "BOOK": "event.create",
+        "RESCHEDULE": "event.update",
+        "CANCEL": "event.cancel",
+    }[job.operation]
+    if required_capability not in binding.capabilities:
+        raise CalendarBookingError(
+            f"provider binding lacks {required_capability} capability"
+        )
     offer = session.get(SchedulingOffer, confirmation.offer_id)
     if (
         offer is None
@@ -353,15 +361,14 @@ def _finalize(
     if claimed.rowcount != 1:
         session.rollback()
         raise CalendarBookingError("booking completion lease is no longer owned")
-    if job.operation == "BOOK":
-        finalize_capacity(
-            session,
-            reservation_id=job.usage_reservation_id,
-            provider_receipt_id=receipt.provider_receipt_id,
-            finalized_units=1,
-            provider_units={"confirmed_meetings": 1},
-            now=now,
-        )
+    finalize_capacity(
+        session,
+        reservation_id=job.usage_reservation_id,
+        provider_receipt_id=receipt.provider_receipt_id,
+        finalized_units=1,
+        provider_units={"calendar_mutations": 1, "operation": job.operation},
+        now=now,
+    )
     session.add(
         CalendarBookingReceipt(
             tenant_id=job.tenant_id,
@@ -441,19 +448,17 @@ def run_calendar_booking_batch(
             command = _prepare_command(
                 session, job=job, provider=provider, now=datetime.now(timezone.utc)
             )
-            reservation = None
-            if job.operation == "BOOK":
-                request_id = _request_id_for_confirmation(session, job.confirmation_id)
-                reservation = reserve_capacity(
-                    session,
-                    tenant_id=job.tenant_id,
-                    workspace_id=job.workspace_id,
-                    deployment_id=job.deployment_id,
-                    capacity_metric="confirmed_meeting",
-                    idempotency_key=f"calendar-workflow:{request_id}",
-                )
-            elif job.usage_reservation_id is None:
-                raise CalendarBookingError("lifecycle capacity reservation is required")
+            reservation = reserve_capacity(
+                session,
+                tenant_id=job.tenant_id,
+                workspace_id=job.workspace_id,
+                deployment_id=job.deployment_id,
+                capacity_metric="confirmed_meeting",
+                idempotency_key=(
+                    f"calendar:{job.confirmation_id}:{job.operation.lower()}:"
+                    f"{job.generation}:attempt:{job.attempt_count}"
+                ),
+            )
             envelope = command.model_dump(mode="json")
             job.command_envelope = {**envelope, "provider": "CALENDLY"}
             job.command_digest = command.command_digest
@@ -495,6 +500,13 @@ def run_calendar_booking_batch(
         if _tenant_is_paused(session, job.tenant_id):
             current = session.get(CalendarBookingJob, job.id)
             if current is not None:
+                if current.usage_reservation_id is not None:
+                    release_capacity(
+                        session,
+                        reservation_id=current.usage_reservation_id,
+                        reason="TENANT_PAUSED_BEFORE_PROVIDER_CALL",
+                    )
+                    current.usage_reservation_id = None
                 current.status = "RETRY_SCHEDULED"
                 current.available_at = datetime.now(timezone.utc) + timedelta(minutes=1)
                 current.lease_token = None
@@ -568,6 +580,14 @@ def recover_expired_booking_leases(
     ).all()
     for job in jobs:
         if job.provider_attempted_at is None:
+            if job.usage_reservation_id is not None:
+                release_capacity(
+                    session,
+                    reservation_id=job.usage_reservation_id,
+                    reason="CALENDAR_WORKER_LEASE_EXPIRED_BEFORE_PROVIDER_CALL",
+                    now=at,
+                )
+                job.usage_reservation_id = None
             job.status = "RETRY_SCHEDULED"
             job.available_at = at
         else:
@@ -660,6 +680,9 @@ def reconcile_unknown_booking(
                 tenant_id=job.tenant_id,
                 workspace_id=job.workspace_id,
                 confirmation_id=job.confirmation_id,
+                operation=job.operation,
+                generation=job.generation,
+                previous_provider_event_id=job.provider_event_id,
                 provider=command.get("provider", "CALENDLY"),
                 provider_event_id=receipt.provider_event_id,
                 provider_receipt_id=receipt.provider_receipt_id,
@@ -669,6 +692,7 @@ def reconcile_unknown_booking(
         _sync_scheduling_request(
             session, job=job, receipt=receipt, now=datetime.now(timezone.utc)
         )
+        job.provider_event_id = receipt.provider_event_id
         job.status = "COMPLETED"
     else:
         job.status = "PENDING"
