@@ -54,6 +54,8 @@ class AcceptingAdapter:
         self.calls += 1
         receipt = EcrmProposalReceipt(
             command_key=command.command_key,
+            ecrm_cell_id=command.ecrm_cell_id,
+            client_account_id=command.client_account_id,
             proposal_id=command.proposal_id,
             version_id=f"version-{command.command_key}",
             version_number=2,
@@ -259,6 +261,54 @@ def test_lost_ecrm_response_is_not_retried_until_receipt_reconciliation() -> Non
         )
         session.commit()
         assert reconciled.status == ProposalJobStatus.COMPLETED
+
+
+def test_receipt_from_another_client_is_rejected() -> None:
+    with _session() as session:
+        _, job = _context(session)
+
+        class WrongClientAdapter(AcceptingAdapter):
+            def apply(self, command: EcrmProposalCommand) -> EcrmProposalReceipt:
+                receipt = super().apply(command)
+                return receipt.model_copy(update={"client_account_id": "other-client"})
+
+        assert run_proposal_batch(session, adapter=WrongClientAdapter()) == 1
+        session.refresh(job)
+        assert job.status == ProposalJobStatus.UNKNOWN_EXTERNAL_OUTCOME
+        assert session.exec(select(func.count(ProposalGenerationReceipt.id))).one() == 0
+
+
+def test_confirmed_absence_releases_capacity_and_retries_with_new_reservation() -> None:
+    with _session() as session:
+        _, job = _context(session)
+        adapter = LostResponseAdapter()
+        run_proposal_batch(session, adapter=adapter)
+        session.refresh(job)
+        adapter.receipts.clear()
+
+        reconciled = reconcile_unknown_proposal_job(
+            session,
+            tenant_id=job.tenant_id,
+            workspace_id=job.workspace_id,
+            job_id=job.id,
+            adapter=adapter,
+            accepted=False,
+            evidence_receipt_id="ecrm-absence-check-1",
+            reason="eCRM confirmed no proposal version was created",
+            actor_id=uuid.uuid4(),
+            actor_role="tenant_owner",
+            capabilities={"agents.admin.manage"},
+        )
+        session.commit()
+
+        assert reconciled.status == ProposalJobStatus.RETRY_SCHEDULED
+        old_usage = session.exec(select(AgentUsageLedger)).one()
+        assert old_usage.state == AgentUsageState.RELEASED
+
+        assert run_proposal_batch(session, adapter=AcceptingAdapter()) == 1
+        usages = session.exec(select(AgentUsageLedger)).all()
+        assert len(usages) == 2
+        assert usages[-1].state == AgentUsageState.FINALIZED
 
 
 def test_expired_worker_cannot_finalize_an_accepted_proposal() -> None:

@@ -232,6 +232,8 @@ def _command(job: ProposalGenerationJob) -> EcrmProposalCommand:
 def _validate_receipt(job: ProposalGenerationJob, receipt: EcrmProposalReceipt) -> None:
     if (
         receipt.command_key != job.command_key
+        or receipt.ecrm_cell_id != job.ecrm_cell_id
+        or receipt.client_account_id != job.client_account_id
         or receipt.proposal_id != job.proposal_id
         or receipt.content_digest != job.input_digest
     ):
@@ -326,6 +328,8 @@ def _persist_success(
             job_id=job.id,
             command_key=job.command_key,
             ecrm_receipt_id=receipt.receipt_id,
+            ecrm_cell_id=receipt.ecrm_cell_id,
+            client_account_id=receipt.client_account_id,
             proposal_id=receipt.proposal_id,
             version_id=receipt.version_id,
             version_number=receipt.version_number,
@@ -359,7 +363,7 @@ def _persist_success(
             "version_number": receipt.version_number,
         },
     )
-    session.commit()
+    session.flush()
     return job
 
 
@@ -401,7 +405,7 @@ def run_proposal_batch(
                 workspace_id=job.workspace_id,
                 deployment_id=job.deployment_id,
                 capacity_metric="proposal_version",
-                idempotency_key=f"proposal-generation:{job.id}",
+                idempotency_key=f"proposal-generation:{job.id}:{job.attempt_count}",
             )
             envelope = command.model_dump(mode="json", exclude={"payload"})
             job.command_envelope = envelope
@@ -455,8 +459,23 @@ def run_proposal_batch(
         else:
             try:
                 _persist_success(session, job=job, receipt=receipt, now=completed_at)
-            except ProposalLeaseLost:
-                pass
+                session.commit()
+            except ProposalAgentError as exc:
+                session.rollback()
+                job = session.get(ProposalGenerationJob, job.id)
+                if job is not None and job.usage_reservation_id is not None:
+                    mark_capacity_unknown(
+                        session,
+                        reservation_id=job.usage_reservation_id,
+                        reason=f"INVALID_ECRM_RECEIPT:{type(exc).__name__}",
+                    )
+                    job.status = ProposalJobStatus.UNKNOWN_EXTERNAL_OUTCOME
+                    job.lease_token = None
+                    job.lease_expires_at = None
+                    job.last_error_code = type(exc).__name__[:64]
+                    job.last_error_detail = str(exc)[:1000]
+                    session.add(job)
+                    session.commit()
         processed += 1
     return processed
 
@@ -499,6 +518,9 @@ def reconcile_unknown_proposal_job(
     workspace_id: str,
     job_id: uuid.UUID,
     adapter: EcrmProposalAdapter,
+    accepted: bool = True,
+    evidence_receipt_id: str | None = None,
+    reason: str = "eCRM proposal receipt reconciled",
     actor_id: uuid.UUID,
     actor_role: str,
     capabilities: set[str],
@@ -516,7 +538,49 @@ def reconcile_unknown_proposal_job(
     ).one_or_none()
     if job is None or job.status != ProposalJobStatus.UNKNOWN_EXTERNAL_OUTCOME:
         raise ProposalAgentError("unknown proposal job was not found")
+    if not reason.strip():
+        raise ProposalAgentError("reconciliation reason is required")
     receipt = adapter.lookup_receipt(job.command_key)
+    if not accepted:
+        if receipt is not None:
+            raise ProposalAgentError("eCRM returned a receipt; reconcile as accepted")
+        if not evidence_receipt_id or not evidence_receipt_id.strip():
+            raise ProposalAgentError("provider absence evidence receipt is required")
+        if job.usage_reservation_id is None:
+            raise ProposalAgentError("proposal capacity reservation is missing")
+        reconcile_unknown_capacity(
+            session,
+            reservation_id=job.usage_reservation_id,
+            accepted=False,
+            provider_receipt_id=evidence_receipt_id,
+            actor_id=actor_id,
+            actor_role=actor_role,
+            reason=reason,
+        )
+        job.status = ProposalJobStatus.RETRY_SCHEDULED
+        job.available_at = datetime.now(timezone.utc)
+        job.command_attempted_at = None
+        job.usage_reservation_id = None
+        job.last_error_code = None
+        job.last_error_detail = None
+        job.updated_at = datetime.now(timezone.utc)
+        session.add(job)
+        append_audit_event_to_session(
+            session,
+            event_name="proposal_agent.version.absence_reconciled",
+            workspace_id=workspace_id,
+            actor_id=actor_id,
+            actor_role=actor_role,
+            resource_type="proposal_generation_job",
+            resource_id=str(job.id),
+            payload={
+                "evidence_receipt_id": evidence_receipt_id,
+                "reason": reason,
+                "tenant_id": str(tenant_id),
+            },
+        )
+        session.flush()
+        return job
     if receipt is None:
         raise ProposalAgentError("eCRM receipt is still unavailable; do not replay")
     return _persist_success(

@@ -170,6 +170,8 @@ class ProposalGenerationReceipt(SQLModel, table=True):  # type: ignore[call-arg]
     )
     command_key: str = Field(max_length=255, index=True)
     ecrm_receipt_id: str = Field(max_length=255)
+    ecrm_cell_id: str = Field(max_length=128, index=True)
+    client_account_id: str = Field(max_length=255, index=True)
     proposal_id: str = Field(max_length=255)
     version_id: str = Field(max_length=255, index=True)
     version_number: int = Field(ge=1)
@@ -278,12 +280,20 @@ class ProposalGroundingSource(SQLModel, table=True):  # type: ignore[call-arg]
         )
     )
     workspace_id: str = Field(max_length=64, index=True)
+    ecrm_cell_id: str = Field(max_length=128, index=True)
+    client_account_id: str = Field(max_length=255, index=True)
     reference: str = Field(max_length=255)
+    source_version: str = Field(max_length=128)
     source_digest: str = Field(max_length=64)
+    evidence_receipt_id: str = Field(max_length=255)
     allowed_claim_types: list[str] = Field(sa_column=Column(JSON, nullable=False))
     allowed_claim_digests: list[str] = Field(sa_column=Column(JSON, nullable=False))
-    status: str = Field(default="PUBLISHED", max_length=32, index=True)
+    status: str = Field(default="DRAFT", max_length=32, index=True)
     published_by: uuid.UUID = Field()
+    approved_by: uuid.UUID | None = Field(default=None, index=True)
+    approved_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True))
+    )
     published_at: datetime = Field(
         default_factory=utc_now,
         sa_column=Column(DateTime(timezone=True), nullable=False),

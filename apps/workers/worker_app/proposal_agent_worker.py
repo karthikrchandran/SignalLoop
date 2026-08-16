@@ -14,7 +14,11 @@ if str(_API_SRC) not in sys.path:
 from sqlmodel import Session  # noqa: E402
 
 from app.core.db import engine  # noqa: E402
-from app.domain.proposal_agent.ecrm_adapter import EcrmProposalAdapter  # noqa: E402
+from app.domain.proposal_agent.ecrm_adapter import (  # noqa: E402
+    EcrmProposalAdapter,
+    EcrmProposalAdapterConfigurationError,
+    load_ecrm_proposal_adapter,
+)
 from app.domain.proposal_agent.service import (  # noqa: E402
     recover_expired_proposal_leases,
     run_proposal_batch,
@@ -23,6 +27,8 @@ from app.domain.proposal_agent.service import (  # noqa: E402
 logger = logging.getLogger(__name__)
 
 PROPOSAL_AGENT_BATCH_SIZE = 25
+PROPOSAL_AGENT_POLL_INTERVAL_SECONDS = 30
+ProposalAgentConfigurationError = EcrmProposalAdapterConfigurationError
 
 
 def process_proposal_agent_batch(adapter: EcrmProposalAdapter) -> int:
@@ -38,3 +44,9 @@ def process_proposal_agent_batch(adapter: EcrmProposalAdapter) -> int:
             adapter=adapter,
             limit=PROPOSAL_AGENT_BATCH_SIZE,
         )
+
+
+def process_configured_proposal_agent_batch() -> int:
+    """Load the deployment adapter and process one recoverable proposal batch."""
+
+    return process_proposal_agent_batch(load_ecrm_proposal_adapter())
