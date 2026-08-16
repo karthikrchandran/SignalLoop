@@ -18,13 +18,13 @@
 - Modify: `C:/My Workspace/eCRM/src/server/proposals/mutations.ts`
 - Test: `C:/My Workspace/eCRM/src/server/proposals/mutations.test.ts`
 
-- [ ] Add RED tests for monotonic versions, immutable sent/approved history,
+- [x] Add RED tests for monotonic versions, immutable sent/approved history,
   client/cell scoping, concurrent allocation, and approval invalidation.
-- [ ] Add `ProposalVersion`, version lines, approvals, artifacts, source manifest,
+- [x] Add `ProposalVersion`, version lines, approvals, artifacts, source manifest,
   template/questionnaire/clause versions, and current-version pointer.
-- [ ] Migrate current proposals into version 1 without losing line/PDF metadata.
-- [ ] Run Prisma validation, proposal tests, and migration test GREEN.
-- [ ] Commit in the eCRM repository with `feat: version client proposals immutably`.
+- [x] Migrate current proposals into version 1 without losing line/PDF metadata.
+- [x] Run Prisma validation, proposal tests, and migration test GREEN.
+- [x] Commit in the eCRM repository with `feat: version client proposals immutably`.
 
 ### Task 2: Template and questionnaire mode
 
@@ -34,12 +34,12 @@
 - Create: `C:/My Workspace/eCRM/src/server/proposals/rendering.ts`
 - Test: `C:/My Workspace/eCRM/src/server/proposals/template-generation.test.ts`
 
-- [ ] Add RED tests for schema validation, required commercial fields, stale price
+- [x] Add RED tests for schema validation, required commercial fields, stale price
   book, discount/tax/clause rejection, deterministic rendering, and cell isolation.
-- [ ] Implement versioned publication and safe deterministic renderer input.
-- [ ] Persist source/template/questionnaire/renderer digests on each version.
-- [ ] Run proposal tests and TypeScript checks GREEN.
-- [ ] Commit with `feat: generate proposals from approved templates`.
+- [x] Implement versioned publication and safe deterministic renderer input.
+- [x] Persist source/template/questionnaire/renderer digests on each version.
+- [x] Run proposal tests and TypeScript checks GREEN.
+- [x] Commit with `feat: generate proposals from approved templates`.
 
 ### Task 3: SignalLoop durable proposal job and eCRM seam
 
@@ -50,13 +50,13 @@
 - Create: `apps/api/app/alembic/versions/p1_proposal_agent_20260816.py`
 - Test: `apps/api/tests/domain/test_proposal_agent.py`
 
-- [ ] Add RED tests for stable commands, client/cell binding, leases, retries,
+- [x] Add RED tests for stable commands, client/cell binding, leases, retries,
   capacity, lost eCRM response, digest reconciliation, and DLQ replay.
-- [ ] Implement minimum-content encrypted job records and durable receipts while
+- [x] Implement minimum-content encrypted job records and durable receipts while
   keeping proposal bodies in eCRM.
-- [ ] Make ambiguous eCRM/artifact outcomes leave polling until receipt lookup.
-- [ ] Run domain, migration, and Ruff checks GREEN.
-- [ ] Commit with `feat: orchestrate proposal creation durably`.
+- [x] Make ambiguous eCRM/artifact outcomes leave polling until receipt lookup.
+- [x] Run domain, migration, and Ruff checks GREEN.
+- [x] Commit with `feat: orchestrate proposal creation durably`.
 
 ### Task 4: Governed generative mode and approvals
 

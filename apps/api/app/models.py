@@ -210,3 +210,8 @@ from app.domain.lead_preparation.models import (  # noqa: E402, F401
     LeadScoringPolicy,
     LeadScoreVersion,
 )
+from app.domain.proposal_agent.models import (  # noqa: E402, F401
+    ProposalGenerationEvidence,
+    ProposalGenerationJob,
+    ProposalGenerationReceipt,
+)

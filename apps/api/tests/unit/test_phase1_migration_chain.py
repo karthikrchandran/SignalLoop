@@ -71,3 +71,9 @@ def test_lead_outcomes_extend_the_autonomous_job_schema() -> None:
     outcomes = _load("lead_outcomes", "p1_lead_outcomes_20260816.py")
     assert outcomes.revision == "p1_lead_outcomes_20260816"
     assert outcomes.down_revision == "p1_lead_preparation_jobs_20260816"
+
+
+def test_proposal_agent_extends_the_lead_outcomes_schema() -> None:
+    proposal = _load("proposal_agent", "p1_proposal_agent_20260816.py")
+    assert proposal.revision == "p1_proposal_agent_20260816"
+    assert proposal.down_revision == "p1_lead_outcomes_20260816"
