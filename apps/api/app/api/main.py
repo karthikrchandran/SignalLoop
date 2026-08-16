@@ -8,12 +8,13 @@ from app.api.routes import (
     calls,
     campaign_health,
     campaigns,
+    commercial_agents,
     contacts,
     controls,
     customer_360,
     dashboard,
-    engagement_intelligence,
     ecrm_installations,
+    engagement_intelligence,
     kpis,
     login,
     oidc,
@@ -24,8 +25,8 @@ from app.api.routes import (
     prospecting,
     provider_credentials,
     public_branding,
-    revenue_interventions,
     revenue_essentials,
+    revenue_interventions,
     scheduling,
     scripts,
     sequences,
@@ -48,6 +49,7 @@ api_router.include_router(login.router)
 api_router.include_router(users.router)
 api_router.include_router(utils.router)
 api_router.include_router(campaigns.router)
+api_router.include_router(commercial_agents.router)
 api_router.include_router(campaign_health.router)
 api_router.include_router(templates.router)
 api_router.include_router(controls.router)

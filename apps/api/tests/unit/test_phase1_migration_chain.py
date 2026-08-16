@@ -31,7 +31,10 @@ def test_phase_one_history_keeps_the_prior_sales_agent_revision_reachable() -> N
 
 def test_onboarding_hardening_merges_current_heads_before_altering_run_scope() -> None:
     hardening = _load("onboarding_hardening", "onboarding_hardening_20260812.py")
-    assert set(hardening.down_revision) == {"phase1_merge_20260812", "p1_ecrm_install_q_20260812"}
+    assert set(hardening.down_revision) == {
+        "phase1_merge_20260812",
+        "p1_ecrm_install_q_20260812",
+    }
 
 
 def test_commercial_agent_registry_extends_the_current_phase_one_head() -> None:
@@ -40,3 +43,11 @@ def test_commercial_agent_registry_extends_the_current_phase_one_head() -> None:
     )
     assert registry.revision == "p1_commercial_agent_registry_20260816"
     assert registry.down_revision == "p1_tenant_workspace_binding_20260812"
+
+
+def test_commercial_agent_catalog_seed_extends_the_registry_schema() -> None:
+    catalog = _load(
+        "commercial_agent_catalog", "p1_commercial_agent_catalog_20260816.py"
+    )
+    assert catalog.revision == "p1_commercial_agent_catalog_20260816"
+    assert catalog.down_revision == "p1_commercial_agent_registry_20260816"

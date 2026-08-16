@@ -122,7 +122,7 @@ receipt/reason, and an audit lifecycle event.
 
 Run both commercial-agent domain test files.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```text
 git add apps/api/app/domain/commercial_agents apps/api/tests/domain/test_commercial_agent_capacity.py
@@ -138,22 +138,22 @@ git commit -m "feat: meter agent capacity durably"
 - Modify: `apps/api/app/domain/tenants/capabilities.py`
 - Test: `apps/api/tests/api/routes/test_commercial_agents.py`
 
-- [ ] **Step 1: Add RED HTTP tests**
+- [x] **Step 1: Add RED HTTP tests**
 
 Cover catalog read, deployment create, validate/activate/suspend/resume/retire,
 same-key replay, changed-payload conflict, role denial, and cross-tenant IDOR.
 
-- [ ] **Step 2: Verify route absence**
+- [x] **Step 2: Verify route absence**
 
 Run the route test and confirm 404/missing capability failures.
 
-- [ ] **Step 3: Implement strict schemas and routes**
+- [x] **Step 3: Implement strict schemas and routes**
 
 Require `CurrentUser`, tenant header/path scope, `agents.admin.manage`, and
 `IdempotencyKeyDep`. Execute mutations through `run_idempotent_mutation` and append
 secret-free audit in the same final transaction. Never return credential material.
 
-- [ ] **Step 4: Verify route, domain, Ruff, and migration head**
+- [x] **Step 4: Verify route, domain, Ruff, and migration head**
 
 Run focused tests, `uv run --directory apps/api ruff check app/domain/commercial_agents app/api/routes/commercial_agents.py tests/domain/test_commercial_agent_registry.py tests/domain/test_commercial_agent_capacity.py tests/api/routes/test_commercial_agents.py`, and `uv run --directory apps/api alembic heads`.
 

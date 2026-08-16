@@ -18,12 +18,34 @@ from app.domain.tenants.models import (
 
 _ROLE_CAPABILITIES: dict[RoleBundle, frozenset[str]] = {
     RoleBundle.EMPLOYEE: frozenset({"revenueos.essentials.read"}),
-    RoleBundle.MANAGER: frozenset({"revenueos.essentials.read", "revenueos.pipeline.read"}),
-    RoleBundle.ENGAGEMENT_OPERATOR: frozenset({"revenueos.essentials.read", "signalloop.campaign.manage"}),
-    RoleBundle.TENANT_OWNER: frozenset({"revenueos.essentials.read", "tenant.members.manage", "tenant.settings.manage"}),
-    RoleBundle.REVENUE_OS_ADMIN: frozenset({"revenueos.essentials.read", "revenueos.admin.manage"}),
-    RoleBundle.COMMIT_ARC_ADMIN: frozenset({"revenueos.essentials.read", "commitarc.admin.manage"}),
-    RoleBundle.ENGAGEMENT_ADMIN: frozenset({"revenueos.essentials.read", "signalloop.admin.manage", "signalloop.campaign.manage"}),
+    RoleBundle.MANAGER: frozenset(
+        {"revenueos.essentials.read", "revenueos.pipeline.read"}
+    ),
+    RoleBundle.ENGAGEMENT_OPERATOR: frozenset(
+        {"revenueos.essentials.read", "signalloop.campaign.manage"}
+    ),
+    RoleBundle.TENANT_OWNER: frozenset(
+        {
+            "agents.admin.manage",
+            "revenueos.essentials.read",
+            "tenant.members.manage",
+            "tenant.settings.manage",
+        }
+    ),
+    RoleBundle.REVENUE_OS_ADMIN: frozenset(
+        {"revenueos.essentials.read", "revenueos.admin.manage"}
+    ),
+    RoleBundle.COMMIT_ARC_ADMIN: frozenset(
+        {"revenueos.essentials.read", "commitarc.admin.manage"}
+    ),
+    RoleBundle.ENGAGEMENT_ADMIN: frozenset(
+        {
+            "agents.admin.manage",
+            "revenueos.essentials.read",
+            "signalloop.admin.manage",
+            "signalloop.campaign.manage",
+        }
+    ),
 }
 
 
@@ -45,7 +67,9 @@ def has_capability(bundle: RoleBundle | str, capability: str) -> bool:
     return capability in _ROLE_CAPABILITIES.get(role, frozenset())
 
 
-def resolve_suite_context(session: Session, *, user_id: uuid.UUID, tenant_id: uuid.UUID) -> SuiteContext:
+def resolve_suite_context(
+    session: Session, *, user_id: uuid.UUID, tenant_id: uuid.UUID
+) -> SuiteContext:
     """Resolve active tenant, memberships, entitlements, and role capabilities."""
     tenant = session.get(Tenant, tenant_id)
     if tenant is None or tenant.status != "ACTIVE":
@@ -74,8 +98,14 @@ def resolve_suite_context(session: Session, *, user_id: uuid.UUID, tenant_id: uu
         )
     ).all()
     role_bundles = frozenset(RoleBundle(role.role_bundle) for role in roles)
-    capabilities = frozenset(cap for bundle in role_bundles for cap in _ROLE_CAPABILITIES.get(bundle, frozenset()))
-    products = frozenset(_product_code_value(entitlement.product_code) for entitlement in entitlements)
+    capabilities = frozenset(
+        cap
+        for bundle in role_bundles
+        for cap in _ROLE_CAPABILITIES.get(bundle, frozenset())
+    )
+    products = frozenset(
+        _product_code_value(entitlement.product_code) for entitlement in entitlements
+    )
     return SuiteContext(user_id, tenant_id, products, role_bundles, capabilities)
 
 
