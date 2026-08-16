@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -15,11 +17,14 @@ from app.domain.commercial_agents.models import (
     AgentType,
 )
 from app.domain.lead_preparation.models import (
+    LeadPolicyChangeEvidence,
+    LeadPolicyEvaluationEvidence,
     LeadPreparationJob,
     LeadPreparationJobStatus,
     LeadScoringPolicy,
     LeadScoringPolicyStatus,
 )
+from app.domain.tenants.models import TenantWorkspaceBinding
 from app.domain_models import Contact
 
 
@@ -39,6 +44,86 @@ def _utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def _digest(value: object) -> str:
+    canonical = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def require_active_tenant_workspace_binding(
+    session: Session, *, tenant_id: uuid.UUID, workspace_id: str
+) -> TenantWorkspaceBinding:
+    """Fail closed before any lead-preparation contact access."""
+
+    binding = session.exec(
+        select(TenantWorkspaceBinding).where(
+            TenantWorkspaceBinding.tenant_id == tenant_id,
+            TenantWorkspaceBinding.workspace_id == workspace_id,
+            TenantWorkspaceBinding.status == "ACTIVE",
+        )
+    ).one_or_none()
+    if binding is None:
+        raise LeadPreparationOwnershipError("active tenant workspace binding is required")
+    return binding
+
+
+def record_policy_evaluation_evidence(
+    session: Session,
+    *,
+    tenant_id: uuid.UUID,
+    workspace_id: str,
+    contact_id: uuid.UUID,
+    actor_id: uuid.UUID,
+    policy_digest: str,
+    input_payload: object,
+    result_payload: dict[str, Any],
+) -> LeadPolicyEvaluationEvidence:
+    evidence = LeadPolicyEvaluationEvidence(
+        tenant_id=tenant_id,
+        workspace_id=workspace_id,
+        contact_id=contact_id,
+        actor_id=actor_id,
+        policy_digest=policy_digest,
+        input_digest=_digest(input_payload),
+        result_digest=_digest(result_payload),
+        result=result_payload,
+    )
+    session.add(evidence)
+    session.flush()
+    return evidence
+
+
+def record_policy_change_evidence(
+    session: Session,
+    *,
+    policy: LeadScoringPolicy,
+    action: str,
+    from_status: LeadScoringPolicyStatus | str | None,
+    to_status: LeadScoringPolicyStatus | str,
+    actor_id: uuid.UUID,
+    actor_role: str,
+    reason: str,
+    idempotency_key: str,
+) -> LeadPolicyChangeEvidence:
+    evidence = LeadPolicyChangeEvidence(
+        tenant_id=policy.tenant_id,
+        workspace_id=policy.workspace_id,
+        policy_id=policy.id,
+        action=action,
+        from_status=(
+            from_status.value if isinstance(from_status, LeadScoringPolicyStatus) else from_status
+        ),
+        to_status=to_status.value if isinstance(to_status, LeadScoringPolicyStatus) else to_status,
+        actor_id=actor_id,
+        actor_role=actor_role,
+        reason=reason.strip(),
+        policy_digest=policy.policy_digest,
+        idempotency_key=idempotency_key,
+    )
+    session.add(evidence)
+    session.flush()
+    return evidence
 
 
 def update_scoring_policy(
@@ -90,6 +175,9 @@ def enqueue_preparation_job(
     key = event_key.strip()
     if not key or max_attempts < 1 or max_attempts > 20:
         raise LeadPreparationError("event key and valid maximum attempts are required")
+    require_active_tenant_workspace_binding(
+        session, tenant_id=tenant_id, workspace_id=workspace_id
+    )
     existing = session.exec(
         select(LeadPreparationJob).where(
             LeadPreparationJob.tenant_id == tenant_id,

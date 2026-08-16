@@ -22,7 +22,10 @@ from app.domain.lead_preparation.models import (
     LeadScoringPolicy,
 )
 from app.domain.lead_preparation.scoring import score_contact
-from app.domain.lead_preparation.service import claim_preparation_job
+from app.domain.lead_preparation.service import (
+    claim_preparation_job,
+    require_active_tenant_workspace_binding,
+)
 from app.domain_models import Contact
 
 EvidenceCollector = Callable[[Contact], dict[str, Any]]
@@ -117,6 +120,9 @@ def _process_job(
     clock: Clock,
 ) -> None:
     started_at = _utc(clock())
+    require_active_tenant_workspace_binding(
+        session, tenant_id=job.tenant_id, workspace_id=job.workspace_id
+    )
     contact = session.exec(
         select(Contact).where(Contact.id == job.contact_id).with_for_update()
     ).one_or_none()

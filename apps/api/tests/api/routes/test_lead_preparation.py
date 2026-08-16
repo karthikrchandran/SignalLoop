@@ -4,16 +4,25 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
-from sqlmodel import Session
+from sqlmodel import Session, select
 
+from app import crud
 from app.core.config import settings
 from app.domain.commercial_agents.models import AgentDeployment, AgentDeploymentStatus
-from app.domain.lead_preparation.models import LeadPreparationJobStatus
+from app.domain.lead_preparation import models as lead_models
+from app.domain.lead_preparation.models import (
+    LeadPreparationJobStatus,
+    LeadScoringPolicy,
+)
 from app.domain.lead_preparation.scoring import build_default_scoring_policy
 from app.domain.lead_preparation.service import enqueue_preparation_job
 from app.domain.lead_preparation.worker import run_lead_preparation_batch
+from app.domain.tenants.models import TenantWorkspaceBinding
 from app.domain_models import Contact
+from app.models import UserCreate
 from tests.api.routes.test_commercial_agents import _create_payload, _tenant_registry
+from tests.utils.user import user_authentication_headers
+from tests.utils.utils import random_email, random_lower_string
 
 
 def _active_lead_agent(
@@ -47,6 +56,16 @@ def _active_lead_agent(
     db.add_all([deployment, contact])
     db.commit()
     return tenant, workspace, deployment, contact
+
+
+def _second_superuser_headers(client: TestClient, db: Session) -> dict[str, str]:
+    email = random_email()
+    password = random_lower_string()
+    crud.create_user(
+        session=db,
+        user_create=UserCreate(email=email, password=password, is_superuser=True),
+    )
+    return user_authentication_headers(client=client, email=email, password=password)
 
 
 def test_admin_publishes_policy_prepares_package_and_denies_unpaid_route(
@@ -94,6 +113,14 @@ def test_admin_publishes_policy_prepares_package_and_denies_unpaid_route(
     )
     assert created.status_code == 201
     assert replay.json() == created.json()
+    approval = client.post(
+        f"{prefix}/policies/{created.json()['id']}/approve",
+        headers={
+            **_second_superuser_headers(client, db),
+            "Idempotency-Key": f"approve-policy-{uuid.uuid4()}",
+        },
+        json={"reason": "Independent scoring policy review complete"},
+    )
     published = client.post(
         f"{prefix}/policies/{created.json()['id']}/publish",
         headers={
@@ -101,6 +128,7 @@ def test_admin_publishes_policy_prepares_package_and_denies_unpaid_route(
             "Idempotency-Key": f"publish-{uuid.uuid4()}",
         },
     )
+    assert approval.status_code == 200
     assert published.status_code == 200
     assert published.json()["status"] == "PUBLISHED"
 
@@ -256,3 +284,172 @@ def test_operator_replays_dead_letter_and_records_outcome_without_policy_change(
     assert outcome_replay.json() == outcome.json()
     db.refresh(policy)
     assert policy.status == "PUBLISHED"
+
+
+def test_policy_requires_independent_approval_and_persists_governance_evidence(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    tenant, workspace, _deployment, contact = _active_lead_agent(
+        client, superuser_token_headers, db
+    )
+    prefix = f"{settings.API_V1_STR}/lead-preparation/tenants/{tenant.id}"
+    policy_payload = {
+        "workspace_id": workspace.id,
+        "name": "Governed scoring",
+        "version": 97,
+        "feature_weights": {"buyer_intent": 100},
+        "band_thresholds": {"HOT": 70, "WARM": 40},
+        "freshness_windows": {"recent_activity_days": 30},
+        "exclusion_rules": ["do_not_contact"],
+    }
+
+    dry_run = client.post(
+        f"{prefix}/policies/dry-run",
+        headers=superuser_token_headers,
+        json={**policy_payload, "contact_id": str(contact.id)},
+    )
+    created = client.post(
+        f"{prefix}/policies",
+        headers={
+            **superuser_token_headers,
+            "Idempotency-Key": f"policy-{uuid.uuid4()}",
+        },
+        json=policy_payload,
+    )
+    policy_id = uuid.UUID(created.json()["id"])
+    publish_before_approval = client.post(
+        f"{prefix}/policies/{policy_id}/publish",
+        headers={
+            **superuser_token_headers,
+            "Idempotency-Key": f"publish-{uuid.uuid4()}",
+        },
+    )
+    self_approval = client.post(
+        f"{prefix}/policies/{policy_id}/approve",
+        headers={
+            **superuser_token_headers,
+            "Idempotency-Key": f"approve-{uuid.uuid4()}",
+        },
+        json={"reason": "Creator cannot approve"},
+    )
+
+    approver_headers = _second_superuser_headers(client, db)
+    approved = client.post(
+        f"{prefix}/policies/{policy_id}/approve",
+        headers={
+            **approver_headers,
+            "Idempotency-Key": f"approve-{uuid.uuid4()}",
+        },
+        json={"reason": "Independent policy review complete"},
+    )
+    published = client.post(
+        f"{prefix}/policies/{policy_id}/publish",
+        headers={
+            **superuser_token_headers,
+            "Idempotency-Key": f"publish-{uuid.uuid4()}",
+        },
+    )
+
+    assert dry_run.status_code == 200
+    assert uuid.UUID(dry_run.json()["evaluation_id"])
+    assert created.status_code == 201
+    assert publish_before_approval.status_code == 409
+    assert self_approval.status_code == 409
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "APPROVED"
+    assert published.status_code == 200
+    assert published.json()["status"] == "PUBLISHED"
+
+    policy = db.get(LeadScoringPolicy, policy_id)
+    assert policy is not None
+    evaluations = db.exec(
+        select(lead_models.LeadPolicyEvaluationEvidence).where(
+            lead_models.LeadPolicyEvaluationEvidence.tenant_id == tenant.id,
+            lead_models.LeadPolicyEvaluationEvidence.workspace_id == workspace.id,
+            lead_models.LeadPolicyEvaluationEvidence.contact_id == contact.id,
+        )
+    ).all()
+    changes = db.exec(
+        select(lead_models.LeadPolicyChangeEvidence).where(
+            lead_models.LeadPolicyChangeEvidence.policy_id == policy_id
+        )
+    ).all()
+    assert len(evaluations) == 1
+    assert evaluations[0].actor_id is not None
+    assert {item.action for item in changes} == {"CREATED", "APPROVED", "PUBLISHED"}
+    assert policy.created_by != policy.approved_by
+
+
+def test_inactive_tenant_workspace_binding_blocks_contact_access(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    tenant, workspace, deployment, contact = _active_lead_agent(
+        client, superuser_token_headers, db
+    )
+    policy = build_default_scoring_policy(
+        tenant_id=tenant.id, workspace_id=workspace.id, version=98
+    )
+    db.add(policy)
+    db.commit()
+    binding = db.exec(
+        select(TenantWorkspaceBinding).where(
+            TenantWorkspaceBinding.tenant_id == tenant.id,
+            TenantWorkspaceBinding.workspace_id == workspace.id,
+        )
+    ).one()
+    binding.status = "SUSPENDED"
+    db.add(binding)
+    db.commit()
+    prefix = f"{settings.API_V1_STR}/lead-preparation/tenants/{tenant.id}"
+    policy_payload = {
+        "workspace_id": workspace.id,
+        "name": "Suspended binding policy",
+        "version": 99,
+        "feature_weights": {"buyer_intent": 100},
+        "band_thresholds": {"HOT": 70, "WARM": 40},
+        "freshness_windows": {"recent_activity_days": 30},
+        "exclusion_rules": ["do_not_contact"],
+    }
+
+    dry_run = client.post(
+        f"{prefix}/policies/dry-run",
+        headers=superuser_token_headers,
+        json={**policy_payload, "contact_id": str(contact.id)},
+    )
+    job = client.post(
+        f"{prefix}/jobs",
+        headers={
+            **superuser_token_headers,
+            "Idempotency-Key": f"job-{uuid.uuid4()}",
+        },
+        json={
+            "workspace_id": workspace.id,
+            "deployment_id": str(deployment.id),
+            "contact_id": str(contact.id),
+            "policy_id": str(policy.id),
+            "event_key": f"contact:{contact.id}:inactive-binding",
+        },
+    )
+    outcome = client.post(
+        f"{prefix}/outcomes",
+        headers={
+            **superuser_token_headers,
+            "Idempotency-Key": f"outcome-{uuid.uuid4()}",
+        },
+        json={
+            "workspace_id": workspace.id,
+            "contact_id": str(contact.id),
+            "policy_id": str(policy.id),
+            "outcome_type": "MEETING_BOOKED",
+            "outcome_reference": "calendar:event:inactive",
+            "observed_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+    assert dry_run.status_code == 404
+    assert job.status_code == 404
+    assert outcome.status_code == 404

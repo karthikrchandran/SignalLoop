@@ -15,6 +15,7 @@ from app.domain.lead_preparation.models import (
     LeadPreparationJobStatus,
     LeadScoringPolicy,
 )
+from app.domain.lead_preparation.service import require_active_tenant_workspace_binding
 from app.domain_models import Contact
 
 
@@ -179,6 +180,9 @@ def ingest_lead_outcome(
         raise LeadPreparationReconciliationError(
             "outcome type, reference, and idempotency key are required"
         )
+    require_active_tenant_workspace_binding(
+        session, tenant_id=tenant_id, workspace_id=workspace_id
+    )
     existing = session.exec(
         select(LeadOutcomeObservation).where(
             LeadOutcomeObservation.tenant_id == tenant_id,

@@ -60,12 +60,14 @@ class LeadPolicyPublic(BaseModel):
     freshness_windows: dict[str, int]
     exclusion_rules: list[str]
     policy_digest: str
+    created_by: uuid.UUID | None
     approved_by: uuid.UUID | None
     approved_at: datetime | None
     created_at: datetime
 
 
 class LeadScoreDryRunPublic(BaseModel):
+    evaluation_id: uuid.UUID
     score: int
     band: LeadScoreBand
     contributions: list[dict[str, Any]]
@@ -126,6 +128,12 @@ class LeadPackagePublic(BaseModel):
 
 
 class LeadPackageDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class LeadPolicyDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reason: str = Field(min_length=3, max_length=500)

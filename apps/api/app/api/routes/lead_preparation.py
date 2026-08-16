@@ -45,6 +45,7 @@ from app.domain.lead_preparation.schemas import (
     LeadPackagePublic,
     LeadPackageRoute,
     LeadPolicyCreate,
+    LeadPolicyDecision,
     LeadPolicyDryRun,
     LeadPolicyPublic,
     LeadPreparationJobCreate,
@@ -56,6 +57,9 @@ from app.domain.lead_preparation.service import (
     LeadPreparationError,
     LeadPreparationOwnershipError,
     enqueue_preparation_job,
+    record_policy_change_evidence,
+    record_policy_evaluation_evidence,
+    require_active_tenant_workspace_binding,
 )
 from app.domain_models import Contact
 
@@ -65,6 +69,17 @@ router = APIRouter(prefix="/lead-preparation", tags=["lead-preparation"])
 def _digest(payload: object) -> str:
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _require_active_binding(
+    session: SessionDep, *, tenant_id: uuid.UUID, workspace_id: str
+) -> None:
+    try:
+        require_active_tenant_workspace_binding(
+            session, tenant_id=tenant_id, workspace_id=workspace_id
+        )
+    except LeadPreparationOwnershipError as exc:
+        raise HTTPException(status_code=404, detail="Workspace not found") from exc
 
 
 def _policy_from_payload(
@@ -90,6 +105,9 @@ def dry_run_policy(
     payload: LeadPolicyDryRun,
 ) -> dict[str, Any]:
     _authorize_agent_admin(session, user, tenant_id)
+    _require_active_binding(
+        session, tenant_id=tenant_id, workspace_id=payload.workspace_id
+    )
     contact = session.exec(
         select(Contact).where(
             Contact.id == payload.contact_id,
@@ -103,7 +121,7 @@ def dry_run_policy(
         payload=LeadPolicyCreate.model_validate(payload.model_dump(exclude={"contact_id"})),
     )
     result = score_contact(contact=contact, policy=policy)
-    return {
+    public_result = {
         "score": result.score,
         "band": result.band,
         "contributions": [item.model_dump(mode="json") for item in result.contributions],
@@ -112,6 +130,28 @@ def dry_run_policy(
         "exclusions": result.exclusions,
         "channel_eligibility": result.channel_eligibility,
     }
+    evidence = record_policy_evaluation_evidence(
+        session,
+        tenant_id=tenant_id,
+        workspace_id=payload.workspace_id,
+        contact_id=contact.id,
+        actor_id=user.id,
+        policy_digest=policy.policy_digest,
+        input_payload=payload.model_dump(mode="json"),
+        result_payload=public_result,
+    )
+    append_audit_event_to_session(
+        session,
+        event_name="lead_policy.evaluated",
+        workspace_id=payload.workspace_id,
+        actor_id=user.id,
+        actor_role=audit_actor_role(user),
+        resource_type="lead_policy_evaluation_evidence",
+        resource_id=str(evidence.id),
+        payload={"tenant_id": str(tenant_id), "policy_digest": policy.policy_digest},
+    )
+    session.commit()
+    return {"evaluation_id": evidence.id, **public_result}
 
 
 @router.get(
@@ -121,6 +161,7 @@ def list_policies(
     *, session: SessionDep, user: CurrentUser, tenant_id: uuid.UUID, workspace_id: str
 ) -> list[LeadScoringPolicy]:
     _authorize_agent_admin(session, user, tenant_id)
+    _require_active_binding(session, tenant_id=tenant_id, workspace_id=workspace_id)
     return list(
         session.exec(
             select(LeadScoringPolicy)
@@ -148,6 +189,9 @@ async def create_policy(
     idempotency_key: IdempotencyKeyDep,
 ) -> dict[str, Any]:
     _authorize_agent_admin(session, user, tenant_id)
+    _require_active_binding(
+        session, tenant_id=tenant_id, workspace_id=payload.workspace_id
+    )
 
     def create_once() -> dict[str, Any]:
         if session.exec(
@@ -159,8 +203,20 @@ async def create_policy(
         ).one_or_none():
             raise HTTPException(status_code=409, detail="Policy version already exists")
         policy = _policy_from_payload(tenant_id=tenant_id, payload=payload)
+        policy.created_by = user.id
         session.add(policy)
         session.flush()
+        record_policy_change_evidence(
+            session,
+            policy=policy,
+            action="CREATED",
+            from_status=None,
+            to_status=LeadScoringPolicyStatus.DRAFT,
+            actor_id=user.id,
+            actor_role=audit_actor_role(user),
+            reason="Policy version created",
+            idempotency_key=idempotency_key,
+        )
         append_audit_event_to_session(
             session,
             event_name="lead_policy.created",
@@ -265,6 +321,9 @@ async def create_outcome(
     idempotency_key: IdempotencyKeyDep,
 ) -> dict[str, Any]:
     _authorize_agent_admin(session, user, tenant_id)
+    _require_active_binding(
+        session, tenant_id=tenant_id, workspace_id=payload.workspace_id
+    )
 
     def ingest_once() -> dict[str, Any]:
         try:
@@ -310,6 +369,85 @@ async def create_outcome(
 
 
 @router.post(
+    "/tenants/{tenant_id}/policies/{policy_id}/approve",
+    response_model=LeadPolicyPublic,
+)
+async def approve_policy(
+    request: Request,
+    *,
+    session: SessionDep,
+    user: CurrentUser,
+    tenant_id: uuid.UUID,
+    policy_id: uuid.UUID,
+    payload: LeadPolicyDecision,
+    idempotency_key: IdempotencyKeyDep,
+) -> dict[str, Any]:
+    _authorize_agent_admin(session, user, tenant_id)
+
+    def approve_once() -> dict[str, Any]:
+        policy = session.exec(
+            select(LeadScoringPolicy)
+            .where(
+                LeadScoringPolicy.id == policy_id,
+                LeadScoringPolicy.tenant_id == tenant_id,
+            )
+            .with_for_update()
+        ).one_or_none()
+        if policy is None:
+            raise HTTPException(status_code=404, detail="Policy not found")
+        _require_active_binding(
+            session, tenant_id=tenant_id, workspace_id=policy.workspace_id
+        )
+        if policy.status == LeadScoringPolicyStatus.APPROVED:
+            return LeadPolicyPublic.model_validate(policy).model_dump(mode="json")
+        if policy.status != LeadScoringPolicyStatus.DRAFT:
+            raise HTTPException(status_code=409, detail="Only draft policies can be approved")
+        if policy.created_by is None or policy.created_by == user.id:
+            raise HTTPException(
+                status_code=409,
+                detail="Policy approval requires an independent administrator",
+            )
+        policy.status = LeadScoringPolicyStatus.APPROVED
+        policy.approved_by = user.id
+        policy.approved_at = datetime.now(timezone.utc)
+        session.add(policy)
+        record_policy_change_evidence(
+            session,
+            policy=policy,
+            action="APPROVED",
+            from_status=LeadScoringPolicyStatus.DRAFT,
+            to_status=LeadScoringPolicyStatus.APPROVED,
+            actor_id=user.id,
+            actor_role=audit_actor_role(user),
+            reason=payload.reason,
+            idempotency_key=idempotency_key,
+        )
+        append_audit_event_to_session(
+            session,
+            event_name="lead_policy.approved",
+            workspace_id=policy.workspace_id,
+            actor_id=user.id,
+            actor_role=audit_actor_role(user),
+            resource_type="lead_scoring_policy",
+            resource_id=str(policy.id),
+            payload={"tenant_id": str(tenant_id), "reason": payload.reason},
+        )
+        session.flush()
+        return LeadPolicyPublic.model_validate(policy).model_dump(mode="json")
+
+    return await run_idempotent_mutation(
+        request,
+        session=session,
+        idempotency_key=idempotency_key,
+        workspace_id=str(tenant_id),
+        operation=f"lead-preparation:policy:{policy_id}:approve",
+        request_payload=payload.model_dump(mode="json"),
+        mutation=approve_once,
+        safe_to_retry_on_failure=True,
+    )
+
+
+@router.post(
     "/tenants/{tenant_id}/policies/{policy_id}/publish",
     response_model=LeadPolicyPublic,
 )
@@ -335,10 +473,19 @@ async def publish_policy(
         ).one_or_none()
         if policy is None:
             raise HTTPException(status_code=404, detail="Policy not found")
+        _require_active_binding(
+            session, tenant_id=tenant_id, workspace_id=policy.workspace_id
+        )
         if policy.status == LeadScoringPolicyStatus.PUBLISHED:
             return LeadPolicyPublic.model_validate(policy).model_dump(mode="json")
-        if policy.status != LeadScoringPolicyStatus.DRAFT:
-            raise HTTPException(status_code=409, detail="Only draft policies can publish")
+        if (
+            policy.status != LeadScoringPolicyStatus.APPROVED
+            or policy.approved_by is None
+            or policy.approved_at is None
+        ):
+            raise HTTPException(
+                status_code=409, detail="Policy requires independent approval before publish"
+            )
         previous = session.exec(
             select(LeadScoringPolicy).where(
                 LeadScoringPolicy.tenant_id == tenant_id,
@@ -349,10 +496,30 @@ async def publish_policy(
         for item in previous:
             item.status = LeadScoringPolicyStatus.SUPERSEDED
             session.add(item)
+            record_policy_change_evidence(
+                session,
+                policy=item,
+                action="SUPERSEDED",
+                from_status=LeadScoringPolicyStatus.PUBLISHED,
+                to_status=LeadScoringPolicyStatus.SUPERSEDED,
+                actor_id=user.id,
+                actor_role=audit_actor_role(user),
+                reason=f"Superseded by policy {policy.id}",
+                idempotency_key=idempotency_key,
+            )
         policy.status = LeadScoringPolicyStatus.PUBLISHED
-        policy.approved_by = user.id
-        policy.approved_at = datetime.now(timezone.utc)
         session.add(policy)
+        record_policy_change_evidence(
+            session,
+            policy=policy,
+            action="PUBLISHED",
+            from_status=LeadScoringPolicyStatus.APPROVED,
+            to_status=LeadScoringPolicyStatus.PUBLISHED,
+            actor_id=user.id,
+            actor_role=audit_actor_role(user),
+            reason="Approved policy published",
+            idempotency_key=idempotency_key,
+        )
         append_audit_event_to_session(
             session,
             event_name="lead_policy.published",
@@ -441,6 +608,7 @@ def list_packages(
     *, session: SessionDep, user: CurrentUser, tenant_id: uuid.UUID, workspace_id: str
 ) -> list[LeadPreparationPackage]:
     _authorize_agent_admin(session, user, tenant_id)
+    _require_active_binding(session, tenant_id=tenant_id, workspace_id=workspace_id)
     return list(
         session.exec(
             select(LeadPreparationPackage)
@@ -576,6 +744,9 @@ async def route_package(
 
     def route_once() -> dict[str, Any]:
         package = _load_package(session, tenant_id=tenant_id, package_id=package_id)
+        _require_active_binding(
+            session, tenant_id=tenant_id, workspace_id=package.workspace_id
+        )
         if package.review_state == "ROUTED":
             return LeadPackagePublic.model_validate(package).model_dump(mode="json")
         if package.review_state != "APPROVED":

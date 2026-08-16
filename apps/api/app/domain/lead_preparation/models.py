@@ -25,6 +25,7 @@ def utc_now() -> datetime:
 
 class LeadScoringPolicyStatus(str, Enum):
     DRAFT = "DRAFT"
+    APPROVED = "APPROVED"
     PUBLISHED = "PUBLISHED"
     SUPERSEDED = "SUPERSEDED"
     RETIRED = "RETIRED"
@@ -72,6 +73,7 @@ class LeadScoringPolicy(SQLModel, table=True):  # type: ignore[call-arg]
     freshness_windows: dict[str, int] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
     exclusion_rules: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
     policy_digest: str = Field(max_length=64)
+    created_by: uuid.UUID | None = Field(default=None, index=True)
     approved_by: uuid.UUID | None = Field(default=None)
     approved_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True)))
     created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
@@ -289,6 +291,73 @@ class LeadOutcomeObservation(SQLModel, table=True):  # type: ignore[call-arg]
     outcome_type: str = Field(max_length=64, index=True)
     outcome_reference: str = Field(max_length=255)
     observed_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    idempotency_key: str = Field(max_length=255)
+    created_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class LeadPolicyEvaluationEvidence(SQLModel, table=True):  # type: ignore[call-arg]
+    """Immutable evidence that one candidate policy was evaluated against a contact."""
+
+    __tablename__ = "lead_policy_evaluation_evidence"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    tenant_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("suite_tenant.id", ondelete="CASCADE"), nullable=False, index=True
+        )
+    )
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
+    contact_id: uuid.UUID = Field(nullable=False, index=True)
+    actor_id: uuid.UUID = Field(nullable=False, index=True)
+    policy_digest: str = Field(max_length=64, index=True)
+    input_digest: str = Field(max_length=64)
+    result_digest: str = Field(max_length=64)
+    result: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
+    created_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class LeadPolicyChangeEvidence(SQLModel, table=True):  # type: ignore[call-arg]
+    """Immutable actor/reason evidence for a policy lifecycle transition."""
+
+    __tablename__ = "lead_policy_change_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "workspace_id",
+            "policy_id",
+            "action",
+            "idempotency_key",
+            name="uq_lead_policy_change_evidence_key",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    tenant_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("suite_tenant.id", ondelete="CASCADE"), nullable=False, index=True
+        )
+    )
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
+    policy_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("lead_scoring_policy.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    action: str = Field(max_length=32, index=True)
+    from_status: str | None = Field(default=None, max_length=32)
+    to_status: str = Field(max_length=32)
+    actor_id: uuid.UUID = Field(nullable=False, index=True)
+    actor_role: str = Field(max_length=64)
+    reason: str = Field(max_length=500)
+    policy_digest: str = Field(max_length=64)
     idempotency_key: str = Field(max_length=255)
     created_at: datetime = Field(
         default_factory=utc_now,

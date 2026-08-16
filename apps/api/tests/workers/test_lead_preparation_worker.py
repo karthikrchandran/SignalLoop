@@ -33,7 +33,12 @@ from app.domain.lead_preparation.service import (
     recover_expired_preparation_leases,
 )
 from app.domain.lead_preparation.worker import run_lead_preparation_batch
-from app.domain.tenants.models import ProductCode, ProductInstallation, Tenant
+from app.domain.tenants.models import (
+    ProductCode,
+    ProductInstallation,
+    Tenant,
+    TenantWorkspaceBinding,
+)
 from app.domain.workspaces.models import Workspace
 from app.domain_models import Contact
 
@@ -49,6 +54,7 @@ def _session() -> Session:
         tables=[
             Tenant.__table__,
             ProductInstallation.__table__,
+            TenantWorkspaceBinding.__table__,
             Workspace.__table__,
             Contact.__table__,
             AgentCatalogDefinition.__table__,
@@ -132,6 +138,13 @@ def _context(
         tenant_id=tenant.id, workspace_id=workspace.id, version=1
     )
     session.add_all([deployment, policy])
+    session.add(
+        TenantWorkspaceBinding(
+            tenant_id=tenant.id,
+            installation_id=installation.id,
+            workspace_id=workspace.id,
+        )
+    )
     session.commit()
     job = enqueue_preparation_job(
         session,
@@ -166,6 +179,34 @@ def test_event_enqueue_and_claim_are_idempotent_and_atomic() -> None:
         assert first is not None
         assert second is None
         assert session.exec(select(func.count(LeadPreparationJob.id))).one() == 1
+
+
+def test_worker_refuses_contact_read_after_tenant_workspace_binding_is_suspended() -> None:
+    with _session() as session:
+        deployment, _, _, job = _context(session)
+        binding = session.exec(
+            select(TenantWorkspaceBinding).where(
+                TenantWorkspaceBinding.tenant_id == deployment.tenant_id,
+                TenantWorkspaceBinding.workspace_id == deployment.workspace_id,
+            )
+        ).one()
+        binding.status = "SUSPENDED"
+        session.add(binding)
+        session.commit()
+
+        processed = run_lead_preparation_batch(
+            session,
+            evidence_collector=lambda _: {
+                "source_type": "contact_profile",
+                "source_reference": "must-not-run",
+            },
+        )
+
+        session.refresh(job)
+        assert processed == 1
+        assert job.status == LeadPreparationJobStatus.RETRY_SCHEDULED
+        assert job.last_error_code == "LeadPreparationOwnershipError"
+        assert session.exec(select(func.count(LeadScoreVersion.id))).one() == 0
 
 
 def test_success_creates_immutable_package_and_finalized_capacity() -> None:
