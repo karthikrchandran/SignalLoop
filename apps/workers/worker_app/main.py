@@ -5,8 +5,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from worker_app.calendar_scheduler_worker import (
     CALENDAR_SCHEDULER_POLL_INTERVAL_SECONDS,
     CalendarSchedulerConfigurationError,
-    load_calendar_provider,
-    process_calendar_scheduler_batch,
+    process_configured_calendar_scheduler_batch,
 )
 from worker_app.call_worker import POLL_INTERVAL_SECONDS as CALL_POLL_INTERVAL_SECONDS
 from worker_app.call_worker import poll_and_dispatch
@@ -20,6 +19,11 @@ from worker_app.projection_worker import (
     PROJECTION_POLL_INTERVAL_SECONDS,
     ProjectionWorkerConfigurationError,
     process_projection_batch,
+)
+from worker_app.proposal_agent_worker import (
+    PROPOSAL_AGENT_POLL_INTERVAL_SECONDS,
+    ProposalAgentConfigurationError,
+    process_configured_proposal_agent_batch,
 )
 from worker_app.revenue_intervention_worker import (
     REVENUE_INTERVENTION_POLL_INTERVAL_SECONDS,
@@ -115,14 +119,28 @@ async def _run_calendar_scheduler_job() -> None:
         logger.info("EnforcementGate paused — skipping calendar scheduler poll")
         return
     try:
-        provider = load_calendar_provider()
-        count = await asyncio.to_thread(process_calendar_scheduler_batch, provider)
+        count = await asyncio.to_thread(process_configured_calendar_scheduler_batch)
         if count:
             logger.info("Calendar scheduler processed %d booking job(s)", count)
     except CalendarSchedulerConfigurationError as exc:
         logger.warning("Calendar scheduler blocked by configuration: %s", exc)
     except Exception:
         logger.exception("Calendar scheduler poll failed")
+
+
+async def _run_proposal_agent_job() -> None:
+    gate = EnforcementGate()
+    if gate.is_paused():
+        logger.info("EnforcementGate paused — skipping proposal agent poll")
+        return
+    try:
+        count = await asyncio.to_thread(process_configured_proposal_agent_batch)
+        if count:
+            logger.info("Proposal agent processed %d job(s)", count)
+    except ProposalAgentConfigurationError as exc:
+        logger.warning("Proposal agent blocked by configuration: %s", exc)
+    except Exception:
+        logger.exception("Proposal agent poll failed")
 
 
 def main() -> None:
@@ -186,6 +204,14 @@ def main() -> None:
         max_instances=1,
         coalesce=True,
     )
+    scheduler.add_job(
+        _run_proposal_agent_job,
+        trigger="interval",
+        seconds=PROPOSAL_AGENT_POLL_INTERVAL_SECONDS,
+        id="proposal_agent_worker",
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.start()
     logger.info(
         "Sequence worker scheduled (interval=%ds)", POLL_INTERVAL_SECONDS
@@ -210,6 +236,10 @@ def main() -> None:
     logger.info(
         "Calendar scheduler scheduled (interval=%ds)",
         CALENDAR_SCHEDULER_POLL_INTERVAL_SECONDS,
+    )
+    logger.info(
+        "Proposal agent scheduled (interval=%ds)",
+        PROPOSAL_AGENT_POLL_INTERVAL_SECONDS,
     )
 
     try:

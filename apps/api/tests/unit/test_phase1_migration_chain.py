@@ -89,3 +89,27 @@ def test_calendar_scheduler_extends_the_proposal_generation_schema() -> None:
     calendar = _load("calendar_scheduler", "p1_calendar_scheduler_agent_20260816.py")
     assert calendar.revision == "p1_calendar_scheduler_agent_20260816"
     assert calendar.down_revision == "p1_proposal_generation_20260816"
+
+
+def test_calendar_lifecycle_extends_the_calendar_scheduler_schema() -> None:
+    lifecycle = _load(
+        "calendar_lifecycle", "p1_calendar_lifecycle_20260816.py"
+    )
+    assert lifecycle.revision == "p1_calendar_lifecycle_20260816"
+    assert lifecycle.down_revision == "p1_calendar_scheduler_agent_20260816"
+
+
+def test_proposal_hardening_is_forward_only_after_lead_governance() -> None:
+    hardening = _load(
+        "proposal_hardening", "p1_proposal_hardening_20260816.py"
+    )
+    assert hardening.revision == "p1_proposal_hardening_20260816"
+    assert hardening.down_revision == "p1_lead_governance_20260816"
+
+
+def test_calendar_manual_intents_extend_proposal_hardening() -> None:
+    intent = _load(
+        "calendar_intent", "p1_calendar_intent_nullable_20260816.py"
+    )
+    assert intent.revision == "p1_calendar_intent_nullable_20260816"
+    assert intent.down_revision == "p1_proposal_hardening_20260816"

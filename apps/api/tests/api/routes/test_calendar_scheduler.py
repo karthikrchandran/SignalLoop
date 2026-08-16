@@ -148,7 +148,13 @@ def test_admin_configures_offers_and_confirms_without_email_or_voice_dependency(
     assert _API_PROVIDER.free_busy_calls == 1
     assert confirmation.status_code == 201
     assert confirmation.json()["status"] == "PENDING"
-    persisted = db.exec(select(SchedulingConfirmation)).one()
+    persisted = db.exec(
+        select(SchedulingConfirmation).where(
+            SchedulingConfirmation.offer_id == uuid.UUID(offer.json()["id"]),
+            SchedulingConfirmation.tenant_id == tenant.id,
+            SchedulingConfirmation.workspace_id == workspace.id,
+        )
+    ).one()
     assert persisted.confirmation_key == confirmation_key
 
 

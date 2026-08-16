@@ -17,6 +17,7 @@ from app.core.db import engine  # noqa: E402
 from app.domain.scheduling.providers import (  # noqa: E402
     CalendarProvider,
     CalendarProviderConfigurationError,
+    load_calendar_provider,
 )
 from app.domain.scheduling.worker import (  # noqa: E402
     recover_expired_booking_leases,
@@ -45,3 +46,9 @@ def process_calendar_scheduler_batch(provider: CalendarProvider) -> int:
             provider=provider,
             limit=CALENDAR_SCHEDULER_BATCH_SIZE,
         )
+
+
+def process_configured_calendar_scheduler_batch() -> int:
+    """Load the deployment provider and process one recoverable calendar batch."""
+
+    return process_calendar_scheduler_batch(load_calendar_provider())

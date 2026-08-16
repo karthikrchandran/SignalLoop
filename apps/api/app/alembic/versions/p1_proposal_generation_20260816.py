@@ -21,18 +21,12 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("tenant_id", sa.Uuid(), nullable=False),
         sa.Column("workspace_id", sa.String(64), nullable=False),
-        sa.Column("ecrm_cell_id", sa.String(128), nullable=False),
-        sa.Column("client_account_id", sa.String(255), nullable=False),
         sa.Column("reference", sa.String(255), nullable=False),
-        sa.Column("source_version", sa.String(128), nullable=False),
         sa.Column("source_digest", sa.String(64), nullable=False),
-        sa.Column("evidence_receipt_id", sa.String(255), nullable=False),
         sa.Column("allowed_claim_types", sa.JSON(), nullable=False),
         sa.Column("allowed_claim_digests", sa.JSON(), nullable=False),
         sa.Column("status", sa.String(32), nullable=False),
         sa.Column("published_by", sa.Uuid(), nullable=False),
-        sa.Column("approved_by", sa.Uuid(), nullable=True),
-        sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("published_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["tenant_id"], ["suite_tenant.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
@@ -43,14 +37,7 @@ def upgrade() -> None:
             name="uq_proposal_grounding_source_reference",
         ),
     )
-    for column in (
-        "tenant_id",
-        "workspace_id",
-        "ecrm_cell_id",
-        "client_account_id",
-        "status",
-        "approved_by",
-    ):
+    for column in ("tenant_id", "workspace_id", "status"):
         op.create_index(
             f"ix_proposal_grounding_source_{column}",
             "proposal_grounding_source",

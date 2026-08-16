@@ -124,8 +124,6 @@ def upgrade() -> None:
         sa.Column("job_id", sa.Uuid(), nullable=False),
         sa.Column("command_key", sa.String(255), nullable=False),
         sa.Column("ecrm_receipt_id", sa.String(255), nullable=False),
-        sa.Column("ecrm_cell_id", sa.String(128), nullable=False),
-        sa.Column("client_account_id", sa.String(255), nullable=False),
         sa.Column("proposal_id", sa.String(255), nullable=False),
         sa.Column("version_id", sa.String(255), nullable=False),
         sa.Column("version_number", sa.Integer(), nullable=False),
@@ -146,15 +144,7 @@ def upgrade() -> None:
             name="uq_proposal_receipt_external",
         ),
     )
-    for column in (
-        "tenant_id",
-        "workspace_id",
-        "job_id",
-        "command_key",
-        "ecrm_cell_id",
-        "client_account_id",
-        "version_id",
-    ):
+    for column in ("tenant_id", "workspace_id", "job_id", "command_key", "version_id"):
         op.create_index(
             f"ix_proposal_generation_receipt_{column}",
             "proposal_generation_receipt",
