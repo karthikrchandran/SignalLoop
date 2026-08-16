@@ -23,6 +23,7 @@ from app.api.routes import (
     platform_admin,
     platform_shared,
     private,
+    proposal_agent,
     prospecting,
     provider_credentials,
     public_branding,
@@ -52,6 +53,7 @@ api_router.include_router(utils.router)
 api_router.include_router(campaigns.router)
 api_router.include_router(commercial_agents.router)
 api_router.include_router(lead_preparation.router)
+api_router.include_router(proposal_agent.router)
 api_router.include_router(campaign_health.router)
 api_router.include_router(templates.router)
 api_router.include_router(controls.router)

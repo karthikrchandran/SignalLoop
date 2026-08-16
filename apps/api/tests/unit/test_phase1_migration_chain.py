@@ -77,3 +77,9 @@ def test_proposal_agent_extends_the_lead_outcomes_schema() -> None:
     proposal = _load("proposal_agent", "p1_proposal_agent_20260816.py")
     assert proposal.revision == "p1_proposal_agent_20260816"
     assert proposal.down_revision == "p1_lead_outcomes_20260816"
+
+
+def test_proposal_generation_extends_the_proposal_job_schema() -> None:
+    generation = _load("proposal_generation", "p1_proposal_generation_20260816.py")
+    assert generation.revision == "p1_proposal_generation_20260816"
+    assert generation.down_revision == "p1_proposal_agent_20260816"

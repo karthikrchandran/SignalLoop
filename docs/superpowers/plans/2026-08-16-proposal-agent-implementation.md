@@ -67,10 +67,10 @@
 - Test: `apps/api/tests/domain/test_proposal_generation.py`
 - Test: `apps/api/tests/api/routes/test_proposal_agent.py`
 
-- [ ] Add RED evaluation tests proving no invented price, legal clause, client
+- [x] Add RED evaluation tests proving no invented price, legal clause, client
   fact, delivery promise, or compliance claim; ungrounded output is flagged.
-- [ ] Implement allowlisted retrieval, prompt/model versioning, evidence mapping,
+- [x] Implement allowlisted retrieval, prompt/model versioning, evidence mapping,
   draft-only state, approval requirements, and durable idempotent APIs.
-- [ ] Prove only an exact approved version can be handed to an active Email Agent.
-- [ ] Run SignalLoop and eCRM proposal gates GREEN.
-- [ ] Commit with `feat: add governed generative proposal drafts`.
+- [x] Prove only an exact approved version can be handed to an active Email Agent.
+- [x] Run SignalLoop and eCRM proposal gates GREEN.
+- [x] Commit with `feat: add governed generative proposal drafts`.

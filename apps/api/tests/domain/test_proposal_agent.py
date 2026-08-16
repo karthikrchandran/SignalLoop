@@ -11,6 +11,7 @@ from app.domain.audit.audit_events import AuditEvent
 from app.domain.commercial_agents.models import (
     AgentCapacityOverride,
     AgentCatalogDefinition,
+    AgentDependency,
     AgentDeployment,
     AgentDeploymentStatus,
     AgentLifecycleEvent,
@@ -25,6 +26,8 @@ from app.domain.proposal_agent.ecrm_adapter import (
     EcrmProposalReceipt,
 )
 from app.domain.proposal_agent.models import (
+    ProposalDraftReview,
+    ProposalEmailHandoff,
     ProposalGenerationEvidence,
     ProposalGenerationJob,
     ProposalGenerationReceipt,
@@ -83,6 +86,7 @@ def _session() -> Session:
             AgentCatalogDefinition.__table__,
             AgentPlanEntitlement.__table__,
             AgentDeployment.__table__,
+            AgentDependency.__table__,
             AgentCapacityOverride.__table__,
             AgentUsageLedger.__table__,
             AgentLifecycleEvent.__table__,
@@ -91,12 +95,16 @@ def _session() -> Session:
             ProposalGenerationJob.__table__,
             ProposalGenerationEvidence.__table__,
             ProposalGenerationReceipt.__table__,
+            ProposalEmailHandoff.__table__,
+            ProposalDraftReview.__table__,
         ],
     )
     return Session(engine)
 
 
-def _context(session: Session, *, max_attempts: int = 3) -> tuple[AgentDeployment, ProposalGenerationJob]:
+def _context(
+    session: Session, *, max_attempts: int = 3
+) -> tuple[AgentDeployment, ProposalGenerationJob]:
     suffix = uuid.uuid4().hex[:8]
     tenant = Tenant(key=f"proposal-{suffix}", display_name="Proposal Tenant")
     workspace = Workspace(id=f"proposal-{suffix}", name="Proposal Workspace")
@@ -161,7 +169,10 @@ def _context(session: Session, *, max_attempts: int = 3) -> tuple[AgentDeploymen
         command_key=f"proposal:{suffix}:v2",
         input_digest="b" * 64,
         source_digest="c" * 64,
-        request_payload={"clientName": "ARA Global", "templateVersionId": "template-v1"},
+        request_payload={
+            "clientName": "ARA Global",
+            "templateVersionId": "template-v1",
+        },
         max_attempts=max_attempts,
     )
     session.commit()
@@ -183,7 +194,10 @@ def test_job_is_cell_bound_idempotent_and_payload_is_encrypted() -> None:
             command_key=job.command_key,
             input_digest=job.input_digest,
             source_digest=job.source_digest,
-            request_payload={"clientName": "ARA Global", "templateVersionId": "template-v1"},
+            request_payload={
+                "clientName": "ARA Global",
+                "templateVersionId": "template-v1",
+            },
         )
         assert replay.id == job.id
         assert "ARA Global" not in job.encrypted_request
@@ -273,7 +287,9 @@ def test_expired_worker_cannot_finalize_an_accepted_proposal() -> None:
         assert usage.state == AgentUsageState.UNKNOWN
 
 
-def test_expired_preinvoke_lease_retries_but_attempted_command_becomes_unknown() -> None:
+def test_expired_preinvoke_lease_retries_but_attempted_command_becomes_unknown() -> (
+    None
+):
     with _session() as session:
         _, safe_job = _context(session)
         _, attempted_job = _context(session)

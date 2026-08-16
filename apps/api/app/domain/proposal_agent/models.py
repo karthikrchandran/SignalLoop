@@ -46,11 +46,19 @@ class ProposalGenerationJob(SQLModel, table=True):  # type: ignore[call-arg]
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     tenant_id: uuid.UUID = Field(
-        sa_column=Column(ForeignKey("suite_tenant.id", ondelete="CASCADE"), nullable=False, index=True)
+        sa_column=Column(
+            ForeignKey("suite_tenant.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
     )
     workspace_id: str = Field(max_length=64, index=True)
     deployment_id: uuid.UUID = Field(
-        sa_column=Column(ForeignKey("agent_deployment.id", ondelete="CASCADE"), nullable=False, index=True)
+        sa_column=Column(
+            ForeignKey("agent_deployment.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
     )
     ecrm_cell_id: str = Field(max_length=128, index=True)
     client_account_id: str = Field(max_length=255, index=True)
@@ -60,7 +68,9 @@ class ProposalGenerationJob(SQLModel, table=True):  # type: ignore[call-arg]
     input_digest: str = Field(max_length=64)
     source_digest: str = Field(max_length=64)
     encrypted_request: str = Field(sa_column=Column(Text, nullable=False))
-    command_envelope: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    command_envelope: dict[str, Any] | None = Field(
+        default=None, sa_column=Column(JSON)
+    )
     command_digest: str | None = Field(default=None, max_length=64)
     status: ProposalJobStatus = Field(
         default=ProposalJobStatus.PENDING,
@@ -69,7 +79,8 @@ class ProposalGenerationJob(SQLModel, table=True):  # type: ignore[call-arg]
     attempt_count: int = Field(default=0, ge=0)
     max_attempts: int = Field(default=5, ge=1, le=20)
     available_at: datetime = Field(
-        default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False, index=True)
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
     )
     lease_token: uuid.UUID | None = Field(default=None, index=True)
     lease_expires_at: datetime | None = Field(
@@ -97,7 +108,12 @@ class ProposalGenerationJob(SQLModel, table=True):  # type: ignore[call-arg]
 class ProposalGenerationEvidence(SQLModel, table=True):  # type: ignore[call-arg]
     __tablename__ = "proposal_generation_evidence"
     __table_args__ = (
-        UniqueConstraint("job_id", "source_reference", "source_digest", name="uq_proposal_evidence_source"),
+        UniqueConstraint(
+            "job_id",
+            "source_reference",
+            "source_digest",
+            name="uq_proposal_evidence_source",
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -110,21 +126,30 @@ class ProposalGenerationEvidence(SQLModel, table=True):  # type: ignore[call-arg
     )
     workspace_id: str = Field(max_length=64, index=True)
     job_id: uuid.UUID = Field(
-        sa_column=Column(ForeignKey("proposal_generation_job.id", ondelete="CASCADE"), nullable=False, index=True)
+        sa_column=Column(
+            ForeignKey("proposal_generation_job.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
     )
     source_type: str = Field(max_length=64)
     source_reference: str = Field(max_length=255)
     source_digest: str = Field(max_length=64)
     permitted_use: str = Field(default="PROPOSAL_GENERATION", max_length=64)
     sensitivity: str = Field(default="CLIENT_CONFIDENTIAL", max_length=32)
-    retrieved_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
+    retrieved_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class ProposalGenerationReceipt(SQLModel, table=True):  # type: ignore[call-arg]
     __tablename__ = "proposal_generation_receipt"
     __table_args__ = (
         UniqueConstraint("job_id", name="uq_proposal_receipt_job"),
-        UniqueConstraint("workspace_id", "ecrm_receipt_id", name="uq_proposal_receipt_external"),
+        UniqueConstraint(
+            "workspace_id", "ecrm_receipt_id", name="uq_proposal_receipt_external"
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -137,7 +162,11 @@ class ProposalGenerationReceipt(SQLModel, table=True):  # type: ignore[call-arg]
     )
     workspace_id: str = Field(max_length=64, index=True)
     job_id: uuid.UUID = Field(
-        sa_column=Column(ForeignKey("proposal_generation_job.id", ondelete="CASCADE"), nullable=False, index=True)
+        sa_column=Column(
+            ForeignKey("proposal_generation_job.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
     )
     command_key: str = Field(max_length=255, index=True)
     ecrm_receipt_id: str = Field(max_length=255)
@@ -146,4 +175,116 @@ class ProposalGenerationReceipt(SQLModel, table=True):  # type: ignore[call-arg]
     version_number: int = Field(ge=1)
     content_digest: str = Field(max_length=64)
     artifact_digest: str | None = Field(default=None, max_length=64)
-    finalized_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
+    finalized_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class ProposalEmailHandoff(SQLModel, table=True):  # type: ignore[call-arg]
+    __tablename__ = "proposal_email_handoff"
+    __table_args__ = (
+        UniqueConstraint(
+            "job_id", "version_id", name="uq_proposal_email_handoff_version"
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    tenant_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("suite_tenant.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    workspace_id: str = Field(max_length=64, index=True)
+    job_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("proposal_generation_job.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    email_deployment_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("agent_deployment.id", ondelete="RESTRICT"),
+            nullable=False,
+            index=True,
+        )
+    )
+    version_id: str = Field(max_length=255)
+    content_digest: str = Field(max_length=64)
+    approval_id: str = Field(max_length=255)
+    approved_by: str = Field(max_length=255)
+    status: str = Field(default="AUTHORIZED", max_length=32, index=True)
+    created_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class ProposalDraftReview(SQLModel, table=True):  # type: ignore[call-arg]
+    __tablename__ = "proposal_draft_review"
+    __table_args__ = (UniqueConstraint("job_id", name="uq_proposal_draft_review_job"),)
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    tenant_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("suite_tenant.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    workspace_id: str = Field(max_length=64, index=True)
+    job_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("proposal_generation_job.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    prompt_version: str = Field(max_length=128)
+    model_id: str = Field(max_length=255)
+    draft_digest: str = Field(max_length=64)
+    evidence_map: list[dict[str, str]] = Field(
+        default_factory=list, sa_column=Column(JSON, nullable=False)
+    )
+    review_state: str = Field(
+        default="DRAFT_REVIEW_REQUIRED", max_length=32, index=True
+    )
+    created_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class ProposalGroundingSource(SQLModel, table=True):  # type: ignore[call-arg]
+    __tablename__ = "proposal_grounding_source"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "workspace_id",
+            "reference",
+            name="uq_proposal_grounding_source_reference",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    tenant_id: uuid.UUID = Field(
+        sa_column=Column(
+            ForeignKey("suite_tenant.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    workspace_id: str = Field(max_length=64, index=True)
+    reference: str = Field(max_length=255)
+    source_digest: str = Field(max_length=64)
+    allowed_claim_types: list[str] = Field(sa_column=Column(JSON, nullable=False))
+    allowed_claim_digests: list[str] = Field(sa_column=Column(JSON, nullable=False))
+    status: str = Field(default="PUBLISHED", max_length=32, index=True)
+    published_by: uuid.UUID = Field()
+    published_at: datetime = Field(
+        default_factory=utc_now,
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )

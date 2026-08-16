@@ -34,6 +34,18 @@ class EcrmProposalReceipt(BaseModel):
     receipt_id: str
 
 
+class EcrmProposalApprovalReceipt(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    schema_version: str = "proposal-approval-receipt.v1"
+    ecrm_cell_id: str
+    proposal_id: str
+    version_id: str
+    content_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+    approval_id: str
+    approved_by: str
+
+
 class EcrmProposalAdapter(Protocol):
     def apply(self, command: EcrmProposalCommand) -> EcrmProposalReceipt: ...
 

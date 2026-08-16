@@ -75,8 +75,13 @@ def enqueue_proposal_job(
     now: datetime | None = None,
 ) -> ProposalGenerationJob:
     values = (ecrm_cell_id, client_account_id, proposal_id, command_key)
-    if any(not value.strip() for value in values) or mode not in {"TEMPLATE", "GENERATIVE"}:
-        raise ProposalAgentError("cell, client, proposal, command key, and supported mode are required")
+    if any(not value.strip() for value in values) or mode not in {
+        "TEMPLATE",
+        "GENERATIVE",
+    }:
+        raise ProposalAgentError(
+            "cell, client, proposal, command key, and supported mode are required"
+        )
     if any(len(value) != 64 for value in (input_digest, source_digest)):
         raise ProposalAgentError("input and source digests must be SHA-256 values")
     existing = session.exec(
@@ -95,7 +100,9 @@ def enqueue_proposal_job(
             or existing.input_digest != input_digest
             or existing.source_digest != source_digest
         ):
-            raise ProposalAgentError("proposal command key conflicts with stored request")
+            raise ProposalAgentError(
+                "proposal command key conflicts with stored request"
+            )
         return existing
     deployment = session.get(AgentDeployment, deployment_id)
     binding = session.get(EcrmInstallationBinding, workspace_id)
@@ -108,11 +115,17 @@ def enqueue_proposal_job(
         or binding is None
         or binding.status != "ACTIVE"
         or binding.ecrm_cell_id != ecrm_cell_id
-        or not {"proposal.version.create", "proposal.receipt.lookup"}.issubset(binding.capabilities)
+        or not {"proposal.version.create", "proposal.receipt.lookup"}.issubset(
+            binding.capabilities
+        )
     ):
-        raise ProposalAgentError("active owned Proposal Agent and exact eCRM cell binding are required")
+        raise ProposalAgentError(
+            "active owned Proposal Agent and exact eCRM cell binding are required"
+        )
     at = _utc(now or datetime.now(timezone.utc))
-    encrypted_request = encrypt(json.dumps(request_payload, sort_keys=True, separators=(",", ":")))
+    encrypted_request = encrypt(
+        json.dumps(request_payload, sort_keys=True, separators=(",", ":"))
+    )
     job = ProposalGenerationJob(
         tenant_id=tenant_id,
         workspace_id=workspace_id,
@@ -147,11 +160,18 @@ def enqueue_proposal_job(
     return job
 
 
-def _claim(session: Session, *, now: datetime, lease_seconds: int = 300) -> ProposalGenerationJob | None:
+def _claim(
+    session: Session, *, now: datetime, lease_seconds: int = 300
+) -> ProposalGenerationJob | None:
     candidate = session.exec(
         select(ProposalGenerationJob.id)
         .where(
-            ProposalGenerationJob.status.in_([ProposalJobStatus.PENDING.value, ProposalJobStatus.RETRY_SCHEDULED.value]),
+            ProposalGenerationJob.status.in_(
+                [
+                    ProposalJobStatus.PENDING.value,
+                    ProposalJobStatus.RETRY_SCHEDULED.value,
+                ]
+            ),
             ProposalGenerationJob.available_at <= now,
         )
         .order_by(ProposalGenerationJob.created_at, ProposalGenerationJob.id)
@@ -164,7 +184,12 @@ def _claim(session: Session, *, now: datetime, lease_seconds: int = 300) -> Prop
         update(ProposalGenerationJob)
         .where(
             ProposalGenerationJob.id == candidate,
-            ProposalGenerationJob.status.in_([ProposalJobStatus.PENDING.value, ProposalJobStatus.RETRY_SCHEDULED.value]),
+            ProposalGenerationJob.status.in_(
+                [
+                    ProposalJobStatus.PENDING.value,
+                    ProposalJobStatus.RETRY_SCHEDULED.value,
+                ]
+            ),
             ProposalGenerationJob.available_at <= now,
         )
         .values(
@@ -210,7 +235,9 @@ def _validate_receipt(job: ProposalGenerationJob, receipt: EcrmProposalReceipt) 
         or receipt.proposal_id != job.proposal_id
         or receipt.content_digest != job.input_digest
     ):
-        raise ProposalAgentError("eCRM proposal receipt does not match the durable command")
+        raise ProposalAgentError(
+            "eCRM proposal receipt does not match the durable command"
+        )
 
 
 def _persist_success(
@@ -318,22 +345,34 @@ def _persist_success(
         session.add(job)
     append_audit_event_to_session(
         session,
-        event_name="proposal_agent.version.completed" if not reconcile else "proposal_agent.version.reconciled",
+        event_name="proposal_agent.version.completed"
+        if not reconcile
+        else "proposal_agent.version.reconciled",
         workspace_id=job.workspace_id,
         actor_id=actor_id,
         actor_role=actor_role,
         resource_type="proposal_generation_job",
         resource_id=str(job.id),
-        payload={"proposal_id": job.proposal_id, "version_id": receipt.version_id, "version_number": receipt.version_number},
+        payload={
+            "proposal_id": job.proposal_id,
+            "version_id": receipt.version_id,
+            "version_number": receipt.version_number,
+        },
     )
     session.commit()
     return job
 
 
-def _record_preinvoke_failure(session: Session, job: ProposalGenerationJob, error: Exception, now: datetime) -> None:
+def _record_preinvoke_failure(
+    session: Session, job: ProposalGenerationJob, error: Exception, now: datetime
+) -> None:
     terminal = job.attempt_count >= job.max_attempts
-    job.status = ProposalJobStatus.DEAD_LETTER if terminal else ProposalJobStatus.RETRY_SCHEDULED
-    job.available_at = now + timedelta(minutes=min(60, 2 ** max(0, job.attempt_count - 1)))
+    job.status = (
+        ProposalJobStatus.DEAD_LETTER if terminal else ProposalJobStatus.RETRY_SCHEDULED
+    )
+    job.available_at = now + timedelta(
+        minutes=min(60, 2 ** max(0, job.attempt_count - 1))
+    )
     job.lease_token = None
     job.lease_expires_at = None
     job.last_error_code = type(error).__name__[:64]
@@ -422,7 +461,9 @@ def run_proposal_batch(
     return processed
 
 
-def recover_expired_proposal_leases(session: Session, *, now: datetime | None = None) -> int:
+def recover_expired_proposal_leases(
+    session: Session, *, now: datetime | None = None
+) -> int:
     at = _utc(now or datetime.now(timezone.utc))
     jobs = session.exec(
         select(ProposalGenerationJob).where(
@@ -465,11 +506,13 @@ def reconcile_unknown_proposal_job(
     if "agents.admin.manage" not in capabilities:
         raise ProposalAgentError("agent administration capability is required")
     job = session.exec(
-        select(ProposalGenerationJob).where(
+        select(ProposalGenerationJob)
+        .where(
             ProposalGenerationJob.id == job_id,
             ProposalGenerationJob.tenant_id == tenant_id,
             ProposalGenerationJob.workspace_id == workspace_id,
-        ).with_for_update()
+        )
+        .with_for_update()
     ).one_or_none()
     if job is None or job.status != ProposalJobStatus.UNKNOWN_EXTERNAL_OUTCOME:
         raise ProposalAgentError("unknown proposal job was not found")
@@ -501,11 +544,13 @@ def replay_dead_letter_proposal_job(
     if "agents.admin.manage" not in capabilities or not reason.strip():
         raise ProposalAgentError("agent administration and replay reason are required")
     job = session.exec(
-        select(ProposalGenerationJob).where(
+        select(ProposalGenerationJob)
+        .where(
             ProposalGenerationJob.id == job_id,
             ProposalGenerationJob.tenant_id == tenant_id,
             ProposalGenerationJob.workspace_id == workspace_id,
-        ).with_for_update()
+        )
+        .with_for_update()
     ).one_or_none()
     if job is None or job.status != ProposalJobStatus.DEAD_LETTER:
         raise ProposalAgentError("dead-letter proposal job was not found")
