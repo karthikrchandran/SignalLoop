@@ -85,7 +85,7 @@ the lifecycle event in the same transaction.
 
 Run: `uv run --env-file C:/Users/K.Ramachandran/eMailVoice/.env --directory apps/api pytest tests/domain/test_commercial_agent_registry.py -q`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```text
 git add apps/api/app/domain/commercial_agents apps/api/tests/domain/test_commercial_agent_registry.py
@@ -98,7 +98,7 @@ git commit -m "feat: enforce commercial agent slots"
 - Create: `apps/api/app/domain/commercial_agents/capacity.py`
 - Test: `apps/api/tests/domain/test_commercial_agent_capacity.py`
 
-- [ ] **Step 1: Add RED tests for reserve, replay, release, unknown, and reconcile**
+- [x] **Step 1: Add RED tests for reserve, replay, release, unknown, and reconcile**
 
 ```python
 def test_same_usage_key_is_counted_once(session): ...
@@ -107,18 +107,18 @@ def test_unknown_outcome_holds_capacity_until_reconciled(session): ...
 def test_capacity_limit_is_atomic_across_sessions(engine): ...
 ```
 
-- [ ] **Step 2: Verify expected failures**
+- [x] **Step 2: Verify expected failures**
 
 Run the capacity test and confirm the module/API is absent.
 
-- [ ] **Step 3: Implement the usage ledger state machine**
+- [x] **Step 3: Implement the usage ledger state machine**
 
 Use `RESERVED`, `FINALIZED`, `RELEASED`, and `UNKNOWN` states. Lock the deployment
 and billing-day aggregate before reserving. Stable `(deployment, metric,
 idempotency_key)` uniqueness makes retry free. Reconciliation requires capability,
 receipt/reason, and an audit lifecycle event.
 
-- [ ] **Step 4: Run focused tests GREEN**
+- [x] **Step 4: Run focused tests GREEN**
 
 Run both commercial-agent domain test files.
 
