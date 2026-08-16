@@ -19,7 +19,7 @@
 - Create: `apps/api/app/alembic/versions/p1_commercial_agent_registry_20260816.py`
 - Test: `apps/api/tests/domain/test_commercial_agent_registry.py`
 
-- [ ] **Step 1: Write the failing model contract test**
+- [x] **Step 1: Write the failing model contract test**
 
 ```python
 def test_agent_deployment_is_unique_inside_tenant_and_workspace(session):
@@ -28,12 +28,12 @@ def test_agent_deployment_is_unique_inside_tenant_and_workspace(session):
     assert session.exec(select(AgentDeployment)).one().status == AgentDeploymentStatus.DRAFT
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run: `uv run --env-file C:/Users/K.Ramachandran/eMailVoice/.env --directory apps/api pytest tests/domain/test_commercial_agent_registry.py -q`
 Expected: collection fails because `app.domain.commercial_agents.models` does not exist.
 
-- [ ] **Step 3: Implement focused models and migration**
+- [x] **Step 3: Implement focused models and migration**
 
 Define `AgentType`, `AgentDeploymentStatus`, `AgentCatalogDefinition`,
 `AgentPlanEntitlement`, `AgentDeployment`, `AgentDependency`,
@@ -42,12 +42,12 @@ composite uniqueness for catalog version, tenant contract version, deployment
 name, and usage idempotency. Every mutable record has tenant/installation/
 workspace ownership columns where applicable.
 
-- [ ] **Step 4: Run model and migration-chain tests GREEN**
+- [x] **Step 4: Run model and migration-chain tests GREEN**
 
 Run: `uv run --env-file C:/Users/K.Ramachandran/eMailVoice/.env --directory apps/api pytest tests/domain/test_commercial_agent_registry.py tests/unit/test_phase1_migration_chain.py -q`
 Expected: all tests pass and `uv run --directory apps/api alembic heads` prints one head.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```text
 git add apps/api/app/domain/commercial_agents apps/api/app/models.py apps/api/app/alembic/versions apps/api/tests/domain/test_commercial_agent_registry.py
@@ -60,7 +60,7 @@ git commit -m "feat: add commercial agent registry models"
 - Create: `apps/api/app/domain/commercial_agents/service.py`
 - Modify: `apps/api/tests/domain/test_commercial_agent_registry.py`
 
-- [ ] **Step 1: Add failing activation tests**
+- [x] **Step 1: Add failing activation tests**
 
 ```python
 def test_activation_rejects_sixth_deployment_for_five_slots(session): ...
@@ -69,11 +69,11 @@ def test_campaign_manager_requires_active_channel_agents(session): ...
 def test_cross_tenant_workspace_binding_is_rejected(session): ...
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run the focused registry test and confirm missing `activate_deployment` behavior.
 
-- [ ] **Step 3: Implement transactional services**
+- [x] **Step 3: Implement transactional services**
 
 Add `validate_deployment`, `activate_deployment`, `suspend_deployment`,
 `resume_deployment`, and `retire_deployment`. Activation locks the tenant row,
@@ -81,7 +81,7 @@ loads one active entitlement, validates an active SignalLoop installation and
 workspace binding, counts slot-consuming states, checks dependencies, then writes
 the lifecycle event in the same transaction.
 
-- [ ] **Step 4: Verify GREEN including the two-session race**
+- [x] **Step 4: Verify GREEN including the two-session race**
 
 Run: `uv run --env-file C:/Users/K.Ramachandran/eMailVoice/.env --directory apps/api pytest tests/domain/test_commercial_agent_registry.py -q`
 
