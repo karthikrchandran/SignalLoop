@@ -120,7 +120,7 @@ uv run alembic revision --autogenerate -m "describe change"
 Full handover documentation lives under [`docs/`](docs/):
 
 - [Developer guide](docs/developer-guide/README.md) — onboarding, codebase tour, env vars, testing, troubleshooting.
-- [User guide](docs/user-guide/getting-started.md) — operator-facing product walkthrough.
+- [User guide](docs/user-guide/signalloop%20user%20guide.md) — operator-facing product walkthrough.
 - [Architecture overview](docs/architecture/README.md) — system context, data model, process flows.
 - [Operations / dev scripts](docs/operations/dev-scripts.md) — start/stop scripts and ports.
 - [Provider setup](docs/operations/provider-setup.md) — local Mailpit/Ollama/faster-whisper first, paid providers only when registered.

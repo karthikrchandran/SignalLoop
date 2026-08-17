@@ -21,7 +21,7 @@ This is the starter pack for any engineer joining or taking over the SignalLoop 
 
 - [Architecture overview](../architecture/README.md) — system context, data model, process flows.
 - [Operations / provider setup](../operations/provider-setup.md) — local Mailpit/Ollama/faster-whisper first; paid providers after registration.
-- [User guide](../user-guide/getting-started.md) — what the product does, from an operator's perspective.
+- [User guide](../user-guide/signalloop%20user%20guide.md) — what the product does, from an operator's perspective.
 - [Top-level README](../../README.md) — minimal quick-start.
 
 ## Repository at a glance
