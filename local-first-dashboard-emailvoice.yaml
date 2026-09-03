@@ -1,0 +1,269 @@
+- generic [ref=e2]:
+  - generic [ref=e221]:
+    - navigation "Primary" [ref=e223]:
+      - generic [ref=e224]:
+        - link "EH SignalLoop" [ref=e226] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e227]:
+            - generic [ref=e228]: EH
+            - generic [ref=e229]: SignalLoop
+        - generic [ref=e230]:
+          - generic [ref=e231]:
+            - button "Outreach" [ref=e232] [cursor=pointer]:
+              - img [ref=e233]
+              - generic [ref=e236]: Outreach
+            - button "Messaging" [ref=e237] [cursor=pointer]:
+              - img [ref=e238]
+              - generic: Messaging
+            - button "Admin" [ref=e240] [cursor=pointer]:
+              - img [ref=e241]
+              - generic: Admin
+          - list [ref=e254]:
+            - listitem [ref=e255]:
+              - link "Revenue OS" [ref=e256] [cursor=pointer]:
+                - /url: /revenue-os
+                - img [ref=e257]
+                - generic [ref=e260]: Revenue OS
+            - listitem [ref=e261]:
+              - link "Dashboard" [ref=e262] [cursor=pointer]:
+                - /url: /
+                - img [ref=e263]
+                - generic [ref=e266]: Dashboard
+            - listitem [ref=e267]:
+              - link "Campaigns" [ref=e268] [cursor=pointer]:
+                - /url: /campaigns
+                - img [ref=e269]
+                - generic [ref=e272]: Campaigns
+            - listitem [ref=e273]:
+              - link "SignalLoop AI" [ref=e274] [cursor=pointer]:
+                - /url: /signalloop-ai
+                - img [ref=e275]
+                - generic [ref=e287]: SignalLoop AI
+            - listitem [ref=e288]:
+              - link "Customer 360" [ref=e289] [cursor=pointer]:
+                - /url: /customer-360
+                - img [ref=e290]
+                - generic [ref=e294]: Customer 360
+            - listitem [ref=e295]:
+              - link "Sequences" [ref=e296] [cursor=pointer]:
+                - /url: /sequences
+                - img [ref=e297]
+                - generic [ref=e300]: Sequences
+            - listitem [ref=e301]:
+              - link "Voice Agents" [ref=e302] [cursor=pointer]:
+                - /url: /voice-agents
+                - img [ref=e303]
+                - generic [ref=e307]: Voice Agents
+            - listitem [ref=e308]:
+              - link "Meetings" [ref=e309] [cursor=pointer]:
+                - /url: /scheduling
+                - img [ref=e310]
+                - generic [ref=e314]: Meetings
+            - listitem [ref=e315]:
+              - link "Contacts" [ref=e316] [cursor=pointer]:
+                - /url: /contacts
+                - img [ref=e317]
+                - generic [ref=e322]: Contacts
+            - listitem [ref=e323]:
+              - link "Lead Preparation" [ref=e324] [cursor=pointer]:
+                - /url: /prospecting
+                - img [ref=e325]
+                - generic [ref=e329]: Lead Preparation
+            - listitem [ref=e330]:
+              - link "Analytics" [ref=e331] [cursor=pointer]:
+                - /url: /analytics
+                - img [ref=e332]
+                - generic [ref=e334]: Analytics
+            - listitem [ref=e335]:
+              - link "Templates" [ref=e336] [cursor=pointer]:
+                - /url: /templates
+                - img [ref=e337]
+                - generic [ref=e340]: Templates
+            - listitem [ref=e341]:
+              - link "Controls" [ref=e342] [cursor=pointer]:
+                - /url: /controls
+                - img [ref=e343]
+                - generic [ref=e345]: Controls
+            - listitem [ref=e346]:
+              - link "Settings" [ref=e347] [cursor=pointer]:
+                - /url: /settings
+                - img [ref=e348]
+                - generic [ref=e351]: Settings
+        - generic [ref=e352]:
+          - listitem [ref=e353]:
+            - button "Appearance Toggle theme" [ref=e354] [cursor=pointer]:
+              - img [ref=e355]
+              - generic [ref=e361]: Appearance
+              - generic [ref=e362]: Toggle theme
+          - list [ref=e363]:
+            - listitem [ref=e364]:
+              - button "U admin@example.com" [ref=e365] [cursor=pointer]:
+                - generic [ref=e366]:
+                  - generic [ref=e368]: U
+                  - generic [ref=e369]:
+                    - paragraph
+                    - paragraph [ref=e370]: admin@example.com
+                - img [ref=e371]
+    - main [ref=e374]:
+      - generic [ref=e376]:
+        - button "Collapse Sidebar" [ref=e377] [cursor=pointer]:
+          - img
+          - generic [ref=e378]: Collapse Sidebar
+        - generic [ref=e379]:
+          - generic [ref=e380]: Workspace
+          - generic [ref=e381]: Campaigns, channels, and accounts
+      - main [ref=e382]:
+        - generic [ref=e384]:
+          - generic [ref=e386]:
+            - generic [ref=e387]:
+              - paragraph [ref=e388]: Dashboard
+              - heading "Campaign control at a glance" [level=1] [ref=e389]
+              - paragraph [ref=e390]: admin, use this surface to move from setup checks into account and campaign work without losing channel context.
+            - generic [ref=e391]:
+              - link "Open campaigns" [ref=e392] [cursor=pointer]:
+                - /url: /campaigns
+                - text: Open campaigns
+                - img
+              - link "Customer 360" [ref=e393] [cursor=pointer]:
+                - /url: /customer-360
+          - generic [ref=e394]:
+            - generic [ref=e395]:
+              - generic [ref=e396]:
+                - img [ref=e398]
+                - generic [ref=e403]: Waiting for data
+              - heading "Campaign signals" [level=2] [ref=e404]
+              - paragraph [ref=e405]: Live activity rollups appear here after campaign events are connected.
+            - generic [ref=e406]:
+              - generic [ref=e407]:
+                - img [ref=e409]
+                - generic [ref=e413]: Ready to review
+              - heading "Account context" [level=2] [ref=e414]
+              - paragraph [ref=e415]: Customer 360 is available for account and contact inspection.
+            - generic [ref=e416]:
+              - generic [ref=e417]:
+                - img [ref=e419]
+                - generic [ref=e425]: Needs review
+              - heading "Provider readiness" [level=2] [ref=e426]
+              - paragraph [ref=e427]: Review provider settings before launching outbound work.
+            - generic [ref=e428]:
+              - generic [ref=e429]:
+                - img [ref=e431]
+                - generic [ref=e434]: Configured in app
+              - heading "Governance" [level=2] [ref=e435]
+              - paragraph [ref=e436]: Use controls and admin settings to keep access aligned.
+          - generic [ref=e437]:
+            - generic [ref=e438]:
+              - generic [ref=e439]:
+                - generic [ref=e440]:
+                  - paragraph [ref=e441]: Active work
+                  - heading "Priority queue" [level=2] [ref=e442]
+                - paragraph [ref=e443]: Starter work is shown until live campaign signals are connected.
+              - generic [ref=e444]:
+                - generic [ref=e445]:
+                  - img [ref=e447]
+                  - generic [ref=e453]:
+                    - heading "Review provider readiness" [level=3] [ref=e454]
+                    - paragraph [ref=e455]: Confirm voice and email providers before teams add more campaign volume.
+                  - link "Open providers" [ref=e456] [cursor=pointer]:
+                    - /url: /settings/providers
+                    - text: Open providers
+                    - img
+                - generic [ref=e457]:
+                  - img [ref=e459]
+                  - generic [ref=e463]:
+                    - heading "Work from Customer 360" [level=3] [ref=e464]
+                    - paragraph [ref=e465]: Start from account context when deciding whether email, voice, or chat should go next.
+                  - link "View accounts" [ref=e466] [cursor=pointer]:
+                    - /url: /customer-360
+                    - text: View accounts
+                    - img
+                - generic [ref=e467]:
+                  - img [ref=e469]
+                  - generic [ref=e472]:
+                    - heading "Prepare reusable content" [level=3] [ref=e473]
+                    - paragraph [ref=e474]: Review templates before attaching messages to campaigns and sequences.
+                  - link "Open templates" [ref=e475] [cursor=pointer]:
+                    - /url: /templates
+                    - text: Open templates
+                    - img
+            - complementary [ref=e476]:
+              - generic [ref=e477]:
+                - generic [ref=e478]:
+                  - paragraph [ref=e479]: Readiness
+                  - heading "System health" [level=2] [ref=e480]
+                - generic [ref=e481]:
+                  - generic [ref=e484]:
+                    - generic [ref=e485]:
+                      - generic [ref=e486]:
+                        - img [ref=e487]
+                        - heading "Session" [level=3] [ref=e490]
+                      - generic [ref=e491]: Online
+                    - paragraph [ref=e492]: Authenticated workspace session is active.
+                  - generic [ref=e495]:
+                    - generic [ref=e496]:
+                      - generic [ref=e497]:
+                        - img [ref=e498]
+                        - heading "Live dashboard feed" [level=3] [ref=e500]
+                      - generic [ref=e501]: Not connected
+                    - paragraph [ref=e502]: Campaign metrics are not wired into this landing surface yet.
+                  - generic [ref=e505]:
+                    - generic [ref=e506]:
+                      - generic [ref=e507]:
+                        - img [ref=e508]
+                        - heading "Activity stream" [level=3] [ref=e510]
+                      - generic [ref=e511]: No feed
+                    - paragraph [ref=e512]: Recent movement will show here when event ingestion is connected.
+              - generic [ref=e513]:
+                - paragraph [ref=e514]: Recent movement
+                - paragraph [ref=e515]: Connect campaign and channel events to populate this rail with real account movement.
+          - generic [ref=e516]:
+            - generic [ref=e517]:
+              - paragraph [ref=e518]: Quick access
+              - paragraph [ref=e519]: Secondary navigation for common workspace surfaces.
+            - generic [ref=e520]:
+              - link "Campaigns Create and inspect campaign work." [ref=e521] [cursor=pointer]:
+                - /url: /campaigns
+                - generic [ref=e522]:
+                  - img [ref=e523]
+                  - generic [ref=e526]: Campaigns
+                - paragraph [ref=e527]: Create and inspect campaign work.
+              - link "Sequences Build drip and follow-up paths." [ref=e528] [cursor=pointer]:
+                - /url: /sequences
+                - generic [ref=e529]:
+                  - img [ref=e530]
+                  - generic [ref=e533]: Sequences
+                - paragraph [ref=e534]: Build drip and follow-up paths.
+              - link "Voice Agents Tune voice agent scripts, personas, and setup." [ref=e535] [cursor=pointer]:
+                - /url: /voice-agents
+                - generic [ref=e536]:
+                  - img [ref=e537]
+                  - generic [ref=e541]: Voice Agents
+                - paragraph [ref=e542]: Tune voice agent scripts, personas, and setup.
+              - link "Analytics Open reporting once data is connected." [ref=e543] [cursor=pointer]:
+                - /url: /analytics
+                - generic [ref=e544]:
+                  - img [ref=e545]
+                  - generic [ref=e547]: Analytics
+                - paragraph [ref=e548]: Open reporting once data is connected.
+              - link "Contacts Review people and account links." [ref=e549] [cursor=pointer]:
+                - /url: /contacts
+                - generic [ref=e550]:
+                  - img [ref=e551]
+                  - generic [ref=e556]: Contacts
+                - paragraph [ref=e557]: Review people and account links.
+      - generic [ref=e559]:
+        - paragraph [ref=e560]: (c) 2026 SignalLoop
+        - paragraph [ref=e561]: Campaigns, voice, email, and account workflows
+  - generic:
+    - contentinfo:
+      - button "Open TanStack Router Devtools" [ref=e48] [cursor=pointer]:
+        - generic [ref=e49]:
+          - img [ref=e51]
+          - img [ref=e86]
+        - generic [ref=e120]: "-"
+        - generic [ref=e121]: TanStack Router
+  - generic [ref=e122]:
+    - img [ref=e124]
+    - button "Open Tanstack query devtools" [ref=e172] [cursor=pointer]:
+      - img [ref=e173]
+  - region "Notifications alt+T"

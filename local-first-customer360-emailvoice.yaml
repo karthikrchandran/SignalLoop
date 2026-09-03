@@ -1,0 +1,171 @@
+- generic [ref=e2]:
+  - generic [ref=e221]:
+    - navigation "Primary" [ref=e223]:
+      - generic [ref=e224]:
+        - link "EH SignalLoop" [ref=e226] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e227]:
+            - generic [ref=e228]: EH
+            - generic [ref=e229]: SignalLoop
+        - generic [ref=e230]:
+          - generic [ref=e231]:
+            - button "Outreach" [ref=e232] [cursor=pointer]:
+              - img [ref=e233]
+              - generic [ref=e236]: Outreach
+            - button "Messaging" [ref=e237] [cursor=pointer]:
+              - img [ref=e238]
+              - generic: Messaging
+            - button "Admin" [ref=e240] [cursor=pointer]:
+              - img [ref=e241]
+              - generic: Admin
+          - list [ref=e254]:
+            - listitem [ref=e255]:
+              - link "Revenue OS" [ref=e256] [cursor=pointer]:
+                - /url: /revenue-os
+                - img [ref=e257]
+                - generic [ref=e260]: Revenue OS
+            - listitem [ref=e261]:
+              - link "Dashboard" [ref=e262] [cursor=pointer]:
+                - /url: /
+                - img [ref=e263]
+                - generic [ref=e266]: Dashboard
+            - listitem [ref=e267]:
+              - link "Campaigns" [ref=e268] [cursor=pointer]:
+                - /url: /campaigns
+                - img [ref=e269]
+                - generic [ref=e272]: Campaigns
+            - listitem [ref=e273]:
+              - link "SignalLoop AI" [ref=e274] [cursor=pointer]:
+                - /url: /signalloop-ai
+                - img [ref=e275]
+                - generic [ref=e287]: SignalLoop AI
+            - listitem [ref=e288]:
+              - link "Customer 360" [ref=e289] [cursor=pointer]:
+                - /url: /customer-360
+                - img [ref=e290]
+                - generic [ref=e294]: Customer 360
+            - listitem [ref=e295]:
+              - link "Sequences" [ref=e296] [cursor=pointer]:
+                - /url: /sequences
+                - img [ref=e297]
+                - generic [ref=e300]: Sequences
+            - listitem [ref=e301]:
+              - link "Voice Agents" [ref=e302] [cursor=pointer]:
+                - /url: /voice-agents
+                - img [ref=e303]
+                - generic [ref=e307]: Voice Agents
+            - listitem [ref=e308]:
+              - link "Meetings" [ref=e309] [cursor=pointer]:
+                - /url: /scheduling
+                - img [ref=e310]
+                - generic [ref=e314]: Meetings
+            - listitem [ref=e315]:
+              - link "Contacts" [ref=e316] [cursor=pointer]:
+                - /url: /contacts
+                - img [ref=e317]
+                - generic [ref=e322]: Contacts
+            - listitem [ref=e323]:
+              - link "Lead Preparation" [ref=e324] [cursor=pointer]:
+                - /url: /prospecting
+                - img [ref=e325]
+                - generic [ref=e329]: Lead Preparation
+            - listitem [ref=e330]:
+              - link "Analytics" [ref=e331] [cursor=pointer]:
+                - /url: /analytics
+                - img [ref=e332]
+                - generic [ref=e334]: Analytics
+            - listitem [ref=e335]:
+              - link "Templates" [ref=e336] [cursor=pointer]:
+                - /url: /templates
+                - img [ref=e337]
+                - generic [ref=e340]: Templates
+            - listitem [ref=e341]:
+              - link "Controls" [ref=e342] [cursor=pointer]:
+                - /url: /controls
+                - img [ref=e343]
+                - generic [ref=e345]: Controls
+            - listitem [ref=e346]:
+              - link "Settings" [ref=e347] [cursor=pointer]:
+                - /url: /settings
+                - img [ref=e348]
+                - generic [ref=e351]: Settings
+        - generic [ref=e352]:
+          - listitem [ref=e353]:
+            - button "Appearance Toggle theme" [ref=e354] [cursor=pointer]:
+              - img [ref=e355]
+              - generic [ref=e361]: Appearance
+              - generic [ref=e362]: Toggle theme
+          - list [ref=e363]:
+            - listitem [ref=e364]:
+              - button "U admin@example.com" [ref=e365] [cursor=pointer]:
+                - generic [ref=e366]:
+                  - generic [ref=e368]: U
+                  - generic [ref=e369]:
+                    - paragraph
+                    - paragraph [ref=e370]: admin@example.com
+                - img [ref=e371]
+    - main [ref=e374]:
+      - generic [ref=e376]:
+        - button "Collapse Sidebar" [ref=e377] [cursor=pointer]:
+          - img
+          - generic [ref=e378]: Collapse Sidebar
+        - generic [ref=e379]:
+          - generic [ref=e380]: Workspace
+          - generic [ref=e381]: Campaigns, channels, and accounts
+      - main [ref=e382]:
+        - generic [ref=e562]:
+          - generic [ref=e563]:
+            - generic [ref=e564]:
+              - generic [ref=e565]:
+                - img [ref=e566]
+                - text: Account workspace
+              - heading "Customer 360" [level=1] [ref=e570]
+              - paragraph [ref=e571]: 0 accounts in the active workspace
+            - generic [ref=e572]:
+              - button "New account" [ref=e573] [cursor=pointer]:
+                - img
+                - text: New account
+              - button "Refresh" [ref=e574] [cursor=pointer]:
+                - img
+                - text: Refresh
+          - alert [ref=e575]:
+            - paragraph [ref=e576]: Failed to fetch
+          - generic [ref=e577]:
+            - generic [ref=e578]:
+              - generic [ref=e579]: Accounts
+              - generic [ref=e580]: Review account-level contacts, channel activity, and next action.
+            - generic [ref=e581]:
+              - generic [ref=e582]:
+                - generic [ref=e583]:
+                  - img [ref=e584]
+                  - textbox "Search accounts" [ref=e587]
+                - button "Search" [ref=e588] [cursor=pointer]
+              - table [ref=e590]:
+                - rowgroup [ref=e591]:
+                  - row "Account Status Contacts Channels Last activity Next action Open" [ref=e592]:
+                    - columnheader "Account" [ref=e593]
+                    - columnheader "Status" [ref=e594]
+                    - columnheader "Contacts" [ref=e595]
+                    - columnheader "Channels" [ref=e596]
+                    - columnheader "Last activity" [ref=e597]
+                    - columnheader "Next action" [ref=e598]
+                    - columnheader "Open" [ref=e599]
+                - rowgroup [ref=e600]:
+                  - row "No accounts found." [ref=e601]:
+                    - cell "No accounts found." [ref=e602]
+      - generic [ref=e559]:
+        - paragraph [ref=e560]: (c) 2026 SignalLoop
+        - paragraph [ref=e561]: Campaigns, voice, email, and account workflows
+  - generic:
+    - contentinfo:
+      - button "Open TanStack Router Devtools" [ref=e48] [cursor=pointer]:
+        - generic [ref=e49]:
+          - img [ref=e51]
+          - img [ref=e86]
+        - generic [ref=e120]: "-"
+        - generic [ref=e121]: TanStack Router
+  - generic [ref=e122]:
+    - img [ref=e124]
+    - button "Open Tanstack query devtools" [ref=e172] [cursor=pointer]:
+      - img [ref=e173]
+  - region "Notifications alt+T"
