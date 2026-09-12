@@ -1,0 +1,329 @@
+import { access, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { chromium } from "playwright";
+
+const __filename = fileURLToPath(import.meta.url);
+const outDir = path.dirname(__filename);
+const repoRoot = path.resolve(outDir, "..", "..");
+const guideDir = path.join(repoRoot, "docs", "user-guide");
+const previewDir = path.join(outDir, "assets", "previews");
+
+const hero = "assets/graphics/revenue-os-signal-to-cash-hero-v2.png";
+const shot = (name) => `../user-guide/screenshots/${name}.png`;
+const ecrm = (name) => `assets/screenshots/ecrm-${name}.png`;
+const normalizeHtml = (html) => `${html.replaceAll("\r\n", "\n").split("\n").map((line) => line.trimEnd()).join("\n").trimEnd()}\n`;
+
+const css = `
+  :root { --ink:#09263d; --muted:#526b7c; --navy:#071c2c; --blue:#17699a; --cyan:#1bb6d6; --teal:#168b78; --amber:#eea737; --coral:#ee6959; --paper:#f7fbfd; --line:#c9dbe6; --shadow:0 18px 42px rgb(9 38 61 / .14); }
+  * { box-sizing:border-box; }
+  html,body { margin:0; padding:0; color:var(--ink); background:#dfe9ee; font-family:Inter,Aptos,"Segoe UI",Arial,sans-serif; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  h1,h2,h3,p { margin:0; letter-spacing:0; }
+  p { line-height:1.45; }
+  .brand { display:flex; align-items:center; gap:9px; font-size:15px; font-weight:850; white-space:nowrap; }
+  .mark { width:18px; height:18px; border-radius:5px; background:conic-gradient(from 210deg,var(--cyan),var(--teal),var(--amber),var(--coral),var(--cyan)); box-shadow:0 0 0 5px rgb(27 182 214 / .12); }
+  .brand.light { color:#fff; }
+  .eyebrow { color:var(--blue); font-size:11px; font-weight:850; letter-spacing:1.5px; text-transform:uppercase; }
+  .slide,.page { position:relative; overflow:hidden; background:var(--paper); }
+  .slide { width:13.333in; height:7.5in; padding:.43in .55in; page-break-after:always; }
+  .slide:last-child,.page:last-child { page-break-after:auto; }
+  .slide:not(.dark)::after,.page::after { content:""; position:absolute; inset:0; pointer-events:none; background-image:linear-gradient(rgb(23 105 154 / .035) 1px,transparent 1px),linear-gradient(90deg,rgb(23 105 154 / .035) 1px,transparent 1px); background-size:34px 34px; mask-image:linear-gradient(to bottom,black,transparent 70%); }
+  .slide>* ,.page>* { position:relative; z-index:1; }
+  .dark { color:#fff; background:var(--navy); }
+  .dark .eyebrow { color:#69e2ed; }
+  .head { min-height:.72in; display:flex; align-items:flex-start; justify-content:space-between; gap:24px; }
+  .head h2 { margin-top:5px; max-width:9.5in; font-size:31px; line-height:1.06; }
+  .footer { position:absolute; z-index:3; left:.55in; right:.55in; bottom:.18in; display:flex; justify-content:space-between; color:#6c8290; font-size:8px; }
+  .dark .footer { color:#a6bbc7; }
+  .cover { padding:0; }
+  .cover-art { position:absolute; inset:0; z-index:0; width:100%; height:100%; object-fit:cover; }
+  .shade { position:absolute; inset:0; z-index:1; background:linear-gradient(90deg,rgb(3 18 29 / .97) 0%,rgb(3 18 29 / .9) 35%,rgb(3 18 29 / .18) 70%,transparent 100%); }
+  .cover-copy { position:relative; z-index:2; width:6.25in; height:100%; padding:.52in 0 .52in .58in; display:flex; flex-direction:column; justify-content:space-between; }
+  .cover h1 { margin-top:12px; font-size:50px; line-height:1.01; }
+  .lead { margin-top:14px; color:#d7e6ed; font-size:16px; }
+  .pill-row { display:flex; gap:7px; margin-top:14px; }
+  .pill { padding:7px 11px; border:1px solid rgb(255 255 255 / .3); border-radius:999px; background:rgb(255 255 255 / .08); color:#fff; font-size:9px; font-weight:800; text-transform:uppercase; }
+  .cover-rail { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; width:5.75in; }
+  .cover-rail div { min-height:.7in; padding:11px; border-top:3px solid var(--cyan); background:rgb(255 255 255 / .08); }
+  .cover-rail div:nth-child(2) { border-color:var(--teal); } .cover-rail div:nth-child(3) { border-color:var(--amber); } .cover-rail div:nth-child(4) { border-color:var(--coral); }
+  .cover-rail b { display:block; font-size:12px; } .cover-rail span { color:#b8cbd5; font-size:8px; }
+  .shot { position:relative; overflow:hidden; border:1px solid #bad0dd; border-radius:10px; background:#eaf2f7; box-shadow:var(--shadow); }
+  .shot img { width:100%; height:100%; display:block; object-fit:cover; object-position:top left; }
+  .shot::before { content:""; position:absolute; z-index:2; left:11px; top:9px; width:7px; height:7px; border-radius:50%; background:var(--coral); box-shadow:12px 0 var(--amber),24px 0 var(--teal); }
+  .label { position:absolute; z-index:3; left:11px; bottom:9px; padding:5px 9px; border-radius:999px; color:#fff; background:rgb(7 28 44 / .83); font-size:8px; font-weight:800; }
+  .problem { margin-top:16px; display:grid; grid-template-columns:1.15fr .85fr; gap:18px; height:5.2in; }
+  .broken { position:relative; border:1px solid var(--line); border-radius:11px; background:#fff; box-shadow:var(--shadow); }
+  .broken::before { content:""; position:absolute; left:12%; right:12%; top:50%; border-top:3px dashed #a9bdc8; }
+  .node { position:absolute; width:1.4in; padding:13px; border:1px solid var(--line); border-top:4px solid var(--cyan); border-radius:9px; background:#fff; box-shadow:0 10px 24px rgb(9 38 61 / .1); }
+  .node b { display:block; font-size:13px; } .node span { display:block; margin-top:4px; color:var(--muted); font-size:8px; line-height:1.35; }
+  .n1 { left:6%; top:14%; } .n2 { left:37%; top:61%; border-top-color:var(--teal); } .n3 { right:6%; top:16%; border-top-color:var(--amber); }
+  .break { position:absolute; left:47%; top:39%; width:58px; height:58px; display:grid; place-items:center; border-radius:50%; color:#fff; background:var(--coral); box-shadow:0 0 0 12px rgb(238 105 89 / .12); font-size:27px; font-weight:900; }
+  .costs { display:grid; grid-template-rows:repeat(3,1fr); gap:10px; }
+  .cost { padding:16px; border:1px solid var(--line); border-radius:9px; background:#fff; }
+  .cost i { display:grid; place-items:center; width:27px; height:27px; margin-bottom:8px; border-radius:7px; color:#fff; background:var(--coral); font-size:9px; font-style:normal; font-weight:900; }
+  .cost:nth-child(2) i { background:var(--amber); } .cost:nth-child(3) i { background:var(--teal); }
+  .cost h3 { font-size:14px; } .cost p { margin-top:4px; color:var(--muted); font-size:9px; }
+  .system { margin-top:13px; height:5.22in; display:grid; grid-template-columns:1fr .86fr 1fr; gap:11px; }
+  .system article { position:relative; padding:18px; overflow:hidden; border-radius:11px; color:#fff; background:#0c628f; }
+  .system article:nth-child(2) { background:#073d46; } .system article:nth-child(3) { background:#76503a; }
+  .system h3 { margin-top:8px; font-size:24px; } .system p { margin-top:7px; color:rgb(255 255 255 / .78); font-size:10px; }
+  .system ul { margin:17px 0 0; padding:0; list-style:none; display:grid; gap:8px; }
+  .system li { padding:10px; border-left:3px solid rgb(255 255 255 / .72); background:rgb(255 255 255 / .1); font-size:10px; font-weight:750; }
+  .big-no { position:absolute; right:13px; top:1px; color:rgb(255 255 255 / .12); font-size:68px; font-weight:900; }
+  .ledger { margin-top:18px; display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+  .ledger div { position:relative; min-height:1.35in; padding:16px 12px; border-radius:9px; color:#fff; background:var(--blue); box-shadow:0 13px 26px rgb(9 38 61 / .13); }
+  .ledger div:nth-child(2){background:#16798f}.ledger div:nth-child(3){background:#16846f}.ledger div:nth-child(4){background:#b87523}.ledger div:nth-child(5){background:#c95045}
+  .ledger div:not(:last-child)::after { content:">"; position:absolute; z-index:2; right:-16px; top:36px; width:24px; height:24px; display:grid; place-items:center; border-radius:50%; color:var(--ink); background:#fff; box-shadow:0 5px 12px rgb(9 38 61 / .2); font-weight:900; }
+  .ledger span { font-size:8px; opacity:.72; text-transform:uppercase; } .ledger b { display:block; margin-top:10px; font-size:15px; }
+  .ledger-bottom { margin-top:15px; display:grid; grid-template-columns:.9fr 1.1fr; gap:16px; }
+  .question { padding:20px; border-radius:11px; color:#fff; background:var(--navy); }
+  .question strong { display:block; font-size:27px; line-height:1.05; } .question p { margin-top:8px; color:#bad0dc; font-size:10px; }
+  .fields { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .fields div { padding:12px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  .fields b { display:block; font-size:10px; } .fields span { display:block; margin-top:4px; color:var(--muted); font-size:8px; }
+  .proof { margin-top:13px; height:5.2in; display:grid; grid-template-columns:1.66fr .7fr; gap:17px; }
+  .proof .shot { height:100%; } .proof .notes { display:grid; grid-template-rows:repeat(4,1fr); gap:9px; }
+  .note { padding:13px; border-left:4px solid var(--blue); border-radius:8px; background:#fff; box-shadow:0 7px 20px rgb(9 38 61 / .08); }
+  .note:nth-child(2){border-color:var(--teal)}.note:nth-child(3){border-color:var(--amber)}.note:nth-child(4){border-color:var(--coral)}
+  .note b { display:block; font-size:12px; } .note span { display:block; margin-top:4px; color:var(--muted); font-size:8px; line-height:1.35; }
+  .voice { margin-top:13px; height:5.2in; display:grid; grid-template-columns:1.35fr .65fr; gap:17px; }
+  .voice .shot img { width:112%; height:112%; }
+  .voice-rail { display:grid; grid-template-rows:repeat(4,1fr); gap:9px; }
+  .voice-rail div { padding:14px; border-radius:9px; color:#fff; background:var(--navy); }
+  .voice-rail div:nth-child(2){background:#0e6177}.voice-rail div:nth-child(3){background:#9a6825}.voice-rail div:nth-child(4){background:#a94741}
+  .voice-rail b { display:block; font-size:12px; } .voice-rail span { display:block; margin-top:4px; color:rgb(255 255 255 / .75); font-size:8px; }
+  .handoff { margin-top:13px; height:5.2in; display:grid; grid-template-columns:.92fr 1.08fr; gap:16px; }
+  .handoff-left { display:grid; grid-template-rows:1fr auto; gap:10px; }
+  .handoff-left .shot img { width:116%; height:116%; }
+  .owners { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .owners div { padding:10px; border-radius:7px; color:#fff; background:var(--blue); }
+  .owners div:nth-child(2){background:var(--teal)}.owners div:nth-child(3){background:#9a6825}
+  .owners small { display:block; opacity:.72; font-size:7px; text-transform:uppercase; } .owners b { display:block; margin-top:3px; font-size:9px; }
+  .crm-grid { position:relative; display:grid; grid-template-columns:1.1fr .9fr; grid-template-rows:1fr 1fr; gap:9px; }
+  .crm-grid .shot:first-child { grid-row:1/3; } .crm-grid .shot:first-child img { width:145%; height:145%; object-position:44% 3%; }
+  .handoff-badge { position:absolute; z-index:4; left:47%; top:43%; width:68px; height:68px; display:grid; place-items:center; border:6px solid var(--paper); border-radius:50%; color:#fff; background:var(--coral); text-align:center; font-size:8px; font-weight:900; }
+  .controls { margin-top:16px; height:5.05in; display:grid; grid-template-columns:1.1fr .9fr; gap:16px; }
+  .control-map { position:relative; display:grid; place-items:center; border-radius:11px; color:#fff; background:var(--navy); }
+  .core { width:2in; height:2in; display:grid; place-items:center; border:2px solid #66dce8; border-radius:50%; background:#0a354b; box-shadow:0 0 0 25px rgb(27 182 214 / .1),0 0 0 50px rgb(27 182 214 / .05); text-align:center; }
+  .core b { font-size:18px; } .core span { display:block; margin-top:4px; color:#aac4d0; font-size:8px; }
+  .orbit { position:absolute; width:1.25in; padding:10px; border:1px solid rgb(255 255 255 / .2); border-radius:8px; background:rgb(255 255 255 / .09); text-align:center; }
+  .orbit b{display:block;font-size:10px}.orbit span{color:#abc2ce;font-size:7px}.o1{left:7%;top:12%}.o2{right:7%;top:12%}.o3{left:7%;bottom:12%}.o4{right:7%;bottom:12%}
+  .control-proof { display:grid; grid-template-rows:1.14fr .86fr; gap:9px; }
+  .control-proof .shot img { width:120%; height:120%; object-position:36% 5%; }
+  .facts { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+  .facts div { padding:11px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  .facts b{display:block;font-size:9px}.facts span{display:block;margin-top:3px;color:var(--muted);font-size:7px}
+  .outcomes { margin-top:17px; height:5in; display:grid; grid-template-columns:repeat(3,1fr); gap:13px; }
+  .outcome { overflow:hidden; border:1px solid var(--line); border-radius:10px; background:#fff; box-shadow:0 12px 30px rgb(9 38 61 / .09); }
+  .outcome header { min-height:1.18in; padding:16px; color:#fff; background:var(--blue); } .outcome:nth-child(2) header{background:var(--teal)}.outcome:nth-child(3) header{background:#95623d}
+  .outcome header small { font-size:8px; opacity:.74; text-transform:uppercase; } .outcome h3 { margin-top:7px; font-size:20px; line-height:1.06; }
+  .shift { margin:18px; display:grid; grid-template-columns:1fr 18px 1fr; align-items:center; gap:4px; }
+  .shift span { padding:10px 7px; border-radius:7px; color:var(--muted); background:#edf4f7; text-align:center; font-size:9px; } .shift b { color:var(--coral); text-align:center; }
+  .outcome footer { margin:0 18px; padding-top:13px; border-top:1px solid #d9e5ec; color:var(--muted); font-size:8px; }
+  .page { width:210mm; height:297mm; padding:13mm 14mm; page-break-after:always; }
+  .page-head { display:flex; justify-content:space-between; align-items:center; }
+  .page h1 { font-size:30px; line-height:1.02; } .page h2 { font-size:18px; }
+  .bro-hero { margin-top:8mm; display:grid; grid-template-columns:.84fr 1.16fr; gap:7mm; align-items:center; }
+  .bro-hero p { margin-top:3mm; color:var(--muted); font-size:10px; } .bro-art { height:69mm; overflow:hidden; border-radius:10px; box-shadow:var(--shadow); }
+  .bro-art img { width:100%; height:100%; object-fit:cover; object-position:64% center; }
+  .bro-rail { margin-top:8mm; display:grid; grid-template-columns:repeat(5,1fr); gap:2mm; }
+  .bro-rail div { min-height:20mm; padding:4mm 3mm; border-radius:7px; color:#fff; background:var(--blue); } .bro-rail div:nth-child(2){background:#16798f}.bro-rail div:nth-child(3){background:#16846f}.bro-rail div:nth-child(4){background:#b87523}.bro-rail div:nth-child(5){background:#c95045}
+  .bro-rail b{display:block;font-size:9px}.bro-rail span{display:block;margin-top:2mm;font-size:7px;opacity:.75}
+  .bro-proof { margin-top:8mm; height:92mm; display:grid; grid-template-columns:1.1fr .9fr; gap:4mm; }
+  .bro-proof .shot img { width:128%; height:128%; object-position:28% 4%; }
+  .bro-duo { display:grid; grid-template-rows:1fr 1fr; gap:4mm; }
+  .bro-duo .shot img { width:130%; height:130%; object-position:38% 4%; }
+  .bro-system { margin-top:8mm; display:grid; grid-template-columns:1fr .8fr 1fr; gap:3mm; }
+  .bro-system article { min-height:53mm; padding:5mm; border-radius:8px; color:#fff; background:var(--blue); } .bro-system article:nth-child(2){background:#073d46}.bro-system article:nth-child(3){background:#76503a}
+  .bro-system h3{margin-top:2mm;font-size:13px}.bro-system p{margin-top:2mm;font-size:8px;opacity:.77}.bro-system ul{margin:4mm 0 0;padding-left:4mm;font-size:8px;line-height:1.65}
+  .buyer { margin-top:8mm; display:grid; grid-template-columns:repeat(3,1fr); gap:3mm; } .buyer div{padding:4mm;border:1px solid var(--line);border-radius:7px;background:#fff}.buyer b{display:block;font-size:9px}.buyer span{display:block;margin-top:2mm;color:var(--muted);font-size:7px}
+  .bro-wide-proof { height:55mm; margin-top:7mm; }
+  .bro-wide-proof img { width:112%; height:112%; object-position:30% 5%; }
+  .cta { margin-top:8mm; padding:6mm; display:grid; grid-template-columns:1fr auto; align-items:center; border-radius:9px; color:#fff; background:var(--navy); } .cta h2{color:#fff}.cta p{margin-top:2mm;color:#bcd0db;font-size:8px}.cta span{padding:4mm;border:1px solid rgb(255 255 255 / .3);border-radius:999px;font-size:8px;font-weight:800;text-transform:uppercase}
+  .page-note { position:absolute; left:14mm; right:14mm; bottom:7mm; display:flex; justify-content:space-between; color:#6d8391; font-size:7px; }
+  .marketing-hero { position:relative; height:126mm; margin-top:7mm; overflow:hidden; border-radius:11px; color:#fff; background:var(--navy); box-shadow:var(--shadow); }
+  .marketing-hero>img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:64% center; }
+  .marketing-hero-shade { position:absolute; inset:0; background:linear-gradient(90deg,rgb(3 18 29 / .97) 0%,rgb(3 18 29 / .87) 43%,rgb(3 18 29 / .18) 76%,transparent 100%); }
+  .marketing-hero-copy { position:relative; z-index:1; width:101mm; height:100%; padding:10mm; display:flex; flex-direction:column; justify-content:flex-end; }
+  .marketing-hero h1 { color:#fff; font-size:32px; line-height:1.01; }
+  .marketing-hero p { margin-top:4mm; color:#d5e5ec; font-size:10px; }
+  .marketing-tags { display:flex; flex-wrap:wrap; gap:2mm; margin-top:5mm; }
+  .marketing-tags span { padding:2.2mm 3.2mm; border:1px solid rgb(255 255 255 / .32); border-radius:999px; background:rgb(255 255 255 / .08); font-size:7px; font-weight:800; text-transform:uppercase; }
+  .marketing-problem { margin-top:8mm; }
+  .marketing-problem h2 { max-width:165mm; font-size:19px; line-height:1.13; }
+  .marketing-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:3mm; margin-top:4mm; }
+  .marketing-card { min-height:30mm; padding:4mm; border:1px solid var(--line); border-top:3px solid var(--cyan); border-radius:7px; background:#fff; }
+  .marketing-card:nth-child(2) { border-top-color:var(--amber); }
+  .marketing-card:nth-child(3) { border-top-color:var(--coral); }
+  .marketing-card b { display:block; font-size:10px; }
+  .marketing-card p { margin-top:2mm; color:var(--muted); font-size:7.5px; line-height:1.35; }
+  .marketing-journey { display:grid; grid-template-columns:repeat(5,1fr); gap:2mm; margin-top:7mm; }
+  .marketing-step { position:relative; min-height:25mm; padding:4mm 3mm; border-radius:7px; color:#fff; background:var(--blue); }
+  .marketing-step:nth-child(2){background:#16798f}.marketing-step:nth-child(3){background:#16846f}.marketing-step:nth-child(4){background:#b87523}.marketing-step:nth-child(5){background:#c95045}
+  .marketing-step small { display:block; opacity:.72; font-size:6.5px; font-weight:800; }
+  .marketing-step b { display:block; margin-top:3mm; font-size:10px; }
+  .marketing-step span { display:block; margin-top:1.5mm; font-size:7px; opacity:.78; }
+  .suite-intro { margin-top:9mm; max-width:168mm; }
+  .suite-intro h1 { font-size:29px; }
+  .suite-intro p { margin-top:3mm; color:var(--muted); font-size:10px; }
+  .suite-blocks { display:grid; grid-template-columns:1fr .84fr 1fr; gap:3mm; margin-top:7mm; }
+  .suite-block { position:relative; min-height:67mm; padding:6mm; overflow:hidden; border-radius:9px; color:#fff; background:var(--blue); }
+  .suite-block:nth-child(2){background:#073d46}.suite-block:nth-child(3){background:#76503a}
+  .suite-block .suite-number { position:absolute; right:4mm; top:1mm; color:rgb(255 255 255 / .13); font-size:42px; font-weight:900; }
+  .suite-block small { display:block; font-size:7px; font-weight:800; letter-spacing:1px; text-transform:uppercase; opacity:.74; }
+  .suite-block h2 { margin-top:3mm; color:#fff; font-size:18px; }
+  .suite-block .suite-promise { margin-top:3mm; min-height:14mm; color:rgb(255 255 255 / .78); font-size:8px; }
+  .suite-block ul { margin:5mm 0 0; padding:0; list-style:none; display:grid; gap:2mm; }
+  .suite-block li { padding:2.3mm 2.5mm; border-left:2px solid rgb(255 255 255 / .72); background:rgb(255 255 255 / .1); font-size:8px; font-weight:700; }
+  .marketing-proof { margin-top:8mm; padding:6mm; border-radius:9px; color:#fff; background:var(--navy); }
+  .marketing-proof-head { display:flex; align-items:end; justify-content:space-between; gap:8mm; }
+  .marketing-proof h2 { color:#fff; font-size:18px; }
+  .marketing-proof-head p { max-width:72mm; color:#b9cfda; font-size:8px; text-align:right; }
+  .proof-flow { display:grid; grid-template-columns:repeat(5,1fr); gap:2mm; margin-top:5mm; }
+  .proof-flow div { min-height:24mm; padding:3.5mm; border:1px solid rgb(255 255 255 / .18); border-radius:7px; background:rgb(255 255 255 / .07); }
+  .proof-flow small { display:block; color:#69e2ed; font-size:6.5px; font-weight:800; text-transform:uppercase; }
+  .proof-flow b { display:block; margin-top:2mm; font-size:9px; line-height:1.2; }
+  .marketing-value { display:grid; grid-template-columns:repeat(3,1fr); gap:3mm; margin-top:7mm; }
+  .marketing-value div { min-height:30mm; padding:4mm; border:1px solid var(--line); border-radius:7px; background:#fff; }
+  .marketing-value small { color:var(--blue); font-size:6.5px; font-weight:800; text-transform:uppercase; }
+  .marketing-value b { display:block; margin-top:2mm; font-size:10px; line-height:1.25; }
+  .marketing-cta { margin-top:7mm; padding:6mm; display:grid; grid-template-columns:1fr auto; align-items:center; gap:8mm; border-radius:9px; color:#fff; background:linear-gradient(100deg,#0b4d6f,#087a78); }
+  .marketing-cta h2 { color:#fff; font-size:18px; }
+  .marketing-cta p { margin-top:2mm; color:#d6eef0; font-size:8px; }
+  .marketing-cta span { padding:4mm 5mm; border:1px solid rgb(255 255 255 / .38); border-radius:999px; font-size:8px; font-weight:800; text-transform:uppercase; }
+  @media print { html,body{background:#fff}.slide,.page{margin:0;box-shadow:none} }
+`;
+
+const brand = (light = false) => `<div class="brand ${light ? "light" : ""}"><span class="mark"></span><span>Revenue OS</span></div>`;
+const footer = (page) => `<div class="footer"><span>SignalLoop + eCRM | Revenue OS</span><span>${String(page).padStart(2, "0")}</span></div>`;
+const frame = (src, label, className = "") => `<div class="shot ${className}"><img src="${src}" alt="${label}"><span class="label">${label}</span></div>`;
+
+const deckHtml = normalizeHtml(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Revenue OS pitch deck</title><style>@page{size:13.333in 7.5in;margin:0}${css}</style></head><body>
+<section class="slide cover dark" id="deck-cover"><img class="cover-art" src="${hero}" alt="Signal to cash"><div class="shade"></div><div class="cover-copy"><div>${brand(true)}<div class="pill-row"><span class="pill">SignalLoop</span><span class="pill">eCRM</span></div></div><div><p class="eyebrow">Governed agent-to-cash growth</p><h1>Turn every customer signal into accountable revenue.</h1><p class="lead">Revenue OS connects governed engagement in SignalLoop to lead-to-cash execution in eCRM.</p></div><div class="cover-rail"><div><b>Engage</b><span>Voice, email, chat</span></div><div><b>Decide</b><span>Policy and next action</span></div><div><b>Close</b><span>Proposal and order</span></div><div><b>Prove</b><span>Outcome and audit</span></div></div></div>${footer(1)}</section>
+<section class="slide" id="deck-problem"><div class="head"><div><p class="eyebrow">The enterprise problem</p><h2>The customer journey crosses systems. Accountability disappears between them.</h2></div>${brand()}</div><div class="problem"><div class="broken"><div class="node n1"><b>Engagement tools</b><span>Calls, email, chat, campaigns</span></div><div class="node n2"><b>CRM records</b><span>Leads, opportunities, follow-up</span></div><div class="node n3"><b>Revenue systems</b><span>Proposals, orders, payments</span></div><div class="break">!</div></div><div class="costs"><div class="cost"><i>01</i><h3>Activity without outcome</h3><p>Touches are visible. Their effect on pipeline and cash is not.</p></div><div class="cost"><i>02</i><h3>Automation without control</h3><p>AI work can outrun consent, approval, budget, and brand policy.</p></div><div class="cost"><i>03</i><h3>Handoffs without evidence</h3><p>Context is re-keyed, ownership blurs, and audit trails break.</p></div></div></div>${footer(2)}</section>
+<section class="slide" id="deck-solution"><div class="head"><div><p class="eyebrow">The solution</p><h2>Revenue OS is the umbrella. Each product stays excellent at what it owns.</h2></div>${brand()}</div><div class="system"><article><span class="big-no">01</span><p class="eyebrow">Engagement execution</p><h3>SignalLoop</h3><p>Turns market signals into governed conversations and next steps.</p><ul><li>Campaigns and sequences</li><li>Voice, email, and chat</li><li>AI agents and meetings</li></ul></article><article><span class="big-no">02</span><p class="eyebrow">Operating brain</p><h3>Revenue OS</h3><p>Applies evidence, policy, scoring, decisions, and attribution.</p><ul><li>Next-best action</li><li>Approvals and autonomy</li><li>Outcome ledger</li></ul></article><article><span class="big-no">03</span><p class="eyebrow">Lead-to-cash execution</p><h3>eCRM</h3><p>Converts qualified intent into commercial records, delivery, and cash.</p><ul><li>Pipeline and proposals</li><li>Orders and production</li><li>Finance and reporting</li></ul></article></div>${footer(3)}</section>
+<section class="slide" id="deck-difference"><div class="head"><div><p class="eyebrow">The differentiation</p><h2>Not another activity dashboard. An evidence chain from agent action to cash.</h2></div>${brand()}</div><div class="ledger"><div><span>Signal</span><b>Buyer intent</b></div><div><span>Action</span><b>Human or AI work</b></div><div><span>Decision</span><b>Policy and approval</b></div><div><span>Milestone</span><b>Proposal or order</b></div><div><span>Outcome</span><b>Revenue and cash</b></div></div><div class="ledger-bottom"><div class="question"><strong>Who acted?<br>Why? What changed?</strong><p>Revenue OS keeps enough context to answer those questions across product boundaries.</p></div><div class="fields"><div><b>Evidence snapshot</b><span>Context at decision time</span></div><div><b>Policy version</b><span>Rules that allowed work</span></div><div><b>Actor identity</b><span>Human, agent, or system</span></div><div><b>Correlation trail</b><span>One journey across events</span></div><div><b>Cost visibility</b><span>Effort beside outcome</span></div><div><b>Revenue milestone</b><span>Qualified to collected</span></div></div></div>${footer(4)}</section>
+<section class="slide" id="deck-signalloop"><div class="head"><div><p class="eyebrow">SignalLoop in action</p><h2>Run engagement from one governed command center.</h2></div>${brand()}</div><div class="proof">${frame(shot("05-dashboard"),"Live SignalLoop command center")}<div class="notes"><div class="note"><b>Coordinate channels</b><span>Campaign, chat, voice, and calendar activity in one operating view.</span></div><div class="note"><b>Separate signal from noise</b><span>See intent, handoffs, and escalations, not just volume.</span></div><div class="note"><b>Keep humans in control</b><span>Route exceptions and high-impact actions to the right owner.</span></div><div class="note"><b>Know what is ready</b><span>Read channel, agent, provider, and scheduling state.</span></div></div></div>${footer(5)}</section>
+<section class="slide" id="deck-voice"><div class="head"><div><p class="eyebrow">Agent execution</p><h2>Make voice outreach configurable, reviewable, and readiness-aware.</h2></div>${brand()}</div><div class="voice">${frame(shot("13-voice-agents"),"Current Voice Agents workspace")}<div class="voice-rail"><div><b>Choose the right voice</b><span>Language, tone, and use case are explicit.</span></div><div><b>Control the script</b><span>Campaign messaging remains a managed asset.</span></div><div><b>Prove readiness</b><span>Provider, callback, and prerequisite state are visible.</span></div><div><b>Test before scale</b><span>Manual test calls and outcomes support supervised rollout.</span></div></div></div>${footer(6)}</section>
+<section class="slide" id="deck-ecrm"><div class="head"><div><p class="eyebrow">How it ties to eCRM</p><h2>Context crosses the boundary. Product ownership stays clean.</h2></div>${brand()}</div><div class="handoff"><div class="handoff-left">${frame(shot("06-campaigns"),"SignalLoop campaign lifecycle")}<div class="owners"><div><small>SignalLoop owns</small><b>Conversation and execution</b></div><div><small>Revenue OS carries</small><b>Evidence and decisions</b></div><div><small>eCRM owns</small><b>Commercial record and cash</b></div></div></div><div class="crm-grid">${frame(ecrm("dashboard"),"eCRM operating dashboard")}${frame(ecrm("proposal-detail"),"Proposal and approval")}${frame(ecrm("order-detail"),"Booked order")}<div class="handoff-badge">SIGNED<br>EVENTS</div></div></div>${footer(7)}</section>
+<section class="slide" id="deck-controls"><div class="head"><div><p class="eyebrow">Enterprise control by design</p><h2>Scale agentic revenue work without surrendering policy, identity, or auditability.</h2></div>${brand()}</div><div class="controls"><div class="control-map"><div class="core"><div><b>Governed<br>execution</b><span>One tenant-scoped evidence trail</span></div></div><div class="orbit o1"><b>Identity</b><span>Roles and workload claims</span></div><div class="orbit o2"><b>Policy</b><span>Consent, budget, autonomy</span></div><div class="orbit o3"><b>Reliability</b><span>Outbox, inbox, replay</span></div><div class="orbit o4"><b>Audit</b><span>Actor, reason, outcome</span></div></div><div class="control-proof">${frame(shot("48-revenue-os"),"Revenue OS workspace map")}<div class="facts"><div><b>Tenant isolation</b><span>Events and records stay in customer scope.</span></div><div><b>Independent products</b><span>SignalLoop and eCRM sell separately.</span></div><div><b>No cross-database writes</b><span>Integration uses APIs and events.</span></div><div><b>Reconciliation</b><span>Failures stay visible and recoverable.</span></div></div></div></div>${footer(8)}</section>
+<section class="slide" id="deck-outcomes"><div class="head"><div><p class="eyebrow">What changes for the buyer</p><h2>A connected operating rhythm for growth, control, and customer continuity.</h2></div>${brand()}</div><div class="outcomes"><article class="outcome"><header><small>Revenue leadership</small><h3>See what creates revenue</h3></header><div class="shift"><span>Channel activity</span><b>&rarr;</b><span>Outcome evidence</span></div><div class="shift"><span>Pipeline guesses</span><b>&rarr;</b><span>Traceable milestones</span></div><footer>A clearer view from intent to order to cash.</footer></article><article class="outcome"><header><small>Operations and sales</small><h3>Move work with context</h3></header><div class="shift"><span>Manual re-entry</span><b>&rarr;</b><span>Event handoff</span></div><div class="shift"><span>Scattered queues</span><b>&rarr;</b><span>Next valid action</span></div><footer>Fewer blind spots between engagement and execution.</footer></article><article class="outcome"><header><small>Risk and technology</small><h3>Govern high-impact action</h3></header><div class="shift"><span>Opaque automation</span><b>&rarr;</b><span>Policy evidence</span></div><div class="shift"><span>Point integrations</span><b>&rarr;</b><span>Replayable events</span></div><footer>Control that travels with the work.</footer></article></div>${footer(9)}</section>
+<section class="slide cover dark" id="deck-close"><img class="cover-art" src="${hero}" alt="Signal to cash"><div class="shade"></div><div class="cover-copy"><div>${brand(true)}<div class="pill-row"><span class="pill">Enterprise pilot</span></div></div><div><p class="eyebrow">The executive question</p><h1>Can you trace one agent action all the way to cash?</h1><p class="lead">Start with one segment, one governed motion, and one measurable evidence chain.</p></div><div class="cover-rail"><div><b>Choose</b><span>One buyer journey</span></div><div><b>Connect</b><span>SignalLoop and eCRM</span></div><div><b>Govern</b><span>Policy and approval</span></div><div><b>Measure</b><span>Pipeline to cash</span></div></div></div>${footer(10)}</section>
+</body></html>`);
+
+const brochureHtml = normalizeHtml(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Revenue OS brochure</title><style>@page{size:A4;margin:0}${css}</style></head><body>
+<section class="page" id="brochure-1"><div class="page-head">${brand()}<span class="eyebrow">SignalLoop + eCRM</span></div><div class="marketing-hero"><img src="${hero}" alt="Signal to cash"><div class="marketing-hero-shade"></div><div class="marketing-hero-copy"><p class="eyebrow" style="color:#69e2ed">Revenue operations for the agent era</p><h1>Make every customer signal count.</h1><p>Revenue OS connects SignalLoop engagement with eCRM lead-to-cash execution, so every action moves with context, policy, and proof.</p><div class="marketing-tags"><span>Engage</span><span>Decide</span><span>Close</span><span>Learn</span></div></div></div><div class="marketing-problem"><p class="eyebrow">The revenue gap</p><h2>The problem is not a lack of tools. It is the space between them.</h2><div class="marketing-cards"><div class="marketing-card"><b>Signals get lost</b><p>Buyer intent and conversation context never become durable commercial knowledge.</p></div><div class="marketing-card"><b>AI outruns governance</b><p>Actions happen without consistent consent, approval, budget, or audit evidence.</p></div><div class="marketing-card"><b>Revenue is hard to explain</b><p>Activity cannot be traced cleanly to pipeline, orders, and collected cash.</p></div></div></div><div class="marketing-journey"><div class="marketing-step"><small>01 | Detect</small><b>Signal</b><span>Intent becomes visible</span></div><div class="marketing-step"><small>02 | Engage</small><b>Action</b><span>Human or AI responds</span></div><div class="marketing-step"><small>03 | Govern</small><b>Decision</b><span>Policy shapes the next step</span></div><div class="marketing-step"><small>04 | Convert</small><b>Milestone</b><span>Proposal becomes order</span></div><div class="marketing-step"><small>05 | Prove</small><b>Outcome</b><span>Revenue becomes cash</span></div></div><div class="page-note"><span>Revenue OS | Governed agent-to-cash growth</span><span>01 / 02</span></div></section>
+<section class="page" id="brochure-2"><div class="page-head">${brand()}<span class="eyebrow">One operating rhythm</span></div><div class="suite-intro"><p class="eyebrow">The connected system</p><h1>From market signal to cash, without losing context or control.</h1><p>Revenue OS coordinates three focused products through clear ownership and an auditable evidence trail.</p></div><div class="suite-blocks"><article class="suite-block"><span class="suite-number">01</span><small>Engagement engine</small><h2>SignalLoop</h2><p class="suite-promise">Find, engage, qualify, and schedule across the channels buyers use.</p><ul><li>Campaigns and sequences</li><li>Voice, email, and chat</li><li>AI agents and meetings</li></ul></article><article class="suite-block"><span class="suite-number">02</span><small>Decision and evidence</small><h2>Revenue OS</h2><p class="suite-promise">Score, govern, route, and learn from every material action.</p><ul><li>Next-best action</li><li>Approvals and autonomy</li><li>Outcome attribution</li></ul></article><article class="suite-block"><span class="suite-number">03</span><small>Commercial execution</small><h2>eCRM</h2><p class="suite-promise">Turn qualified intent into proposals, orders, delivery, and cash.</p><ul><li>Pipeline and proposals</li><li>Orders and production</li><li>Finance and reporting</li></ul></article></div><div class="marketing-proof"><div class="marketing-proof-head"><div><p class="eyebrow" style="color:#69e2ed">The outcome ledger</p><h2>Every handoff carries its proof.</h2></div><p>Know who acted, why it was allowed, what changed, and which revenue milestone followed.</p></div><div class="proof-flow"><div><small>Context</small><b>Customer and intent</b></div><div><small>Actor</small><b>Human, agent, or system</b></div><div><small>Control</small><b>Policy and approval</b></div><div><small>Milestone</small><b>Proposal, order, delivery</b></div><div><small>Outcome</small><b>Revenue, cost, and cash</b></div></div></div><div class="marketing-value"><div><small>Revenue leaders</small><b>Know which motions create durable revenue.</b></div><div><small>Sales and operations</small><b>Act from one shared next step, not scattered queues.</b></div><div><small>Technology and risk</small><b>Keep products independent and integration auditable.</b></div></div><div class="marketing-cta"><div><h2>Start with one high-value customer journey.</h2><p>Connect the motion, govern the action, and measure the outcome.</p></div><span>Enterprise pilot</span></div><div class="page-note"><span>SignalLoop and eCRM remain independently sellable and deployable.</span><span>02 / 02</span></div></section>
+</body></html>`);
+
+const inline = (value) => value
+  .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+  .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+  .replace(/`(.+?)`/g, "<code>$1</code>")
+  .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>');
+
+const markdownToHtml = (markdown) => {
+  const lines = markdown.replaceAll("\r\n", "\n").split("\n");
+  const output = [];
+  let list = null;
+  const closeList = () => { if (list) { output.push(`</${list}>`); list = null; } };
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = lines[index];
+    if (!raw.trim()) { closeList(); continue; }
+    const image = raw.match(/^!\[(.+?)\]\((.+?)\)$/);
+    if (image) { closeList(); output.push(`<figure><img src="../user-guide/${image[2]}" alt="${inline(image[1])}"><figcaption>${inline(image[1])}</figcaption></figure>`); continue; }
+    const heading = raw.match(/^(#{1,4})\s+(.+)$/);
+    if (heading) { closeList(); const level = heading[1].length; output.push(`<h${level}>${inline(heading[2])}</h${level}>`); continue; }
+    if (raw.startsWith("| ") && lines[index + 1]?.match(/^\|[\s:|-]+\|$/)) {
+      closeList(); const rows = [];
+      while (index < lines.length && lines[index].startsWith("| ")) { rows.push(lines[index].split("|").slice(1, -1).map((cell) => inline(cell.trim()))); index += 1; }
+      index -= 1; rows.splice(1, 1); const [head, ...body] = rows;
+      output.push(`<table><thead><tr>${head.map((cell) => `<th>${cell}</th>`).join("")}</tr></thead><tbody>${body.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table>`); continue;
+    }
+    const ordered = raw.match(/^\d+\.\s+(.+)$/); const unordered = raw.match(/^-\s+(.+)$/);
+    if (ordered || unordered) { const type = ordered ? "ol" : "ul"; if (list !== type) { closeList(); output.push(`<${type}>`); list = type; } output.push(`<li>${inline((ordered ?? unordered)[1])}</li>`); continue; }
+    closeList();
+    const meta = raw.match(/^(Version|Audience):\s+(.+)$/);
+    output.push(meta ? `<p class="meta"><b>${meta[1]}</b> ${inline(meta[2])}</p>` : `<p>${inline(raw)}</p>`);
+  }
+  closeList();
+  return output.join("\n");
+};
+
+const guideCss = `
+  @page { size:A4; margin:13mm 14mm 15mm; }
+  :root { --ink:#09263d; --muted:#526b7c; --blue:#17699a; --cyan:#1bb6d6; --line:#c9dbe6; }
+  * { box-sizing:border-box; }
+  body { margin:0; color:var(--ink); font-family:Inter,Aptos,"Segoe UI",Arial,sans-serif; font-size:10.2pt; line-height:1.48; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  h1 { margin:0 0 5mm; padding:8mm 9mm; border-radius:9px; color:#fff; background:#071c2c; font-size:28pt; }
+  h2 { margin:8mm 0 3mm; padding-top:2mm; border-top:1px solid var(--line); color:var(--blue); font-size:18pt; break-after:avoid; }
+  h3 { margin:6mm 0 2mm; color:#0d526f; font-size:14pt; break-after:avoid; }
+  h4 { margin:5mm 0 2mm; font-size:11.5pt; break-after:avoid; }
+  p { margin:0 0 3mm; }
+  .meta { margin:0 0 1.5mm; color:var(--muted); }
+  ul,ol { margin:2mm 0 4mm; padding-left:6mm; } li { margin:1.2mm 0; }
+  figure { margin:4mm 0 7mm; padding:3mm; break-inside:avoid; border:1px solid var(--line); border-radius:7px; background:#f6fafc; }
+  figure img { width:100%; display:block; border-radius:4px; }
+  figcaption { margin-top:2mm; color:var(--muted); font-size:8pt; font-weight:700; }
+  table { width:100%; margin:4mm 0; border-collapse:collapse; break-inside:avoid; }
+  th,td { padding:2.5mm; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:8.5pt; }
+  th { color:#fff; background:var(--blue); }
+  code { padding:.2em .35em; border-radius:3px; background:#e9f1f5; font-family:Consolas,monospace; font-size:.9em; }
+  a { color:var(--blue); text-decoration:none; }
+  .guide-cover { position:relative; height:268mm; margin:0; overflow:hidden; page-break-after:always; border-radius:10px; color:#fff; background:#071c2c; }
+  .guide-cover-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:64% center; }
+  .guide-cover-shade { position:absolute; inset:0; background:linear-gradient(180deg,rgb(3 18 29 / .08) 0%,rgb(3 18 29 / .48) 42%,rgb(3 18 29 / .98) 78%),linear-gradient(90deg,rgb(3 18 29 / .9),transparent 76%); }
+  .guide-cover-content { position:relative; z-index:1; height:100%; padding:10mm; display:flex; flex-direction:column; justify-content:space-between; }
+  .guide-cover .guide-brand { display:flex; align-items:center; gap:3mm; font-size:13pt; font-weight:850; }
+  .guide-cover .guide-mark { width:7mm; height:7mm; border-radius:2mm; background:conic-gradient(from 210deg,#1bb6d6,#168b78,#eea737,#ee6959,#1bb6d6); }
+  .guide-cover h1 { margin:0; padding:0; max-width:150mm; background:none; font-size:35pt; line-height:1.02; }
+  .guide-cover .guide-kicker { margin-bottom:4mm; color:#65e1ed; font-size:9pt; font-weight:850; letter-spacing:1.4px; text-transform:uppercase; }
+  .guide-cover .guide-lead { max-width:150mm; margin-top:5mm; color:#d3e4eb; font-size:12pt; }
+  .guide-cover .guide-meta { display:flex; justify-content:space-between; align-items:end; gap:8mm; color:#a9c0cc; font-size:8pt; }
+  .guide-cover .guide-audience { max-width:125mm; }
+`;
+
+const guideMarkdown = await readFile(path.join(guideDir, "signalloop user guide.md"), "utf8");
+const guideStart = guideMarkdown.indexOf("## Start here");
+if (guideStart < 0) throw new Error("User guide is missing its Start here section");
+const guideBody = markdownToHtml(guideMarkdown.slice(guideStart));
+const guideCover = `<section class="guide-cover"><img class="guide-cover-art" src="${hero}" alt="Signal to cash operating journey"><div class="guide-cover-shade"></div><div class="guide-cover-content"><div class="guide-brand"><span class="guide-mark"></span><span>SignalLoop</span></div><div><p class="guide-kicker">Visual user guide | Revenue OS edition</p><h1>Operate governed engagement with confidence.</h1><p class="guide-lead">A screen-led guide to campaigns, AI agents, voice, messaging, customer context, enterprise controls, and the Revenue OS workspace.</p></div><div class="guide-meta"><span class="guide-audience">For outreach operators, Messaging Hub users, tenant administrators, and platform administrators.</span><span>September 12, 2026</span></div></div></section>`;
+const guideHtml = normalizeHtml(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>SignalLoop User Guide</title><style>${guideCss}</style></head><body>${guideCover}${guideBody}</body></html>`);
+
+const required = [hero, ecrm("dashboard"), ecrm("proposal-detail"), ecrm("order-detail"), ...["05-dashboard","06-campaigns","13-voice-agents","48-revenue-os"].map(shot)];
+await Promise.all(required.map((relative) => access(path.resolve(outDir, relative))));
+await mkdir(previewDir, { recursive:true });
+
+const outputs = [
+  ["signalloop-revenueos-pitch-deck", deckHtml, { width:"13.333in", height:"7.5in", printBackground:true }],
+  ["signalloop-revenueos-two-page-brochure", brochureHtml, { format:"A4", printBackground:true, preferCSSPageSize:true }],
+  ["signalloop-user-guide", guideHtml, { format:"A4", printBackground:true, preferCSSPageSize:true }],
+];
+
+for (const [name, html] of outputs) await writeFile(path.join(outDir, `${name}.html`), html, "utf8");
+
+const browser = await chromium.launch({ headless:true });
+try {
+  for (const [name,,pdfOptions] of outputs) {
+    const page = await browser.newPage({ viewport:{ width:1440, height:1100 } });
+    await page.goto(pathToFileURL(path.join(outDir, `${name}.html`)).href, { waitUntil:"networkidle" });
+    await page.pdf({ path:path.join(outDir, `${name}.pdf`), ...pdfOptions });
+    await page.close();
+  }
+  const previews = [
+    ["signalloop-revenueos-pitch-deck","#deck-cover","deck-cover.png",{width:1280,height:720}],
+    ["signalloop-revenueos-pitch-deck","#deck-solution","deck-solution.png",{width:1280,height:720}],
+    ["signalloop-revenueos-pitch-deck","#deck-ecrm","deck-ecrm.png",{width:1280,height:720}],
+    ["signalloop-revenueos-two-page-brochure","#brochure-1","brochure-page-1.png",{width:794,height:1123}],
+    ["signalloop-revenueos-two-page-brochure","#brochure-2","brochure-page-2.png",{width:794,height:1123}],
+  ];
+  for (const [name,selector,filename,viewport] of previews) {
+    const page = await browser.newPage({ viewport });
+    await page.goto(pathToFileURL(path.join(outDir, `${name}.html`)).href, { waitUntil:"networkidle" });
+    await page.locator(selector).screenshot({ path:path.join(previewDir, filename), animations:"disabled" });
+    await page.close();
+  }
+} finally { await browser.close(); }
+
+await copyFile(path.join(outDir, "signalloop-user-guide.pdf"), path.join(guideDir, "signalloop user guide.pdf"));
+console.log("Generated pitch deck, two-page brochure, user guide, and five previews.");

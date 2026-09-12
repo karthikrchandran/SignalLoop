@@ -1,0 +1,197 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>SignalLoop User Guide</title><style>
+  @page { size:A4; margin:13mm 14mm 15mm; }
+  :root { --ink:#09263d; --muted:#526b7c; --blue:#17699a; --cyan:#1bb6d6; --line:#c9dbe6; }
+  * { box-sizing:border-box; }
+  body { margin:0; color:var(--ink); font-family:Inter,Aptos,"Segoe UI",Arial,sans-serif; font-size:10.2pt; line-height:1.48; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  h1 { margin:0 0 5mm; padding:8mm 9mm; border-radius:9px; color:#fff; background:#071c2c; font-size:28pt; }
+  h2 { margin:8mm 0 3mm; padding-top:2mm; border-top:1px solid var(--line); color:var(--blue); font-size:18pt; break-after:avoid; }
+  h3 { margin:6mm 0 2mm; color:#0d526f; font-size:14pt; break-after:avoid; }
+  h4 { margin:5mm 0 2mm; font-size:11.5pt; break-after:avoid; }
+  p { margin:0 0 3mm; }
+  .meta { margin:0 0 1.5mm; color:var(--muted); }
+  ul,ol { margin:2mm 0 4mm; padding-left:6mm; } li { margin:1.2mm 0; }
+  figure { margin:4mm 0 7mm; padding:3mm; break-inside:avoid; border:1px solid var(--line); border-radius:7px; background:#f6fafc; }
+  figure img { width:100%; display:block; border-radius:4px; }
+  figcaption { margin-top:2mm; color:var(--muted); font-size:8pt; font-weight:700; }
+  table { width:100%; margin:4mm 0; border-collapse:collapse; break-inside:avoid; }
+  th,td { padding:2.5mm; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:8.5pt; }
+  th { color:#fff; background:var(--blue); }
+  code { padding:.2em .35em; border-radius:3px; background:#e9f1f5; font-family:Consolas,monospace; font-size:.9em; }
+  a { color:var(--blue); text-decoration:none; }
+  .guide-cover { position:relative; height:268mm; margin:0; overflow:hidden; page-break-after:always; border-radius:10px; color:#fff; background:#071c2c; }
+  .guide-cover-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:64% center; }
+  .guide-cover-shade { position:absolute; inset:0; background:linear-gradient(180deg,rgb(3 18 29 / .08) 0%,rgb(3 18 29 / .48) 42%,rgb(3 18 29 / .98) 78%),linear-gradient(90deg,rgb(3 18 29 / .9),transparent 76%); }
+  .guide-cover-content { position:relative; z-index:1; height:100%; padding:10mm; display:flex; flex-direction:column; justify-content:space-between; }
+  .guide-cover .guide-brand { display:flex; align-items:center; gap:3mm; font-size:13pt; font-weight:850; }
+  .guide-cover .guide-mark { width:7mm; height:7mm; border-radius:2mm; background:conic-gradient(from 210deg,#1bb6d6,#168b78,#eea737,#ee6959,#1bb6d6); }
+  .guide-cover h1 { margin:0; padding:0; max-width:150mm; background:none; font-size:35pt; line-height:1.02; }
+  .guide-cover .guide-kicker { margin-bottom:4mm; color:#65e1ed; font-size:9pt; font-weight:850; letter-spacing:1.4px; text-transform:uppercase; }
+  .guide-cover .guide-lead { max-width:150mm; margin-top:5mm; color:#d3e4eb; font-size:12pt; }
+  .guide-cover .guide-meta { display:flex; justify-content:space-between; align-items:end; gap:8mm; color:#a9c0cc; font-size:8pt; }
+  .guide-cover .guide-audience { max-width:125mm; }
+</style></head><body><section class="guide-cover"><img class="guide-cover-art" src="assets/graphics/revenue-os-signal-to-cash-hero-v2.png" alt="Signal to cash operating journey"><div class="guide-cover-shade"></div><div class="guide-cover-content"><div class="guide-brand"><span class="guide-mark"></span><span>SignalLoop</span></div><div><p class="guide-kicker">Visual user guide | Revenue OS edition</p><h1>Operate governed engagement with confidence.</h1><p class="guide-lead">A screen-led guide to campaigns, AI agents, voice, messaging, customer context, enterprise controls, and the Revenue OS workspace.</p></div><div class="guide-meta"><span class="guide-audience">For outreach operators, Messaging Hub users, tenant administrators, and platform administrators.</span><span>September 12, 2026</span></div></div></section><h2>Start here</h2>
+<ol>
+<li>Open the SignalLoop URL supplied by your administrator.</li>
+<li>Sign in with your work account. Use <strong>Sign up</strong> or <strong>Forgot your password?</strong> only when those actions are enabled for your deployment.</li>
+<li>Confirm the workspace in the header and use the left navigation to open the needed area.</li>
+<li>Start at <strong>Dashboard</strong> for operational status, or <strong>Home</strong> to choose a workspace area.</li>
+</ol>
+<figure><img src="../user-guide/screenshots/01-login.png" alt="Log in"><figcaption>Log in</figcaption></figure>
+<p>If self-service accounts are enabled for your deployment, <strong>Sign up</strong> collects the details needed to request workspace access.</p>
+<figure><img src="../user-guide/screenshots/02-sign-up.png" alt="Sign up"><figcaption>Sign up</figcaption></figure>
+<p><strong>Forgot your password?</strong> starts email-based recovery without involving an administrator.</p>
+<figure><img src="../user-guide/screenshots/03-password-recovery.png" alt="Password recovery"><figcaption>Password recovery</figcaption></figure>
+<h2>Access and roles</h2>
+<ul>
+<li><strong>Operator or standard user</strong> works with the outreach and Messaging Hub surfaces granted to their workspace.</li>
+<li><strong>Tenant administrator / superuser</strong> manages tenant people, products, branding, security, messaging, provider setup, and workspace configuration.</li>
+<li><strong>Platform administrator</strong> manages tenant lifecycle, product policy, identity, support access, and audit from the control plane. Selecting a tenant there never grants access to its business data.</li>
+</ul>
+<p>The application hides or redirects restricted screens. If an area is missing, ask a tenant administrator to review your membership and role; do not work around workspace access checks.</p>
+<h2>Left-navigation modes</h2>
+<p>The three controls at the top of the left navigation switch the menu between product areas: <strong>Outreach</strong>, <strong>Messaging</strong>, and, for superusers, <strong>Admin</strong>. The inactive controls may appear as icons until selected; select one to expose its menu. The walkthroughs below follow each mode in left-to-right nav order, the way an operator would click through it.</p>
+<h3>Outreach</h3>
+<p>Switching to Outreach exposes Home, Dashboard, Campaigns, SignalLoop AI, Customer 360, Sequences, Voice Agents, Meetings, Contacts, Lead Preparation, Analytics, Templates, Controls, and Settings.</p>
+<h4>Home</h4>
+<p><strong>Home</strong> provides product and workflow shortcuts for choosing where to work next.</p>
+<figure><img src="../user-guide/screenshots/04-home.png" alt="Home"><figcaption>Home</figcaption></figure>
+<h4>Dashboard</h4>
+<p><strong>Dashboard</strong> is the operational view for campaign activity, contacts processed, Messaging Hub traffic, leads, meetings, escalations, channel health, agent operations, and calendar handoffs. Use its period selector and <strong>Refresh</strong> when reviewing current activity. Empty-state cards are normal in a new or unconnected workspace; they do not prove that a provider or worker is ready.</p>
+<figure><img src="../user-guide/screenshots/05-dashboard.png" alt="Dashboard"><figcaption>Dashboard</figcaption></figure>
+<h4>Campaigns</h4>
+<p><strong>Campaigns</strong> has campaign work plus <strong>Draft</strong>, <strong>Running</strong>, and <strong>Paused</strong> lifecycle views. Start with a draft, review audience and channel strategy, then monitor its status.</p>
+<figure><img src="../user-guide/screenshots/06-campaigns.png" alt="Campaigns"><figcaption>Campaigns</figcaption></figure>
+<figure><img src="../user-guide/screenshots/07-campaigns-draft.png" alt="Draft campaigns"><figcaption>Draft campaigns</figcaption></figure>
+<figure><img src="../user-guide/screenshots/08-campaigns-running.png" alt="Running campaigns"><figcaption>Running campaigns</figcaption></figure>
+<figure><img src="../user-guide/screenshots/09-campaigns-paused.png" alt="Paused campaigns"><figcaption>Paused campaigns</figcaption></figure>
+<h4>SignalLoop AI</h4>
+<p><strong>SignalLoop AI</strong> groups next best actions, a unified work queue, journey signals, and knowledge gaps.</p>
+<figure><img src="../user-guide/screenshots/10-signalloop-ai.png" alt="SignalLoop AI"><figcaption>SignalLoop AI</figcaption></figure>
+<h4>Customer 360</h4>
+<p><strong>Customer 360</strong> is the account workspace for contacts, channel activity, and next action.</p>
+<figure><img src="../user-guide/screenshots/11-customer-360.png" alt="Customer 360"><figcaption>Customer 360</figcaption></figure>
+<h4>Sequences</h4>
+<p><strong>Sequences</strong> is the multi-step outreach surface. Create or select a sequence, inspect its steps, then review enrollments and performance.</p>
+<figure><img src="../user-guide/screenshots/12-sequences.png" alt="Sequences"><figcaption>Sequences</figcaption></figure>
+<h4>Voice Agents</h4>
+<p><strong>Voice Agents</strong> lets you choose a voice profile and language, maintain campaign scripts, inspect provider and callback readiness, and queue a manual test call when the required contact and script are selected. Browser preview validates the selected voice and script experience; it is not proof that a provider completed a live outbound call.</p>
+<figure><img src="../user-guide/screenshots/13-voice-agents.png" alt="Voice Agents"><figcaption>Voice Agents</figcaption></figure>
+<h4>Meetings</h4>
+<p><strong>Meetings</strong> lists contacts that expressed booking interest and supports booking-link or booked-state follow-up.</p>
+<figure><img src="../user-guide/screenshots/14-meetings.png" alt="Meetings"><figcaption>Meetings</figcaption></figure>
+<h4>Contacts</h4>
+<p><strong>Contacts</strong> is the active-workspace lead pool. Download the CSV template when importing; filter and review contacts before using them in campaigns or sequences.</p>
+<figure><img src="../user-guide/screenshots/15-contacts.png" alt="Contacts"><figcaption>Contacts</figcaption></figure>
+<h4>Lead Preparation</h4>
+<p><strong>Lead Preparation</strong> selects contacts, builds lead briefs, and hands prepared contacts to campaigns or sequences.</p>
+<figure><img src="../user-guide/screenshots/16-lead-preparation.png" alt="Lead Preparation"><figcaption>Lead Preparation</figcaption></figure>
+<h4>Analytics</h4>
+<p><strong>Analytics</strong> presents campaign, email, and voice performance; use the correct workspace and time range for decisions. The current <strong>Reporting</strong> route renders an error screen in the verified build — treat it as unavailable until repaired.</p>
+<figure><img src="../user-guide/screenshots/17-analytics.png" alt="Analytics"><figcaption>Analytics</figcaption></figure>
+<figure><img src="../user-guide/screenshots/18-reporting.png" alt="Reporting error state"><figcaption>Reporting error state</figcaption></figure>
+<h4>Templates</h4>
+<p><strong>Templates</strong> provides starter templates and an editor. Preview tokens and publish only after unresolved tokens and policy issues are addressed.</p>
+<figure><img src="../user-guide/screenshots/19-templates.png" alt="Templates"><figcaption>Templates</figcaption></figure>
+<h4>Controls</h4>
+<p><strong>Controls</strong> is the safety surface. <strong>Pause all outreach</strong> stops outbound activity across campaigns and sequences; record a reason and verify the pause before communicating that sends stopped.</p>
+<figure><img src="../user-guide/screenshots/20-controls.png" alt="Controls"><figcaption>Controls</figcaption></figure>
+<h4>Settings</h4>
+<p><strong>Settings</strong> contains profile and password controls. Role-dependent tabs include opt-outs, workspace setup, and provider setup.</p>
+<figure><img src="../user-guide/screenshots/21-settings.png" alt="User Settings"><figcaption>User Settings</figcaption></figure>
+<p><strong>Provider Setup</strong> is superuser-only and reports API, PostgreSQL, Redis, and worker readiness. Keep provider keys private. Worker cards can be stale or missing in a local build; do not treat the web UI alone as proof that a delivery worker processed a campaign, use the relevant operational health and delivery/audit evidence instead.</p>
+<figure><img src="../user-guide/screenshots/22-provider-settings.png" alt="Provider Setup"><figcaption>Provider Setup</figcaption></figure>
+<h3>Messaging</h3>
+<p>Switching to Messaging exposes Messaging Hub Channels, Knowledge Base, Inbox, Analytics, and Settings. Channel and knowledge-base administration requires the appropriate elevated role.</p>
+<h4>Channels</h4>
+<p>An authorized administrator connects a channel here. Live channels require provider credentials, provider IDs, webhook verification, and activation. No demo or empty-state card means that a provider is live — confirm credentials, webhook verification, and activation first.</p>
+<figure><img src="../user-guide/screenshots/23-messaging-channels.png" alt="Messaging Hub Channels"><figcaption>Messaging Hub Channels</figcaption></figure>
+<h4>Knowledge Base</h4>
+<p>An administrator adds Website URLs, documents, or FAQ/Q&amp;A entries here, then re-indexes and tests the bot as appropriate.</p>
+<figure><img src="../user-guide/screenshots/24-messaging-knowledge-base.png" alt="Messaging Hub Knowledge Base"><figcaption>Messaging Hub Knowledge Base</figcaption></figure>
+<h4>Inbox</h4>
+<p>Operators work conversations here after connected channels receive messages. Use filters and select a thread for its detail.</p>
+<figure><img src="../user-guide/screenshots/25-messaging-inbox.png" alt="Messaging Hub Inbox"><figcaption>Messaging Hub Inbox</figcaption></figure>
+<h4>Analytics</h4>
+<p>Review conversations, containment, captured leads, escalations, conversion funnel, and channel outcomes.</p>
+<figure><img src="../user-guide/screenshots/26-messaging-analytics.png" alt="Messaging Hub Analytics"><figcaption>Messaging Hub Analytics</figcaption></figure>
+<h4>Settings</h4>
+<p>Authorized administrators maintain behavior here and review failed messages in <strong>Admin &gt; Dead Letters</strong>.</p>
+<figure><img src="../user-guide/screenshots/27-messaging-settings.png" alt="Messaging Hub Settings"><figcaption>Messaging Hub Settings</figcaption></figure>
+<h3>Admin</h3>
+<p>Superusers use Admin for tenant people and roles, products, branding, security, messaging, audit, and dead letters. Standard users will not see this control. Admin is tenant-scoped; it is not a cross-tenant data browser.</p>
+<h4>Tenant administration</h4>
+<p>The landing screen for tenant people and roles, products, branding, security, messaging, and audit.</p>
+<figure><img src="../user-guide/screenshots/28-admin.png" alt="Tenant administration"><figcaption>Tenant administration</figcaption></figure>
+<h4>People and roles</h4>
+<p>Manage tenant membership and role assignment.</p>
+<figure><img src="../user-guide/screenshots/29-admin-members.png" alt="People and roles"><figcaption>People and roles</figcaption></figure>
+<h4>Tenant products</h4>
+<p>Manage which products — CommitArc, RevenueOS, SignalLoop — are entitled to the tenant.</p>
+<figure><img src="../user-guide/screenshots/30-admin-products.png" alt="Tenant products"><figcaption>Tenant products</figcaption></figure>
+<h4>Tenant security</h4>
+<p>Manage tenant-level security controls.</p>
+<figure><img src="../user-guide/screenshots/31-admin-security.png" alt="Tenant security"><figcaption>Tenant security</figcaption></figure>
+<h4>Tenant messaging</h4>
+<p>Manage tenant messaging configuration; this is separate from Messaging Hub's own Settings tab.</p>
+<figure><img src="../user-guide/screenshots/32-admin-messaging.png" alt="Tenant messaging"><figcaption>Tenant messaging</figcaption></figure>
+<h4>Tenant audit</h4>
+<p>Review the tenant audit trail.</p>
+<figure><img src="../user-guide/screenshots/33-admin-audit.png" alt="Tenant audit"><figcaption>Tenant audit</figcaption></figure>
+<h4>Tenant branding</h4>
+<p>Manage tenant branding assets and versioning.</p>
+<figure><img src="../user-guide/screenshots/34-admin-branding.png" alt="Tenant branding"><figcaption>Tenant branding</figcaption></figure>
+<h4>Messaging dead letters</h4>
+<p>Review Messaging Hub messages that failed delivery.</p>
+<figure><img src="../user-guide/screenshots/35-admin-dead-letters.png" alt="Messaging dead letters"><figcaption>Messaging dead letters</figcaption></figure>
+<h4>CommitArc administration</h4>
+<p>Tenant-scoped administration for the CommitArc product.</p>
+<figure><img src="../user-guide/screenshots/36-admin-commit-arc.png" alt="CommitArc administration"><figcaption>CommitArc administration</figcaption></figure>
+<h4>RevenueOS administration</h4>
+<p>Tenant-scoped administration for the RevenueOS product.</p>
+<figure><img src="../user-guide/screenshots/37-admin-revenue-os.png" alt="RevenueOS administration"><figcaption>RevenueOS administration</figcaption></figure>
+<h4>SignalLoop administration</h4>
+<p>Tenant-scoped administration for the SignalLoop product.</p>
+<figure><img src="../user-guide/screenshots/38-admin-signalloop.png" alt="SignalLoop administration"><figcaption>SignalLoop administration</figcaption></figure>
+<h2>Platform administration</h2>
+<p><strong>Platform</strong> is the suite control plane for tenant lifecycle, products, identity, messaging defaults, provider policies, usage and health, support access, and audit. It sits outside the three tenant-scoped nav modes above and is reserved for platform administrators. Selecting a tenant here never grants access to its business data, and support access should be approved, time-bound, revocable, and audited.</p>
+<h4>Platform administration</h4>
+<p>Landing screen for platform-wide administration.</p>
+<figure><img src="../user-guide/screenshots/39-platform.png" alt="Platform administration"><figcaption>Platform administration</figcaption></figure>
+<h4>Platform tenants</h4>
+<p>Manage tenant lifecycle across the platform.</p>
+<figure><img src="../user-guide/screenshots/40-platform-tenants.png" alt="Platform tenants"><figcaption>Platform tenants</figcaption></figure>
+<h4>Platform identity</h4>
+<p>Manage platform identity configuration.</p>
+<figure><img src="../user-guide/screenshots/41-platform-identity.png" alt="Platform identity"><figcaption>Platform identity</figcaption></figure>
+<h4>Platform products</h4>
+<p>Manage product policy across the platform.</p>
+<figure><img src="../user-guide/screenshots/42-platform-products.png" alt="Platform products"><figcaption>Platform products</figcaption></figure>
+<h4>Provider policies</h4>
+<p>Manage provider policy defaults.</p>
+<figure><img src="../user-guide/screenshots/43-platform-provider-policies.png" alt="Provider policies"><figcaption>Provider policies</figcaption></figure>
+<h4>Support access</h4>
+<p>Grant and review time-bound, auditable support access to a tenant.</p>
+<figure><img src="../user-guide/screenshots/44-platform-support-access.png" alt="Support access"><figcaption>Support access</figcaption></figure>
+<h4>Messaging defaults</h4>
+<p>Manage platform-wide messaging defaults.</p>
+<figure><img src="../user-guide/screenshots/45-platform-messaging.png" alt="Messaging defaults"><figcaption>Messaging defaults</figcaption></figure>
+<h4>Platform audit</h4>
+<p>Review the platform-wide audit trail.</p>
+<figure><img src="../user-guide/screenshots/46-platform-audit.png" alt="Platform audit"><figcaption>Platform audit</figcaption></figure>
+<h4>Usage and health</h4>
+<p>Review platform usage and health metrics.</p>
+<figure><img src="../user-guide/screenshots/47-platform-usage-health.png" alt="Usage and health"><figcaption>Usage and health</figcaption></figure>
+<h2>Revenue OS</h2>
+<p><strong>Revenue OS</strong> provides the cross-product operating view for EngageHub, ChatHub, Sales Ops, Operations, Finance, Performance, and Platform administration. Each linked product continues to enforce its own authorization controls.</p>
+<figure><img src="../user-guide/screenshots/48-revenue-os.png" alt="Revenue OS"><figcaption>Revenue OS</figcaption></figure>
+<h2>Troubleshooting</h2>
+<h3>Expected workspace or menu is missing</h3>
+<p>Verify that you signed into the correct work account, then ask a tenant administrator to verify membership and role. A browser-stored workspace selection is never a substitute for server-side access checks.</p>
+<h3>A channel, campaign, or dashboard is empty</h3>
+<p>Check whether the workspace has business data, a connected provider, and running workers. For live delivery, verify provider activation, worker health, and delivery/audit evidence.</p>
+<h3>A page shows “Failed to fetch” or an error screen</h3>
+<p>Refresh once and confirm application health. If it persists, record the route, timestamp, and visible error for support. A browser shell loading is not proof that the screen data loaded.</p>
+<h2>Screenshot reference</h2>
+<p>Playwright captured 48 authenticated, 1440 × 1080 route screenshots in <a href="screenshots/"><code>screenshots/</code></a>, each shown once above in its place in the left-navigation walkthrough.</p>
+<table><thead><tr><th>Area</th><th>Captures</th></tr></thead><tbody><tr><td>Public access</td><td><code>01-login</code> through <code>03-password-recovery</code></td></tr><tr><td>Outreach workspace</td><td><code>04-home</code> through <code>22-provider-settings</code></td></tr><tr><td>Messaging Hub</td><td><code>23-messaging-channels</code> through <code>27-messaging-settings</code></td></tr><tr><td>Tenant administration</td><td><code>28-admin</code> through <code>38-admin-signalloop</code></td></tr><tr><td>Platform administration</td><td><code>39-platform</code> through <code>47-platform-usage-health</code></td></tr><tr><td>Revenue OS</td><td><code>48-revenue-os</code></td></tr></tbody></table>
+<p>Dynamic account and conversation-detail routes are not in the set because the verified workspace contained no account or conversation records.</p></body></html>
