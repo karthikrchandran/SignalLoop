@@ -29,6 +29,40 @@ Create a binding through `PUT /api/v1/ecrm-installations/binding` while
 authenticated as a workspace admin and sending `X-Workspace-Id`. The response
 deliberately omits `credential_secret_ref` and all secret values.
 
+
+## Demo customer configuration
+
+For the ARA Global and AI Consulting demos, run two separate SignalLoop deployments or runtime environments. Do not point both workspaces at the same SignalLoop database.
+
+| Demo cell | SignalLoop env template | SignalLoop database | Workspace ID | eCRM endpoint ID | eCRM secret reference |
+| --- | --- | --- | --- | --- | --- |
+| ARA Global | `docs/operations/examples/ara-global.env.example` | `signalloop_ara_global` | `workspace_ara_global` | `ara-global` | `ara-global-delivery-v1` |
+| AI Consulting | `docs/operations/examples/ai-consulting.env.example` | `signalloop_ai_consulting` | `workspace_ai_consulting` | `ai-consulting` | `ai-consulting-delivery-v1` |
+
+Each tracked template can be copied to the deployment environment or to a local ignored `.env.ara-global.example` / `.env.ai-consulting.example` file. Each template includes a separate `POSTGRES_SERVER`, `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` block. Replace those placeholders with the Postgres database issued for that SignalLoop deployment. The eCRM cell databases remain separate from the SignalLoop databases.
+
+After the SignalLoop API is running for a cell, bind the authenticated workspace to the matching eCRM cell:
+
+```powershell
+# ARA Global
+$env:SIGNALLOOP_API="https://api-signalloop-ara-global.example.com"
+$env:SIGNALLOOP_ADMIN_TOKEN="<workspace-admin-token>"
+Invoke-RestMethod -Method Put "$env:SIGNALLOOP_API/api/v1/ecrm-installations/binding" `
+  -Headers @{ Authorization="Bearer $env:SIGNALLOOP_ADMIN_TOKEN"; "X-Workspace-Id"="workspace_ara_global" } `
+  -ContentType "application/json" `
+  -Body '{"endpoint_id":"ara-global","secret_reference_id":"ara-global-delivery-v1","capabilities":["SHARED_RECORD","WORKFLOW_EVENT"],"status":"ACTIVE","source_version":1}'
+
+# AI Consulting
+$env:SIGNALLOOP_API="https://api-signalloop-ai-consulting.example.com"
+$env:SIGNALLOOP_ADMIN_TOKEN="<workspace-admin-token>"
+Invoke-RestMethod -Method Put "$env:SIGNALLOOP_API/api/v1/ecrm-installations/binding" `
+  -Headers @{ Authorization="Bearer $env:SIGNALLOOP_ADMIN_TOKEN"; "X-Workspace-Id"="workspace_ai_consulting" } `
+  -ContentType "application/json" `
+  -Body '{"endpoint_id":"ai-consulting","secret_reference_id":"ai-consulting-delivery-v1","capabilities":["SHARED_RECORD","WORKFLOW_EVENT"],"status":"ACTIVE","source_version":1}'
+```
+
+The two bindings must resolve to different `POSTGRES_DB` values, different `X-Workspace-Id` values, and different eCRM cell identities. ARA Global uses `cell_ara_global`/`ara-global`; AI Consulting uses `cell_ai_consulting`/`ai-consulting`.
+
 ## Delivery and recovery
 
 The authenticated destination is
@@ -98,3 +132,5 @@ This endpoint contains no event payloads, cell credentials, or secret references
 Treat `DEGRADED`, `HELD_GAP`, and `DEAD_LETTER` as operator action states.
 RevenueOS projection state is retained even when its entitlement is disabled so
 recovery does not lose evidence; RevenueOS reads remain entitlement-gated.
+
+
