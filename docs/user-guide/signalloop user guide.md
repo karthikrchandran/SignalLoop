@@ -1,6 +1,6 @@
 # SignalLoop User Guide
 
-Version: August 16, 2026
+Version: September 12, 2026
 Audience: outreach operators, Messaging Hub users, tenant administrators, and platform administrators
 
 SignalLoop is the governed operating workspace for campaigns, voice, messaging, and account work. This guide reflects the routes and controls verified in the current local application. It distinguishes available workflows from screens that require connected providers, workers, or business data. Every screen below is shown once, in the order you would reach it by clicking through the left navigation.
@@ -82,7 +82,7 @@ Switching to Outreach exposes Home, Dashboard, Campaigns, SignalLoop AI, Custome
 
 #### Voice Agents
 
-**Voice Agents** lets you choose a voice profile, maintain campaign scripts, and check calling-provider readiness. Browser preview is a script check, not proof of a live outbound call.
+**Voice Agents** lets you choose a voice profile and language, maintain campaign scripts, inspect provider and callback readiness, and queue a manual test call when the required contact and script are selected. Browser preview validates the selected voice and script experience; it is not proof that a provider completed a live outbound call.
 
 ![Voice Agents](screenshots/13-voice-agents.png)
 
