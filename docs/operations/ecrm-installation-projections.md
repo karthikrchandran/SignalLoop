@@ -63,6 +63,42 @@ Invoke-RestMethod -Method Put "$env:SIGNALLOOP_API/api/v1/ecrm-installations/bin
 
 The two bindings must resolve to different `POSTGRES_DB` values, different `X-Workspace-Id` values, and different eCRM cell identities. ARA Global uses `cell_ara_global`/`ara-global`; AI Consulting uses `cell_ai_consulting`/`ai-consulting`.
 
+## SignalVoice customer-cell smoke checklist
+
+Run this checklist separately for ARA Global and AI Consulting. Do not reuse a
+browser-selected workspace, database, provider credential, or eCRM binding
+between the two cells.
+
+1. Confirm the SignalLoop runtime is using the cell-specific environment:
+   `POSTGRES_DB`, `DEFAULT_WORKSPACE_ID`, `ECRM_INSTALLATION_ENDPOINTS`, and
+   `ECRM_INSTALLATION_SECRET_REFERENCES` match the row in the demo-cell table
+   above.
+2. Apply migrations with `uv run alembic upgrade head`, then verify the
+   authenticated workspace has an active `suite_tenant_workspace_binding` for
+   the cell workspace.
+3. Provision an active commercial-agent entitlement and activate one
+   `VOICE_CONVERSATION` deployment for the workspace. A provider credential by
+   itself is not a launch switch.
+4. In `Settings -> Providers`, confirm the workspace selects the intended voice
+   provider, then smoke-test the stored credential. The credential test only
+   proves adapter construction; it does not prove a live call.
+5. Create or import one synthetic consented contact with `consent_voice=true`,
+   a valid phone number, timezone, campaign, and voice script. Missing or
+   ambiguous consent must remain a deny condition.
+6. Queue one manual call and run the call worker. A successful provider handoff
+   must create a finalized `voice_attempt` agent usage ledger row keyed by the
+   call request id and must leave the other demo cell untouched.
+7. Complete one post-call processing pass for recording/transcript/summary
+   evidence when a recording is available. Local `faster-whisper` is acceptable
+   for batch post-call processing; live streaming behavior requires the selected
+   provider path.
+8. Deliver the resulting shared-record or workflow-event projection to the
+   matching eCRM cell, then run reconciliation. `DEGRADED`, `HELD_GAP`, and
+   `DEAD_LETTER` are operator action states, not green demo states.
+9. Repeat a negative smoke with the other cell's workspace id, endpoint id, or
+   secret reference. The request must fail closed and must not project or
+   dispatch cross-cell work.
+
 ## Delivery and recovery
 
 The authenticated destination is
