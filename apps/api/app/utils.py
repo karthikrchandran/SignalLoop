@@ -27,9 +27,11 @@ class EmailData:
 
 def render_email_template(*, template_name: str, context: dict[str, Any]) -> str:
     """Render email template."""
-    template_str = (
-        Path(__file__).parent / "email-templates" / "build" / template_name
-    ).read_text()
+    template_root = Path(__file__).parent / "email-templates"
+    template_path = template_root / "build" / template_name
+    if not template_path.exists():
+        template_path = template_root / "src" / f"{Path(template_name).stem}.mjml"
+    template_str = template_path.read_text()
     html_content = Template(template_str).render(context)
     return html_content
 
