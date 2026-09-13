@@ -21,6 +21,13 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    env:
+      PROJECT_NAME: SignalLoop
+      POSTGRES_SERVER: localhost
+      POSTGRES_USER: ci
+      POSTGRES_DB: signalloop_ci
+      FIRST_SUPERUSER: ci@example.com
+      FIRST_SUPERUSER_PASSWORD: ci-only-password
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
