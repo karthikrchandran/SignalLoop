@@ -74,7 +74,7 @@ def count_local_records(
 
 
 def count_ecrm_export_records(*, workspace_id: str) -> dict[str, int]:
-    counts = {entity_type: 0 for entity_type in _ENTITY_TYPES}
+    counts = dict.fromkeys(_ENTITY_TYPES, 0)
 
     for entity_type in _ENTITY_TYPES:
         cursor: str | None = None

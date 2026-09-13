@@ -60,7 +60,9 @@ const campaignLifecycleMeta: Record<
   },
 }
 
-export function normalizeCampaignStatus(status: string): CampaignLifecycleStatus | null {
+export function normalizeCampaignStatus(
+  status: string,
+): CampaignLifecycleStatus | null {
   if (status === "draft" || status === "active" || status === "paused") {
     return status
   }
@@ -75,7 +77,9 @@ export function getCampaignLifecycleTitle(status: CampaignLifecycleStatus) {
   return campaignLifecycleMeta[status].title
 }
 
-export function getCampaignLifecycleDescription(status: CampaignLifecycleStatus) {
+export function getCampaignLifecycleDescription(
+  status: CampaignLifecycleStatus,
+) {
   return campaignLifecycleMeta[status].description
 }
 
@@ -127,7 +131,8 @@ export function useCampaignsWorkspace() {
     setError("")
 
     try {
-      const response = await signalloopRequest<CampaignListResponse>("/api/v1/campaigns/")
+      const response =
+        await signalloopRequest<CampaignListResponse>("/api/v1/campaigns/")
       if (requestId.current !== currentRequestId) {
         return
       }

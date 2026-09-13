@@ -1,13 +1,24 @@
-import { useEffect, useMemo, useState } from "react"
 import { AlertTriangle, RefreshCw, RotateCcw } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { type ChatbotDeadLetter, listChatbotDeadLetters, retryChatbotDeadLetter } from "@/features/chatbot/api"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  type ChatbotDeadLetter,
+  listChatbotDeadLetters,
+  retryChatbotDeadLetter,
+} from "@/features/chatbot/api"
 
 function channelLabel(value: string) {
   return value
@@ -17,7 +28,10 @@ function channelLabel(value: string) {
 }
 
 function relativeAge(value: string) {
-  const minutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60000))
+  const minutes = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(value).getTime()) / 60000),
+  )
   if (minutes < 1) return "now"
   if (minutes < 60) return `${minutes}m ago`
   const hours = Math.floor(minutes / 60)
@@ -31,30 +45,44 @@ export default function DeadLettersPage() {
   const [retryingId, setRetryingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const response = await listChatbotDeadLetters()
       setRows(response.data)
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to load dead letters")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to load dead letters",
+      )
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     void load()
-  }, [])
+  }, [load])
 
   const stats = useMemo(() => {
-    const topChannel = rows.reduce<Record<string, number>>((accumulator, row) => {
-      accumulator[row.channel_type] = (accumulator[row.channel_type] || 0) + 1
-      return accumulator
-    }, {})
-    const channel = Object.entries(topChannel).sort((a, b) => b[1] - a[1])[0]?.[0]
-    const oldest = rows.slice().sort((a, b) => new Date(a.failed_at).getTime() - new Date(b.failed_at).getTime())[0]
+    const topChannel = rows.reduce<Record<string, number>>(
+      (accumulator, row) => {
+        accumulator[row.channel_type] = (accumulator[row.channel_type] || 0) + 1
+        return accumulator
+      },
+      {},
+    )
+    const channel = Object.entries(topChannel).sort(
+      (a, b) => b[1] - a[1],
+    )[0]?.[0]
+    const oldest = rows
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(a.failed_at).getTime() - new Date(b.failed_at).getTime(),
+      )[0]
     return {
       failed: rows.length,
       retriesToday: rows.reduce((total, row) => total + row.attempt_count, 0),
@@ -71,7 +99,11 @@ export default function DeadLettersPage() {
       setRows((current) => current.filter((item) => item.id !== row.id))
       toast.success("Dead-lettered message requeued")
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to retry dead letter")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to retry dead letter",
+      )
     } finally {
       setRetryingId(null)
     }
@@ -86,15 +118,26 @@ export default function DeadLettersPage() {
             <AlertTriangle className="size-6 text-muted-foreground" />
             Messaging Dead Letters
           </h1>
-          <p className="text-sm text-muted-foreground">Verified messages that failed all worker retries.</p>
+          <p className="text-sm text-muted-foreground">
+            Verified messages that failed all worker retries.
+          </p>
         </div>
-        <Button variant="outline" onClick={() => void load()} disabled={loading} className="gap-2">
+        <Button
+          variant="outline"
+          onClick={() => void load()}
+          disabled={loading}
+          className="gap-2"
+        >
           <RefreshCw className={loading ? "size-4 animate-spin" : "size-4"} />
           Refresh
         </Button>
       </div>
 
-      {error ? <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div> : null}
+      {error ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Failed" value={String(stats.failed)} />
@@ -122,15 +165,26 @@ export default function DeadLettersPage() {
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">No dead-lettered messaging events.</TableCell>
+                  <TableCell
+                    colSpan={6}
+                    className="text-center text-muted-foreground"
+                  >
+                    No dead-lettered messaging events.
+                  </TableCell>
                 </TableRow>
               ) : (
                 rows.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell className="max-w-48 truncate font-medium">{row.provider_message_id}</TableCell>
+                    <TableCell className="max-w-48 truncate font-medium">
+                      {row.provider_message_id}
+                    </TableCell>
                     <TableCell>{channelLabel(row.channel_type)}</TableCell>
-                    <TableCell className="max-w-72 truncate">{row.last_error}</TableCell>
-                    <TableCell><Badge variant="secondary">{row.attempt_count}</Badge></TableCell>
+                    <TableCell className="max-w-72 truncate">
+                      {row.last_error}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{row.attempt_count}</Badge>
+                    </TableCell>
                     <TableCell>{relativeAge(row.failed_at)}</TableCell>
                     <TableCell>
                       <Button
@@ -141,7 +195,13 @@ export default function DeadLettersPage() {
                         disabled={retryingId === row.id}
                         className="gap-2"
                       >
-                        <RotateCcw className={retryingId === row.id ? "size-4 animate-spin" : "size-4"} />
+                        <RotateCcw
+                          className={
+                            retryingId === row.id
+                              ? "size-4 animate-spin"
+                              : "size-4"
+                          }
+                        />
                         Retry
                       </Button>
                     </TableCell>
@@ -160,10 +220,14 @@ function MetricCard({ label, value }: { label: string; value: string }) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+        <CardTitle className="text-sm font-medium text-muted-foreground">
+          {label}
+        </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="truncate text-3xl font-semibold tracking-tight">{value}</div>
+        <div className="truncate text-3xl font-semibold tracking-tight">
+          {value}
+        </div>
       </CardContent>
     </Card>
   )

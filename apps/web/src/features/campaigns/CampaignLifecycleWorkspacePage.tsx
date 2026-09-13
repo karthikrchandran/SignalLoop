@@ -1,7 +1,13 @@
 import { Link } from "@tanstack/react-router"
-import { Loader2, PauseCircle, PlayCircle, RefreshCw, ArrowRight } from "lucide-react"
+import {
+  ArrowRight,
+  Loader2,
+  PauseCircle,
+  PlayCircle,
+  RefreshCw,
+} from "lucide-react"
 import { useMemo, useState } from "react"
-
+import WorkspaceHeader from "@/components/layout/WorkspaceHeader"
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -20,10 +26,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import WorkspaceHeader from "@/components/layout/WorkspaceHeader"
-import { cn } from "@/lib/utils"
 import { signalloopRequest } from "@/lib/signalloop-api"
+import { cn } from "@/lib/utils"
+import CampaignIntakeWizardPage from "./CampaignIntakeWizardPage"
 import {
+  type CampaignLifecycleStatus,
   campaignLifecycleOrder,
   formatCampaignDate,
   getCampaignLifecycleDescription,
@@ -34,10 +41,8 @@ import {
   getCampaignLifecycleTitle,
   getCampaignLifecycleTone,
   normalizeCampaignStatus,
-  type CampaignLifecycleStatus,
   useCampaignsWorkspace,
 } from "./campaign-data"
-import CampaignIntakeWizardPage from "./CampaignIntakeWizardPage"
 
 type CampaignLifecycleWorkspacePageProps = {
   statusFilter: CampaignLifecycleStatus | "all"
@@ -55,12 +60,14 @@ const toneClasses: Record<
   },
   ready: {
     panel: "bg-[var(--workspace-surface)]",
-    badge: "bg-[color:var(--workspace-success)]/10 text-[var(--workspace-success)]",
+    badge:
+      "bg-[color:var(--workspace-success)]/10 text-[var(--workspace-success)]",
     marker: "bg-[var(--workspace-success)]",
   },
   warning: {
     panel: "bg-[var(--workspace-surface)]",
-    badge: "bg-[color:var(--workspace-warning)]/10 text-[var(--workspace-warning)]",
+    badge:
+      "bg-[color:var(--workspace-warning)]/10 text-[var(--workspace-warning)]",
     marker: "bg-[var(--workspace-warning)]",
   },
 }
@@ -164,9 +171,7 @@ export default function CampaignLifecycleWorkspacePage({
         actions={
           <>
             <Button asChild variant="outline">
-              <Link to="/campaigns">
-                Overview
-              </Link>
+              <Link to="/campaigns">Overview</Link>
             </Button>
             <Button asChild>
               <Link to="/campaigns/draft">
@@ -198,7 +203,9 @@ export default function CampaignLifecycleWorkspacePage({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className={cn("size-2 rounded-full", card.tone.marker)} />
+                  <span
+                    className={cn("size-2 rounded-full", card.tone.marker)}
+                  />
                   <p className="text-xs font-semibold uppercase text-muted-foreground">
                     {card.meta.label}
                   </p>
@@ -319,7 +326,9 @@ export default function CampaignLifecycleWorkspacePage({
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => void transitionCampaign(campaign.id, "pause")}
+                            onClick={() =>
+                              void transitionCampaign(campaign.id, "pause")
+                            }
                             disabled={busyCampaignId === campaign.id}
                             className="gap-2"
                           >
@@ -333,7 +342,9 @@ export default function CampaignLifecycleWorkspacePage({
                         ) : lifecycleStatus === "paused" ? (
                           <Button
                             size="sm"
-                            onClick={() => void transitionCampaign(campaign.id, "resume")}
+                            onClick={() =>
+                              void transitionCampaign(campaign.id, "resume")
+                            }
                             disabled={busyCampaignId === campaign.id}
                             className="gap-2"
                           >

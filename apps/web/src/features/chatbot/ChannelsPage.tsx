@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react"
-import { Bot, MessageCircle, Phone, Send, RefreshCw } from "lucide-react"
+import { Bot, MessageCircle, Phone, RefreshCw, Send } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -56,32 +56,42 @@ type ChannelDefinition = (typeof channelDefinitions)[number]
 export default function ChannelsPage() {
   const [channels, setChannels] = useState<ChatbotChannel[]>([])
   const [loading, setLoading] = useState(true)
-  const [busyChannel, setBusyChannel] = useState<ChatbotChannelType | null>(null)
+  const [busyChannel, setBusyChannel] = useState<ChatbotChannelType | null>(
+    null,
+  )
   const [error, setError] = useState<string | null>(null)
-  const [sheetDefinition, setSheetDefinition] = useState<ChannelDefinition | null>(null)
+  const [sheetDefinition, setSheetDefinition] =
+    useState<ChannelDefinition | null>(null)
 
   const channelsByType = useMemo(
     () => new Map(channels.map((channel) => [channel.channel_type, channel])),
     [channels],
   )
-  const readyCount = useMemo(() => channels.filter((channel) => channel.readiness.ready).length, [channels])
+  const readyCount = useMemo(
+    () => channels.filter((channel) => channel.readiness.ready).length,
+    [channels],
+  )
 
-  const loadChannels = async () => {
+  const loadChannels = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const response = await listChatbotChannels()
       setChannels(response.data)
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to load channels")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to load channels",
+      )
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     void loadChannels()
-  }, [])
+  }, [loadChannels])
 
   const toggleChannel = async (channel: ChatbotChannel) => {
     setBusyChannel(channel.channel_type)
@@ -90,7 +100,11 @@ export default function ChannelsPage() {
       await toggleChatbotChannel(channel.id, !channel.is_active)
       await loadChannels()
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to update channel")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to update channel",
+      )
     } finally {
       setBusyChannel(null)
     }
@@ -100,19 +114,31 @@ export default function ChannelsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">Messaging Hub</p>
+          <p className="text-sm font-medium text-muted-foreground">
+            Messaging Hub
+          </p>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <Bot className="size-6 text-muted-foreground" />
             Channels
           </h1>
         </div>
-        <Button variant="outline" size="sm" onClick={loadChannels} disabled={loading} className="gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={loadChannels}
+          disabled={loading}
+          className="gap-2"
+        >
           <RefreshCw className={loading ? "size-4 animate-spin" : "size-4"} />
           Refresh
         </Button>
       </div>
 
-      {error ? <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div> : null}
+      {error ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader className="pb-2">
@@ -123,7 +149,8 @@ export default function ChannelsPage() {
             {readyCount} of {channelDefinitions.length} channels ready
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Live channels need provider credentials, provider IDs, webhook verification, and activation.
+            Live channels need provider credentials, provider IDs, webhook
+            verification, and activation.
           </p>
         </CardContent>
       </Card>
@@ -150,7 +177,9 @@ export default function ChannelsPage() {
       <ChannelConnectionSheet
         open={sheetDefinition !== null}
         definition={sheetDefinition}
-        channel={sheetDefinition ? channelsByType.get(sheetDefinition.type) : undefined}
+        channel={
+          sheetDefinition ? channelsByType.get(sheetDefinition.type) : undefined
+        }
         onOpenChange={(open) => {
           if (!open) setSheetDefinition(null)
         }}

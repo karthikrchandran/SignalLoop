@@ -112,7 +112,7 @@ def _matches_campaign_audience_rules(
 
 
 def _list_campaign_audience_contacts(
-    _session: Session,
+    session: Session,
     workspace_id: str,
     contact_ids: list[uuid.UUID] | None,
 ) -> list[Contact]:
@@ -120,6 +120,7 @@ def _list_campaign_audience_contacts(
         workspace_id=workspace_id,
         search=None,
         limit=100,
+        session=session,
     )
     if contact_ids:
         wanted_ids = set(contact_ids)

@@ -14,9 +14,14 @@ import {
 } from "@/features/chatbot/api"
 
 export function useChatThreads(initialThreadId?: string | null) {
-  const [filters, setFilters] = useState<ChatbotThreadFilters>({ status: "all", channel_type: "all" })
+  const [filters, setFilters] = useState<ChatbotThreadFilters>({
+    status: "all",
+    channel_type: "all",
+  })
   const [threads, setThreads] = useState<ChatbotThreadSummary[]>([])
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(initialThreadId || null)
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(
+    initialThreadId || null,
+  )
   const [detail, setDetail] = useState<ChatbotThreadDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -29,9 +34,15 @@ export function useChatThreads(initialThreadId?: string | null) {
     try {
       const response = await listChatbotThreads(filters)
       setThreads(response.data)
-      setSelectedThreadId((current) => current || initialThreadId || response.data[0]?.id || null)
+      setSelectedThreadId(
+        (current) => current || initialThreadId || response.data[0]?.id || null,
+      )
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to load inbox")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to load inbox",
+      )
     } finally {
       setLoading(false)
     }
@@ -52,7 +63,11 @@ export function useChatThreads(initialThreadId?: string | null) {
     try {
       setDetail(await getChatbotThread(threadId))
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to load thread")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to load thread",
+      )
     } finally {
       setDetailLoading(false)
     }
@@ -73,7 +88,8 @@ export function useChatThreads(initialThreadId?: string | null) {
 
     const startFallback = () => {
       setSseConnected(false)
-      if (!fallback) fallback = window.setInterval(() => void loadThreads(), 30000)
+      if (!fallback)
+        fallback = window.setInterval(() => void loadThreads(), 30000)
     }
 
     const stopFallback = () => {
@@ -93,11 +109,13 @@ export function useChatThreads(initialThreadId?: string | null) {
         toast.info("New messaging inbox activity")
         void loadThreads()
       },
-    }).then(() => {
-      if (!cancelled) startFallback()
-    }).catch(() => {
-      if (!cancelled && !controller.signal.aborted) startFallback()
     })
+      .then(() => {
+        if (!cancelled) startFallback()
+      })
+      .catch(() => {
+        if (!cancelled && !controller.signal.aborted) startFallback()
+      })
 
     return () => {
       cancelled = true

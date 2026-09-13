@@ -154,10 +154,13 @@ export function createAccount(input: AccountWriteInput) {
 }
 
 export function updateAccount(accountId: string, input: AccountWriteInput) {
-  return signalloopRequest<Customer360Account>(`/api/v1/accounts/${accountId}`, {
-    method: "PATCH",
-    body: input,
-  })
+  return signalloopRequest<Customer360Account>(
+    `/api/v1/accounts/${accountId}`,
+    {
+      method: "PATCH",
+      body: input,
+    },
+  )
 }
 
 export function assignContactsToAccount(

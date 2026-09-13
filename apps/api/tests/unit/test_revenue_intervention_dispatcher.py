@@ -17,7 +17,7 @@ from app.domain.revenue_intelligence.persistence_models import (
     RevenueInterventionTransition,
     RevenueSignalRecord,
 )
-from app.domain.tenants.models import Tenant
+from app.domain.tenants.models import Tenant, TenantOperationalControl
 
 
 class AcceptingDelivery:
@@ -44,6 +44,7 @@ def test_dispatcher_executes_approved_intervention_with_explicit_payload() -> No
             RevenueInterventionDispatch.__table__,
             RevenueInterventionTransition.__table__,
             RevenueInterventionOutcome.__table__,
+            TenantOperationalControl.__table__,
             AuditEvent.__table__,
         ],
     )

@@ -6,7 +6,11 @@ import csv
 import io
 from typing import Any
 
-from app.domain.contacts.mapping_service import REQUIRED_FIELDS, map_row, resolve_mapping
+from app.domain.contacts.mapping_service import (
+    REQUIRED_FIELDS,
+    map_row,
+    resolve_mapping,
+)
 from app.domain_models import ImportRowError, SemanticError
 
 

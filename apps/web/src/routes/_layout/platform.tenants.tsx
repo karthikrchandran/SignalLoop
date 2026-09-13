@@ -11,7 +11,12 @@ function PlatformTenants() {
     <TenantAdminWorkspacePage
       title="Tenants"
       description="Manage tenant lifecycle and provisioning. Selecting a tenant never grants access to its business data."
-      sections={["Tenant lifecycle", "Entitlements", "Administrators", "Tenant audit"]}
+      sections={[
+        "Tenant lifecycle",
+        "Entitlements",
+        "Administrators",
+        "Tenant audit",
+      ]}
     />
   )
 }

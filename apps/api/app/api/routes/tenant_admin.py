@@ -7,7 +7,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep
@@ -37,6 +37,14 @@ from app.domain.tenants.models import (
 from app.domain.workspaces.models import Workspace
 
 router = APIRouter(prefix="/tenant-admin", tags=["tenant-admin"])
+
+
+def _raise_workspace_binding_conflict(exc: Exception) -> None:
+    raise HTTPException(status_code=409, detail="Workspace binding conflicted; retry") from exc
+
+
+def _is_sqlite_lock(exc: OperationalError) -> bool:
+    return "database is locked" in str(exc).lower()
 
 
 class TenantCreate(BaseModel):
@@ -351,7 +359,12 @@ def _attest_workspace_binding_once(
                 session.add(binding)
                 session.flush()
         except IntegrityError as exc:
-            raise HTTPException(status_code=409, detail="Workspace binding conflicted; retry") from exc
+            _raise_workspace_binding_conflict(exc)
+        except OperationalError as exc:
+            if _is_sqlite_lock(exc):
+                session.rollback()
+                _raise_workspace_binding_conflict(exc)
+            raise
     else:
         binding.status = payload.status
         session.add(binding)
@@ -367,7 +380,13 @@ def _attest_workspace_binding_once(
         resource_id=str(binding.id),
         payload={"installation_id": str(installation.id), "status": binding.status},
     )
-    session.commit()
+    try:
+        session.commit()
+    except OperationalError as exc:
+        if _is_sqlite_lock(exc):
+            session.rollback()
+            _raise_workspace_binding_conflict(exc)
+        raise
     return {
         "tenant_id": str(tenant.id),
         "installation_id": str(installation.id),

@@ -6,13 +6,15 @@ export function WhatsAppWindowBanner() {
       <div className="flex gap-3">
         <AlertTriangle className="mt-0.5 size-4 shrink-0" />
         <div>
-          <p className="font-medium">WhatsApp 24-hour messaging window expired</p>
+          <p className="font-medium">
+            WhatsApp 24-hour messaging window expired
+          </p>
           <p className="mt-1 text-amber-900 dark:text-amber-100/80">
-            The visitor must send a new message before an agent can reply through WhatsApp.
+            The visitor must send a new message before an agent can reply
+            through WhatsApp.
           </p>
         </div>
       </div>
     </div>
   )
 }
-

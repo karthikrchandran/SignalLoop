@@ -9,7 +9,11 @@ interface AuditLogEntryProps {
   actor?: string | null
 }
 
-export function AuditLogEntry({ timestamp, sourceSystem, actor }: AuditLogEntryProps) {
+export function AuditLogEntry({
+  timestamp,
+  sourceSystem,
+  actor,
+}: AuditLogEntryProps) {
   return (
     <div className="rounded-md border px-3 py-2">
       <div className="flex items-center justify-between gap-2">

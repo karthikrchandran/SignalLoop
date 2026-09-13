@@ -1,4 +1,5 @@
-import { Link, createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
+import type { LucideIcon } from "lucide-react"
 import {
   Activity,
   ArrowRight,
@@ -15,7 +16,6 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react"
-import type { LucideIcon } from "lucide-react"
 
 import WorkspaceHeader from "@/components/layout/WorkspaceHeader"
 import { Button } from "@/components/ui/button"
@@ -48,19 +48,22 @@ const toneStyles: Record<
   ready: {
     icon: "bg-[color:var(--workspace-success)]/10 text-[var(--workspace-success)]",
     panel: "bg-[var(--workspace-surface)]",
-    badge: "bg-[color:var(--workspace-success)]/10 text-[var(--workspace-success)]",
+    badge:
+      "bg-[color:var(--workspace-success)]/10 text-[var(--workspace-success)]",
     marker: "bg-[var(--workspace-success)]",
   },
   warning: {
     icon: "bg-[color:var(--workspace-warning)]/10 text-[var(--workspace-warning)]",
     panel: "bg-[var(--workspace-surface)]",
-    badge: "bg-[color:var(--workspace-warning)]/10 text-[var(--workspace-warning)]",
+    badge:
+      "bg-[color:var(--workspace-warning)]/10 text-[var(--workspace-warning)]",
     marker: "bg-[var(--workspace-warning)]",
   },
   danger: {
     icon: "bg-[color:var(--workspace-danger)]/10 text-[var(--workspace-danger)]",
     panel: "bg-[var(--workspace-surface)]",
-    badge: "bg-[color:var(--workspace-danger)]/10 text-[var(--workspace-danger)]",
+    badge:
+      "bg-[color:var(--workspace-danger)]/10 text-[var(--workspace-danger)]",
     marker: "bg-[var(--workspace-danger)]",
   },
 }
@@ -69,7 +72,8 @@ const signalCards: DashboardItem[] = [
   {
     icon: DatabaseZap,
     title: "Campaign signals",
-    detail: "Live activity rollups appear here after campaign events are connected.",
+    detail:
+      "Live activity rollups appear here after campaign events are connected.",
     status: "Waiting for data",
     tone: "info",
   },
@@ -100,7 +104,8 @@ const priorityQueue: DashboardItem[] = [
   {
     icon: PlugZap,
     title: "Review provider readiness",
-    detail: "Confirm voice and email providers before teams add more campaign volume.",
+    detail:
+      "Confirm voice and email providers before teams add more campaign volume.",
     path: "/settings/providers",
     cta: "Open providers",
     tone: "warning",
@@ -108,7 +113,8 @@ const priorityQueue: DashboardItem[] = [
   {
     icon: Building2,
     title: "Work from Customer 360",
-    detail: "Start from account context when deciding whether email, voice, or chat should go next.",
+    detail:
+      "Start from account context when deciding whether email, voice, or chat should go next.",
     path: "/customer-360",
     cta: "View accounts",
     tone: "ready",
@@ -116,7 +122,8 @@ const priorityQueue: DashboardItem[] = [
   {
     icon: FileText,
     title: "Prepare reusable content",
-    detail: "Review templates before attaching messages to campaigns and sequences.",
+    detail:
+      "Review templates before attaching messages to campaigns and sequences.",
     path: "/templates",
     cta: "Open templates",
     tone: "info",

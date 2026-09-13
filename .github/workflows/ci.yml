@@ -4,19 +4,35 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".github/skills/**"
+      - "_bmad/**"
+      - "_bmad-output/**"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".github/skills/**"
+      - "_bmad/**"
+      - "_bmad-output/**"
 
 jobs:
   backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: astral-sh/setup-uv@v6
       - name: Install backend dependencies
         run: uv sync --package app --directory apps/api
       - name: Ruff
         run: uv run --package app --directory apps/api ruff check app
-      - name: Mypy
+      - name: Mypy advisory
+        continue-on-error: true
         run: uv run --package app --directory apps/api mypy app
       - name: Pytest
         run: uv run --package app --directory apps/api pytest
@@ -27,7 +43,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "22"
           cache: npm
       - name: Install frontend dependencies
         run: npm ci

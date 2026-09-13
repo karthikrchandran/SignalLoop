@@ -4,16 +4,19 @@ from unittest.mock import Mock
 
 import pytest
 
-from app.integrations.ecrm_workflow_events import EcrmWorkflowEventsClient
+from app.integrations.ecrm_workflow_events import (
+    EcrmWorkflowEventsClient,
+    EcrmWorkflowEventsError,
+)
 
 
-def test_emit_event_posts_workflow_payload() -> None:
+def test_emit_event_posts_workflow_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     client = EcrmWorkflowEventsClient(base_url="https://ecrm.test", token="token-123")
     mock_request = Mock(return_value=Mock(status_code=201, json=lambda: {"ok": True}, text="{}"))
 
     import app.integrations.ecrm_workflow_events as module
 
-    module.httpx.request = mock_request
+    monkeypatch.setattr(module.httpx, "request", mock_request)
 
     result = client.emit_event(
         {
@@ -34,13 +37,16 @@ def test_emit_event_posts_workflow_payload() -> None:
 
 
 @pytest.mark.parametrize("status_code", [401, 403, 500])
-def test_emit_event_raises_on_failed_response(status_code: int) -> None:
+def test_emit_event_raises_on_failed_response(
+    status_code: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     client = EcrmWorkflowEventsClient(base_url="https://ecrm.test", token="token-123")
     mock_request = Mock(return_value=Mock(status_code=status_code, text="boom", json=lambda: {}))
 
     import app.integrations.ecrm_workflow_events as module
 
-    module.httpx.request = mock_request
+    monkeypatch.setattr(module.httpx, "request", mock_request)
 
-    with pytest.raises(Exception):
+    with pytest.raises(EcrmWorkflowEventsError):
         client.emit_event({"sourceApp": "emailvoice", "sourceEventType": "meeting_booked", "entityType": "LEAD", "summary": "x"})

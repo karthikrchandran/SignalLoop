@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react"
 import { RefreshCw } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -62,7 +62,9 @@ interface CampaignHealthPageProps {
   campaignId: string
 }
 
-export default function CampaignHealthPage({ campaignId }: CampaignHealthPageProps) {
+export default function CampaignHealthPage({
+  campaignId,
+}: CampaignHealthPageProps) {
   const [health, setHealth] = useState<CampaignHealth | null>(null)
   const [deadLetters, setDeadLetters] = useState<DeadLetterItem[]>([])
   const [dlTotal, setDlTotal] = useState(0)
@@ -71,7 +73,9 @@ export default function CampaignHealthPage({ campaignId }: CampaignHealthPagePro
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [secondsAgo, setSecondsAgo] = useState(0)
-  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({})
+  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>(
+    {},
+  )
 
   // Tick seconds-ago counter
   useEffect(() => {
@@ -151,14 +155,21 @@ export default function CampaignHealthPage({ campaignId }: CampaignHealthPagePro
         <h1 className="text-2xl font-semibold">Campaign Health</h1>
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
           {lastUpdated && <span>Updated {secondsAgo}s ago</span>}
-          <Button variant="outline" size="sm" onClick={fetchHealth} disabled={loading}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchHealth}
+            disabled={loading}
+          >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
         </div>
       </div>
 
       {error && (
-        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div>
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
       )}
 
       {/* Summary strip */}
@@ -172,12 +183,18 @@ export default function CampaignHealthPage({ campaignId }: CampaignHealthPagePro
           <HealthCard
             label="Failures (24h)"
             value={String(health.failure_count_24h)}
-            className={health.failure_count_24h > 0 ? "text-yellow-600" : "text-green-600"}
+            className={
+              health.failure_count_24h > 0
+                ? "text-yellow-600"
+                : "text-green-600"
+            }
           />
           <HealthCard
             label="Dead letters"
             value={String(health.dead_letter_count)}
-            className={health.dead_letter_count > 0 ? "text-red-600" : "text-green-600"}
+            className={
+              health.dead_letter_count > 0 ? "text-red-600" : "text-green-600"
+            }
           />
           <HealthCard
             label="Active queue"
@@ -217,13 +234,17 @@ export default function CampaignHealthPage({ campaignId }: CampaignHealthPagePro
                       <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
                         {item.failure_reason ?? "—"}
                       </TableCell>
-                      <TableCell className="text-right text-sm">{item.retry_count}</TableCell>
+                      <TableCell className="text-right text-sm">
+                        {item.retry_count}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={!item.retry_eligible || actionLoading[item.id]}
+                            disabled={
+                              !item.retry_eligible || actionLoading[item.id]
+                            }
                             title={
                               item.retry_eligible
                                 ? "Retry this item"
@@ -251,7 +272,8 @@ export default function CampaignHealthPage({ campaignId }: CampaignHealthPagePro
             {/* Simple pagination */}
             <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
               <span>
-                Showing {(dlPage - 1) * 20 + 1}–{Math.min(dlPage * 20, dlTotal)} of {dlTotal}
+                Showing {(dlPage - 1) * 20 + 1}–{Math.min(dlPage * 20, dlTotal)}{" "}
+                of {dlTotal}
               </span>
               <div className="flex gap-2">
                 <Button

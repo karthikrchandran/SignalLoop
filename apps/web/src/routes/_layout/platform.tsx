@@ -1,4 +1,9 @@
-import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router"
+import {
+  createFileRoute,
+  Outlet,
+  redirect,
+  useRouterState,
+} from "@tanstack/react-router"
 
 import { type UserPublic, UsersService } from "@/client"
 import { PlatformAdminLayout } from "@/features/admin/PlatformAdminLayout"
@@ -16,7 +21,9 @@ export const Route = createFileRoute("/_layout/platform")({
 })
 
 function PlatformAdmin() {
-  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
   if (pathname !== "/platform") {
     return (
       <PlatformAdminLayout>
@@ -26,10 +33,14 @@ function PlatformAdmin() {
   }
   return (
     <PlatformAdminLayout>
-      <section id="platform-workspace" className="rounded-lg border bg-card p-5">
+      <section
+        id="platform-workspace"
+        className="rounded-lg border bg-card p-5"
+      >
         <h2 className="text-lg font-semibold">Control-plane workspace</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Select a control-plane area to manage tenant lifecycle, product access, identity configuration, and audited support access.
+          Select a control-plane area to manage tenant lifecycle, product
+          access, identity configuration, and audited support access.
         </p>
       </section>
     </PlatformAdminLayout>

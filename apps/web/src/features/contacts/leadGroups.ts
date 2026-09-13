@@ -36,7 +36,8 @@ export const leadGroups: LeadGroup[] = [
   {
     id: "financial-services-leaders",
     name: "Financial Services leaders",
-    description: "Leads in financial services with leadership or operations roles.",
+    description:
+      "Leads in financial services with leadership or operations roles.",
     criteria: [
       { field: "industry", operator: "contains", value: "Financial Services" },
       { field: "title", operator: "contains", value: "VP" },
@@ -52,7 +53,9 @@ export const leadGroups: LeadGroup[] = [
     id: "messaging-hub-leads",
     name: "Messaging Hub leads",
     description: "Contacts sourced from Messaging Hub conversations.",
-    criteria: [{ field: "source", operator: "contains", value: "Messaging Hub" }],
+    criteria: [
+      { field: "source", operator: "contains", value: "Messaging Hub" },
+    ],
   },
 ]
 

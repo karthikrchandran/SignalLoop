@@ -9,7 +9,13 @@ type QuietHoursEditorProps = {
   onChange: (value: { start: string; end: string; timezone: string }) => void
 }
 
-export function QuietHoursEditor({ start, end, timezone, disabled = false, onChange }: QuietHoursEditorProps) {
+export function QuietHoursEditor({
+  start,
+  end,
+  timezone,
+  disabled = false,
+  onChange,
+}: QuietHoursEditorProps) {
   return (
     <div className="grid gap-3 md:grid-cols-3">
       <div>
@@ -18,7 +24,9 @@ export function QuietHoursEditor({ start, end, timezone, disabled = false, onCha
           id="quiet-start"
           value={start}
           disabled={disabled}
-          onChange={(event) => onChange({ start: event.target.value, end, timezone })}
+          onChange={(event) =>
+            onChange({ start: event.target.value, end, timezone })
+          }
           placeholder="21:00"
         />
       </div>
@@ -28,7 +36,9 @@ export function QuietHoursEditor({ start, end, timezone, disabled = false, onCha
           id="quiet-end"
           value={end}
           disabled={disabled}
-          onChange={(event) => onChange({ start, end: event.target.value, timezone })}
+          onChange={(event) =>
+            onChange({ start, end: event.target.value, timezone })
+          }
           placeholder="08:00"
         />
       </div>
@@ -38,7 +48,9 @@ export function QuietHoursEditor({ start, end, timezone, disabled = false, onCha
           id="quiet-timezone"
           value={timezone}
           disabled={disabled}
-          onChange={(event) => onChange({ start, end, timezone: event.target.value })}
+          onChange={(event) =>
+            onChange({ start, end, timezone: event.target.value })
+          }
           placeholder="UTC"
         />
       </div>

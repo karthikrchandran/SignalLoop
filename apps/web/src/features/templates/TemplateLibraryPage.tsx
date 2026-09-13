@@ -1,10 +1,16 @@
-import { useEffect, useState } from "react"
 import { Copy, FileText, Loader2, ShieldCheck, Sparkles } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
 
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -44,8 +50,7 @@ const STARTER_TEMPLATES = [
     channel: "email",
     tag: "Onboarding",
     subject: "Welcome, {{contact.firstName}}! Let's get started 🎉",
-    content:
-      `Hi {{contact.firstName}},\n\nWe're thrilled to have you on board at {{company.name}}. Over the next few days, we'll share tips to help you get the most out of your experience.\n\nIn the meantime, if you have any questions, just reply to this email — we're always happy to help.\n\nWarm regards,\n{{sender.name}}\n{{company.name}}`,
+    content: `Hi {{contact.firstName}},\n\nWe're thrilled to have you on board at {{company.name}}. Over the next few days, we'll share tips to help you get the most out of your experience.\n\nIn the meantime, if you have any questions, just reply to this email — we're always happy to help.\n\nWarm regards,\n{{sender.name}}\n{{company.name}}`,
   },
   {
     id: "starter-offer",
@@ -53,8 +58,7 @@ const STARTER_TEMPLATES = [
     channel: "email",
     tag: "Promotional",
     subject: "{{contact.firstName}}, your exclusive deal expires soon",
-    content:
-      `Hi {{contact.firstName}},\n\nWe have a special offer reserved just for you — but it expires on {{offer.expiryDate}}.\n\n{{offer.headline}}: {{offer.details}}\n\nClaim your offer here: {{offer.ctaUrl}}\n\nDon't miss out!\n\n{{sender.name}}\n{{company.name}}`,
+    content: `Hi {{contact.firstName}},\n\nWe have a special offer reserved just for you — but it expires on {{offer.expiryDate}}.\n\n{{offer.headline}}: {{offer.details}}\n\nClaim your offer here: {{offer.ctaUrl}}\n\nDon't miss out!\n\n{{sender.name}}\n{{company.name}}`,
   },
   {
     id: "starter-reengagement",
@@ -62,8 +66,7 @@ const STARTER_TEMPLATES = [
     channel: "email",
     tag: "Re-engagement",
     subject: "{{contact.firstName}}, it's been a while — let's reconnect",
-    content:
-      `Hi {{contact.firstName}},\n\nWe noticed we haven't heard from you in a while, and we've missed you!\n\nA lot has happened since your last visit — {{company.latestUpdate}}. We think you'll love what we've been building.\n\nClick below to see what's new:\n{{campaign.ctaUrl}}\n\nWe hope to see you soon,\n{{sender.name}}`,
+    content: `Hi {{contact.firstName}},\n\nWe noticed we haven't heard from you in a while, and we've missed you!\n\nA lot has happened since your last visit — {{company.latestUpdate}}. We think you'll love what we've been building.\n\nClick below to see what's new:\n{{campaign.ctaUrl}}\n\nWe hope to see you soon,\n{{sender.name}}`,
   },
   {
     id: "starter-reminder",
@@ -71,8 +74,7 @@ const STARTER_TEMPLATES = [
     channel: "email",
     tag: "Transactional",
     subject: "Reminder: Your appointment on {{appointment.date}}",
-    content:
-      `Hi {{contact.firstName}},\n\nThis is a friendly reminder about your upcoming appointment:\n\nDate: {{appointment.date}}\nTime: {{appointment.time}}\nLocation: {{appointment.location}}\n\nIf you need to reschedule, please reply to this email or call us at {{company.phone}}.\n\nSee you soon!\n{{sender.name}}`,
+    content: `Hi {{contact.firstName}},\n\nThis is a friendly reminder about your upcoming appointment:\n\nDate: {{appointment.date}}\nTime: {{appointment.time}}\nLocation: {{appointment.location}}\n\nIf you need to reschedule, please reply to this email or call us at {{company.phone}}.\n\nSee you soon!\n{{sender.name}}`,
   },
   {
     id: "starter-thankyou",
@@ -80,8 +82,7 @@ const STARTER_TEMPLATES = [
     channel: "email",
     tag: "Post-purchase",
     subject: "Thank you, {{contact.firstName}} — we appreciate your business",
-    content:
-      `Hi {{contact.firstName}},\n\nThank you for choosing {{company.name}}! Your order {{order.id}} has been confirmed.\n\nHere's a summary:\n{{order.summary}}\n\nIf you have any questions, we're here to help.\n\nWith gratitude,\n{{sender.name}}\n{{company.name}}`,
+    content: `Hi {{contact.firstName}},\n\nThank you for choosing {{company.name}}! Your order {{order.id}} has been confirmed.\n\nHere's a summary:\n{{order.summary}}\n\nIf you have any questions, we're here to help.\n\nWith gratitude,\n{{sender.name}}\n{{company.name}}`,
   },
 ]
 // ─────────────────────────────────────────────────────────────────────────────
@@ -91,7 +92,9 @@ export default function TemplateLibraryPage() {
   const [name, setName] = useState("Welcome Sequence")
   const [channel, setChannel] = useState("email")
   const [subject, setSubject] = useState("Hi {{contact.firstName}}")
-  const [content, setContent] = useState("{{contact.firstName}}, here is your offer for {{contact.company}}.")
+  const [content, setContent] = useState(
+    "{{contact.firstName}}, here is your offer for {{contact.company}}.",
+  )
   const [selectedTemplateId, setSelectedTemplateId] = useState("")
   const [templateSearch, setTemplateSearch] = useState("")
   const [channelFilter, setChannelFilter] = useState("all")
@@ -103,29 +106,47 @@ export default function TemplateLibraryPage() {
   const pageSize = 10
 
   const filteredTemplates = templates.filter((template) => {
-    const searchText = `${template.name} ${template.current_version?.subject || ""} ${template.current_version?.content || ""}`.toLowerCase()
-    if (templateSearch.trim() && !searchText.includes(templateSearch.trim().toLowerCase())) return false
-    if (channelFilter !== "all" && template.channel !== channelFilter) return false
-    if (statusFilter !== "all" && template.current_version?.status !== statusFilter) return false
+    const searchText =
+      `${template.name} ${template.current_version?.subject || ""} ${template.current_version?.content || ""}`.toLowerCase()
+    if (
+      templateSearch.trim() &&
+      !searchText.includes(templateSearch.trim().toLowerCase())
+    )
+      return false
+    if (channelFilter !== "all" && template.channel !== channelFilter)
+      return false
+    if (
+      statusFilter !== "all" &&
+      template.current_version?.status !== statusFilter
+    )
+      return false
     return true
   })
-  const templatePageCount = Math.max(1, Math.ceil(filteredTemplates.length / pageSize))
-  const pagedTemplates = filteredTemplates.slice((page - 1) * pageSize, page * pageSize)
+  const templatePageCount = Math.max(
+    1,
+    Math.ceil(filteredTemplates.length / pageSize),
+  )
+  const pagedTemplates = filteredTemplates.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
+  )
 
-  const loadTemplates = async () => {
-    const response = await signalloopRequest<TemplatesResponse>("/api/v1/templates/")
+  const loadTemplates = useCallback(async () => {
+    const response =
+      await signalloopRequest<TemplatesResponse>("/api/v1/templates/")
     setTemplates(response.data)
     if (!selectedTemplateId && response.data.length > 0) {
       setSelectedTemplateId(response.data[0].id)
     }
-  }
+  }, [selectedTemplateId])
 
   useEffect(() => {
     loadTemplates().catch((error) => {
-      setFeedback(error instanceof Error ? error.message : "Could not load templates")
+      setFeedback(
+        error instanceof Error ? error.message : "Could not load templates",
+      )
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [loadTemplates])
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true)
@@ -194,7 +215,9 @@ export default function TemplateLibraryPage() {
   }
 
   const publishSelected = async () => {
-    const selectedTemplate = templates.find((item) => item.id === selectedTemplateId)
+    const selectedTemplate = templates.find(
+      (item) => item.id === selectedTemplateId,
+    )
     const versionId = selectedTemplate?.current_version?.id
     if (!selectedTemplateId || !versionId) return
 
@@ -219,8 +242,8 @@ export default function TemplateLibraryPage() {
           Template Library
         </h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Start from a prebuilt starter template or create your own. Preview token
-          rendering, then publish when ready.
+          Start from a prebuilt starter template or create your own. Preview
+          token rendering, then publish when ready.
         </p>
       </div>
 
@@ -242,9 +265,13 @@ export default function TemplateLibraryPage() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-medium text-sm">{tmpl.name}</p>
-                  <Badge variant="secondary" className="text-xs shrink-0">{tmpl.tag}</Badge>
+                  <Badge variant="secondary" className="text-xs shrink-0">
+                    {tmpl.tag}
+                  </Badge>
                 </div>
-                <p className="text-xs text-muted-foreground line-clamp-2">{tmpl.subject}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">
+                  {tmpl.subject}
+                </p>
                 <div className="flex gap-2 mt-auto pt-2">
                   <Button
                     size="sm"
@@ -275,23 +302,43 @@ export default function TemplateLibraryPage() {
         <CardContent className="grid gap-3 md:grid-cols-2">
           <div>
             <Label htmlFor="templateName">Template name</Label>
-            <Input id="templateName" value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              id="templateName"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
           </div>
           <div>
             <Label htmlFor="templateChannel">Template channel</Label>
-            <Input id="templateChannel" value={channel} onChange={(event) => setChannel(event.target.value)} />
+            <Input
+              id="templateChannel"
+              value={channel}
+              onChange={(event) => setChannel(event.target.value)}
+            />
           </div>
           <div>
             <Label htmlFor="templateSubject">Subject</Label>
-            <Input id="templateSubject" value={subject} onChange={(event) => setSubject(event.target.value)} />
+            <Input
+              id="templateSubject"
+              value={subject}
+              onChange={(event) => setSubject(event.target.value)}
+            />
           </div>
           <div>
             <Label htmlFor="templateContent">Body content</Label>
-            <Input id="templateContent" value={content} onChange={(event) => setContent(event.target.value)} />
+            <Input
+              id="templateContent"
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+            />
           </div>
           <div className="md:col-span-2">
             <Button onClick={createTemplate} disabled={busy}>
-              {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Sparkles className="mr-2 size-4" />}
+              {busy ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 size-4" />
+              )}
               Save draft
             </Button>
           </div>
@@ -302,7 +349,9 @@ export default function TemplateLibraryPage() {
       <Card>
         <CardHeader>
           <CardTitle>Browse Templates</CardTitle>
-          <CardDescription>Search and filter reusable content before previewing or publishing.</CardDescription>
+          <CardDescription>
+            Search and filter reusable content before previewing or publishing.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-3">
@@ -367,7 +416,8 @@ export default function TemplateLibraryPage() {
                 >
                   <p className="font-medium">{template.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    {template.channel} / {template.current_version?.status || "no version"}
+                    {template.channel} /{" "}
+                    {template.current_version?.status || "no version"}
                   </p>
                 </button>
               ))
@@ -385,14 +435,18 @@ export default function TemplateLibraryPage() {
                 />
               </PaginationItem>
               <PaginationItem>
-                <span className="px-3 text-sm text-muted-foreground">Page {page} of {templatePageCount}</span>
+                <span className="px-3 text-sm text-muted-foreground">
+                  Page {page} of {templatePageCount}
+                </span>
               </PaginationItem>
               <PaginationItem>
                 <PaginationNext
                   href="#"
                   onClick={(event) => {
                     event.preventDefault()
-                    setPage((current) => Math.min(templatePageCount, current + 1))
+                    setPage((current) =>
+                      Math.min(templatePageCount, current + 1),
+                    )
                   }}
                 />
               </PaginationItem>
@@ -404,7 +458,9 @@ export default function TemplateLibraryPage() {
       <Card>
         <CardHeader>
           <CardTitle>Publish Readiness</CardTitle>
-          <CardDescription>Select a draft, preview token rendering, and publish.</CardDescription>
+          <CardDescription>
+            Select a draft, preview token rendering, and publish.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <select
@@ -415,16 +471,24 @@ export default function TemplateLibraryPage() {
             <option value="">Select template</option>
             {templates.map((template) => (
               <option key={template.id} value={template.id}>
-                {template.name} ({template.current_version?.status || "no version"})
+                {template.name} (
+                {template.current_version?.status || "no version"})
               </option>
             ))}
           </select>
 
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={previewTemplate} disabled={!selectedTemplateId || busy}>
+            <Button
+              variant="outline"
+              onClick={previewTemplate}
+              disabled={!selectedTemplateId || busy}
+            >
               Preview tokens
             </Button>
-            <Button onClick={publishSelected} disabled={!selectedTemplateId || busy}>
+            <Button
+              onClick={publishSelected}
+              disabled={!selectedTemplateId || busy}
+            >
               <ShieldCheck className="mr-2 size-4" /> Publish selected
             </Button>
           </div>
@@ -449,15 +513,20 @@ export default function TemplateLibraryPage() {
           <CardTitle>Published Templates</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          {templates.filter((template) => template.current_version?.status === "published").map((template) => (
-            <div key={template.id} className="rounded border p-2">
-              <p className="font-medium">{template.name}</p>
-              <p className="text-muted-foreground">
-                Version {template.current_version?.version_number} · Guardrail compliant:{" "}
-                {String(template.current_version?.guardrail_compliant)}
-              </p>
-            </div>
-          ))}
+          {templates
+            .filter(
+              (template) => template.current_version?.status === "published",
+            )
+            .map((template) => (
+              <div key={template.id} className="rounded border p-2">
+                <p className="font-medium">{template.name}</p>
+                <p className="text-muted-foreground">
+                  Version {template.current_version?.version_number} · Guardrail
+                  compliant:{" "}
+                  {String(template.current_version?.guardrail_compliant)}
+                </p>
+              </div>
+            ))}
         </CardContent>
       </Card>
 

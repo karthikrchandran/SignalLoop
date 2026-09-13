@@ -1,26 +1,41 @@
-import { useEffect, useMemo, useState } from "react"
-import { Clock3, Copy, Loader2, RefreshCw, SearchCheck, Send, Sparkles, Users } from "lucide-react"
+import {
+  Clock3,
+  Copy,
+  Loader2,
+  RefreshCw,
+  SearchCheck,
+  Send,
+  Sparkles,
+  Users,
+} from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
   enrollProspects,
-  listProspectingResearch,
   listProspectingCampaigns,
+  listProspectingResearch,
   listProspectingSequences,
   listReadyContacts,
-  runBulkProspectingResearch,
-  runProspectingResearch,
   type ProspectingCampaign,
   type ProspectingPriority,
   type ProspectingReadyContact,
   type ProspectingResearchResult,
   type ProspectingSequence,
+  runBulkProspectingResearch,
+  runProspectingResearch,
 } from "@/features/prospecting/api"
 
 function contactLabel(contact: ProspectingReadyContact) {
@@ -69,7 +84,13 @@ function DraftPanel({
     <div className="rounded-md border bg-background">
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
         <div className="text-sm font-medium">{title}</div>
-        <Button type="button" variant="ghost" size="sm" aria-label={copyLabel} onClick={onCopy}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-label={copyLabel}
+          onClick={onCopy}
+        >
           <Copy className="size-4" />
         </Button>
       </div>
@@ -105,31 +126,46 @@ export default function ProspectingPage() {
   )
 
   const selectedCampaignSequences = useMemo(
-    () => sequences.filter((sequence) => sequence.campaign_id === selectedCampaignId),
+    () =>
+      sequences.filter(
+        (sequence) => sequence.campaign_id === selectedCampaignId,
+      ),
     [sequences, selectedCampaignId],
   )
 
-  async function loadContacts(nextSearch = search) {
-    setLoadingContacts(true)
-    setFeedback("")
-    try {
-      const response = await listReadyContacts(nextSearch)
-      setContacts(response.data)
-      setSelectedContactIds((current) => current.filter((id) => response.data.some((contact) => contact.id === id)))
-      setSelectedContactId((current) => {
-        if (current && response.data.some((contact) => contact.id === current)) {
-          return current
-        }
-        return response.data[0]?.id || ""
-      })
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "Could not load contacts")
-    } finally {
-      setLoadingContacts(false)
-    }
-  }
+  const loadContacts = useCallback(
+    async (nextSearch = search) => {
+      setLoadingContacts(true)
+      setFeedback("")
+      try {
+        const response = await listReadyContacts(nextSearch)
+        setContacts(response.data)
+        setSelectedContactIds((current) =>
+          current.filter((id) =>
+            response.data.some((contact) => contact.id === id),
+          ),
+        )
+        setSelectedContactId((current) => {
+          if (
+            current &&
+            response.data.some((contact) => contact.id === current)
+          ) {
+            return current
+          }
+          return response.data[0]?.id || ""
+        })
+      } catch (error) {
+        setFeedback(
+          error instanceof Error ? error.message : "Could not load contacts",
+        )
+      } finally {
+        setLoadingContacts(false)
+      }
+    },
+    [search],
+  )
 
-  async function loadOutreachTargets() {
+  const loadOutreachTargets = useCallback(async () => {
     try {
       const [campaignResponse, sequenceResponse] = await Promise.all([
         listProspectingCampaigns(),
@@ -137,17 +173,22 @@ export default function ProspectingPage() {
       ])
       setCampaigns(campaignResponse.data)
       setSequences(sequenceResponse.data)
-      setSelectedCampaignId((current) => current || campaignResponse.data[0]?.id || "")
+      setSelectedCampaignId(
+        (current) => current || campaignResponse.data[0]?.id || "",
+      )
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "Could not load outreach targets")
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "Could not load outreach targets",
+      )
     }
-  }
+  }, [])
 
   useEffect(() => {
     void loadContacts("")
     void loadOutreachTargets()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [loadContacts, loadOutreachTargets])
 
   useEffect(() => {
     if (!selectedCampaignId) {
@@ -155,14 +196,17 @@ export default function ProspectingPage() {
       return
     }
     setSelectedSequenceId((current) => {
-      if (current && selectedCampaignSequences.some((sequence) => sequence.id === current)) {
+      if (
+        current &&
+        selectedCampaignSequences.some((sequence) => sequence.id === current)
+      ) {
         return current
       }
       return selectedCampaignSequences[0]?.id || ""
     })
   }, [selectedCampaignId, selectedCampaignSequences])
 
-  async function loadHistory(contactId: string) {
+  const loadHistory = useCallback(async (contactId: string) => {
     setLoadingHistory(true)
     try {
       const response = await listProspectingResearch(contactId)
@@ -171,11 +215,15 @@ export default function ProspectingPage() {
     } catch (error) {
       setHistory([])
       setResult(null)
-      setFeedback(error instanceof Error ? error.message : "Could not load research history")
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "Could not load research history",
+      )
     } finally {
       setLoadingHistory(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (!selectedContactId) {
@@ -185,8 +233,7 @@ export default function ProspectingPage() {
     }
     setResult(null)
     void loadHistory(selectedContactId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedContactId])
+  }, [selectedContactId, loadHistory])
 
   async function runResearch() {
     if (!selectedContactId) return
@@ -198,9 +245,16 @@ export default function ProspectingPage() {
         company_url: companyUrl.trim() || null,
       })
       setResult(payload)
-      setHistory((current) => [payload, ...current.filter((item) => item.id !== payload.id)])
+      setHistory((current) => [
+        payload,
+        ...current.filter((item) => item.id !== payload.id),
+      ])
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "Could not run prospecting research")
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "Could not run prospecting research",
+      )
     } finally {
       setResearching(false)
     }
@@ -228,16 +282,25 @@ export default function ProspectingPage() {
         company_url: companyUrl.trim() || null,
       })
       const nextResult =
-        payload.data.find((snapshot) => snapshot.contact_id === selectedContactId) ||
+        payload.data.find(
+          (snapshot) => snapshot.contact_id === selectedContactId,
+        ) ||
         payload.data[0] ||
         null
       setResult(nextResult)
       if (nextResult?.contact_id === selectedContactId) {
-        setHistory((current) => [nextResult, ...current.filter((item) => item.id !== nextResult.id)])
+        setHistory((current) => [
+          nextResult,
+          ...current.filter((item) => item.id !== nextResult.id),
+        ])
       }
       setFeedback(`Researched ${payload.count} selected prospects.`)
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "Could not run selected prospecting research")
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "Could not run selected prospecting research",
+      )
     } finally {
       setBulkResearching(false)
     }
@@ -255,7 +318,11 @@ export default function ProspectingPage() {
       })
       setFeedback(payload.message)
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "Could not add selected prospects to outreach")
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "Could not add selected prospects to outreach",
+      )
     } finally {
       setEnrolling(false)
     }
@@ -278,13 +345,24 @@ export default function ProspectingPage() {
             <SearchCheck className="size-4" />
             Outreach prep
           </div>
-          <h1 className="text-3xl font-semibold tracking-tight">Lead Preparation</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Lead Preparation
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Select leads, build lead briefs, and add prepared contacts to campaigns or sequences.
+            Select leads, build lead briefs, and add prepared contacts to
+            campaigns or sequences.
           </p>
         </div>
-        <Button variant="outline" onClick={() => void loadContacts(search)} disabled={loadingContacts}>
-          {loadingContacts ? <Loader2 className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}
+        <Button
+          variant="outline"
+          onClick={() => void loadContacts(search)}
+          disabled={loadingContacts}
+        >
+          {loadingContacts ? (
+            <Loader2 className="mr-2 size-4 animate-spin" />
+          ) : (
+            <RefreshCw className="mr-2 size-4" />
+          )}
           Refresh
         </Button>
       </div>
@@ -296,7 +374,8 @@ export default function ProspectingPage() {
           <CardHeader>
             <CardTitle>Leads needing follow-up</CardTitle>
             <CardDescription>
-              Prioritized by buyer intent, contactability, Messaging Hub source, and account context.
+              Prioritized by buyer intent, contactability, Messaging Hub source,
+              and account context.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -309,8 +388,17 @@ export default function ProspectingPage() {
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Company, name, or email"
                 />
-                <Button type="button" variant="outline" onClick={() => void loadContacts(search)} disabled={loadingContacts}>
-                  {loadingContacts ? <Loader2 className="size-4 animate-spin" /> : <SearchCheck className="size-4" />}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void loadContacts(search)}
+                  disabled={loadingContacts}
+                >
+                  {loadingContacts ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <SearchCheck className="size-4" />
+                  )}
                   <span className="sr-only">Search</span>
                 </Button>
               </div>
@@ -321,15 +409,27 @@ export default function ProspectingPage() {
                 <span className="font-medium">Leads needing follow-up</span>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{contacts.length} contacts</Badge>
-                  <Badge variant="secondary">{selectedContactIds.length} selected</Badge>
+                  <Badge variant="secondary">
+                    {selectedContactIds.length} selected
+                  </Badge>
                 </div>
               </div>
               {contacts.length > 0 && (
                 <div className="flex gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={selectAllContacts}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={selectAllContacts}
+                  >
                     Select all
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedContactIds([])}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedContactIds([])}
+                  >
                     Clear
                   </Button>
                 </div>
@@ -340,7 +440,9 @@ export default function ProspectingPage() {
                     <div
                       key={contact.id}
                       className={`flex w-full items-start gap-3 rounded-md border px-3 py-2 transition hover:bg-muted/60 ${
-                        contact.id === selectedContactId ? "border-primary bg-muted/40" : "bg-background"
+                        contact.id === selectedContactId
+                          ? "border-primary bg-muted/40"
+                          : "bg-background"
                       }`}
                     >
                       <input
@@ -357,16 +459,24 @@ export default function ProspectingPage() {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-medium">{contactLabel(contact)}</div>
-                            <div className="truncate text-xs text-muted-foreground">{contact.email}</div>
+                            <div className="truncate text-sm font-medium">
+                              {contactLabel(contact)}
+                            </div>
+                            <div className="truncate text-xs text-muted-foreground">
+                              {contact.email}
+                            </div>
                           </div>
                           <Badge variant={priorityVariant(contact.priority)}>
                             {priorityLabel(contact.priority)}
                           </Badge>
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2">
-                          <Badge variant="outline">Score {contact.lead_score}</Badge>
-                          {contact.handoff_source && <Badge variant="secondary">Messaging Hub</Badge>}
+                          <Badge variant="outline">
+                            Score {contact.lead_score}
+                          </Badge>
+                          {contact.handoff_source && (
+                            <Badge variant="secondary">Messaging Hub</Badge>
+                          )}
                         </div>
                       </button>
                     </div>
@@ -413,16 +523,28 @@ export default function ProspectingPage() {
 
             {selectedContact && (
               <div className="rounded-md border bg-muted/30 p-3 text-sm">
-                <div className="font-medium">{contactLabel(selectedContact)}</div>
-                <div className="mt-1 text-muted-foreground">{selectedContact.email}</div>
+                <div className="font-medium">
+                  {contactLabel(selectedContact)}
+                </div>
+                <div className="mt-1 text-muted-foreground">
+                  {selectedContact.email}
+                </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Badge variant={priorityVariant(selectedContact.priority)}>
                     {priorityLabel(selectedContact.priority)}
                   </Badge>
-                  <Badge variant="outline">Score {selectedContact.lead_score}</Badge>
-                  {selectedContact.handoff_source && <Badge variant="secondary">Messaging Hub</Badge>}
-                  {selectedContact.phone && <Badge variant="secondary">Voice ready</Badge>}
-                  {selectedContact.company && <Badge variant="outline">{selectedContact.company}</Badge>}
+                  <Badge variant="outline">
+                    Score {selectedContact.lead_score}
+                  </Badge>
+                  {selectedContact.handoff_source && (
+                    <Badge variant="secondary">Messaging Hub</Badge>
+                  )}
+                  {selectedContact.phone && (
+                    <Badge variant="secondary">Voice ready</Badge>
+                  )}
+                  {selectedContact.company && (
+                    <Badge variant="outline">{selectedContact.company}</Badge>
+                  )}
                 </div>
                 {selectedContact.priority_reasons.length > 0 && (
                   <div className="mt-2 text-xs text-muted-foreground">
@@ -432,8 +554,16 @@ export default function ProspectingPage() {
               </div>
             )}
 
-            <Button className="w-full" onClick={runResearch} disabled={!selectedContactId || researching}>
-              {researching ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Sparkles className="mr-2 size-4" />}
+            <Button
+              className="w-full"
+              onClick={runResearch}
+              disabled={!selectedContactId || researching}
+            >
+              {researching ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 size-4" />
+              )}
               Build lead brief
             </Button>
 
@@ -443,7 +573,11 @@ export default function ProspectingPage() {
               onClick={() => void runSelectedResearch()}
               disabled={selectedContactIds.length === 0 || bulkResearching}
             >
-              {bulkResearching ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Users className="mr-2 size-4" />}
+              {bulkResearching ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Users className="mr-2 size-4" />
+              )}
               Build briefs for selected
             </Button>
 
@@ -459,7 +593,9 @@ export default function ProspectingPage() {
                     id="prospecting-campaign"
                     className="h-10 rounded-md border bg-background px-3 text-sm"
                     value={selectedCampaignId}
-                    onChange={(event) => setSelectedCampaignId(event.target.value)}
+                    onChange={(event) =>
+                      setSelectedCampaignId(event.target.value)
+                    }
                     disabled={campaigns.length === 0}
                   >
                     {campaigns.length === 0 ? (
@@ -479,8 +615,13 @@ export default function ProspectingPage() {
                     id="prospecting-sequence"
                     className="h-10 rounded-md border bg-background px-3 text-sm"
                     value={selectedSequenceId}
-                    onChange={(event) => setSelectedSequenceId(event.target.value)}
-                    disabled={!selectedCampaignId || selectedCampaignSequences.length === 0}
+                    onChange={(event) =>
+                      setSelectedSequenceId(event.target.value)
+                    }
+                    disabled={
+                      !selectedCampaignId ||
+                      selectedCampaignSequences.length === 0
+                    }
                   >
                     {selectedCampaignSequences.length === 0 ? (
                       <option value="">No sequence for campaign</option>
@@ -496,9 +637,17 @@ export default function ProspectingPage() {
                 <Button
                   className="w-full"
                   onClick={() => void addSelectedToOutreach()}
-                  disabled={selectedContactIds.length === 0 || !selectedCampaignId || enrolling}
+                  disabled={
+                    selectedContactIds.length === 0 ||
+                    !selectedCampaignId ||
+                    enrolling
+                  }
                 >
-                  {enrolling ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Send className="mr-2 size-4" />}
+                  {enrolling ? (
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                  ) : (
+                    <Send className="mr-2 size-4" />
+                  )}
                   Add selected to outreach
                 </Button>
               </div>
@@ -510,7 +659,9 @@ export default function ProspectingPage() {
                   <Clock3 className="size-4" />
                   Research history
                 </div>
-                {loadingHistory && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+                {loadingHistory && (
+                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                )}
               </div>
               <div className="max-h-72 space-y-2 overflow-auto p-3">
                 {history.length ? (
@@ -519,14 +670,18 @@ export default function ProspectingPage() {
                       key={snapshot.id}
                       type="button"
                       className={`w-full rounded-md border px-3 py-2 text-left text-sm transition hover:bg-muted/60 ${
-                        result?.id === snapshot.id ? "border-primary bg-muted/40" : "bg-background"
+                        result?.id === snapshot.id
+                          ? "border-primary bg-muted/40"
+                          : "bg-background"
                       }`}
                       onClick={() => setResult(snapshot)}
                     >
                       <div className="text-xs text-muted-foreground">
                         {new Date(snapshot.created_at).toLocaleString()}
                       </div>
-                      <div className="mt-1 leading-5">{snapshot.account_summary}</div>
+                      <div className="mt-1 leading-5">
+                        {snapshot.account_summary}
+                      </div>
                     </button>
                   ))
                 ) : (
@@ -544,7 +699,9 @@ export default function ProspectingPage() {
             <CardHeader>
               <CardTitle>Lead brief</CardTitle>
               <CardDescription>
-                {result ? `Brief created ${new Date(result.created_at).toLocaleString()}` : "Build a brief for the selected lead."}
+                {result
+                  ? `Brief created ${new Date(result.created_at).toLocaleString()}`
+                  : "Build a brief for the selected lead."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -552,21 +709,29 @@ export default function ProspectingPage() {
                 <>
                   <div>
                     <h2 className="text-base font-semibold">Account summary</h2>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{result.account_summary}</p>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      {result.account_summary}
+                    </p>
                   </div>
                   <Separator />
                   <div className="grid gap-5 lg:grid-cols-2">
                     <div>
-                      <h2 className="mb-3 text-base font-semibold">Pain points</h2>
+                      <h2 className="mb-3 text-base font-semibold">
+                        Pain points
+                      </h2>
                       <BulletList items={result.pain_points} />
                     </div>
                     <div>
-                      <h2 className="mb-3 text-base font-semibold">Likely objections</h2>
+                      <h2 className="mb-3 text-base font-semibold">
+                        Likely objections
+                      </h2>
                       <BulletList items={result.objections} />
                     </div>
                   </div>
                   <div>
-                    <h2 className="mb-3 text-base font-semibold">Personalization</h2>
+                    <h2 className="mb-3 text-base font-semibold">
+                      Personalization
+                    </h2>
                     <BulletList items={result.personalization_bullets} />
                   </div>
                   <div className="rounded-md border bg-muted/30 px-3 py-3 text-sm">
@@ -575,7 +740,10 @@ export default function ProspectingPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {result.sources.map((source) => (
-                      <Badge key={`${source.label}-${source.summary}`} variant="secondary">
+                      <Badge
+                        key={`${source.label}-${source.summary}`}
+                        variant="secondary"
+                      >
                         {source.label}
                       </Badge>
                     ))}
@@ -601,7 +769,9 @@ export default function ProspectingPage() {
                 title="Voice opener"
                 value={result.voice_opener}
                 copyLabel="Copy voice opener"
-                onCopy={() => void copyDraft("Voice opener", result.voice_opener)}
+                onCopy={() =>
+                  void copyDraft("Voice opener", result.voice_opener)
+                }
               />
             </div>
           )}

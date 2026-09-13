@@ -5,7 +5,9 @@ import { randomEmail, randomPassword } from "./utils/random"
 import { logInUser, logOutUser } from "./utils/user"
 import { submitAndExpectUserMutation } from "./utils/userMutation"
 
-test("User mutation helper reports a failed response status and text", async ({ page }) => {
+test("User mutation helper reports a failed response status and text", async ({
+  page,
+}) => {
   await page.goto("/")
 
   await page.route("**/api/v1/users/", async (route) => {
@@ -52,9 +54,11 @@ test("User mutation helper matches exact update and delete endpoints", async ({
 
   for (const method of ["PATCH", "DELETE"] as const) {
     const response = await submitAndExpectUserMutation(page, method, () =>
-      page.evaluate((requestMethod) =>
-        fetch("/api/v1/users/user-123", { method: requestMethod }),
-      method),
+      page.evaluate(
+        (requestMethod) =>
+          fetch("/api/v1/users/user-123", { method: requestMethod }),
+        method,
+      ),
     )
 
     expect(new URL(response.url()).pathname).toBe("/api/v1/users/user-123")
@@ -298,7 +302,9 @@ test.describe("Admin page access control", () => {
 
     await expect(page.getByRole("heading", { name: "Users" })).not.toBeVisible()
     await expect(page).toHaveURL(/\/$/)
-    await expect(page.getByRole("heading", { name: "Revenue OS" })).toBeVisible()
+    await expect(
+      page.getByRole("heading", { name: "Revenue OS" }),
+    ).toBeVisible()
   })
 
   test("Superuser can access admin page", async ({ page }) => {

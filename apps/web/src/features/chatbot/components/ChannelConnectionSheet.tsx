@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react"
 import { Save } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -63,7 +63,9 @@ export function ChannelConnectionSheet({
     setApiSecret("")
     setWebhookSecret("")
     setVerifyToken(String(channel?.config_json.verify_token ?? ""))
-    setProviderField(String(channel?.config_json[definition.providerFieldKey] ?? ""))
+    setProviderField(
+      String(channel?.config_json[definition.providerFieldKey] ?? ""),
+    )
     setIsActive(channel?.is_active ?? false)
     setError(null)
   }, [channel, definition, open])
@@ -114,7 +116,11 @@ export function ChannelConnectionSheet({
       onSaved()
       onOpenChange(false)
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to save channel")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to save channel",
+      )
     } finally {
       setSaving(false)
     }
@@ -124,18 +130,30 @@ export function ChannelConnectionSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>
-          <SheetTitle>{definition ? `${definition.title} connection` : "Channel connection"}</SheetTitle>
-          <SheetDescription>Credentials are encrypted before storage.</SheetDescription>
+          <SheetTitle>
+            {definition
+              ? `${definition.title} connection`
+              : "Channel connection"}
+          </SheetTitle>
+          <SheetDescription>
+            Credentials are encrypted before storage.
+          </SheetDescription>
         </SheetHeader>
 
         {definition ? (
           <div className="grid gap-5 px-4">
             <div className="grid gap-2">
               <Label htmlFor="channel-display-name">Display name</Label>
-              <Input id="channel-display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+              <Input
+                id="channel-display-name"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+              />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="channel-provider-field">{definition.providerFieldLabel}</Label>
+              <Label htmlFor="channel-provider-field">
+                {definition.providerFieldLabel}
+              </Label>
               <Input
                 id="channel-provider-field"
                 value={providerField}
@@ -149,11 +167,15 @@ export function ChannelConnectionSheet({
                 value={apiKey}
                 onChange={(event) => setApiKey(event.target.value)}
                 type="password"
-                placeholder={channel ? "Leave blank to keep current credential" : ""}
+                placeholder={
+                  channel ? "Leave blank to keep current credential" : ""
+                }
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="channel-api-secret">{definition.secretLabel}</Label>
+              <Label htmlFor="channel-api-secret">
+                {definition.secretLabel}
+              </Label>
               <Input
                 id="channel-api-secret"
                 value={apiSecret}
@@ -181,16 +203,31 @@ export function ChannelConnectionSheet({
                 />
               </div>
             ) : null}
-            <label className="flex items-center gap-3 text-sm">
-              <Checkbox checked={isActive} onCheckedChange={(checked) => setIsActive(checked === true)} />
+            <Label
+              htmlFor="channel-is-active"
+              className="flex items-center gap-3 text-sm"
+            >
+              <Checkbox
+                id="channel-is-active"
+                checked={isActive}
+                onCheckedChange={(checked) => setIsActive(checked === true)}
+              />
               Active
-            </label>
-            {error ? <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div> : null}
+            </Label>
+            {error ? (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                {error}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
         <SheetFooter>
-          <Button onClick={save} disabled={!canSave || saving} className="gap-2">
+          <Button
+            onClick={save}
+            disabled={!canSave || saving}
+            className="gap-2"
+          >
             <Save className="size-4" />
             {saving ? "Saving" : "Save & Verify"}
           </Button>

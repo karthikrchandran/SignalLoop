@@ -56,7 +56,9 @@ export function Main({ items = [], groups }: MainProps) {
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
               {group.items.map((item) => {
-                const isActive = currentPath === item.path || currentPath.startsWith(`${item.path}/`)
+                const isActive =
+                  currentPath === item.path ||
+                  currentPath.startsWith(`${item.path}/`)
 
                 return (
                   <SidebarMenuItem key={item.title}>

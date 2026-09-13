@@ -1,5 +1,13 @@
 import type { LucideIcon } from "lucide-react"
-import { Activity, AlertCircle, BarChart3, BookOpen, Inbox, Plug, SlidersHorizontal } from "lucide-react"
+import {
+  Activity,
+  AlertCircle,
+  BarChart3,
+  BookOpen,
+  Inbox,
+  Plug,
+  SlidersHorizontal,
+} from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,7 +17,12 @@ type Metric = {
   value: string
 }
 
-type ChatbotPlaceholderKind = "channels" | "knowledge" | "inbox" | "analytics" | "settings"
+type ChatbotPlaceholderKind =
+  | "channels"
+  | "knowledge"
+  | "inbox"
+  | "analytics"
+  | "settings"
 
 type ChatbotPlaceholderPageProps = {
   title: string
@@ -60,7 +73,10 @@ const screenCopy = {
       { label: "Disclosure", value: "On" },
     ],
   },
-} satisfies Record<ChatbotPlaceholderKind, { status: string; metrics: Metric[] }>
+} satisfies Record<
+  ChatbotPlaceholderKind,
+  { status: string; metrics: Metric[] }
+>
 
 const iconMap = {
   channels: Plug,
@@ -77,7 +93,10 @@ export function createChatbotPlaceholder(kind: ChatbotPlaceholderKind) {
     inbox: { title: "Inbox", eyebrow: "Messaging Hub" },
     analytics: { title: "Analytics", eyebrow: "Messaging Hub" },
     settings: { title: "Settings", eyebrow: "Messaging Hub" },
-  } satisfies Record<keyof typeof screenCopy, { title: string; eyebrow: string }>
+  } satisfies Record<
+    keyof typeof screenCopy,
+    { title: string; eyebrow: string }
+  >
   const copy = screenCopy[kind]
   return (
     <ChatbotPlaceholderPage
@@ -122,7 +141,9 @@ function ChatbotPlaceholderPage({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-semibold tracking-tight">{metric.value}</div>
+              <div className="text-3xl font-semibold tracking-tight">
+                {metric.value}
+              </div>
             </CardContent>
           </Card>
         ))}

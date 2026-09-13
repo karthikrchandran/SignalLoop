@@ -104,6 +104,7 @@ def _excerpt(value: str | None, *, limit: int = 180) -> str:
 
 def _load_accounts(
     *,
+    session: Session,
     workspace_id: str,
     search: str | None = None,
     limit: int = 50,
@@ -114,12 +115,14 @@ def _load_accounts(
             workspace_id=workspace_id,
             search=search,
             limit=limit,
+            session=session,
         )
     ]
 
 
 def _load_contacts(
     *,
+    session: Session,
     workspace_id: str,
     account_id: uuid.UUID,
 ) -> list[ContactPublic]:
@@ -127,6 +130,7 @@ def _load_contacts(
         workspace_id=workspace_id,
         parent_id=str(account_id),
         limit=100,
+        session=session,
     )
 
 
@@ -147,10 +151,16 @@ def list_customer_360_accounts(
     search: str | None = None,
     limit: int = 50,
 ) -> Customer360AccountsPublic:
-    accounts = _load_accounts(workspace_id=workspace_id, search=search, limit=limit)
+    accounts = _load_accounts(
+        session=session,
+        workspace_id=workspace_id,
+        search=search,
+        limit=limit,
+    )
     rows: list[Customer360AccountRowPublic] = []
     for account in accounts:
         contacts = _load_contacts(
+            session=session,
             workspace_id=workspace_id,
             account_id=account.id,
         )
@@ -194,7 +204,11 @@ def get_account_profile(
     account = next(
         (
             candidate
-            for candidate in _load_accounts(workspace_id=workspace_id, limit=100)
+            for candidate in _load_accounts(
+                session=session,
+                workspace_id=workspace_id,
+                limit=100,
+            )
             if candidate.id == account_id
         ),
         None,
@@ -203,6 +217,7 @@ def get_account_profile(
         return None
 
     contacts = _load_contacts(
+        session=session,
         workspace_id=workspace_id,
         account_id=account.id,
     )

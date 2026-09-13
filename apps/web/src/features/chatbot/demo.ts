@@ -1,10 +1,10 @@
 import type {
-  ChatbotChannel,
-  ChatbotChannelInput,
-  ChatbotChannelUpdateInput,
   ChatbotAnalytics,
   ChatbotAnalyticsRange,
+  ChatbotChannel,
+  ChatbotChannelInput,
   ChatbotChannelsResponse,
+  ChatbotChannelUpdateInput,
   ChatbotConfig,
   ChatbotConfigUpdate,
   ChatbotDeadLetter,
@@ -27,7 +27,8 @@ import type {
 const DEMO_WORKSPACE_ID = "demo-workspace"
 const DEMO_MODE_KEY = "chatbot_demo_mode"
 
-const iso = (offsetMinutes = 0) => new Date(Date.now() + offsetMinutes * 60_000).toISOString()
+const iso = (offsetMinutes = 0) =>
+  new Date(Date.now() + offsetMinutes * 60_000).toISOString()
 
 const delay = async () => {
   await new Promise((resolve) => window.setTimeout(resolve, 180))
@@ -53,7 +54,11 @@ let demoChannels: ChatbotChannel[] = [
     status: "connected",
     is_active: true,
     has_credential: true,
-    config_json: { phone_number_id: "15551234567", verify_token: "configured", webhook_secret_present: true },
+    config_json: {
+      phone_number_id: "15551234567",
+      verify_token: "configured",
+      webhook_secret_present: true,
+    },
     readiness: {
       ready: true,
       status: "ready",
@@ -72,7 +77,11 @@ let demoChannels: ChatbotChannel[] = [
     status: "connected",
     is_active: true,
     has_credential: true,
-    config_json: { page_id: "108812345678901", verify_token: "configured", webhook_secret_present: true },
+    config_json: {
+      page_id: "108812345678901",
+      verify_token: "configured",
+      webhook_secret_present: true,
+    },
     readiness: {
       ready: true,
       status: "ready",
@@ -155,10 +164,13 @@ let demoKnowledgeSources: ChatbotKnowledgeSource[] = [
 let demoConfig: ChatbotConfig = {
   workspace_id: DEMO_WORKSPACE_ID,
   bot_name: "SignalLoop Assistant",
-  persona: "Concise, helpful sales assistant. Qualify fit, answer from approved knowledge, escalate when unsure.",
+  persona:
+    "Concise, helpful sales assistant. Qualify fit, answer from approved knowledge, escalate when unsure.",
   greeting_message: "Hi, I am the SignalLoop AI assistant. How can I help?",
-  escalation_message: "I do not have enough confidence to answer that. A teammate can help from here.",
-  out_of_hours_message: "Our team is offline right now, but I can collect details for follow-up.",
+  escalation_message:
+    "I do not have enough confidence to answer that. A teammate can help from here.",
+  out_of_hours_message:
+    "Our team is offline right now, but I can collect details for follow-up.",
   ai_disclosure: "AI assistant",
   token_cap_per_session: 4000,
   retention_days: 90,
@@ -173,7 +185,8 @@ let demoConfig: ChatbotConfig = {
     enabled: true,
     min_turns: 3,
     intent_keywords: ["demo", "pricing", "quote", "sales"],
-    privacy_notice_text: "Before I collect your contact details, please confirm consent for follow-up.",
+    privacy_notice_text:
+      "Before I collect your contact details, please confirm consent for follow-up.",
     privacy_policy_url: "https://example.com/privacy",
     re_opt_in_invitation_enabled: true,
     confidence_threshold: 0.35,
@@ -232,7 +245,7 @@ let demoDeadLetters: ChatbotDeadLetter[] = [
   },
 ]
 
-let demoThreads: ChatbotThreadDetail[] = [
+const demoThreads: ChatbotThreadDetail[] = [
   {
     id: "demo-thread-escalated",
     workspace_id: DEMO_WORKSPACE_ID,
@@ -256,10 +269,36 @@ let demoThreads: ChatbotThreadDetail[] = [
       intents: ["demo", "pricing"],
     },
     messages: [
-      message("m1", "inbound", "visitor", "Hi, do you have pricing for three clinic locations?", -18),
-      message("m2", "outbound", "bot", "AI assistant: I can help. Pricing depends on usage and channel mix.", -17, 0.82),
-      message("m3", "inbound", "visitor", "Can someone help me compare pricing for three locations?", -2),
-      message("m4", "outbound", "bot", "AI assistant: I will hand this to a teammate with the conversation context.", -1, 1),
+      message(
+        "m1",
+        "inbound",
+        "visitor",
+        "Hi, do you have pricing for three clinic locations?",
+        -18,
+      ),
+      message(
+        "m2",
+        "outbound",
+        "bot",
+        "AI assistant: I can help. Pricing depends on usage and channel mix.",
+        -17,
+        0.82,
+      ),
+      message(
+        "m3",
+        "inbound",
+        "visitor",
+        "Can someone help me compare pricing for three locations?",
+        -2,
+      ),
+      message(
+        "m4",
+        "outbound",
+        "bot",
+        "AI assistant: I will hand this to a teammate with the conversation context.",
+        -1,
+        1,
+      ),
     ],
   },
   {
@@ -277,8 +316,21 @@ let demoThreads: ChatbotThreadDetail[] = [
     escalation_reason: null,
     lead: null,
     messages: [
-      message("m5", "inbound", "visitor", "Does SignalLoop support Telegram handoff?", -14),
-      message("m6", "outbound", "bot", "AI assistant: Telegram can be connected as an optional channel in the MVP.", -13, 0.76),
+      message(
+        "m5",
+        "inbound",
+        "visitor",
+        "Does SignalLoop support Telegram handoff?",
+        -14,
+      ),
+      message(
+        "m6",
+        "outbound",
+        "bot",
+        "AI assistant: Telegram can be connected as an optional channel in the MVP.",
+        -13,
+        0.76,
+      ),
     ],
   },
   {
@@ -305,10 +357,35 @@ let demoThreads: ChatbotThreadDetail[] = [
     },
     messages: [
       message("m7", "inbound", "visitor", "Can I book a demo?", -140),
-      message("m8", "outbound", "bot", "AI assistant: Yes. Before collecting details, please confirm consent for follow-up.", -139, 1),
-      message("m9", "inbound", "visitor", "Yes. Jordan Lee, jordan@example.com", -132),
-      message("m10", "outbound", "agent", "Thanks Jordan. I sent you a booking link.", -100),
-      message("m11", "inbound", "visitor", "Thanks, that answers my question.", -95),
+      message(
+        "m8",
+        "outbound",
+        "bot",
+        "AI assistant: Yes. Before collecting details, please confirm consent for follow-up.",
+        -139,
+        1,
+      ),
+      message(
+        "m9",
+        "inbound",
+        "visitor",
+        "Yes. Jordan Lee, jordan@example.com",
+        -132,
+      ),
+      message(
+        "m10",
+        "outbound",
+        "agent",
+        "Thanks Jordan. I sent you a booking link.",
+        -100,
+      ),
+      message(
+        "m11",
+        "inbound",
+        "visitor",
+        "Thanks, that answers my question.",
+        -95,
+      ),
     ],
   },
 ]
@@ -328,7 +405,8 @@ function message(
     message_type: "text",
     content,
     bot_confidence: confidence,
-    metadata_json: confidence === undefined ? {} : { delivery_status: "queued" },
+    metadata_json:
+      confidence === undefined ? {} : { delivery_status: "queued" },
     created_at: iso(offsetMinutes),
     delivered_at: direction === "outbound" ? iso(offsetMinutes + 1) : null,
   }
@@ -361,10 +439,12 @@ function demoChannelReadiness(input: {
           : "redirect_url"
 
   if (!input.has_credential) missing.push("provider credential")
-  if (!String(input.config_json[requiredField] || "").trim()) missing.push(requiredField)
+  if (!String(input.config_json[requiredField] || "").trim())
+    missing.push(requiredField)
   if (!input.config_json.webhook_secret_present) missing.push("webhook secret")
   if (
-    (input.channel_type === "whatsapp_business" || input.channel_type === "facebook_messenger") &&
+    (input.channel_type === "whatsapp_business" ||
+      input.channel_type === "facebook_messenger") &&
     !String(input.config_json.verify_token || "").trim()
   ) {
     missing.push("verify_token")
@@ -394,12 +474,18 @@ export async function demoListChatbotChannels(): Promise<ChatbotChannelsResponse
   return { data: [...demoChannels], count: demoChannels.length }
 }
 
-export async function demoCreateChatbotChannel(input: ChatbotChannelInput): Promise<ChatbotChannel> {
+export async function demoCreateChatbotChannel(
+  input: ChatbotChannelInput,
+): Promise<ChatbotChannel> {
   await delay()
-  const existing = demoChannels.find((channel) => channel.channel_type === input.channel_type)
+  const existing = demoChannels.find(
+    (channel) => channel.channel_type === input.channel_type,
+  )
   const configJson = {
     ...input.config_json,
-    ...(input.credentials.webhook_secret ? { webhook_secret_present: true } : {}),
+    ...(input.credentials.webhook_secret
+      ? { webhook_secret_present: true }
+      : {}),
   }
   const row: ChatbotChannel = {
     id: existing?.id || nextId("demo-channel"),
@@ -423,9 +509,15 @@ export async function demoCreateChatbotChannel(input: ChatbotChannelInput): Prom
   }
   row.readiness = demoChannelReadiness(row)
   demoChannels = existing
-    ? demoChannels.map((channel) => (channel.id === existing.id ? row : channel))
+    ? demoChannels.map((channel) =>
+        channel.id === existing.id ? row : channel,
+      )
     : [...demoChannels, row]
-  demoConfig = { ...demoConfig, channel_overrides: demoChannels, updated_at: iso() }
+  demoConfig = {
+    ...demoConfig,
+    channel_overrides: demoChannels,
+    updated_at: iso(),
+  }
   return row
 }
 
@@ -438,25 +530,37 @@ export async function demoUpdateChatbotChannel(
   if (!current) throw new Error("Demo channel not found")
   const configJson = {
     ...(input.config_json ?? current.config_json),
-    ...(input.credentials?.webhook_secret ? { webhook_secret_present: true } : {}),
+    ...(input.credentials?.webhook_secret
+      ? { webhook_secret_present: true }
+      : {}),
   }
   const updated: ChatbotChannel = {
     ...current,
     display_name: input.display_name ?? current.display_name,
     is_active: input.is_active ?? current.is_active,
     status: input.is_active === false ? "disabled" : current.status,
-    has_credential: current.has_credential || Boolean(input.credentials?.api_key),
+    has_credential:
+      current.has_credential || Boolean(input.credentials?.api_key),
     config_json: configJson,
     readiness: current.readiness,
     updated_at: iso(),
   }
   updated.readiness = demoChannelReadiness(updated)
-  demoChannels = demoChannels.map((channel) => (channel.id === channelId ? updated : channel))
-  demoConfig = { ...demoConfig, channel_overrides: demoChannels, updated_at: iso() }
+  demoChannels = demoChannels.map((channel) =>
+    channel.id === channelId ? updated : channel,
+  )
+  demoConfig = {
+    ...demoConfig,
+    channel_overrides: demoChannels,
+    updated_at: iso(),
+  }
   return updated
 }
 
-export async function demoToggleChatbotChannel(channelId: string, isActive: boolean): Promise<ChatbotChannel> {
+export async function demoToggleChatbotChannel(
+  channelId: string,
+  isActive: boolean,
+): Promise<ChatbotChannel> {
   return demoUpdateChatbotChannel(channelId, { is_active: isActive })
 }
 
@@ -465,7 +569,9 @@ export async function demoListKnowledgeSources(): Promise<ChatbotKnowledgeSource
   return { data: [...demoKnowledgeSources], count: demoKnowledgeSources.length }
 }
 
-export async function demoCreateKnowledgeSource(input: ChatbotKnowledgeSourceInput): Promise<ChatbotKnowledgeSource> {
+export async function demoCreateKnowledgeSource(
+  input: ChatbotKnowledgeSourceInput,
+): Promise<ChatbotKnowledgeSource> {
   await delay()
   const row: ChatbotKnowledgeSource = {
     id: nextId("demo-source"),
@@ -486,23 +592,45 @@ export async function demoCreateKnowledgeSource(input: ChatbotKnowledgeSourceInp
   return row
 }
 
-export async function demoUploadKnowledgeDocument(file: File): Promise<ChatbotKnowledgeSource> {
-  return demoCreateKnowledgeSource({ source_type: "document", title: file.name })
+export async function demoUploadKnowledgeDocument(
+  file: File,
+): Promise<ChatbotKnowledgeSource> {
+  return demoCreateKnowledgeSource({
+    source_type: "document",
+    title: file.name,
+  })
 }
 
-export async function demoDeleteKnowledgeSource(sourceId: string): Promise<void> {
+export async function demoDeleteKnowledgeSource(
+  sourceId: string,
+): Promise<void> {
   await delay()
-  demoKnowledgeSources = demoKnowledgeSources.filter((source) => source.id !== sourceId)
+  demoKnowledgeSources = demoKnowledgeSources.filter(
+    (source) => source.id !== sourceId,
+  )
 }
 
-export async function demoReindexKnowledgeSource(sourceId: string): Promise<ChatbotReindexResponse> {
+export async function demoReindexKnowledgeSource(
+  sourceId: string,
+): Promise<ChatbotReindexResponse> {
   await delay()
   demoKnowledgeSources = demoKnowledgeSources.map((source) =>
     source.id === sourceId
-      ? { ...source, status: "ready", progress: 100, indexed_at: iso(), updated_at: iso() }
+      ? {
+          ...source,
+          status: "ready",
+          progress: 100,
+          indexed_at: iso(),
+          updated_at: iso(),
+        }
       : source,
   )
-  return { job_id: nextId("demo-reindex"), queued: 1, workspace_id: DEMO_WORKSPACE_ID, status: "queued" }
+  return {
+    job_id: nextId("demo-reindex"),
+    queued: 1,
+    workspace_id: DEMO_WORKSPACE_ID,
+    status: "queued",
+  }
 }
 
 export async function demoReindexAllKnowledgeSources(): Promise<ChatbotReindexResponse> {
@@ -522,13 +650,18 @@ export async function demoReindexAllKnowledgeSources(): Promise<ChatbotReindexRe
   }
 }
 
-export async function demoTestChatbotQuestion(question: string): Promise<ChatbotTestBotResponse> {
+export async function demoTestChatbotQuestion(
+  question: string,
+): Promise<ChatbotTestBotResponse> {
   await delay()
-  const source = demoKnowledgeSources.find((item) => item.status === "ready") || demoKnowledgeSources[0]
+  const source =
+    demoKnowledgeSources.find((item) => item.status === "ready") ||
+    demoKnowledgeSources[0]
   return {
-    answer: `Based on the demo knowledge base, ${question.toLowerCase().includes("pricing")
-      ? "pricing depends on usage, connected channels, and lead volume. The bot would escalate detailed quotes to a teammate."
-      : "the assistant can answer grounded setup, channel, and lead-capture questions, then escalate when confidence is low."
+    answer: `Based on the demo knowledge base, ${
+      question.toLowerCase().includes("pricing")
+        ? "pricing depends on usage, connected channels, and lead volume. The bot would escalate detailed quotes to a teammate."
+        : "the assistant can answer grounded setup, channel, and lead-capture questions, then escalate when confidence is low."
     }`,
     ai_disclosure: demoConfig.ai_disclosure,
     no_kb: false,
@@ -544,7 +677,9 @@ export async function demoTestChatbotQuestion(question: string): Promise<Chatbot
   }
 }
 
-export async function demoGetChatbotAnalytics(_range: ChatbotAnalyticsRange = {}): Promise<ChatbotAnalytics> {
+export async function demoGetChatbotAnalytics(
+  _range: ChatbotAnalyticsRange = {},
+): Promise<ChatbotAnalytics> {
   await delay()
   const today = new Date()
   const day = (offset: number) => {
@@ -574,32 +709,116 @@ export async function demoGetChatbotAnalytics(_range: ChatbotAnalyticsRange = {}
       voice_followups: 6,
     },
     timeseries: [
-      { date: day(-6), conversations: 21, bot_messages: 18, leads_captured: 3, escalations: 2, opt_outs: 0 },
-      { date: day(-5), conversations: 34, bot_messages: 29, leads_captured: 4, escalations: 3, opt_outs: 1 },
-      { date: day(-4), conversations: 28, bot_messages: 24, leads_captured: 2, escalations: 1, opt_outs: 0 },
-      { date: day(-3), conversations: 41, bot_messages: 35, leads_captured: 6, escalations: 4, opt_outs: 1 },
-      { date: day(-2), conversations: 35, bot_messages: 31, leads_captured: 5, escalations: 2, opt_outs: 1 },
-      { date: day(-1), conversations: 39, bot_messages: 33, leads_captured: 7, escalations: 3, opt_outs: 1 },
-      { date: day(0), conversations: 42, bot_messages: 28, leads_captured: 4, escalations: 3, opt_outs: 1 },
+      {
+        date: day(-6),
+        conversations: 21,
+        bot_messages: 18,
+        leads_captured: 3,
+        escalations: 2,
+        opt_outs: 0,
+      },
+      {
+        date: day(-5),
+        conversations: 34,
+        bot_messages: 29,
+        leads_captured: 4,
+        escalations: 3,
+        opt_outs: 1,
+      },
+      {
+        date: day(-4),
+        conversations: 28,
+        bot_messages: 24,
+        leads_captured: 2,
+        escalations: 1,
+        opt_outs: 0,
+      },
+      {
+        date: day(-3),
+        conversations: 41,
+        bot_messages: 35,
+        leads_captured: 6,
+        escalations: 4,
+        opt_outs: 1,
+      },
+      {
+        date: day(-2),
+        conversations: 35,
+        bot_messages: 31,
+        leads_captured: 5,
+        escalations: 2,
+        opt_outs: 1,
+      },
+      {
+        date: day(-1),
+        conversations: 39,
+        bot_messages: 33,
+        leads_captured: 7,
+        escalations: 3,
+        opt_outs: 1,
+      },
+      {
+        date: day(0),
+        conversations: 42,
+        bot_messages: 28,
+        leads_captured: 4,
+        escalations: 3,
+        opt_outs: 1,
+      },
     ],
     channel_breakdown: [
-      { channel_type: "whatsapp_business", conversations: 146, bot_resolved: 112, escalated: 9, lead_captured: 22, opted_out: 3 },
-      { channel_type: "facebook_messenger", conversations: 92, bot_resolved: 77, escalated: 7, lead_captured: 8, opted_out: 2 },
-      { channel_type: "telegram", conversations: 23, bot_resolved: 20, escalated: 2, lead_captured: 1, opted_out: 0 },
+      {
+        channel_type: "whatsapp_business",
+        conversations: 146,
+        bot_resolved: 112,
+        escalated: 9,
+        lead_captured: 22,
+        opted_out: 3,
+      },
+      {
+        channel_type: "facebook_messenger",
+        conversations: 92,
+        bot_resolved: 77,
+        escalated: 7,
+        lead_captured: 8,
+        opted_out: 2,
+      },
+      {
+        channel_type: "telegram",
+        conversations: 23,
+        bot_resolved: 20,
+        escalated: 2,
+        lead_captured: 1,
+        opted_out: 0,
+      },
     ],
   }
 }
 
-export async function demoListChatbotThreads(filters: ChatbotThreadFilters = {}): Promise<ChatbotThreadsResponse> {
+export async function demoListChatbotThreads(
+  filters: ChatbotThreadFilters = {},
+): Promise<ChatbotThreadsResponse> {
   await delay()
   const data = demoThreads
-    .filter((thread) => !filters.channel_type || filters.channel_type === "all" || thread.channel_type === filters.channel_type)
-    .filter((thread) => !filters.status || filters.status === "all" || thread.status === filters.status)
+    .filter(
+      (thread) =>
+        !filters.channel_type ||
+        filters.channel_type === "all" ||
+        thread.channel_type === filters.channel_type,
+    )
+    .filter(
+      (thread) =>
+        !filters.status ||
+        filters.status === "all" ||
+        thread.status === filters.status,
+    )
     .map(summarize)
   return { data, count: data.length, next_cursor: null }
 }
 
-export async function demoGetChatbotThread(threadId: string): Promise<ChatbotThreadDetail> {
+export async function demoGetChatbotThread(
+  threadId: string,
+): Promise<ChatbotThreadDetail> {
   await delay()
   const thread = demoThreads.find((item) => item.id === threadId)
   if (!thread) throw new Error("Demo thread not found")
@@ -635,7 +854,10 @@ export async function demoReopenChatbotThread(threadId: string) {
   return { thread: { ...thread, messages: [...thread.messages] } }
 }
 
-export async function demoExportChatbotThreads(format: ChatbotExportFormat, filters: ChatbotThreadFilters = {}) {
+export async function demoExportChatbotThreads(
+  format: ChatbotExportFormat,
+  filters: ChatbotThreadFilters = {},
+) {
   const rows = (await demoListChatbotThreads(filters)).data
   const fullRows = rows.flatMap((summary) => {
     const thread = demoThreads.find((item) => item.id === summary.id)
@@ -649,24 +871,27 @@ export async function demoExportChatbotThreads(format: ChatbotExportFormat, filt
       bot_confidence: item.bot_confidence ?? "",
     }))
   })
-  const content = format === "json"
-    ? JSON.stringify(fullRows, null, 2)
-    : [
-        "conversation_id,channel,visitor_id,sender_role,message_text,sent_at,bot_confidence",
-        ...fullRows.map((row) =>
-          [
-            row.conversation_id,
-            row.channel,
-            row.visitor_id,
-            row.sender_role,
-            `"${row.message_text.replace(/"/g, '""')}"`,
-            row.sent_at,
-            row.bot_confidence,
-          ].join(","),
-        ),
-      ].join("\n")
+  const content =
+    format === "json"
+      ? JSON.stringify(fullRows, null, 2)
+      : [
+          "conversation_id,channel,visitor_id,sender_role,message_text,sent_at,bot_confidence",
+          ...fullRows.map((row) =>
+            [
+              row.conversation_id,
+              row.channel,
+              row.visitor_id,
+              row.sender_role,
+              `"${row.message_text.replace(/"/g, '""')}"`,
+              row.sent_at,
+              row.bot_confidence,
+            ].join(","),
+          ),
+        ].join("\n")
   return {
-    blob: new Blob([content], { type: format === "json" ? "application/json" : "text/csv" }),
+    blob: new Blob([content], {
+      type: format === "json" ? "application/json" : "text/csv",
+    }),
     filename: `chatbot-demo-conversations.${format}`,
   }
 }
@@ -695,7 +920,9 @@ export async function demoGetChatbotConfig(): Promise<ChatbotConfig> {
   return { ...demoConfig, channel_overrides: [...demoChannels] }
 }
 
-export async function demoUpdateChatbotConfig(input: ChatbotConfigUpdate): Promise<ChatbotConfig> {
+export async function demoUpdateChatbotConfig(
+  input: ChatbotConfigUpdate,
+): Promise<ChatbotConfig> {
   await delay()
   demoConfig = {
     ...demoConfig,
@@ -726,5 +953,9 @@ export async function demoListChatbotDeadLetters(): Promise<ChatbotDeadLettersRe
 export async function demoRetryChatbotDeadLetter(deadLetterId: string) {
   await delay()
   demoDeadLetters = demoDeadLetters.filter((item) => item.id !== deadLetterId)
-  return { id: deadLetterId, requeued: true, inbound_queue_key: `chatbot:inbound:${DEMO_WORKSPACE_ID}` }
+  return {
+    id: deadLetterId,
+    requeued: true,
+    inbound_queue_key: `chatbot:inbound:${DEMO_WORKSPACE_ID}`,
+  }
 }

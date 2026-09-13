@@ -22,7 +22,9 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test("contact timeline opens reason and transcript detail", async ({ page }) => {
+test("contact timeline opens reason and transcript detail", async ({
+  page,
+}) => {
   let detailRequested = false
 
   await page.route("**/api/v1/contacts/contact-1/timeline**", async (route) => {
@@ -44,7 +46,8 @@ test("contact timeline opens reason and transcript detail", async ({ page }) => 
           outcome: "completed",
           reason_code: "positive_email_signal",
           has_detail: true,
-          reason_code_explanation: "The contact asked for a demo during follow-up.",
+          reason_code_explanation:
+            "The contact asked for a demo during follow-up.",
           transcript_excerpt: "Buyer said Tuesday morning works for the demo.",
         }),
       })
@@ -74,15 +77,23 @@ test("contact timeline opens reason and transcript detail", async ({ page }) => 
     })
   })
 
-  await page.goto("/contacts?contactId=contact-1&campaignId=campaign-1&contactName=Asha%20Rao")
+  await page.goto(
+    "/contacts?contactId=contact-1&campaignId=campaign-1&contactName=Asha%20Rao",
+  )
 
-  await expect(page.getByRole("heading", { name: "Asha Rao Timeline" })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "Asha Rao Timeline" }),
+  ).toBeVisible()
   await expect(page.getByText("positive email signal")).toBeVisible()
 
   await page.getByText("call session").click()
 
-  await expect(page.getByText("The contact asked for a demo during follow-up.")).toBeVisible()
+  await expect(
+    page.getByText("The contact asked for a demo during follow-up."),
+  ).toBeVisible()
   await expect(page.getByText("Transcript excerpt")).toBeVisible()
-  await expect(page.getByText("Buyer said Tuesday morning works for the demo.")).toBeVisible()
+  await expect(
+    page.getByText("Buyer said Tuesday morning works for the demo."),
+  ).toBeVisible()
   expect(detailRequested).toBe(true)
 })

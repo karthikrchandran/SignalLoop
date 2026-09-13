@@ -310,6 +310,7 @@ def _get_contact_or_404(
     contact = shared_record_service.get_shared_contact(
         workspace_id=workspace_id,
         contact_id=contact_id,
+        session=session,
     )
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
@@ -349,6 +350,7 @@ def read_contacts(
         workspace_id=workspace_id,
         search=search,
         limit=min(skip + limit, 100),
+        session=session,
     )
     filtered = _apply_contact_filters(
         contacts,

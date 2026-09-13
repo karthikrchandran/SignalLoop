@@ -59,7 +59,8 @@ const UserInformation = () => {
 
   const onSubmit = (data: FormData) => {
     const updateData: UserUpdateMe = {}
-    if (data.full_name !== currentUser?.full_name) updateData.full_name = data.full_name
+    if (data.full_name !== currentUser?.full_name)
+      updateData.full_name = data.full_name
     if (data.email !== currentUser?.email) updateData.email = data.email
     mutation.mutate(updateData)
   }
@@ -76,7 +77,7 @@ const UserInformation = () => {
         .join("")
         .toUpperCase()
         .slice(0, 2)
-    : currentUser?.email?.[0]?.toUpperCase() ?? "?"
+    : (currentUser?.email?.[0]?.toUpperCase() ?? "?")
 
   return (
     <Card className="max-w-md">
@@ -88,9 +89,13 @@ const UserInformation = () => {
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-semibold truncate">
-              {currentUser?.full_name || <span className="text-muted-foreground">No name set</span>}
+              {currentUser?.full_name || (
+                <span className="text-muted-foreground">No name set</span>
+              )}
             </p>
-            <p className="text-sm text-muted-foreground truncate">{currentUser?.email}</p>
+            <p className="text-sm text-muted-foreground truncate">
+              {currentUser?.email}
+            </p>
           </div>
           {!editMode && (
             <Button

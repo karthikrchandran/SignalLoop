@@ -11,8 +11,8 @@ import { ApiError, OpenAPI } from "./client"
 import { ThemeProvider } from "./components/theme-provider"
 import { Toaster } from "./components/ui/sonner"
 import "./index.css"
-import { routeTree } from "./routeTree.gen"
 import { clearClientAuthState } from "./lib/auth-session"
+import { routeTree } from "./routeTree.gen"
 
 OpenAPI.BASE = import.meta.env.VITE_API_URL
 OpenAPI.WITH_CREDENTIALS = true
@@ -26,7 +26,10 @@ const handleApiError = (error: Error) => {
     error.status === 404 &&
     error.request.url === "/api/v1/users/me"
 
-  if (error instanceof ApiError && (error.status === 401 || isMissingCurrentUser)) {
+  if (
+    error instanceof ApiError &&
+    (error.status === 401 || isMissingCurrentUser)
+  ) {
     clearClientAuthState()
     if (window.location.pathname !== "/login") {
       window.location.href = "/login"

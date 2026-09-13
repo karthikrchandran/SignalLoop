@@ -8,7 +8,9 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test("Chatbot setup and knowledge mockups render with test bot flow", async ({ page }) => {
+test("Chatbot setup and knowledge mockups render with test bot flow", async ({
+  page,
+}) => {
   await page.goto("/chatbot")
   await expect(page).toHaveURL(/\/chatbot\/channels/)
 
@@ -21,15 +23,21 @@ test("Chatbot setup and knowledge mockups render with test bot flow", async ({ p
   await expect(page.getByText("Real-connect readiness")).toBeVisible()
   await expect(page.getByText("2 of 3 channels ready")).toBeVisible()
   await expect(page.getByText("Ready for live traffic").first()).toBeVisible()
-  await expect(page.getByText("Needs activation and webhook verification")).toBeVisible()
-  await expect(page.getByText("/api/v1/chatbot/webhooks/demo-channel-wa")).toBeVisible()
+  await expect(
+    page.getByText("Needs activation and webhook verification"),
+  ).toBeVisible()
+  await expect(
+    page.getByText("/api/v1/chatbot/webhooks/demo-channel-wa"),
+  ).toBeVisible()
 
   await page.getByRole("button", { name: "Edit" }).first().click()
   await expect(page.getByText("Facebook Messenger connection")).toBeVisible()
   await page.keyboard.press("Escape")
 
   await page.goto("/chatbot/knowledge-base")
-  await expect(page.getByRole("heading", { name: "Knowledge Base" })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "Knowledge Base" }),
+  ).toBeVisible()
   await expect(page.getByText("Pricing and demo FAQ")).toBeVisible()
 
   await page.getByRole("button", { name: "Test Bot" }).click()
@@ -44,7 +52,9 @@ test("Chatbot inbox detail and analytics mockups render", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible()
   await expect(page.getByText("Maya Singh")).toBeVisible()
-  await expect(page.getByText("Can someone help me compare pricing for three locations?")).toBeVisible()
+  await expect(
+    page.getByText("Can someone help me compare pricing for three locations?"),
+  ).toBeVisible()
   await expect(page).toHaveURL(/\/chatbot\/inbox\/demo-thread-escalated/)
 
   await page.goto("/chatbot/analytics")
@@ -58,22 +68,30 @@ test("Chatbot inbox detail and analytics mockups render", async ({ page }) => {
   await expect(page.getByText("WhatsApp Business")).toBeVisible()
 })
 
-test("Chatbot opt-outs and dead-letter recovery mockups render actions", async ({ page }) => {
+test("Chatbot opt-outs and dead-letter recovery mockups render actions", async ({
+  page,
+}) => {
   await page.goto("/settings")
   await page.getByRole("tab", { name: "Opt-outs" }).click()
   await expect(page.getByText("15559876543")).toBeVisible()
   await page.getByRole("button", { name: "Re-enable" }).click()
-  await expect(page.getByText("requires explicit visitor re-consent")).toBeVisible()
+  await expect(
+    page.getByText("requires explicit visitor re-consent"),
+  ).toBeVisible()
   await page.getByRole("button", { name: "Cancel" }).click()
 
   await page.goto("/admin/chatbot/dead-letters")
-  await expect(page.getByRole("heading", { name: "Messaging Dead Letters" })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "Messaging Dead Letters" }),
+  ).toBeVisible()
   await expect(page.getByText("wamid.demo.failed")).toBeVisible()
   await page.getByRole("button", { name: "Retry" }).first().click()
   await expect(page.getByText("Dead-lettered message requeued")).toBeVisible()
 })
 
-test("Messaging Hub analytics shows no-data state for empty API results", async ({ page }) => {
+test("Messaging Hub analytics shows no-data state for empty API results", async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     window.localStorage.removeItem("chatbot_demo_mode")
   })
@@ -81,7 +99,12 @@ test("Messaging Hub analytics shows no-data state for empty API results", async 
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ id: "user-1", email: "admin@example.com", is_superuser: true, role: "admin" }),
+      body: JSON.stringify({
+        id: "user-1",
+        email: "admin@example.com",
+        is_superuser: true,
+        role: "admin",
+      }),
     })
   })
   await page.route("**/api/v1/chatbot/analytics**", async (route) => {
@@ -93,8 +116,22 @@ test("Messaging Hub analytics shows no-data state for empty API results", async 
         date_from: "2026-06-10",
         date_to: "2026-06-16",
         updated_at: "2026-06-16T12:00:00Z",
-        totals: { conversations: 0, containment_rate: 0, leads_captured: 0, escalations: 0, bot_messages: 0, opt_outs: 0 },
-        conversion_funnel: { conversations: 0, leads_captured: 0, prospecting_researched: 0, added_to_campaign: 0, sequence_enrolled: 0, voice_followups: 0 },
+        totals: {
+          conversations: 0,
+          containment_rate: 0,
+          leads_captured: 0,
+          escalations: 0,
+          bot_messages: 0,
+          opt_outs: 0,
+        },
+        conversion_funnel: {
+          conversations: 0,
+          leads_captured: 0,
+          prospecting_researched: 0,
+          added_to_campaign: 0,
+          sequence_enrolled: 0,
+          voice_followups: 0,
+        },
         timeseries: [],
         channel_breakdown: [],
       }),
@@ -103,11 +140,15 @@ test("Messaging Hub analytics shows no-data state for empty API results", async 
 
   await page.goto("/chatbot/analytics")
 
-  await expect(page.getByText("No messaging analytics for this range").first()).toBeVisible()
+  await expect(
+    page.getByText("No messaging analytics for this range").first(),
+  ).toBeVisible()
   await expect(page.getByText("No data for this range").first()).toBeVisible()
 })
 
-test("Messaging Hub analytics shows retryable error state", async ({ page }) => {
+test("Messaging Hub analytics shows retryable error state", async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     window.localStorage.removeItem("chatbot_demo_mode")
   })
@@ -115,7 +156,12 @@ test("Messaging Hub analytics shows retryable error state", async ({ page }) => 
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ id: "user-1", email: "admin@example.com", is_superuser: true, role: "admin" }),
+      body: JSON.stringify({
+        id: "user-1",
+        email: "admin@example.com",
+        is_superuser: true,
+        role: "admin",
+      }),
     })
   })
   await page.route("**/api/v1/chatbot/analytics**", async (route) => {

@@ -81,24 +81,34 @@ test.beforeEach(async ({ page }) => {
 test("campaign lifecycle hub links into the route slices", async ({ page }) => {
   await page.goto("/campaigns")
 
-  await expect(page.getByRole("heading", { level: 1, name: "Campaign lifecycle" })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Campaign lifecycle" }),
+  ).toBeVisible()
   await expect(page.getByRole("link", { name: "Open Draft" })).toBeVisible()
   await expect(page.getByRole("link", { name: "Open Running" })).toBeVisible()
   await expect(page.getByRole("link", { name: "Open Paused" })).toBeVisible()
 })
 
-test("draft campaigns page keeps the builder secondary to the list", async ({ page }) => {
+test("draft campaigns page keeps the builder secondary to the list", async ({
+  page,
+}) => {
   await page.goto("/campaigns/draft")
 
-  await expect(page.getByRole("heading", { level: 1, name: "Draft campaigns" })).toBeVisible()
-  await expect(page.getByRole("heading", { level: 1, name: "Campaign draft builder" })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Draft campaigns" }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Campaign draft builder" }),
+  ).toBeVisible()
   await expect(page.getByText("Q2 Product Outreach")).toBeVisible()
 })
 
 test("running campaigns page exposes pause actions", async ({ page }) => {
   await page.goto("/campaigns/running")
 
-  await expect(page.getByRole("heading", { level: 1, name: "Running campaigns" })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Running campaigns" }),
+  ).toBeVisible()
   await Promise.all([
     page.waitForRequest((request) =>
       request.url().includes("/api/v1/campaigns/camp-live-1/pause"),
@@ -110,7 +120,9 @@ test("running campaigns page exposes pause actions", async ({ page }) => {
 test("paused campaigns page exposes resume actions", async ({ page }) => {
   await page.goto("/campaigns/paused")
 
-  await expect(page.getByRole("heading", { level: 1, name: "Paused campaigns" })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Paused campaigns" }),
+  ).toBeVisible()
   await Promise.all([
     page.waitForRequest((request) =>
       request.url().includes("/api/v1/campaigns/camp-paused-1/resume"),

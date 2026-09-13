@@ -284,6 +284,516 @@
         "title": "AccountUpdate",
         "type": "object"
       },
+      "AgentCatalogPublic": {
+        "properties": {
+          "agent_type": {
+            "$ref": "#/components/schemas/AgentType"
+          },
+          "capacity_period": {
+            "title": "Capacity Period",
+            "type": "string"
+          },
+          "catalog_version": {
+            "title": "Catalog Version",
+            "type": "integer"
+          },
+          "configuration_schema_version": {
+            "title": "Configuration Schema Version",
+            "type": "string"
+          },
+          "default_capacity_amount": {
+            "title": "Default Capacity Amount",
+            "type": "integer"
+          },
+          "default_capacity_metric": {
+            "title": "Default Capacity Metric",
+            "type": "string"
+          },
+          "default_concurrency": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Concurrency"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lifecycle_status": {
+            "title": "Lifecycle Status",
+            "type": "string"
+          },
+          "sellable_outcome": {
+            "title": "Sellable Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "agent_type",
+          "catalog_version",
+          "display_name",
+          "sellable_outcome",
+          "lifecycle_status",
+          "default_capacity_metric",
+          "default_capacity_amount",
+          "capacity_period",
+          "default_concurrency",
+          "configuration_schema_version"
+        ],
+        "title": "AgentCatalogPublic",
+        "type": "object"
+      },
+      "AgentDeploymentCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_type": {
+            "$ref": "#/components/schemas/AgentType"
+          },
+          "catalog_definition_id": {
+            "format": "uuid",
+            "title": "Catalog Definition Id",
+            "type": "string"
+          },
+          "configuration": {
+            "additionalProperties": true,
+            "title": "Configuration",
+            "type": "object"
+          },
+          "environment": {
+            "default": "production",
+            "pattern": "^(local|staging|production)$",
+            "title": "Environment",
+            "type": "string"
+          },
+          "installation_id": {
+            "format": "uuid",
+            "title": "Installation Id",
+            "type": "string"
+          },
+          "locale": {
+            "default": "en-US",
+            "maxLength": 32,
+            "minLength": 2,
+            "title": "Locale",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner User Id"
+          },
+          "policy_profile": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Profile"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "timezone": {
+            "default": "UTC",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Timezone",
+            "type": "string"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "installation_id",
+          "workspace_id",
+          "catalog_definition_id",
+          "agent_type",
+          "name"
+        ],
+        "title": "AgentDeploymentCreate",
+        "type": "object"
+      },
+      "AgentDeploymentPublic": {
+        "properties": {
+          "activated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activated At"
+          },
+          "agent_type": {
+            "$ref": "#/components/schemas/AgentType"
+          },
+          "catalog_definition_id": {
+            "format": "uuid",
+            "title": "Catalog Definition Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "installation_id": {
+            "format": "uuid",
+            "title": "Installation Id",
+            "type": "string"
+          },
+          "lifecycle_version": {
+            "title": "Lifecycle Version",
+            "type": "integer"
+          },
+          "locale": {
+            "title": "Locale",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "policy_profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Profile"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "retired_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retired At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AgentDeploymentStatus"
+          },
+          "suspended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suspended At"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "installation_id",
+          "workspace_id",
+          "catalog_definition_id",
+          "agent_type",
+          "name",
+          "purpose",
+          "status",
+          "policy_profile",
+          "locale",
+          "timezone",
+          "environment",
+          "lifecycle_version",
+          "activated_at",
+          "suspended_at",
+          "retired_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AgentDeploymentPublic",
+        "type": "object"
+      },
+      "AgentDeploymentStatus": {
+        "enum": [
+          "DRAFT",
+          "VALIDATING",
+          "ACTIVE",
+          "SUSPENDED",
+          "DEGRADED",
+          "RETIRING",
+          "RETIRED"
+        ],
+        "title": "AgentDeploymentStatus",
+        "type": "string"
+      },
+      "AgentEntitlementChange": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_agent_types": {
+            "items": {
+              "$ref": "#/components/schemas/AgentType"
+            },
+            "title": "Allowed Agent Types",
+            "type": "array"
+          },
+          "billing_day_start_hour": {
+            "default": 0,
+            "maximum": 23.0,
+            "minimum": 0.0,
+            "title": "Billing Day Start Hour",
+            "type": "integer"
+          },
+          "billing_timezone": {
+            "default": "UTC",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Billing Timezone",
+            "type": "string"
+          },
+          "contract_reference": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Reference"
+          },
+          "contract_version": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Contract Version",
+            "type": "string"
+          },
+          "installation_id": {
+            "format": "uuid",
+            "title": "Installation Id",
+            "type": "string"
+          },
+          "plan_code": {
+            "maxLength": 128,
+            "minLength": 2,
+            "title": "Plan Code",
+            "type": "string"
+          },
+          "purchased_slots": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 10000.0,
+            "title": "Purchased Slots",
+            "type": "integer"
+          },
+          "type_ceilings": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/AgentType"
+            },
+            "title": "Type Ceilings",
+            "type": "object"
+          }
+        },
+        "required": [
+          "installation_id",
+          "plan_code",
+          "contract_version",
+          "purchased_slots"
+        ],
+        "title": "AgentEntitlementChange",
+        "type": "object"
+      },
+      "AgentEntitlementPublic": {
+        "properties": {
+          "allowed_agent_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Agent Types",
+            "type": "array"
+          },
+          "billing_day_start_hour": {
+            "title": "Billing Day Start Hour",
+            "type": "integer"
+          },
+          "billing_timezone": {
+            "title": "Billing Timezone",
+            "type": "string"
+          },
+          "contract_version": {
+            "title": "Contract Version",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "installation_id": {
+            "format": "uuid",
+            "title": "Installation Id",
+            "type": "string"
+          },
+          "plan_code": {
+            "title": "Plan Code",
+            "type": "string"
+          },
+          "purchased_slots": {
+            "title": "Purchased Slots",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "type_ceilings": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Type Ceilings",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "installation_id",
+          "plan_code",
+          "contract_version",
+          "purchased_slots",
+          "allowed_agent_types",
+          "type_ceilings",
+          "billing_timezone",
+          "billing_day_start_hour",
+          "status"
+        ],
+        "title": "AgentEntitlementPublic",
+        "type": "object"
+      },
+      "AgentLifecycleReason": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "AgentLifecycleReason",
+        "type": "object"
+      },
+      "AgentType": {
+        "enum": [
+          "LEAD_PREPARATION",
+          "EMAIL_OUTREACH",
+          "VOICE_CONVERSATION",
+          "CHAT_LEAD_CAPTURE",
+          "CAMPAIGN_MANAGER",
+          "PROPOSAL_DRAFTING",
+          "CALENDAR_SCHEDULER",
+          "REVENUE_INTERVENTION",
+          "SALES_DAY_ASSISTANT"
+        ],
+        "title": "AgentType",
+        "type": "string"
+      },
       "AuditEventPublic": {
         "description": "API response model: audit event.",
         "properties": {
@@ -885,6 +1395,323 @@
           "secondary_color"
         ],
         "title": "BrandingDraftCreate",
+        "type": "object"
+      },
+      "CalendarCancellationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "reason"
+        ],
+        "title": "CalendarCancellationCreate",
+        "type": "object"
+      },
+      "CalendarConfirmationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "binding_id": {
+            "format": "uuid",
+            "title": "Binding Id",
+            "type": "string"
+          },
+          "confirmed_by": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Confirmed By",
+            "type": "string"
+          },
+          "deployment_id": {
+            "format": "uuid",
+            "title": "Deployment Id",
+            "type": "string"
+          },
+          "operation": {
+            "default": "BOOK",
+            "enum": [
+              "BOOK",
+              "RESCHEDULE"
+            ],
+            "title": "Operation",
+            "type": "string"
+          },
+          "predecessor_job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predecessor Job Id"
+          },
+          "selected_slot_digest": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Selected Slot Digest",
+            "type": "string"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "deployment_id",
+          "binding_id",
+          "selected_slot_digest",
+          "confirmed_by"
+        ],
+        "title": "CalendarConfirmationCreate",
+        "type": "object"
+      },
+      "CalendarMeetingTypeCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "buffer_after_minutes": {
+            "default": 0,
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Buffer After Minutes",
+            "type": "integer"
+          },
+          "buffer_before_minutes": {
+            "default": 0,
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Buffer Before Minutes",
+            "type": "integer"
+          },
+          "duration_minutes": {
+            "maximum": 480.0,
+            "minimum": 5.0,
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "holiday_dates": {
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Holiday Dates",
+            "type": "array"
+          },
+          "minimum_notice_minutes": {
+            "default": 60,
+            "maximum": 10080.0,
+            "minimum": 0.0,
+            "title": "Minimum Notice Minutes",
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "timezone": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Timezone",
+            "type": "string"
+          },
+          "working_hours": {
+            "additionalProperties": {
+              "items": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "title": "Working Hours",
+            "type": "object"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "name",
+          "duration_minutes",
+          "timezone",
+          "working_hours"
+        ],
+        "title": "CalendarMeetingTypeCreate",
+        "type": "object"
+      },
+      "CalendarOfferCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "expires_in_minutes": {
+            "default": 60,
+            "maximum": 10080.0,
+            "minimum": 5.0,
+            "title": "Expires In Minutes",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 10,
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "meeting_type_id": {
+            "format": "uuid",
+            "title": "Meeting Type Id",
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "meeting_type_id",
+          "start_date",
+          "end_date"
+        ],
+        "title": "CalendarOfferCreate",
+        "type": "object"
+      },
+      "CalendarProviderBindingCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Capabilities",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "credential_secret_ref": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Credential Secret Ref",
+            "type": "string"
+          },
+          "provider": {
+            "pattern": "^CALENDLY$",
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_account_ref": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Provider Account Ref",
+            "type": "string"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "provider",
+          "provider_account_ref",
+          "credential_secret_ref",
+          "capabilities"
+        ],
+        "title": "CalendarProviderBindingCreate",
+        "type": "object"
+      },
+      "CalendarReconciliationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "provider_accepted": {
+            "title": "Provider Accepted",
+            "type": "boolean"
+          },
+          "provider_evidence_id": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Provider Evidence Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "provider_accepted",
+          "provider_evidence_id",
+          "reason"
+        ],
+        "title": "CalendarReconciliationCreate",
+        "type": "object"
+      },
+      "CalendarReplayCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "reason"
+        ],
+        "title": "CalendarReplayCreate",
         "type": "object"
       },
       "CallDetailPublic": {
@@ -4696,6 +5523,45 @@
         "title": "DestinationEnvelope",
         "type": "object"
       },
+      "DraftClaim": {
+        "additionalProperties": false,
+        "properties": {
+          "claim_type": {
+            "enum": [
+              "PRICE",
+              "LEGAL",
+              "CLIENT_FACT",
+              "DELIVERY_PROMISE",
+              "COMPLIANCE",
+              "PRODUCT_FACT"
+            ],
+            "title": "Claim Type",
+            "type": "string"
+          },
+          "source_references": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Source References",
+            "type": "array"
+          },
+          "text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_type",
+          "text",
+          "source_references"
+        ],
+        "title": "DraftClaim",
+        "type": "object"
+      },
       "EngagementOverviewPublic": {
         "properties": {
           "audit_replay": {
@@ -4892,6 +5758,109 @@
           "status"
         ],
         "title": "ExperimentRecommendationPublic",
+        "type": "object"
+      },
+      "GenerativeProposalJobCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_account_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Client Account Id",
+            "type": "string"
+          },
+          "command_key": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Command Key",
+            "type": "string"
+          },
+          "deployment_id": {
+            "format": "uuid",
+            "title": "Deployment Id",
+            "type": "string"
+          },
+          "draft": {
+            "$ref": "#/components/schemas/ProposalDraft"
+          },
+          "ecrm_cell_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Ecrm Cell Id",
+            "type": "string"
+          },
+          "proposal_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Proposal Id",
+            "type": "string"
+          },
+          "source_references": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Source References",
+            "type": "array"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "deployment_id",
+          "ecrm_cell_id",
+          "client_account_id",
+          "proposal_id",
+          "command_key",
+          "draft",
+          "source_references"
+        ],
+        "title": "GenerativeProposalJobCreate",
+        "type": "object"
+      },
+      "GenerativeProposalJobPublic": {
+        "properties": {
+          "draft_digest": {
+            "title": "Draft Digest",
+            "type": "string"
+          },
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "model_id": {
+            "title": "Model Id",
+            "type": "string"
+          },
+          "prompt_version": {
+            "title": "Prompt Version",
+            "type": "string"
+          },
+          "review_state": {
+            "title": "Review State",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "status",
+          "review_state",
+          "draft_digest",
+          "prompt_version",
+          "model_id"
+        ],
+        "title": "GenerativeProposalJobPublic",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -5189,6 +6158,811 @@
         ],
         "title": "KnowledgeGapPublic",
         "type": "object"
+      },
+      "LeadOutcomeCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "contact_id": {
+            "format": "uuid",
+            "title": "Contact Id",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "outcome_reference": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Outcome Reference",
+            "type": "string"
+          },
+          "outcome_type": {
+            "maxLength": 64,
+            "minLength": 2,
+            "title": "Outcome Type",
+            "type": "string"
+          },
+          "policy_id": {
+            "format": "uuid",
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "contact_id",
+          "policy_id",
+          "outcome_type",
+          "outcome_reference",
+          "observed_at"
+        ],
+        "title": "LeadOutcomeCreate",
+        "type": "object"
+      },
+      "LeadOutcomePublic": {
+        "properties": {
+          "contact_id": {
+            "format": "uuid",
+            "title": "Contact Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "outcome_reference": {
+            "title": "Outcome Reference",
+            "type": "string"
+          },
+          "outcome_type": {
+            "title": "Outcome Type",
+            "type": "string"
+          },
+          "policy_id": {
+            "format": "uuid",
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "policy_version": {
+            "title": "Policy Version",
+            "type": "integer"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "workspace_id",
+          "contact_id",
+          "policy_id",
+          "policy_version",
+          "outcome_type",
+          "outcome_reference",
+          "observed_at",
+          "created_at"
+        ],
+        "title": "LeadOutcomePublic",
+        "type": "object"
+      },
+      "LeadPackageDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "LeadPackageDecision",
+        "type": "object"
+      },
+      "LeadPackagePublic": {
+        "properties": {
+          "agent_deployment_id": {
+            "format": "uuid",
+            "title": "Agent Deployment Id",
+            "type": "string"
+          },
+          "brief": {
+            "additionalProperties": true,
+            "title": "Brief",
+            "type": "object"
+          },
+          "contact_id": {
+            "format": "uuid",
+            "title": "Contact Id",
+            "type": "string"
+          },
+          "content_digest": {
+            "title": "Content Digest",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "draft_references": {
+            "additionalProperties": true,
+            "title": "Draft References",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "next_action": {
+            "additionalProperties": true,
+            "title": "Next Action",
+            "type": "object"
+          },
+          "review_state": {
+            "title": "Review State",
+            "type": "string"
+          },
+          "score_version_id": {
+            "format": "uuid",
+            "title": "Score Version Id",
+            "type": "string"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "workspace_id",
+          "agent_deployment_id",
+          "contact_id",
+          "score_version_id",
+          "version",
+          "brief",
+          "next_action",
+          "draft_references",
+          "review_state",
+          "content_digest",
+          "created_at"
+        ],
+        "title": "LeadPackagePublic",
+        "type": "object"
+      },
+      "LeadPackageRoute": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "pattern": "^(email|voice)$",
+            "title": "Channel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel"
+        ],
+        "title": "LeadPackageRoute",
+        "type": "object"
+      },
+      "LeadPolicyCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "band_thresholds": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Band Thresholds",
+            "type": "object"
+          },
+          "exclusion_rules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Exclusion Rules",
+            "type": "array"
+          },
+          "feature_weights": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Feature Weights",
+            "type": "object"
+          },
+          "freshness_windows": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Freshness Windows",
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "name",
+          "version",
+          "feature_weights",
+          "band_thresholds",
+          "freshness_windows",
+          "exclusion_rules"
+        ],
+        "title": "LeadPolicyCreate",
+        "type": "object"
+      },
+      "LeadPolicyDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "LeadPolicyDecision",
+        "type": "object"
+      },
+      "LeadPolicyDryRun": {
+        "additionalProperties": false,
+        "properties": {
+          "band_thresholds": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Band Thresholds",
+            "type": "object"
+          },
+          "contact_id": {
+            "format": "uuid",
+            "title": "Contact Id",
+            "type": "string"
+          },
+          "exclusion_rules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Exclusion Rules",
+            "type": "array"
+          },
+          "feature_weights": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Feature Weights",
+            "type": "object"
+          },
+          "freshness_windows": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Freshness Windows",
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "name",
+          "version",
+          "feature_weights",
+          "band_thresholds",
+          "freshness_windows",
+          "exclusion_rules",
+          "contact_id"
+        ],
+        "title": "LeadPolicyDryRun",
+        "type": "object"
+      },
+      "LeadPolicyPublic": {
+        "properties": {
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "band_thresholds": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Band Thresholds",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "exclusion_rules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Exclusion Rules",
+            "type": "array"
+          },
+          "feature_weights": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Feature Weights",
+            "type": "object"
+          },
+          "freshness_windows": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Freshness Windows",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "policy_digest": {
+            "title": "Policy Digest",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LeadScoringPolicyStatus"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "workspace_id",
+          "name",
+          "version",
+          "status",
+          "feature_weights",
+          "band_thresholds",
+          "freshness_windows",
+          "exclusion_rules",
+          "policy_digest",
+          "created_by",
+          "approved_by",
+          "approved_at",
+          "created_at"
+        ],
+        "title": "LeadPolicyPublic",
+        "type": "object"
+      },
+      "LeadPreparationJobCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "contact_id": {
+            "format": "uuid",
+            "title": "Contact Id",
+            "type": "string"
+          },
+          "deployment_id": {
+            "format": "uuid",
+            "title": "Deployment Id",
+            "type": "string"
+          },
+          "event_key": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Event Key",
+            "type": "string"
+          },
+          "max_attempts": {
+            "default": 5,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Max Attempts",
+            "type": "integer"
+          },
+          "policy_id": {
+            "format": "uuid",
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "deployment_id",
+          "contact_id",
+          "policy_id",
+          "event_key"
+        ],
+        "title": "LeadPreparationJobCreate",
+        "type": "object"
+      },
+      "LeadPreparationJobPublic": {
+        "properties": {
+          "attempt_count": {
+            "title": "Attempt Count",
+            "type": "integer"
+          },
+          "available_at": {
+            "format": "date-time",
+            "title": "Available At",
+            "type": "string"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "contact_id": {
+            "format": "uuid",
+            "title": "Contact Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deployment_id": {
+            "format": "uuid",
+            "title": "Deployment Id",
+            "type": "string"
+          },
+          "event_key": {
+            "title": "Event Key",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Code"
+          },
+          "max_attempts": {
+            "title": "Max Attempts",
+            "type": "integer"
+          },
+          "package_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Id"
+          },
+          "policy_id": {
+            "format": "uuid",
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "score_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Version Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LeadPreparationJobStatus"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "workspace_id",
+          "deployment_id",
+          "contact_id",
+          "policy_id",
+          "event_key",
+          "status",
+          "attempt_count",
+          "max_attempts",
+          "available_at",
+          "score_version_id",
+          "package_id",
+          "last_error_code",
+          "completed_at",
+          "created_at"
+        ],
+        "title": "LeadPreparationJobPublic",
+        "type": "object"
+      },
+      "LeadPreparationJobStatus": {
+        "enum": [
+          "PENDING",
+          "IN_PROGRESS",
+          "RETRY_SCHEDULED",
+          "COMPLETED",
+          "SUPPRESSED",
+          "ROUTED",
+          "DEAD_LETTER",
+          "UNKNOWN_OUTCOME"
+        ],
+        "title": "LeadPreparationJobStatus",
+        "type": "string"
+      },
+      "LeadPreparationReconciliationReport": {
+        "properties": {
+          "dead_letters": {
+            "minimum": 0.0,
+            "title": "Dead Letters",
+            "type": "integer"
+          },
+          "missing_terminal_packages": {
+            "minimum": 0.0,
+            "title": "Missing Terminal Packages",
+            "type": "integer"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "unknown_outcomes": {
+            "minimum": 0.0,
+            "title": "Unknown Outcomes",
+            "type": "integer"
+          },
+          "usage_mismatches": {
+            "minimum": 0.0,
+            "title": "Usage Mismatches",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "workspace_id",
+          "unknown_outcomes",
+          "missing_terminal_packages",
+          "usage_mismatches",
+          "dead_letters"
+        ],
+        "title": "LeadPreparationReconciliationReport",
+        "type": "object"
+      },
+      "LeadScoreBand": {
+        "enum": [
+          "HOT",
+          "WARM",
+          "NURTURE",
+          "NOT_ELIGIBLE"
+        ],
+        "title": "LeadScoreBand",
+        "type": "string"
+      },
+      "LeadScoreDryRunPublic": {
+        "properties": {
+          "band": {
+            "$ref": "#/components/schemas/LeadScoreBand"
+          },
+          "channel_eligibility": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Channel Eligibility",
+            "type": "object"
+          },
+          "contributions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Contributions",
+            "type": "array"
+          },
+          "evaluation_id": {
+            "format": "uuid",
+            "title": "Evaluation Id",
+            "type": "string"
+          },
+          "exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Exclusions",
+            "type": "array"
+          },
+          "negative_factors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Negative Factors",
+            "type": "array"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "score": {
+            "title": "Score",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "evaluation_id",
+          "score",
+          "band",
+          "contributions",
+          "reasons",
+          "negative_factors",
+          "exclusions",
+          "channel_eligibility"
+        ],
+        "title": "LeadScoreDryRunPublic",
+        "type": "object"
+      },
+      "LeadScoringPolicyStatus": {
+        "enum": [
+          "DRAFT",
+          "APPROVED",
+          "PUBLISHED",
+          "SUPERSEDED",
+          "RETIRED"
+        ],
+        "title": "LeadScoringPolicyStatus",
+        "type": "string"
       },
       "MembershipCreate": {
         "properties": {
@@ -5604,6 +7378,238 @@
           "visible"
         ],
         "title": "ProductContext",
+        "type": "object"
+      },
+      "ProposalDeadLetterReplay": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "reason"
+        ],
+        "title": "ProposalDeadLetterReplay",
+        "type": "object"
+      },
+      "ProposalDraft": {
+        "additionalProperties": false,
+        "properties": {
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/DraftClaim"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Claims",
+            "type": "array"
+          },
+          "model_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Model Id",
+            "type": "string"
+          },
+          "prompt_version": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Prompt Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_version",
+          "model_id",
+          "claims"
+        ],
+        "title": "ProposalDraft",
+        "type": "object"
+      },
+      "ProposalGroundingSourceApproval": {
+        "additionalProperties": false,
+        "properties": {
+          "client_account_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Client Account Id",
+            "type": "string"
+          },
+          "ecrm_cell_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Ecrm Cell Id",
+            "type": "string"
+          },
+          "evidence_receipt_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Evidence Receipt Id",
+            "type": "string"
+          },
+          "source_digest": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Source Digest",
+            "type": "string"
+          },
+          "source_version": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Source Version",
+            "type": "string"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "ecrm_cell_id",
+          "client_account_id",
+          "source_version",
+          "source_digest",
+          "evidence_receipt_id"
+        ],
+        "title": "ProposalGroundingSourceApproval",
+        "type": "object"
+      },
+      "ProposalGroundingSourcePublish": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_claim_digests": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Allowed Claim Digests",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "allowed_claim_types": {
+            "items": {
+              "enum": [
+                "PRICE",
+                "LEGAL",
+                "CLIENT_FACT",
+                "DELIVERY_PROMISE",
+                "COMPLIANCE",
+                "PRODUCT_FACT"
+              ],
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Allowed Claim Types",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "client_account_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Client Account Id",
+            "type": "string"
+          },
+          "ecrm_cell_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Ecrm Cell Id",
+            "type": "string"
+          },
+          "evidence_receipt_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Evidence Receipt Id",
+            "type": "string"
+          },
+          "reference": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Reference",
+            "type": "string"
+          },
+          "source_digest": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Source Digest",
+            "type": "string"
+          },
+          "source_version": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Source Version",
+            "type": "string"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "ecrm_cell_id",
+          "client_account_id",
+          "reference",
+          "source_version",
+          "source_digest",
+          "evidence_receipt_id",
+          "allowed_claim_types",
+          "allowed_claim_digests"
+        ],
+        "title": "ProposalGroundingSourcePublish",
+        "type": "object"
+      },
+      "ProposalJobReconciliation": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "evidence_receipt_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Receipt Id"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "accepted",
+          "reason"
+        ],
+        "title": "ProposalJobReconciliation",
         "type": "object"
       },
       "ProspectingBulkResearchRequest": {
@@ -8249,6 +10255,60 @@
         "title": "TenantEntitlement",
         "type": "object"
       },
+      "TenantOperationalControlChange": {
+        "additionalProperties": false,
+        "description": "Explicit, reversible product execution control for one tenant.",
+        "properties": {
+          "paused": {
+            "title": "Paused",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "paused"
+        ],
+        "title": "TenantOperationalControlChange",
+        "type": "object"
+      },
+      "TenantWorkspaceBindingChange": {
+        "additionalProperties": false,
+        "description": "Attest the installed SignalLoop workspace without accepting credentials.",
+        "properties": {
+          "status": {
+            "default": "ACTIVE",
+            "enum": [
+              "ACTIVE",
+              "SUSPENDED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "workspace_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id"
+        ],
+        "title": "TenantWorkspaceBindingChange",
+        "type": "object"
+      },
       "TestCallCreate": {
         "description": "Request payload for queueing a manual voice test call.",
         "properties": {
@@ -8815,7 +10875,6 @@
         "description": "Request payload for creating user.",
         "properties": {
           "email": {
-            "format": "email",
             "maxLength": 255,
             "title": "Email",
             "type": "string"
@@ -8878,7 +10937,6 @@
             "title": "Created At"
           },
           "email": {
-            "format": "email",
             "maxLength": 255,
             "title": "Email",
             "type": "string"
@@ -8928,7 +10986,6 @@
         "description": "User register.",
         "properties": {
           "email": {
-            "format": "email",
             "maxLength": 255,
             "title": "Email",
             "type": "string"
@@ -8965,7 +11022,6 @@
           "email": {
             "anyOf": [
               {
-                "format": "email",
                 "maxLength": 255,
                 "type": "string"
               },
@@ -9026,7 +11082,6 @@
           "email": {
             "anyOf": [
               {
-                "format": "email",
                 "maxLength": 255,
                 "type": "string"
               },
@@ -14326,6 +16381,682 @@
         ]
       }
     },
+    "/api/v1/commercial-agents/catalog": {
+      "get": {
+        "operationId": "commercial-agents-list_catalog",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentCatalogPublic"
+                  },
+                  "title": "Response Commercial-Agents-List Catalog",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Catalog",
+        "tags": [
+          "commercial-agents"
+        ]
+      }
+    },
+    "/api/v1/commercial-agents/tenants/{tenant_id}/deployments": {
+      "get": {
+        "operationId": "commercial-agents-list_deployments",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentDeploymentPublic"
+                  },
+                  "title": "Response Commercial-Agents-List Deployments",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Deployments",
+        "tags": [
+          "commercial-agents"
+        ]
+      },
+      "post": {
+        "operationId": "commercial-agents-create_deployment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentDeploymentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Commercial-Agents-Create Deployment",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Deployment",
+        "tags": [
+          "commercial-agents"
+        ]
+      }
+    },
+    "/api/v1/commercial-agents/tenants/{tenant_id}/deployments/{deployment_id}/activate": {
+      "post": {
+        "operationId": "commercial-agents-activate_agent_deployment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deployment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Deployment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Commercial-Agents-Activate Agent Deployment",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Activate Agent Deployment",
+        "tags": [
+          "commercial-agents"
+        ]
+      }
+    },
+    "/api/v1/commercial-agents/tenants/{tenant_id}/deployments/{deployment_id}/resume": {
+      "post": {
+        "operationId": "commercial-agents-resume_agent_deployment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deployment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Deployment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Commercial-Agents-Resume Agent Deployment",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Resume Agent Deployment",
+        "tags": [
+          "commercial-agents"
+        ]
+      }
+    },
+    "/api/v1/commercial-agents/tenants/{tenant_id}/deployments/{deployment_id}/retire": {
+      "post": {
+        "operationId": "commercial-agents-retire_agent_deployment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deployment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Deployment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentLifecycleReason"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Commercial-Agents-Retire Agent Deployment",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Retire Agent Deployment",
+        "tags": [
+          "commercial-agents"
+        ]
+      }
+    },
+    "/api/v1/commercial-agents/tenants/{tenant_id}/deployments/{deployment_id}/suspend": {
+      "post": {
+        "operationId": "commercial-agents-suspend_agent_deployment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deployment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Deployment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentLifecycleReason"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Commercial-Agents-Suspend Agent Deployment",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Suspend Agent Deployment",
+        "tags": [
+          "commercial-agents"
+        ]
+      }
+    },
+    "/api/v1/commercial-agents/tenants/{tenant_id}/deployments/{deployment_id}/validate": {
+      "post": {
+        "operationId": "commercial-agents-validate_agent_deployment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deployment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Deployment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Commercial-Agents-Validate Agent Deployment",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Validate Agent Deployment",
+        "tags": [
+          "commercial-agents"
+        ]
+      }
+    },
+    "/api/v1/commercial-agents/tenants/{tenant_id}/entitlement": {
+      "get": {
+        "operationId": "commercial-agents-get_entitlement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentEntitlementPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Entitlement",
+        "tags": [
+          "commercial-agents"
+        ]
+      },
+      "put": {
+        "operationId": "commercial-agents-provision_entitlement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentEntitlementChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentEntitlementPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Provision Entitlement",
+        "tags": [
+          "commercial-agents"
+        ]
+      }
+    },
     "/api/v1/contacts/": {
       "get": {
         "description": "Return canonical contacts for the active workspace.",
@@ -15889,6 +18620,963 @@
         ]
       }
     },
+    "/api/v1/lead-preparation/tenants/{tenant_id}/jobs": {
+      "post": {
+        "operationId": "lead-preparation-create_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadPreparationJobCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadPreparationJobPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Job",
+        "tags": [
+          "lead-preparation"
+        ]
+      }
+    },
+    "/api/v1/lead-preparation/tenants/{tenant_id}/jobs/{job_id}/replay": {
+      "post": {
+        "operationId": "lead-preparation-replay_dead_letter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadPackageDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadPreparationJobPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Replay Dead Letter",
+        "tags": [
+          "lead-preparation"
+        ]
+      }
+    },
+    "/api/v1/lead-preparation/tenants/{tenant_id}/operations/reconciliation": {
+      "get": {
+        "operationId": "lead-preparation-reconciliation_report",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadPreparationReconciliationReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Reconciliation Report",
+        "tags": [
+          "lead-preparation"
+        ]
+      }
+    },
+    "/api/v1/lead-preparation/tenants/{tenant_id}/outcomes": {
+      "post": {
+        "operationId": "lead-preparation-create_outcome",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadOutcomeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadOutcomePublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Outcome",
+        "tags": [
+          "lead-preparation"
+        ]
+      }
+    },
+    "/api/v1/lead-preparation/tenants/{tenant_id}/packages": {
+      "get": {
+        "operationId": "lead-preparation-list_packages",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LeadPackagePublic"
+                  },
+                  "title": "Response Lead-Preparation-List Packages",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Packages",
+        "tags": [
+          "lead-preparation"
+        ]
+      }
+    },
+    "/api/v1/lead-preparation/tenants/{tenant_id}/packages/{package_id}/approve": {
+      "post": {
+        "operationId": "lead-preparation-approve_package",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "package_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Package Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadPackageDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Lead-Preparation-Approve Package",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Approve Package",
+        "tags": [
+          "lead-preparation"
+        ]
+      }
+    },
+    "/api/v1/lead-preparation/tenants/{tenant_id}/packages/{package_id}/reject": {
+      "post": {
+        "operationId": "lead-preparation-reject_package",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "package_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Package Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadPackageDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Lead-Preparation-Reject Package",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Reject Package",
+        "tags": [
+          "lead-preparation"
+        ]
+      }
+    },
+    "/api/v1/lead-preparation/tenants/{tenant_id}/packages/{package_id}/route": {
+      "post": {
+        "operationId": "lead-preparation-route_package",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "package_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Package Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadPackageRoute"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Lead-Preparation-Route Package",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Route Package",
+        "tags": [
+          "lead-preparation"
+        ]
+      }
+    },
+    "/api/v1/lead-preparation/tenants/{tenant_id}/policies": {
+      "get": {
+        "operationId": "lead-preparation-list_policies",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LeadPolicyPublic"
+                  },
+                  "title": "Response Lead-Preparation-List Policies",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Policies",
+        "tags": [
+          "lead-preparation"
+        ]
+      },
+      "post": {
+        "operationId": "lead-preparation-create_policy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadPolicyCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadPolicyPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Policy",
+        "tags": [
+          "lead-preparation"
+        ]
+      }
+    },
+    "/api/v1/lead-preparation/tenants/{tenant_id}/policies/dry-run": {
+      "post": {
+        "operationId": "lead-preparation-dry_run_policy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadPolicyDryRun"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadScoreDryRunPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Dry Run Policy",
+        "tags": [
+          "lead-preparation"
+        ]
+      }
+    },
+    "/api/v1/lead-preparation/tenants/{tenant_id}/policies/{policy_id}/approve": {
+      "post": {
+        "operationId": "lead-preparation-approve_policy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Policy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadPolicyDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadPolicyPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Approve Policy",
+        "tags": [
+          "lead-preparation"
+        ]
+      }
+    },
+    "/api/v1/lead-preparation/tenants/{tenant_id}/policies/{policy_id}/publish": {
+      "post": {
+        "operationId": "lead-preparation-publish_policy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Policy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadPolicyPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Publish Policy",
+        "tags": [
+          "lead-preparation"
+        ]
+      }
+    },
     "/api/v1/login/access-token": {
       "post": {
         "description": "OAuth2 compatible token login, get an access token for future requests",
@@ -16661,6 +20349,414 @@
         "summary": "Create User",
         "tags": [
           "private"
+        ]
+      }
+    },
+    "/api/v1/proposal-agent/tenants/{tenant_id}/generative-jobs": {
+      "post": {
+        "operationId": "proposal-agent-create_generative_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerativeProposalJobCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerativeProposalJobPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Generative Job",
+        "tags": [
+          "proposal-agent"
+        ]
+      }
+    },
+    "/api/v1/proposal-agent/tenants/{tenant_id}/grounding-sources": {
+      "post": {
+        "operationId": "proposal-agent-publish_grounding_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalGroundingSourcePublish"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Proposal-Agent-Publish Grounding Source",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Publish Grounding Source",
+        "tags": [
+          "proposal-agent"
+        ]
+      }
+    },
+    "/api/v1/proposal-agent/tenants/{tenant_id}/grounding-sources/{source_id}/approve": {
+      "post": {
+        "operationId": "proposal-agent-approve_grounding_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalGroundingSourceApproval"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Proposal-Agent-Approve Grounding Source",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Approve Grounding Source",
+        "tags": [
+          "proposal-agent"
+        ]
+      }
+    },
+    "/api/v1/proposal-agent/tenants/{tenant_id}/jobs/{job_id}/reconcile": {
+      "post": {
+        "operationId": "proposal-agent-reconcile_proposal_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalJobReconciliation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Proposal-Agent-Reconcile Proposal Job",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Reconcile Proposal Job",
+        "tags": [
+          "proposal-agent"
+        ]
+      }
+    },
+    "/api/v1/proposal-agent/tenants/{tenant_id}/jobs/{job_id}/replay": {
+      "post": {
+        "operationId": "proposal-agent-replay_proposal_dead_letter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalDeadLetterReplay"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Proposal-Agent-Replay Proposal Dead Letter",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Replay Proposal Dead Letter",
+        "tags": [
+          "proposal-agent"
         ]
       }
     },
@@ -18110,6 +22206,700 @@
         "summary": "Reject",
         "tags": [
           "revenueos-interventions"
+        ]
+      }
+    },
+    "/api/v1/scheduling/agent/tenants/{tenant_id}/jobs/{job_id}/cancel": {
+      "post": {
+        "operationId": "scheduling-cancel_calendar_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarCancellationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Scheduling-Cancel Calendar Job",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Cancel Calendar Job",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/v1/scheduling/agent/tenants/{tenant_id}/jobs/{job_id}/reconcile": {
+      "post": {
+        "operationId": "scheduling-reconcile_calendar_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarReconciliationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Scheduling-Reconcile Calendar Job",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Reconcile Calendar Job",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/v1/scheduling/agent/tenants/{tenant_id}/jobs/{job_id}/replay": {
+      "post": {
+        "operationId": "scheduling-replay_calendar_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarReplayCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Scheduling-Replay Calendar Job",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Replay Calendar Job",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/v1/scheduling/agent/tenants/{tenant_id}/meeting-types": {
+      "post": {
+        "operationId": "scheduling-create_meeting_type",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarMeetingTypeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Scheduling-Create Meeting Type",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Meeting Type",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/v1/scheduling/agent/tenants/{tenant_id}/offers/{offer_id}/confirm": {
+      "post": {
+        "operationId": "scheduling-confirm_calendar_offer",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "offer_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Offer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarConfirmationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Scheduling-Confirm Calendar Offer",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Confirm Calendar Offer",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/v1/scheduling/agent/tenants/{tenant_id}/provider-bindings": {
+      "post": {
+        "operationId": "scheduling-create_provider_binding",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarProviderBindingCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Scheduling-Create Provider Binding",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Provider Binding",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/v1/scheduling/agent/tenants/{tenant_id}/requests/{request_id}/offers": {
+      "post": {
+        "operationId": "scheduling-create_calendar_offer",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarOfferCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Scheduling-Create Calendar Offer",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Calendar Offer",
+        "tags": [
+          "scheduling"
         ]
       }
     },
@@ -20682,6 +25472,93 @@
         ]
       }
     },
+    "/api/v1/tenant-admin/tenants/{tenant_id}/installations/{installation_id}/workspace-binding": {
+      "put": {
+        "description": "Create or suspend an exact, tenant-owned SignalLoop workspace binding.",
+        "operationId": "tenant-admin-attest_workspace_binding",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "installation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Installation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantWorkspaceBindingChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Tenant-Admin-Attest Workspace Binding",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Attest Workspace Binding",
+        "tags": [
+          "tenant-admin"
+        ]
+      }
+    },
     "/api/v1/tenant-admin/tenants/{tenant_id}/memberships": {
       "post": {
         "operationId": "tenant-admin-provision_membership",
@@ -20735,6 +25612,75 @@
           }
         ],
         "summary": "Provision Membership",
+        "tags": [
+          "tenant-admin"
+        ]
+      }
+    },
+    "/api/v1/tenant-admin/tenants/{tenant_id}/operations/{product_code}/control": {
+      "put": {
+        "description": "Pause or resume one product's worker dispatch for one tenant.",
+        "operationId": "tenant-admin-change_operational_control",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "product_code",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProductCode"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantOperationalControlChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Tenant-Admin-Change Operational Control",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Change Operational Control",
         "tags": [
           "tenant-admin"
         ]

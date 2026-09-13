@@ -71,12 +71,15 @@ test("Template preview shows unresolved token warning", async ({ page }) => {
   await page.getByRole("button", { name: "Preview tokens" }).click()
 
   await expect(page.getByText("Rendered preview")).toBeVisible()
-  await expect(page.getByText("Hello Asha {{contact.lastName}}"))
-    .toBeVisible()
-  await expect(page.getByText("Unresolved tokens: contact.lastName")).toBeVisible()
+  await expect(page.getByText("Hello Asha {{contact.lastName}}")).toBeVisible()
+  await expect(
+    page.getByText("Unresolved tokens: contact.lastName"),
+  ).toBeVisible()
 })
 
-test("Template library can filter and page reusable content", async ({ page }) => {
+test("Template library can filter and page reusable content", async ({
+  page,
+}) => {
   await page.route("**/api/v1/templates/", async (route) => {
     await route.fulfill({
       status: 200,
@@ -118,7 +121,13 @@ test("Template library can filter and page reusable content", async ({ page }) =
 
   await expect(page.getByLabel("Search templates")).toBeVisible()
   await page.getByLabel("Channel", { exact: true }).selectOption("voice")
-  await expect(page.getByRole("button", { name: /Voice Opener voice \/ published/ })).toBeVisible()
-  await expect(page.getByRole("button", { name: /Email Welcome email \/ draft/ })).toHaveCount(0)
-  await expect(page.getByRole("navigation", { name: "pagination" })).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: /Voice Opener voice \/ published/ }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: /Email Welcome email \/ draft/ }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole("navigation", { name: "pagination" }),
+  ).toBeVisible()
 })

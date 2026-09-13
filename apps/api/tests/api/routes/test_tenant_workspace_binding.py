@@ -28,6 +28,7 @@ from app.domain.tenants.models import (
 )
 from app.domain.workspaces.models import Workspace
 from app.models import User
+from tests.conftest import _metadata_tables_for_available_extensions
 from tests.utils.user import authentication_token_from_email
 
 
@@ -351,14 +352,7 @@ def test_forced_two_session_binding_race_returns_one_success_and_one_conflict(
     )
     SQLModel.metadata.create_all(
         engine,
-        tables=[
-            User.__table__,
-            Tenant.__table__,
-            ProductInstallation.__table__,
-            Workspace.__table__,
-            TenantWorkspaceBinding.__table__,
-            AuditEvent.__table__,
-        ],
+        tables=_metadata_tables_for_available_extensions(pgvector_available=False),
     )
     tenant = _tenant("forced-binding-race")
     workspace = Workspace(id=f"ws-{uuid.uuid4().hex[:12]}")

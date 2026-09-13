@@ -5,7 +5,7 @@ import {
   Phone,
   TrendingUp,
 } from "lucide-react"
-
+import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -29,7 +29,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useState } from "react"
 
 const SUMMARY_STATS = [
   {
@@ -224,7 +223,10 @@ export default function AnalyticsDashboardPage() {
             </TableHeader>
             <TableBody>
               {CAMPAIGN_RUNS.map((run) => (
-                <TableRow key={run.name} className="cursor-pointer hover:bg-muted/50">
+                <TableRow
+                  key={run.name}
+                  className="cursor-pointer hover:bg-muted/50"
+                >
                   <TableCell className="font-medium">{run.name}</TableCell>
                   <TableCell>{run.channel}</TableCell>
                   <TableCell>{run.agent}</TableCell>
@@ -238,7 +240,9 @@ export default function AnalyticsDashboardPage() {
                   </TableCell>
                   <TableCell>
                     <Badge
-                      variant={run.status === "Completed" ? "default" : "secondary"}
+                      variant={
+                        run.status === "Completed" ? "default" : "secondary"
+                      }
                     >
                       {run.status}
                     </Badge>
@@ -255,8 +259,8 @@ export default function AnalyticsDashboardPage() {
         <CardHeader>
           <CardTitle>Email Sequence Funnel</CardTitle>
           <CardDescription>
-            Contact progression through the &quot;Product Launch Sequence&quot; — most
-            recent run.
+            Contact progression through the &quot;Product Launch Sequence&quot;
+            — most recent run.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

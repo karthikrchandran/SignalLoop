@@ -10,13 +10,15 @@ type UserWithRole = {
 }
 
 const isAdmin = (user: UserWithRole) =>
-  Boolean(user.is_superuser || user.role === "admin" || user.role === "super_admin")
+  Boolean(
+    user.is_superuser || user.role === "admin" || user.role === "super_admin",
+  )
 
 export const Route = createFileRoute("/_layout/chatbot/settings")({
   component: BotSettingsPage,
   beforeLoad: async () => {
     if (isChatbotDemoMode()) return
-    const user = await UsersService.readUserMe() as UserWithRole
+    const user = (await UsersService.readUserMe()) as UserWithRole
     if (!isAdmin(user)) {
       throw redirect({ to: "/chatbot/inbox" })
     }

@@ -10,6 +10,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from app.api.deps import get_current_user, get_db
 from app.api.routes import customer_360
+from app.domain.shared_records import service as shared_service
 from app.domain_models import Account, Contact
 from app.models import User
 
@@ -31,6 +32,12 @@ def _user(*, is_superuser: bool, role: str = "operator") -> User:
         is_superuser=is_superuser,
         role=role,
     )
+
+
+@pytest.fixture(autouse=True)
+def use_local_shared_records(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep these SQLite tests on the local shared-record implementation."""
+    monkeypatch.setattr(shared_service.settings, "USE_LOCAL_SHARED_RECORDS", True)
 
 
 def _customer_360_app(session: Session, *, user: User | None = None) -> FastAPI:
@@ -61,20 +68,38 @@ def _seed_account_with_contact(
         account_key=f"analytical-{uuid.uuid4().hex[:8]}",
     )
     session.add(account)
-    session.commit()
-    session.refresh(account)
+    session.flush()
+    shared_service.upsert_shared_account(
+        workspace_id=workspace_id,
+        account_id=account.id,
+        name=account.name,
+        account_key=account.account_key,
+        session=session,
+    )
 
-    session.add(
-        Contact(
-            workspace_id=workspace_id,
-            account_id=account.id,
-            email=f"ada-{uuid.uuid4().hex[:8]}@example.com",
-            first_name="Ada",
-            last_name="Lovelace",
-            company=account.name,
-        ),
+    contact = Contact(
+        workspace_id=workspace_id,
+        account_id=account.id,
+        email=f"ada-{uuid.uuid4().hex[:8]}@example.com",
+        first_name="Ada",
+        last_name="Lovelace",
+        company=account.name,
+    )
+    session.add(contact)
+    session.flush()
+    shared_service.upsert_shared_contact(
+        workspace_id=workspace_id,
+        contact_id=contact.id,
+        email=contact.email,
+        first_name=contact.first_name,
+        last_name=contact.last_name,
+        company=contact.company,
+        timezone=contact.timezone,
+        parent_id=account.id,
+        session=session,
     )
     session.commit()
+    session.refresh(account)
     return account
 
 

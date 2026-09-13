@@ -542,7 +542,9 @@ test("assigns an available contact to an account profile", async ({ page }) => {
     page.getByRole("button", { name: "Assign selected" }),
   ).toBeDisabled()
   await expect(
-    page.getByText("Search contacts to find people available for this account."),
+    page.getByText(
+      "Search contacts to find people available for this account.",
+    ),
   ).toBeVisible()
 
   await page.getByLabel("Search contacts").fill("Alan")

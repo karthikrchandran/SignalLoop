@@ -143,7 +143,10 @@ def test_contact_read_uses_shared_records_when_enabled(monkeypatch) -> None:
     contact_id = uuid.uuid4()
 
     def list_shared_contacts(**kwargs: Any) -> list[Contact]:
-        assert kwargs == {"workspace_id": "ws-shared", "search": None, "limit": 50}
+        assert kwargs["workspace_id"] == "ws-shared"
+        assert kwargs["search"] is None
+        assert kwargs["limit"] == 50
+        assert isinstance(kwargs["session"], Session)
         return [
             Contact(
                 id=contact_id,
@@ -669,11 +672,13 @@ def test_customer_360_load_accounts_uses_shared_record_service(monkeypatch) -> N
         ],
     )
 
-    accounts = customer_360_service._load_accounts(
-        workspace_id="ws-shared",
-        search="ana",
-        limit=10,
-    )
+    with _session() as session:
+        accounts = customer_360_service._load_accounts(
+            session=session,
+            workspace_id="ws-shared",
+            search="ana",
+            limit=10,
+        )
 
     assert len(accounts) == 1
     assert accounts[0].id == account_id
@@ -725,11 +730,16 @@ def test_customer_360_accounts_read_from_shared_layer_when_enabled(monkeypatch) 
     )
 
     def load_accounts(**kwargs: Any) -> list[AccountPublic]:
-        assert kwargs == {"workspace_id": "ws-shared", "search": "ana", "limit": 10}
+        assert kwargs["workspace_id"] == "ws-shared"
+        assert kwargs["search"] == "ana"
+        assert kwargs["limit"] == 10
+        assert isinstance(kwargs["session"], Session)
         return [account]
 
     def load_contacts(**kwargs: Any) -> list[Contact]:
-        assert kwargs == {"workspace_id": "ws-shared", "account_id": account_id}
+        assert kwargs["workspace_id"] == "ws-shared"
+        assert kwargs["account_id"] == account_id
+        assert isinstance(kwargs["session"], Session)
         return [
             Contact(
                 id=uuid.uuid4(),
@@ -818,7 +828,10 @@ def test_campaign_audience_reads_shared_contacts_when_enabled(monkeypatch) -> No
     owner_id = uuid.uuid4()
 
     def list_shared_contacts(**kwargs: Any) -> list[Contact]:
-        assert kwargs == {"workspace_id": "ws-shared", "search": None, "limit": 100}
+        assert kwargs["workspace_id"] == "ws-shared"
+        assert kwargs["search"] is None
+        assert kwargs["limit"] == 100
+        assert isinstance(kwargs["session"], Session)
         return [
             Contact(
                 id=contact_id,
@@ -844,12 +857,16 @@ def test_campaign_audience_reads_shared_contacts_when_enabled(monkeypatch) -> No
         session.commit()
         session.refresh(campaign)
 
-        result = campaign_routes.assign_existing_contacts_to_campaign(
-            session=session,
-            current_user=SimpleNamespace(id=owner_id, is_superuser=True),
-            campaign_id=campaign.id,
-            workspace_id="ws-shared",
-            body=CampaignAudienceRequest(include_all_contacts=True),
+        result = asyncio.run(
+            campaign_routes.assign_existing_contacts_to_campaign(
+                request=SimpleNamespace(method="POST", url=SimpleNamespace(path="/audience")),
+                idempotency_key="assign-audience-v1",
+                session=session,
+                current_user=SimpleNamespace(id=owner_id, is_superuser=True),
+                campaign_id=campaign.id,
+                workspace_id="ws-shared",
+                body=CampaignAudienceRequest(include_all_contacts=True),
+            )
         )
 
         progressions = session.exec(select(ContactProgression)).all()

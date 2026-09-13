@@ -1,9 +1,15 @@
-import { useEffect, useState } from "react"
 import { Boxes } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
 
 import { Alert } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { signalloopRequest } from "@/lib/signalloop-api"
@@ -24,7 +30,12 @@ type OfferPack = {
 
 type OfferPackResponse = { data: OfferPack[] }
 
-type Template = { id: string; name: string; channel: string; current_version: { id: string; status: string } | null }
+type Template = {
+  id: string
+  name: string
+  channel: string
+  current_version: { id: string; status: string } | null
+}
 
 type TemplateResponse = { data: Template[] }
 
@@ -38,28 +49,35 @@ export default function OfferPackLibraryPage() {
   const [feedback, setFeedback] = useState("")
   const [busy, setBusy] = useState(false)
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     const [offerPackResult, templateResult] = await Promise.all([
       signalloopRequest<OfferPackResponse>("/api/v1/offer-packs/"),
-      signalloopRequest<TemplateResponse>("/api/v1/templates/?status=published"),
+      signalloopRequest<TemplateResponse>(
+        "/api/v1/templates/?status=published",
+      ),
     ])
     setOfferPacks(offerPackResult.data)
     setTemplates(templateResult.data)
     if (!templateVersionId && templateResult.data[0]?.current_version?.id) {
       setTemplateVersionId(templateResult.data[0].current_version.id)
     }
-  }
+  }, [templateVersionId])
 
   useEffect(() => {
     loadData().catch((error) => {
-      setFeedback(error instanceof Error ? error.message : "Failed to load offer-pack context")
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "Failed to load offer-pack context",
+      )
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [loadData])
 
   const createOfferPack = async () => {
     if (!templateVersionId) {
-      setFeedback("Publish at least one template version before creating an offer pack.")
+      setFeedback(
+        "Publish at least one template version before creating an offer pack.",
+      )
       return
     }
 
@@ -95,19 +113,26 @@ export default function OfferPackLibraryPage() {
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Offer packs</h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Compose reusable offer bundles from published template versions and promote a default pack per workspace.
+          Compose reusable offer bundles from published template versions and
+          promote a default pack per workspace.
         </p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Create published offer-pack version</CardTitle>
-          <CardDescription>Only published and compliant template versions can be bound.</CardDescription>
+          <CardDescription>
+            Only published and compliant template versions can be bound.
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           <div>
             <Label htmlFor="offerPackName">Offer pack name</Label>
-            <Input id="offerPackName" value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              id="offerPackName"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
           </div>
           <div>
             <Label htmlFor="offerPackTemplateVersion">Template version</Label>
@@ -119,9 +144,15 @@ export default function OfferPackLibraryPage() {
             >
               <option value="">Select published template version</option>
               {templates
-                .filter((template) => template.current_version?.status === "published")
+                .filter(
+                  (template) =>
+                    template.current_version?.status === "published",
+                )
                 .map((template) => (
-                  <option key={template.id} value={template.current_version?.id || ""}>
+                  <option
+                    key={template.id}
+                    value={template.current_version?.id || ""}
+                  >
                     {template.name} ({template.channel})
                   </option>
                 ))}
@@ -129,7 +160,11 @@ export default function OfferPackLibraryPage() {
           </div>
           <div>
             <Label htmlFor="offerPackChannel">Channel</Label>
-            <Input id="offerPackChannel" value={channel} onChange={(event) => setChannel(event.target.value)} />
+            <Input
+              id="offerPackChannel"
+              value={channel}
+              onChange={(event) => setChannel(event.target.value)}
+            />
           </div>
           <div className="flex items-center gap-2 pt-6">
             <input
@@ -157,7 +192,9 @@ export default function OfferPackLibraryPage() {
             <div key={offerPack.id} className="rounded border p-2">
               <p className="font-medium">{offerPack.name}</p>
               <p className="text-muted-foreground">
-                Version {offerPack.current_version?.version_number || 0} • Status {offerPack.current_version?.status || "unknown"} • Default {String(offerPack.current_version?.is_default)}
+                Version {offerPack.current_version?.version_number || 0} •
+                Status {offerPack.current_version?.status || "unknown"} •
+                Default {String(offerPack.current_version?.is_default)}
               </p>
             </div>
           ))}

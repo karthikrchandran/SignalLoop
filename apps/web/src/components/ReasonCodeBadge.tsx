@@ -8,25 +8,38 @@ interface ReasonCodeBadgeProps {
 
 const REASON_CODE_COLORS: Record<string, string> = {
   // Positive / success signals
-  high_intent: "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300",
-  opted_in: "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300",
-  converted: "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300",
+  high_intent:
+    "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300",
+  opted_in:
+    "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300",
+  converted:
+    "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300",
 
   // Neutral / informational
-  scheduled: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300",
-  campaign_enrolled: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300",
-  sequence_started: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300",
+  scheduled:
+    "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300",
+  campaign_enrolled:
+    "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300",
+  sequence_started:
+    "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300",
 
   // Warning / caution
-  low_engagement: "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300",
-  retry_scheduled: "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300",
-  paused: "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300",
+  low_engagement:
+    "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300",
+  retry_scheduled:
+    "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300",
+  paused:
+    "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300",
 
   // Negative / error
-  unsubscribed: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300",
-  bounced: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300",
-  opted_out: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300",
-  invalid_contact: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300",
+  unsubscribed:
+    "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300",
+  bounced:
+    "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300",
+  opted_out:
+    "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300",
+  invalid_contact:
+    "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300",
 }
 
 const DEFAULT_COLOR =

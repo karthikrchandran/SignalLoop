@@ -18,15 +18,25 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test("Revenue OS shows the connected agent workforce and specialist workspaces", async ({ page }) => {
+test("Revenue OS shows the connected agent workforce and specialist workspaces", async ({
+  page,
+}) => {
   await page.goto("/revenue-os")
 
   await expect(page.getByRole("heading", { name: "Revenue OS" })).toBeVisible()
-  await expect(page.getByText("One customer record. One operating rhythm.")).toBeVisible()
+  await expect(
+    page.getByText("One customer record. One operating rhythm."),
+  ).toBeVisible()
   await expect(page.getByText("Capture", { exact: true }).first()).toBeVisible()
-  await expect(page.getByText("Qualify & Pipeline", { exact: true }).first()).toBeVisible()
-  await expect(page.getByText("Fulfill & Get Paid", { exact: true }).first()).toBeVisible()
-  await expect(page.getByText("Incentives & Performance", { exact: true }).first()).toBeVisible()
+  await expect(
+    page.getByText("Qualify & Pipeline", { exact: true }).first(),
+  ).toBeVisible()
+  await expect(
+    page.getByText("Fulfill & Get Paid", { exact: true }).first(),
+  ).toBeVisible()
+  await expect(
+    page.getByText("Incentives & Performance", { exact: true }).first(),
+  ).toBeVisible()
   await expect(page.getByRole("link", { name: "Open EngageHub" })).toBeVisible()
   await expect(page.getByRole("link", { name: "Open Sales Ops" })).toBeVisible()
 })

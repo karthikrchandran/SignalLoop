@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router"
 import { ArrowRight, Plus, RefreshCw } from "lucide-react"
-
+import WorkspaceHeader from "@/components/layout/WorkspaceHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import WorkspaceHeader from "@/components/layout/WorkspaceHeader"
+import { cn } from "@/lib/utils"
 import {
   campaignLifecycleOrder,
   formatCampaignDate,
@@ -20,11 +20,11 @@ import {
   getCampaignLifecycleTone,
   useCampaignsWorkspace,
 } from "./campaign-data"
-import { cn } from "@/lib/utils"
 
 const toneClasses = {
   info: "bg-primary/10 text-primary",
-  ready: "bg-[color:var(--workspace-success)]/10 text-[var(--workspace-success)]",
+  ready:
+    "bg-[color:var(--workspace-success)]/10 text-[var(--workspace-success)]",
   warning:
     "bg-[color:var(--workspace-warning)]/10 text-[var(--workspace-warning)]",
 } as const
@@ -84,7 +84,9 @@ export default function CampaignsWorkspacePage() {
                 </Badge>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">{meta.description}</p>
+                <p className="text-sm text-muted-foreground">
+                  {meta.description}
+                </p>
                 <Button asChild variant="outline" size="sm">
                   <Link to={getCampaignLifecycleRoute(status)}>
                     Open {getCampaignLifecycleLabel(status)}
@@ -114,7 +116,9 @@ export default function CampaignsWorkspacePage() {
               recentCampaigns.map((campaign) => {
                 const status = campaign.status
                 const meta = getCampaignLifecycleMeta(
-                  status === "draft" || status === "active" || status === "paused"
+                  status === "draft" ||
+                    status === "active" ||
+                    status === "paused"
                     ? status
                     : "draft",
                 )
@@ -134,7 +138,9 @@ export default function CampaignsWorkspacePage() {
                       </div>
                       <Badge variant="outline">
                         {getCampaignLifecycleLabel(
-                          status === "draft" || status === "active" || status === "paused"
+                          status === "draft" ||
+                            status === "active" ||
+                            status === "paused"
                             ? status
                             : "draft",
                         )}

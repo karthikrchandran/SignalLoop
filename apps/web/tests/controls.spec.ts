@@ -24,15 +24,25 @@ test.beforeEach(async ({ page }) => {
 
 test("Controls focuses on pause and resume", async ({ page }) => {
   await page.route("**/api/v1/controls/pause", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "{}",
+    })
   })
   await page.route("**/api/v1/controls/resume", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "{}",
+    })
   })
 
   await page.goto("/controls")
 
-  await expect(page.getByRole("heading", { name: "Outreach Controls" })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "Outreach Controls" }),
+  ).toBeVisible()
   await expect(page.getByText("Emergency pause")).toBeVisible()
   await expect(page.getByText("Daily sending limits")).toHaveCount(0)
 

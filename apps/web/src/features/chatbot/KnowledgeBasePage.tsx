@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useState } from "react"
-import { Bot, FileText, Globe2, HelpCircle, Plus, RefreshCw } from "lucide-react"
+import {
+  Bot,
+  FileText,
+  Globe2,
+  HelpCircle,
+  Plus,
+  RefreshCw,
+} from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,12 +22,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  type ChatbotKnowledgeSource,
   createKnowledgeSource,
   deleteKnowledgeSource,
   listKnowledgeSources,
   reindexAllKnowledgeSources,
   reindexKnowledgeSource,
-  type ChatbotKnowledgeSource,
   uploadKnowledgeDocument,
 } from "@/features/chatbot/api"
 import { IndexingProgressBanner } from "@/features/chatbot/components/IndexingProgressBanner"
@@ -42,23 +49,30 @@ export default function KnowledgeBasePage() {
   const [answer, setAnswer] = useState("")
   const [file, setFile] = useState<File | null>(null)
 
-  const readyCount = useMemo(() => sources.filter((source) => source.status === "ready").length, [sources])
+  const readyCount = useMemo(
+    () => sources.filter((source) => source.status === "ready").length,
+    [sources],
+  )
 
-  const loadSources = async () => {
+  const loadSources = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       setSources((await listKnowledgeSources()).data)
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to load knowledge sources")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to load knowledge sources",
+      )
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     void loadSources()
-  }, [])
+  }, [loadSources])
 
   const createWebsite = async () => {
     if (!url.trim()) return
@@ -75,7 +89,11 @@ export default function KnowledgeBasePage() {
       setUrlTitle("")
       await loadSources()
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to add website")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to add website",
+      )
     } finally {
       setBusyId(null)
     }
@@ -94,7 +112,11 @@ export default function KnowledgeBasePage() {
       setFaqContent("")
       await loadSources()
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to add FAQ")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to add FAQ",
+      )
     } finally {
       setBusyId(null)
     }
@@ -114,7 +136,11 @@ export default function KnowledgeBasePage() {
       setAnswer("")
       await loadSources()
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to add Q&A")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to add Q&A",
+      )
     } finally {
       setBusyId(null)
     }
@@ -128,7 +154,11 @@ export default function KnowledgeBasePage() {
       setFile(null)
       await loadSources()
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to upload document")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to upload document",
+      )
     } finally {
       setBusyId(null)
     }
@@ -140,7 +170,11 @@ export default function KnowledgeBasePage() {
       await reindexKnowledgeSource(sourceId)
       await loadSources()
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to re-index source")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to re-index source",
+      )
     } finally {
       setBusyId(null)
     }
@@ -152,7 +186,11 @@ export default function KnowledgeBasePage() {
       await reindexAllKnowledgeSources()
       await loadSources()
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to re-index")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to re-index",
+      )
     } finally {
       setBusyId(null)
     }
@@ -164,7 +202,11 @@ export default function KnowledgeBasePage() {
       await deleteKnowledgeSource(sourceId)
       await loadSources()
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to delete source")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to delete source",
+      )
     } finally {
       setBusyId(null)
     }
@@ -174,43 +216,86 @@ export default function KnowledgeBasePage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">Messaging Hub</p>
+          <p className="text-sm font-medium text-muted-foreground">
+            Messaging Hub
+          </p>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <Bot className="size-6 text-muted-foreground" />
             Knowledge Base
           </h1>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={reindexAll} disabled={busyId === "all" || sources.length === 0} className="gap-2">
-            <RefreshCw className={busyId === "all" ? "size-4 animate-spin" : "size-4"} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={reindexAll}
+            disabled={busyId === "all" || sources.length === 0}
+            className="gap-2"
+          >
+            <RefreshCw
+              className={busyId === "all" ? "size-4 animate-spin" : "size-4"}
+            />
             Re-index All
           </Button>
-          <Button size="sm" onClick={() => setTestOpen(true)} disabled={readyCount === 0}>
+          <Button
+            size="sm"
+            onClick={() => setTestOpen(true)}
+            disabled={readyCount === 0}
+          >
             Test Bot
           </Button>
         </div>
       </div>
 
-      <IndexingProgressBanner sources={sources} dismissed={dismissed} onDismiss={() => setDismissed(true)} />
-      {error ? <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div> : null}
+      <IndexingProgressBanner
+        sources={sources}
+        dismissed={dismissed}
+        onDismiss={() => setDismissed(true)}
+      />
+      {error ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      ) : null}
 
       <Tabs defaultValue="website">
         <TabsList>
-          <TabsTrigger value="website" className="gap-2"><Globe2 className="size-4" />Website URLs</TabsTrigger>
-          <TabsTrigger value="documents" className="gap-2"><FileText className="size-4" />Documents</TabsTrigger>
-          <TabsTrigger value="faq" className="gap-2"><HelpCircle className="size-4" />FAQ/Q&A</TabsTrigger>
+          <TabsTrigger value="website" className="gap-2">
+            <Globe2 className="size-4" />
+            Website URLs
+          </TabsTrigger>
+          <TabsTrigger value="documents" className="gap-2">
+            <FileText className="size-4" />
+            Documents
+          </TabsTrigger>
+          <TabsTrigger value="faq" className="gap-2">
+            <HelpCircle className="size-4" />
+            FAQ/Q&A
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="website" className="rounded-lg border p-4">
           <div className="grid gap-3 md:grid-cols-[1fr_1.5fr_auto]">
             <div className="grid gap-2">
               <Label htmlFor="website-title">Title</Label>
-              <Input id="website-title" value={urlTitle} onChange={(event) => setUrlTitle(event.target.value)} />
+              <Input
+                id="website-title"
+                value={urlTitle}
+                onChange={(event) => setUrlTitle(event.target.value)}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="website-url">URL</Label>
-              <Input id="website-url" value={url} onChange={(event) => setUrl(event.target.value)} />
+              <Input
+                id="website-url"
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+              />
             </div>
-            <Button className="self-end gap-2" onClick={createWebsite} disabled={busyId === "create-website" || !url.trim()}>
+            <Button
+              className="self-end gap-2"
+              onClick={createWebsite}
+              disabled={busyId === "create-website" || !url.trim()}
+            >
               <Plus className="size-4" />
               Add
             </Button>
@@ -218,8 +303,16 @@ export default function KnowledgeBasePage() {
         </TabsContent>
         <TabsContent value="documents" className="rounded-lg border p-4">
           <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-            <Input type="file" accept=".pdf,.docx,.txt" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-            <Button onClick={uploadDocument} disabled={busyId === "upload-document" || !file} className="gap-2">
+            <Input
+              type="file"
+              accept=".pdf,.docx,.txt"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+            <Button
+              onClick={uploadDocument}
+              disabled={busyId === "upload-document" || !file}
+              className="gap-2"
+            >
               <Plus className="size-4" />
               Upload
             </Button>
@@ -228,17 +321,45 @@ export default function KnowledgeBasePage() {
         <TabsContent value="faq" className="rounded-lg border p-4">
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="grid gap-3">
-              <Input value={faqTitle} onChange={(event) => setFaqTitle(event.target.value)} placeholder="FAQ title" />
-              <Textarea value={faqContent} onChange={(event) => setFaqContent(event.target.value)} rows={5} placeholder="FAQ or manual text" />
-              <Button onClick={createFaq} disabled={busyId === "create-faq" || !faqContent.trim()} className="justify-self-start gap-2">
+              <Input
+                value={faqTitle}
+                onChange={(event) => setFaqTitle(event.target.value)}
+                placeholder="FAQ title"
+              />
+              <Textarea
+                value={faqContent}
+                onChange={(event) => setFaqContent(event.target.value)}
+                rows={5}
+                placeholder="FAQ or manual text"
+              />
+              <Button
+                onClick={createFaq}
+                disabled={busyId === "create-faq" || !faqContent.trim()}
+                className="justify-self-start gap-2"
+              >
                 <Plus className="size-4" />
                 Add FAQ
               </Button>
             </div>
             <div className="grid gap-3">
-              <Input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Question" />
-              <Textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={5} placeholder="Answer" />
-              <Button onClick={createQa} disabled={busyId === "create-qa" || !question.trim() || !answer.trim()} className="justify-self-start gap-2">
+              <Input
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                placeholder="Question"
+              />
+              <Textarea
+                value={answer}
+                onChange={(event) => setAnswer(event.target.value)}
+                rows={5}
+                placeholder="Answer"
+              />
+              <Button
+                onClick={createQa}
+                disabled={
+                  busyId === "create-qa" || !question.trim() || !answer.trim()
+                }
+                className="justify-self-start gap-2"
+              >
                 <Plus className="size-4" />
                 Add Q&A
               </Button>
@@ -270,7 +391,10 @@ export default function KnowledgeBasePage() {
           ))}
           {!loading && sources.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+              <TableCell
+                colSpan={6}
+                className="h-24 text-center text-muted-foreground"
+              >
                 No knowledge sources
               </TableCell>
             </TableRow>

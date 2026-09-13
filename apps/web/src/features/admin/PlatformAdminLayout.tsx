@@ -15,14 +15,24 @@ export function PlatformAdminLayout({ children }: PropsWithChildren) {
   return (
     <div className="space-y-6">
       <section>
-        <h1 className="text-2xl font-bold tracking-tight">Platform administration</h1>
+        <h1 className="text-2xl font-bold tracking-tight">
+          Platform administration
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage suite tenants and policy. Tenant business data requires a separate, time-bounded support grant.
+          Manage suite tenants and policy. Tenant business data requires a
+          separate, time-bounded support grant.
         </p>
       </section>
-      <nav aria-label="Platform administration" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <nav
+        aria-label="Platform administration"
+        className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"
+      >
         {platformLinks.map((link) => (
-          <a key={link.label} href={link.href} className="rounded-md border bg-card px-3 py-2 text-sm font-medium hover:border-primary/60 hover:text-primary">
+          <a
+            key={link.label}
+            href={link.href}
+            className="rounded-md border bg-card px-3 py-2 text-sm font-medium hover:border-primary/60 hover:text-primary"
+          >
             {link.label}
           </a>
         ))}

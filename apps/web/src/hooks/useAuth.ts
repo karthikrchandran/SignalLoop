@@ -10,10 +10,7 @@ import {
   UsersService,
 } from "@/client"
 import { isChatbotDemoMode } from "@/features/chatbot/demo"
-import {
-  clearClientAuthState,
-  hasServerSessionHint,
-} from "@/lib/auth-session"
+import { clearClientAuthState, hasServerSessionHint } from "@/lib/auth-session"
 import { getApiBase } from "@/lib/signalloop-api"
 import { handleError } from "@/utils"
 import useCustomToast from "./useCustomToast"

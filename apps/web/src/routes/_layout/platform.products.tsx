@@ -2,7 +2,9 @@ import { createFileRoute } from "@tanstack/react-router"
 
 import { TenantAdminWorkspacePage } from "@/features/admin/TenantAdminWorkspacePage"
 
-export const Route = createFileRoute("/_layout/platform/products")({ component: PlatformProducts })
+export const Route = createFileRoute("/_layout/platform/products")({
+  component: PlatformProducts,
+})
 
 function PlatformProducts() {
   return (

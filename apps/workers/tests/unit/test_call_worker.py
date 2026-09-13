@@ -9,6 +9,22 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from app.domain.commercial_agents.models import (
+    AgentCatalogDefinition,
+    AgentDeployment,
+    AgentDeploymentStatus,
+    AgentPlanEntitlement,
+    AgentType,
+    AgentUsageLedger,
+    AgentUsageState,
+)
+from app.domain.tenants.models import (
+    ProductCode,
+    ProductInstallation,
+    Tenant,
+    TenantWorkspaceBinding,
+)
+from app.domain.workspaces.models import Workspace
 from app.domain.voice.models import (
     CallRequest,
     CallRequestStatus,
@@ -139,11 +155,87 @@ def _seed_call(session: Session, workspace_id: str, *, status: CallRequestStatus
     return request
 
 
+def _seed_active_voice_deployment(
+    session: Session, workspace_id: str, *, capacity: int = 100
+) -> AgentDeployment:
+    tenant = Tenant(
+        key=f"tenant-{workspace_id}-{uuid.uuid4().hex[:8]}",
+        display_name=f"Tenant {workspace_id}",
+    )
+    workspace = session.get(Workspace, workspace_id)
+    if workspace is None:
+        workspace = Workspace(id=workspace_id, name=workspace_id)
+        session.add(workspace)
+    session.add(tenant)
+    session.flush()
+    installation = ProductInstallation(
+        tenant_id=tenant.id,
+        product_code=ProductCode.SIGNAL_LOOP,
+        local_identifier=workspace_id,
+    )
+    session.add(installation)
+    session.flush()
+    catalog = session.exec(
+        select(AgentCatalogDefinition).where(
+            AgentCatalogDefinition.agent_type == AgentType.VOICE_CONVERSATION,
+            AgentCatalogDefinition.catalog_version == 1,
+        )
+    ).one_or_none()
+    if catalog is None:
+        catalog = AgentCatalogDefinition(
+            agent_type=AgentType.VOICE_CONVERSATION,
+            catalog_version=1,
+            display_name="Voice Conversation Agent",
+            sellable_outcome="Governed outbound voice conversations",
+            default_capacity_metric="voice_attempt",
+            default_capacity_amount=capacity,
+            configuration_schema_version="voice-conversation.v1",
+            external_side_effects=True,
+        )
+        session.add(catalog)
+    entitlement = AgentPlanEntitlement(
+        tenant_id=tenant.id,
+        installation_id=installation.id,
+        plan_code="voice-demo",
+        contract_version=f"2026-09-{uuid.uuid4().hex[:8]}",
+        purchased_slots=1,
+        allowed_agent_types=[AgentType.VOICE_CONVERSATION.value],
+    )
+    session.add_all(
+        [
+            TenantWorkspaceBinding(
+                tenant_id=tenant.id,
+                installation_id=installation.id,
+                workspace_id=workspace_id,
+            ),
+            entitlement,
+        ]
+    )
+    session.flush()
+    deployment = AgentDeployment(
+        tenant_id=tenant.id,
+        installation_id=installation.id,
+        workspace_id=workspace_id,
+        catalog_definition_id=catalog.id,
+        agent_type=AgentType.VOICE_CONVERSATION,
+        name=f"Voice agent {workspace_id}",
+        status=AgentDeploymentStatus.ACTIVE,
+        configuration={"provider": "twilio"},
+        configuration_digest="v" * 64,
+    )
+    session.add(deployment)
+    session.commit()
+    session.refresh(deployment)
+    return deployment
+
+
 def test_poll_dispatch_resolves_provider_for_each_stored_workspace() -> None:
     engine = _database()
     with Session(engine) as session:
         request_a = _seed_call(session, "workspace-a")
         request_b = _seed_call(session, "workspace-b")
+        _seed_active_voice_deployment(session, "workspace-a")
+        _seed_active_voice_deployment(session, "workspace-b")
         request_a_id = request_a.id
         request_b_id = request_b.id
 
@@ -185,6 +277,7 @@ def test_paused_or_capped_workspace_does_not_block_another_workspace() -> None:
         capped_request = _seed_call(session, "workspace-capped")
         _seed_call(session, "workspace-capped", status=CallRequestStatus.in_progress)
         active_request = _seed_call(session, "workspace-active")
+        _seed_active_voice_deployment(session, "workspace-active")
         paused_request_id = paused_request.id
         capped_request_id = capped_request.id
         active_request_id = active_request.id
@@ -230,6 +323,57 @@ def test_paused_or_capped_workspace_does_not_block_another_workspace() -> None:
         assert active.status == CallRequestStatus.in_progress
     assert resolved_workspaces == ["workspace-active"]
     active_adapter.initiate_call.assert_awaited_once()
+
+
+def test_poll_dispatch_requires_active_paid_voice_deployment() -> None:
+    engine = _database()
+    with Session(engine) as session:
+        request = _seed_call(session, "workspace-a")
+        request_id = request.id
+
+    with (
+        patch.object(call_worker, "_engine", engine),
+        patch.object(call_worker, "_is_within_call_hours", return_value=True),
+        patch.object(call_worker, "resolve_voice_adapter") as resolver,
+    ):
+        asyncio.run(call_worker.poll_and_dispatch())
+
+    with Session(engine) as session:
+        request = session.get(CallRequest, request_id)
+        assert request is not None
+        assert request.status == CallRequestStatus.failed
+        ledger = session.exec(select(AgentUsageLedger)).all()
+
+    assert ledger == []
+    resolver.assert_not_called()
+
+
+def test_successful_voice_dispatch_finalizes_commercial_capacity() -> None:
+    engine = _database()
+    with Session(engine) as session:
+        request = _seed_call(session, "workspace-a")
+        _seed_active_voice_deployment(session, "workspace-a")
+        request_id = request.id
+
+    adapter = _adapter("CA-capacity")
+    with (
+        patch.object(call_worker, "_engine", engine),
+        patch.object(call_worker, "_is_within_call_hours", return_value=True),
+        patch.object(call_worker, "resolve_voice_adapter", return_value=adapter),
+    ):
+        asyncio.run(call_worker.poll_and_dispatch())
+
+    with Session(engine) as session:
+        request = session.get(CallRequest, request_id)
+        assert request is not None
+        assert request.status == CallRequestStatus.in_progress
+        ledger = session.exec(select(AgentUsageLedger)).one()
+
+    assert ledger.capacity_metric == "voice_attempt"
+    assert ledger.idempotency_key == f"voice-call:{request_id}"
+    assert ledger.state == AgentUsageState.FINALIZED
+    assert ledger.provider_receipt_id == "CA-capacity"
+    adapter.initiate_call.assert_awaited_once()
 
 
 def test_initiate_one_rejects_contact_from_another_workspace() -> None:
@@ -333,6 +477,7 @@ def test_initiate_one_precommits_signed_callback_correlation() -> None:
     engine = _database()
     with Session(engine) as session:
         request = _seed_call(session, "workspace-a")
+        _seed_active_voice_deployment(session, "workspace-a")
 
         async def provider_callback_race(**kwargs: object) -> dict[str, str]:
             with Session(engine) as observer:
@@ -367,6 +512,7 @@ def test_initiate_one_does_not_regress_callback_state_after_provider_finishes(
     engine = _database()
     with Session(engine) as session:
         request = _seed_call(session, "workspace-a")
+        _seed_active_voice_deployment(session, "workspace-a")
         request_id = request.id
 
         async def callback_before_provider_finishes(**_kwargs: object) -> dict[str, str]:

@@ -21,4 +21,5 @@ export const apiBaseUrl =
   process.env.PLAYWRIGHT_API_URL ??
   process.env.VITE_API_URL ??
   "http://localhost:8001"
-export const defaultWorkspaceId = process.env.PLAYWRIGHT_WORKSPACE_ID || "default"
+export const defaultWorkspaceId =
+  process.env.PLAYWRIGHT_WORKSPACE_ID || "default"

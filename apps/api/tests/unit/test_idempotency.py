@@ -10,6 +10,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import HTTPException
 from pydantic import BaseModel
+from sqlmodel import Session, SQLModel, create_engine, select
+
+from app.domain_models import IdempotencyRecord
 
 
 def _run(coro):
@@ -23,6 +26,12 @@ def _make_request(redis_client) -> MagicMock:
     request.method = "POST"
     request.url.path = "/api/v1/test"
     return request
+
+
+def _session() -> Session:
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    return Session(engine)
 
 
 # ---------------------------------------------------------------------------
@@ -168,29 +177,26 @@ def test_store_idempotent_response_swallows_redis_errors() -> None:
 def test_run_idempotent_mutation_stores_completed_response() -> None:
     from app.core.idempotency import run_idempotent_mutation
 
-    redis = MagicMock()
-    redis.get = AsyncMock(return_value=None)
-    redis.set = AsyncMock(return_value=True)
-    redis.setex = AsyncMock()
-    request = _make_request(redis)
+    request = _make_request(None)
 
-    result = _run(
-        run_idempotent_mutation(
-            request,
-            idempotency_key="idem-1",
-            workspace_id="ws",
-            operation="op",
-            mutation=lambda: {"ok": True},
-            request_payload={"a": 1},
+    with _session() as session:
+        result = _run(
+            run_idempotent_mutation(
+                request,
+                idempotency_key="idem-1",
+                workspace_id="ws",
+                operation="op",
+                mutation=lambda: {"ok": True},
+                request_payload={"a": 1},
+                session=session,
+            )
         )
-    )
 
-    assert result == {"ok": True}
-    redis.set.assert_awaited_once()
-    redis.setex.assert_awaited_once()
-    stored = json.loads(redis.setex.await_args.args[2])
-    assert stored["state"] == "completed"
-    assert stored["response_data"] == {"ok": True}
+        assert result == {"ok": True}
+        stored = session.get(IdempotencyRecord, session.exec(select(IdempotencyRecord.id)).one())
+        assert stored is not None
+        assert stored.state == "completed"
+        assert stored.response_data == {"ok": True}
 
 
 def test_run_idempotent_mutation_encodes_response_models_for_replay() -> None:
@@ -200,29 +206,28 @@ def test_run_idempotent_mutation_encodes_response_models_for_replay() -> None:
         id: uuid.UUID
         action_at: datetime
 
-    redis = MagicMock()
-    redis.get = AsyncMock(return_value=None)
-    redis.set = AsyncMock(return_value=True)
-    redis.setex = AsyncMock()
-    request = _make_request(redis)
+    request = _make_request(None)
     response = ResponseModel(id=uuid.uuid4(), action_at=datetime.now(UTC))
 
-    result = _run(
-        run_idempotent_mutation(
-            request,
-            idempotency_key="idem-1",
-            workspace_id="ws",
-            operation="op",
-            mutation=lambda: response,
+    with _session() as session:
+        result = _run(
+            run_idempotent_mutation(
+                request,
+                idempotency_key="idem-1",
+                workspace_id="ws",
+                operation="op",
+                mutation=lambda: response,
+                session=session,
+            )
         )
-    )
 
-    assert result == response
-    stored = json.loads(redis.setex.await_args.args[2])
-    assert stored["response_data"] == {
-        "id": str(response.id),
-        "action_at": response.action_at.isoformat().replace("+00:00", "Z"),
-    }
+        assert result == response
+        stored = session.get(IdempotencyRecord, session.exec(select(IdempotencyRecord.id)).one())
+        assert stored is not None
+        assert stored.response_data == {
+            "id": str(response.id),
+            "action_at": response.action_at.isoformat().replace("+00:00", "Z"),
+        }
 
 
 def test_run_idempotent_mutation_replays_completed_response() -> None:
@@ -234,29 +239,31 @@ def test_run_idempotent_mutation_replays_completed_response() -> None:
         path="/api/v1/test",
         payload={"a": 1},
     )
-    redis = MagicMock()
-    redis.get = AsyncMock(
-        return_value=json.dumps(
-            {
-                "state": "completed",
-                "request_hash": request_hash,
-                "response_data": {"ok": True},
-            }
-        )
-    )
-    request.app.state.redis_manager.client = redis
     mutation = AsyncMock(return_value={"ok": False})
 
-    result = _run(
-        run_idempotent_mutation(
-            request,
-            idempotency_key="idem-1",
-            workspace_id="ws",
-            operation="op",
-            mutation=mutation,
-            request_payload={"a": 1},
+    with _session() as session:
+        session.add(
+            IdempotencyRecord(
+                workspace_id="ws",
+                operation="op",
+                idempotency_key="idem-1",
+                request_hash=request_hash,
+                state="completed",
+                response_data={"ok": True},
+            )
         )
-    )
+        session.commit()
+        result = _run(
+            run_idempotent_mutation(
+                request,
+                idempotency_key="idem-1",
+                workspace_id="ws",
+                operation="op",
+                mutation=mutation,
+                request_payload={"a": 1},
+                session=session,
+            )
+        )
 
     assert result == {"ok": True}
     mutation.assert_not_awaited()
@@ -271,29 +278,31 @@ def test_run_idempotent_mutation_rejects_key_reused_for_different_payload() -> N
         path="/api/v1/test",
         payload={"a": 1},
     )
-    redis = MagicMock()
-    redis.get = AsyncMock(
-        return_value=json.dumps(
-            {
-                "state": "completed",
-                "request_hash": request_hash,
-                "response_data": {"ok": True},
-            }
-        )
-    )
-    request.app.state.redis_manager.client = redis
-
-    with pytest.raises(HTTPException) as exc_info:
-        _run(
-            run_idempotent_mutation(
-                request,
-                idempotency_key="idem-1",
+    with _session() as session:
+        session.add(
+            IdempotencyRecord(
                 workspace_id="ws",
                 operation="op",
-                mutation=lambda: {"ok": False},
-                request_payload={"a": 2},
+                idempotency_key="idem-1",
+                request_hash=request_hash,
+                state="completed",
+                response_data={"ok": True},
             )
         )
+        session.commit()
+
+        with pytest.raises(HTTPException) as exc_info:
+            _run(
+                run_idempotent_mutation(
+                    request,
+                    idempotency_key="idem-1",
+                    workspace_id="ws",
+                    operation="op",
+                    mutation=lambda: {"ok": False},
+                    request_payload={"a": 2},
+                    session=session,
+                )
+            )
 
     assert exc_info.value.status_code == 409
     assert exc_info.value.detail["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
@@ -307,16 +316,41 @@ def test_run_idempotent_mutation_rejects_in_progress_request() -> None:
         path="/api/v1/test",
         payload={"a": 1},
     )
-    redis = MagicMock()
-    redis.get = AsyncMock(
-        return_value=json.dumps(
-            {
-                "state": "in_progress",
-                "request_hash": request_hash,
-            }
+    request = _make_request(None)
+
+    with _session() as session:
+        session.add(
+            IdempotencyRecord(
+                workspace_id="ws",
+                operation="op",
+                idempotency_key="idem-1",
+                request_hash=request_hash,
+                state="in_progress",
+            )
         )
-    )
-    request = _make_request(redis)
+        session.commit()
+
+        with pytest.raises(HTTPException) as exc_info:
+            _run(
+                run_idempotent_mutation(
+                    request,
+                    idempotency_key="idem-1",
+                    workspace_id="ws",
+                    operation="op",
+                    mutation=lambda: {"ok": False},
+                    request_payload={"a": 1},
+                    session=session,
+                )
+            )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail["error"]["code"] == "IDEMPOTENCY_IN_PROGRESS"
+
+
+def test_run_idempotent_mutation_fails_closed_when_session_missing() -> None:
+    from app.core.idempotency import run_idempotent_mutation
+
+    request = _make_request(None)
 
     with pytest.raises(HTTPException) as exc_info:
         _run(
@@ -325,28 +359,8 @@ def test_run_idempotent_mutation_rejects_in_progress_request() -> None:
                 idempotency_key="idem-1",
                 workspace_id="ws",
                 operation="op",
-                mutation=lambda: {"ok": False},
-                request_payload={"a": 1},
+                mutation=lambda: {"ok": True},
             )
         )
 
-    assert exc_info.value.status_code == 409
-    assert exc_info.value.detail["error"]["code"] == "IDEMPOTENCY_IN_PROGRESS"
-
-
-def test_run_idempotent_mutation_fails_open_when_redis_missing() -> None:
-    from app.core.idempotency import run_idempotent_mutation
-
-    request = _make_request(None)
-
-    result = _run(
-        run_idempotent_mutation(
-            request,
-            idempotency_key="idem-1",
-            workspace_id="ws",
-            operation="op",
-            mutation=lambda: {"ok": True},
-        )
-    )
-
-    assert result == {"ok": True}
+    assert exc_info.value.status_code == 503

@@ -45,7 +45,12 @@ type ThreadRowProps = {
   onSelect: () => void
 }
 
-export function ThreadRow({ thread, selected, highlighted, onSelect }: ThreadRowProps) {
+export function ThreadRow({
+  thread,
+  selected,
+  highlighted,
+  onSelect,
+}: ThreadRowProps) {
   const Icon = channelIcon[thread.channel_type]
   return (
     <button
@@ -61,16 +66,27 @@ export function ThreadRow({ thread, selected, highlighted, onSelect }: ThreadRow
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <Icon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate text-sm font-medium">{thread.lead?.name || thread.visitor_id}</span>
+          <span className="truncate text-sm font-medium">
+            {thread.lead?.name || thread.visitor_id}
+          </span>
         </div>
-        <span className="shrink-0 text-xs text-muted-foreground">{relativeTime(thread.last_message_at)}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {relativeTime(thread.last_message_at)}
+        </span>
       </div>
-      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{thread.preview || "No messages yet"}</p>
+      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+        {thread.preview || "No messages yet"}
+      </p>
       <div className="mt-2 flex items-center gap-2">
-        <Badge variant={thread.status === "escalated" ? "destructive" : "secondary"}>{statusLabel[thread.status]}</Badge>
-        {thread.is_opted_out ? <Badge variant="outline">Opted out</Badge> : null}
+        <Badge
+          variant={thread.status === "escalated" ? "destructive" : "secondary"}
+        >
+          {statusLabel[thread.status]}
+        </Badge>
+        {thread.is_opted_out ? (
+          <Badge variant="outline">Opted out</Badge>
+        ) : null}
       </div>
     </button>
   )
 }
-

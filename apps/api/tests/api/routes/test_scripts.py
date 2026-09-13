@@ -1,7 +1,6 @@
 """Tests for ``app.api.routes.scripts`` endpoints (Group E coverage)."""
 from __future__ import annotations
 
-from collections.abc import Generator
 import uuid
 
 import pytest
@@ -21,44 +20,6 @@ SAMPLE_CONTENT = (
     "## Fallback\nLet me follow up.\n\n"
     "## Scheduling\nWhen are you free?\n"
 )
-
-
-class _FakeRedisClient:
-    def __init__(self) -> None:
-        self.store: dict[str, str] = {}
-
-    async def get(self, key: str) -> str | None:
-        return self.store.get(key)
-
-    async def set(self, key: str, value: str, *, ex: int, nx: bool = False) -> bool:
-        if nx and key in self.store:
-            return False
-        self.store[key] = value
-        return True
-
-    async def setex(self, key: str, ttl: int, value: str) -> None:
-        self.store[key] = value
-
-    async def delete(self, key: str) -> None:
-        self.store.pop(key, None)
-
-
-@pytest.fixture()
-def fake_idempotency_redis(client: TestClient) -> Generator[_FakeRedisClient, None, None]:
-    original = getattr(client.app.state, "redis_manager", None)
-    redis = _FakeRedisClient()
-
-    class _Manager:
-        client = redis
-
-    client.app.state.redis_manager = _Manager()
-    try:
-        yield redis
-    finally:
-        if original is None:
-            del client.app.state.redis_manager
-        else:
-            client.app.state.redis_manager = original
 
 
 def _headers(
@@ -205,9 +166,12 @@ def test_create_script_replays_same_idempotency_key(
     client: TestClient,
     superuser_token_headers: dict[str, str],
     campaign: Campaign,
-    fake_idempotency_redis: _FakeRedisClient,
 ) -> None:
-    headers = {**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID, "Idempotency-Key": "scripts-replay"}
+    headers = {
+        **superuser_token_headers,
+        "X-Workspace-Id": WORKSPACE_ID,
+        "Idempotency-Key": f"scripts-replay-{uuid.uuid4()}",
+    }
     script_name = f"Replay script {uuid.uuid4()}"
     payload = {
         "name": script_name,
@@ -233,9 +197,12 @@ def test_create_script_rejects_reused_idempotency_key_with_different_payload(
     client: TestClient,
     superuser_token_headers: dict[str, str],
     campaign: Campaign,
-    fake_idempotency_redis: _FakeRedisClient,
 ) -> None:
-    headers = {**superuser_token_headers, "X-Workspace-Id": WORKSPACE_ID, "Idempotency-Key": "scripts-conflict"}
+    headers = {
+        **superuser_token_headers,
+        "X-Workspace-Id": WORKSPACE_ID,
+        "Idempotency-Key": f"scripts-conflict-{uuid.uuid4()}",
+    }
     payload = {
         "name": "Conflict script",
         "campaign_id": str(campaign.id),

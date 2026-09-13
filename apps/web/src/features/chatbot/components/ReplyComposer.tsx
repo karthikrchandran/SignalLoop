@@ -1,5 +1,5 @@
-import { useState } from "react"
 import { Send } from "lucide-react"
+import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -35,7 +35,12 @@ export function ReplyComposer({ disabled, onSend }: ReplyComposerProps) {
         className="min-h-20 resize-none"
       />
       <div className="mt-2 flex justify-end">
-        <Button type="button" onClick={send} disabled={disabled || sending || !message.trim()} className="gap-2">
+        <Button
+          type="button"
+          onClick={send}
+          disabled={disabled || sending || !message.trim()}
+          className="gap-2"
+        >
           <Send className="size-4" />
           Send
         </Button>
@@ -43,4 +48,3 @@ export function ReplyComposer({ disabled, onSend }: ReplyComposerProps) {
     </div>
   )
 }
-

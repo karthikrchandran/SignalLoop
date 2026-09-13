@@ -64,7 +64,9 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test("Contacts page separates contacts, lead groups, and import", async ({ page }) => {
+test("Contacts page separates contacts, lead groups, and import", async ({
+  page,
+}) => {
   await page.goto("/contacts")
 
   await expect(page.getByRole("heading", { name: "Contacts" })).toBeVisible()
@@ -74,7 +76,9 @@ test("Contacts page separates contacts, lead groups, and import", async ({ page 
   await expect(page.getByText("ada@example.com")).toBeVisible()
   await expect(page.getByLabel("Industry")).toBeVisible()
   await expect(page.getByLabel("Product interest")).toBeVisible()
-  await expect(page.getByRole("navigation", { name: "pagination" })).toBeVisible()
+  await expect(
+    page.getByRole("navigation", { name: "pagination" }),
+  ).toBeVisible()
 
   await page.getByLabel("Industry").selectOption("Software")
   await expect(page.getByText("grace@example.com")).toBeVisible()
@@ -85,7 +89,9 @@ test("Contacts page separates contacts, lead groups, and import", async ({ page 
   await expect(page.getByRole("button", { name: "Analyze" })).toBeVisible()
 })
 
-test("Lead Groups opens a detail screen with matching leads", async ({ page }) => {
+test("Lead Groups opens a detail screen with matching leads", async ({
+  page,
+}) => {
   await page.goto("/contacts")
   await page.getByRole("tab", { name: "Lead Groups" }).click()
 
@@ -93,7 +99,11 @@ test("Lead Groups opens a detail screen with matching leads", async ({ page }) =
   await page.getByRole("link", { name: /Financial Services leaders/i }).click()
 
   await expect(page).toHaveURL(/leadGroupId=financial-services-leaders/)
-  await expect(page.getByRole("heading", { name: "Financial Services leaders" })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "Financial Services leaders" }),
+  ).toBeVisible()
   await expect(page.getByText("ada@example.com")).toBeVisible()
-  await expect(page.getByText("Industry contains Financial Services")).toBeVisible()
+  await expect(
+    page.getByText("Industry contains Financial Services"),
+  ).toBeVisible()
 })

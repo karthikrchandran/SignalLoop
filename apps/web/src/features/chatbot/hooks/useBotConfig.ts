@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import {
   type ChatbotConfig,
@@ -14,7 +14,7 @@ export function useBotConfig() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -22,15 +22,19 @@ export function useBotConfig() {
       setConfig(response)
       setDraft(response)
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to load settings")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to load settings",
+      )
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     void load()
-  }, [])
+  }, [load])
 
   const dirty = JSON.stringify(config) !== JSON.stringify(draft)
 
@@ -58,13 +62,27 @@ export function useBotConfig() {
       setConfig(response)
       setDraft(response)
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to save settings")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to save settings",
+      )
       throw requestError
     } finally {
       setSaving(false)
     }
   }
 
-  return { config, dirty, discard, draft, error, loading, refresh: load, save, saving, setDraft }
+  return {
+    config,
+    dirty,
+    discard,
+    draft,
+    error,
+    loading,
+    refresh: load,
+    save,
+    saving,
+    setDraft,
+  }
 }
-

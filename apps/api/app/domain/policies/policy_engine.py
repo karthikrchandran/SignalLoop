@@ -5,7 +5,12 @@ from __future__ import annotations
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from app.domain_models import GovernancePolicy, PolicyDecision, PolicyType, SemanticError
+from app.domain_models import (
+    GovernancePolicy,
+    PolicyDecision,
+    PolicyType,
+    SemanticError,
+)
 
 
 def _normalize_datetime(value: datetime) -> datetime:

@@ -144,7 +144,6 @@
 @layer components {
   [data-slot="sidebar-inner"],
   [data-mobile="true"][data-slot="sidebar"] {
-    background:
-      linear-gradient(180deg, #224e78 0%, #163551 56%, #10283f 100%);
+    background: linear-gradient(180deg, #224e78 0%, #163551 56%, #10283f 100%);
   }
 }

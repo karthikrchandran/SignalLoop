@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import type { LucideIcon } from "lucide-react"
 import {
   AlertTriangle,
   BarChart3,
@@ -23,7 +23,7 @@ import {
   SlidersHorizontal,
   Users,
 } from "lucide-react"
-
+import { useMemo, useState } from "react"
 import { SidebarAppearance } from "@/components/Common/Appearance"
 import { Logo } from "@/components/Common/Logo"
 import {
@@ -33,9 +33,8 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar"
 import useAuth from "@/hooks/useAuth"
-import { cn } from "@/lib/utils"
 import { getSuiteContext } from "@/lib/signalloop-api"
-import type { LucideIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { type Item, type ItemGroup, Main } from "./Main"
 import { User } from "./User"
 
@@ -119,7 +118,9 @@ export function AppSidebar() {
   const sections = useMemo<SectionDef[]>(() => {
     const filteredBaseItems = canSignalLoop
       ? baseItems
-      : baseItems.filter((item) => ["Revenue OS", "Dashboard", "Contacts"].includes(item.title))
+      : baseItems.filter((item) =>
+          ["Revenue OS", "Dashboard", "Contacts"].includes(item.title),
+        )
     const base: SectionDef[] = [
       {
         id: "outreach",
@@ -146,8 +147,7 @@ export function AppSidebar() {
   }, [canSignalLoop, chatbotItems, currentUser?.is_superuser])
 
   const activeGroup =
-    sections.find((s) => s.id === activeSection)?.group ??
-    sections[0].group
+    sections.find((s) => s.id === activeSection)?.group ?? sections[0].group
 
   return (
     <Sidebar

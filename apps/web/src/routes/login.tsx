@@ -153,7 +153,10 @@ function Login() {
 
             <div className="relative py-1 text-center text-xs text-muted-foreground">
               <span className="relative z-10 bg-background px-2">or</span>
-              <span className="absolute inset-x-0 top-1/2 border-t" aria-hidden="true" />
+              <span
+                className="absolute inset-x-0 top-1/2 border-t"
+                aria-hidden="true"
+              />
             </div>
             <OidcLoginButton returnTo={returnTo} />
           </div>

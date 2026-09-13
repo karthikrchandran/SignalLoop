@@ -1,20 +1,32 @@
-import { useState, useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import {
-  LineChart,
+  Activity,
+  AlertTriangle,
+  Calendar,
+  TrendingDown,
+  TrendingUp,
+  Users,
+} from "lucide-react"
+import { useMemo, useState } from "react"
+import {
+  CartesianGrid,
+  Legend,
   Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
 } from "recharts"
-import { TrendingUp, TrendingDown, Users, Calendar, AlertTriangle, Activity } from "lucide-react"
-import { signalloopRequest, getWorkspaceId } from "@/lib/signalloop-api"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import {
   Select,
   SelectContent,
@@ -22,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { getWorkspaceId, signalloopRequest } from "@/lib/signalloop-api"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -78,7 +91,8 @@ function getDateRange(preset: DatePreset): { start: string; end: string } {
 }
 
 function DeltaBadge({ value }: { value: number }) {
-  const formatted = value === 0 ? "0%" : `${value > 0 ? "+" : ""}${value.toFixed(1)}%`
+  const formatted =
+    value === 0 ? "0%" : `${value > 0 ? "+" : ""}${value.toFixed(1)}%`
   if (value > 0) {
     return (
       <Badge className="bg-green-100 text-green-800 gap-1">
@@ -99,7 +113,10 @@ function DeltaBadge({ value }: { value: number }) {
 }
 
 function formatShortDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -115,7 +132,11 @@ export default function KpiDashboardPage() {
   function buildParams(extra?: Record<string, string>) {
     const p = new URLSearchParams({ start, end, granularity })
     if (campaignId !== "all") p.set("campaign_id", campaignId)
-    if (extra) Object.entries(extra).forEach(([k, v]) => p.set(k, v))
+    if (extra) {
+      for (const [k, v] of Object.entries(extra)) {
+        p.set(k, v)
+      }
+    }
     return p.toString()
   }
 
@@ -182,7 +203,9 @@ export default function KpiDashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">KPI Dashboard</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            KPI Dashboard
+          </h1>
           <p className="text-sm text-muted-foreground">
             Weekly operating rhythm — performance at a glance
           </p>
@@ -195,6 +218,7 @@ export default function KpiDashboardPage() {
             {(["7d", "30d", "90d"] as DatePreset[]).map((p) => (
               <button
                 key={p}
+                type="button"
                 onClick={() => setDatePreset(p)}
                 className={`px-3 py-1.5 text-sm font-medium transition-colors ${
                   datePreset === p
@@ -208,7 +232,10 @@ export default function KpiDashboardPage() {
           </div>
 
           {/* Granularity */}
-          <Select value={granularity} onValueChange={(v) => setGranularity(v as Granularity)}>
+          <Select
+            value={granularity}
+            onValueChange={(v) => setGranularity(v as Granularity)}
+          >
             <SelectTrigger className="w-36">
               <SelectValue placeholder="Granularity" />
             </SelectTrigger>
@@ -294,24 +321,34 @@ export default function KpiDashboardPage() {
             </div>
           ) : chartData.length === 0 ? (
             <div className="flex h-72 items-center justify-center">
-              <p className="text-sm text-muted-foreground">No data for this period.</p>
+              <p className="text-sm text-muted-foreground">
+                No data for this period.
+              </p>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={320}>
-              <LineChart data={chartData} margin={{ top: 4, right: 24, bottom: 4, left: 0 }}>
+              <LineChart
+                data={chartData}
+                margin={{ top: 4, right: 24, bottom: 4, left: 0 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis
                   dataKey="label"
                   tick={{ fontSize: 12 }}
                   className="text-muted-foreground"
                 />
-                <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                <YAxis
+                  tick={{ fontSize: 12 }}
+                  className="text-muted-foreground"
+                />
                 <Tooltip
                   contentStyle={{ fontSize: 12 }}
                   formatter={(value, name) => {
-                    const metricValue = typeof value === "number" ? value : Number(value ?? 0)
+                    const metricValue =
+                      typeof value === "number" ? value : Number(value ?? 0)
                     const metricName = String(name)
-                    if (metricName === "contacts") return [metricValue.toLocaleString(), "Contacts"]
+                    if (metricName === "contacts")
+                      return [metricValue.toLocaleString(), "Contacts"]
                     return [`${metricValue}%`, metricName]
                   }}
                 />
@@ -359,9 +396,10 @@ export default function KpiDashboardPage() {
         <div className="flex items-center gap-2 rounded-md border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>
-            <strong>{summary.current_period.provider_errors}</strong> provider error
-            {summary.current_period.provider_errors !== 1 ? "s" : ""} detected in this period.
-            Check the audit log for details.
+            <strong>{summary.current_period.provider_errors}</strong> provider
+            error
+            {summary.current_period.provider_errors !== 1 ? "s" : ""} detected
+            in this period. Check the audit log for details.
           </span>
         </div>
       )}

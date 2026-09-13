@@ -11,7 +11,7 @@ import {
   XCircle,
 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
-
+import WorkspaceHeader from "@/components/layout/WorkspaceHeader"
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -39,11 +39,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import WorkspaceHeader from "@/components/layout/WorkspaceHeader"
 import {
+  listSchedulingRequests,
   type SchedulingRequest,
   type SchedulingRequestStatus,
-  listSchedulingRequests,
   updateSchedulingRequest,
   withCalendlyState,
 } from "./api"
@@ -71,7 +70,8 @@ const statusVariant = (
 }
 
 const StatusIcon = ({ status }: { status: SchedulingRequestStatus }) => {
-  if (status === "booked") return <CheckCircle2 className="size-4 text-green-600" />
+  if (status === "booked")
+    return <CheckCircle2 className="size-4 text-green-600" />
   if (status === "link_sent") return <Send className="size-4 text-blue-500" />
   if (status === "cancelled") return <XCircle className="size-4 text-red-500" />
   return <Clock className="size-4 text-amber-500" />
@@ -100,7 +100,9 @@ export default function SchedulingPage() {
   const [count, setCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [statusFilter, setStatusFilter] = useState<SchedulingRequestStatus | "all">("all")
+  const [statusFilter, setStatusFilter] = useState<
+    SchedulingRequestStatus | "all"
+  >("all")
 
   const [selected, setSelected] = useState<SchedulingRequest | null>(null)
   const [linkInput, setLinkInput] = useState("")
@@ -186,7 +188,9 @@ export default function SchedulingPage() {
       <div className="flex flex-wrap items-center gap-3">
         <Select
           value={statusFilter}
-          onValueChange={(v) => setStatusFilter(v as SchedulingRequestStatus | "all")}
+          onValueChange={(v) =>
+            setStatusFilter(v as SchedulingRequestStatus | "all")
+          }
         >
           <SelectTrigger className="w-40">
             <SelectValue placeholder="All statuses" />
@@ -275,7 +279,10 @@ export default function SchedulingPage() {
           <DialogHeader>
             <DialogTitle>Scheduling request</DialogTitle>
             <DialogDescription>
-              Source: {selected ? SOURCE_LABELS[selected.source] ?? selected.source : "—"}
+              Source:{" "}
+              {selected
+                ? (SOURCE_LABELS[selected.source] ?? selected.source)
+                : "—"}
               {" · "}
               Status:{" "}
               <Badge
@@ -295,53 +302,58 @@ export default function SchedulingPage() {
                 </div>
               )}
 
-              {selected.status !== "booked" && selected.status !== "cancelled" && (
-                <>
-                  <div className="space-y-1.5">
-                    <Label>Calendly / booking link</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="https://calendly.com/your-link"
-                        value={linkInput}
-                        onChange={(e) => setLinkInput(e.target.value)}
-                      />
-                      {linkInput && (
-                        <Button variant="outline" size="icon" asChild>
-                          <a
-                            href={
-                              selected.calendly_state
-                                ? withCalendlyState(linkInput, selected.calendly_state)
-                                : linkInput
-                            }
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            <ExternalLink className="size-4" />
-                          </a>
-                        </Button>
-                      )}
+              {selected.status !== "booked" &&
+                selected.status !== "cancelled" && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label>Calendly / booking link</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="https://calendly.com/your-link"
+                          value={linkInput}
+                          onChange={(e) => setLinkInput(e.target.value)}
+                        />
+                        {linkInput && (
+                          <Button variant="outline" size="icon" asChild>
+                            <a
+                              href={
+                                selected.calendly_state
+                                  ? withCalendlyState(
+                                      linkInput,
+                                      selected.calendly_state,
+                                    )
+                                  : linkInput
+                              }
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <ExternalLink className="size-4" />
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        The secure booking state is appended when this link
+                        opens so Calendly can confirm only this workspace
+                        request.
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      The secure booking state is appended when this link opens so
-                      Calendly can confirm only this workspace request.
-                    </p>
-                  </div>
 
-                  <div className="space-y-1.5">
-                    <Label>Notes</Label>
-                    <Textarea
-                      rows={3}
-                      placeholder="Optional context…"
-                      value={notesInput}
-                      onChange={(e) => setNotesInput(e.target.value)}
-                    />
-                  </div>
+                    <div className="space-y-1.5">
+                      <Label>Notes</Label>
+                      <Textarea
+                        rows={3}
+                        placeholder="Optional context…"
+                        value={notesInput}
+                        onChange={(e) => setNotesInput(e.target.value)}
+                      />
+                    </div>
 
-                  {saveError && (
-                    <Alert variant="destructive">{saveError}</Alert>
-                  )}
-                </>
-              )}
+                    {saveError && (
+                      <Alert variant="destructive">{saveError}</Alert>
+                    )}
+                  </>
+                )}
             </div>
           )}
 
@@ -356,7 +368,10 @@ export default function SchedulingPage() {
                   >
                     Cancel request
                   </Button>
-                  <Button onClick={handleSendLink} disabled={saving || !linkInput.trim()}>
+                  <Button
+                    onClick={handleSendLink}
+                    disabled={saving || !linkInput.trim()}
+                  >
                     {saving ? (
                       <Loader2 className="mr-2 size-4 animate-spin" />
                     ) : (

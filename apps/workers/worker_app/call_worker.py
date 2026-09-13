@@ -41,6 +41,17 @@ from app.domain.voice.models import (
     VoiceScript,
 )
 from app.domain.voice.correlation import mint_correlation_token, token_hash
+from app.domain.commercial_agents.capacity import (
+    AgentCapacityError,
+    finalize_capacity,
+    mark_capacity_unknown,
+    release_capacity,
+    reserve_capacity,
+)
+from app.domain.commercial_agents.voice_execution import (
+    VoiceDeploymentResolutionError,
+    resolve_active_voice_deployment,
+)
 from app.domain.policies.consent_sync_service import is_contact_actionable
 from app.domain_models import (
     Campaign,
@@ -368,6 +379,32 @@ async def _initiate_one(
         session.add(call_req)
         return False
 
+    capacity_reservation_id: uuid.UUID | None = None
+    try:
+        voice_deployment = resolve_active_voice_deployment(
+            session, workspace_id=workspace_id
+        )
+        capacity_reservation = reserve_capacity(
+            session,
+            tenant_id=voice_deployment.tenant_id,
+            workspace_id=workspace_id,
+            deployment_id=voice_deployment.deployment.id,
+            capacity_metric=voice_deployment.capacity_metric,
+            idempotency_key=f"voice-call:{call_req.id}",
+        )
+        capacity_reservation_id = capacity_reservation.id
+    except (VoiceDeploymentResolutionError, AgentCapacityError) as exc:
+        call_req.status = CallRequestStatus.failed
+        _write_audit_event(
+            session,
+            workspace_id=workspace_id,
+            call_req=call_req,
+            call_sid="",
+            error=str(exc),
+        )
+        session.add(call_req)
+        return False
+
     if adapter is None:
         adapter = resolve_voice_adapter(
             session,
@@ -419,6 +456,12 @@ async def _initiate_one(
     except Exception as exc:
         logger.exception("Twilio exception for call_request=%s", call_req.id)
         call_req, call_session = _lock_dispatch_state(session, call_req.id)
+        if capacity_reservation_id is not None:
+            mark_capacity_unknown(
+                session,
+                reservation_id=capacity_reservation_id,
+                reason=exc.__class__.__name__,
+            )
         if (
             call_session.twilio_status in {None, "initiating"}
             and call_req.status
@@ -446,6 +489,14 @@ async def _initiate_one(
                 call_session.id,
             )
             return False
+        if capacity_reservation_id is not None:
+            finalize_capacity(
+                session,
+                reservation_id=capacity_reservation_id,
+                provider_receipt_id=call_sid,
+                finalized_units=1,
+                provider_units={"attempts": 1},
+            )
         if not call_session.twilio_call_sid:
             call_session.twilio_call_sid = call_sid
         if call_session.twilio_status in {None, "initiating"}:
@@ -479,6 +530,12 @@ async def _initiate_one(
             and call_req.status
             not in {CallRequestStatus.completed, CallRequestStatus.failed}
         ):
+            if capacity_reservation_id is not None:
+                release_capacity(
+                    session,
+                    reservation_id=capacity_reservation_id,
+                    reason=str(error_detail),
+                )
             call_req.status = CallRequestStatus.failed
             call_session.outcome = CallOutcome.failed
             _write_audit_event(

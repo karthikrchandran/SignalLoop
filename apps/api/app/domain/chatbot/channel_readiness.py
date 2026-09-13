@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from app.domain.chatbot.models import ChatbotChannelConfig, ChatbotChannelStatus, ChatbotChannelType
+from app.domain.chatbot.models import (
+    ChatbotChannelConfig,
+    ChatbotChannelStatus,
+    ChatbotChannelType,
+)
 from app.domain.chatbot.schemas import ChatbotChannelReadinessPublic
 
 REQUIRED_PROVIDER_FIELDS: dict[ChatbotChannelType, list[str]] = {

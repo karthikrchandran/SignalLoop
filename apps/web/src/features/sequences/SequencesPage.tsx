@@ -1,5 +1,13 @@
-import { useEffect, useState } from "react"
-import { ListOrdered, Loader2, Pencil, Plus, RefreshCw, Trash2, Users } from "lucide-react"
+import {
+  ListOrdered,
+  Loader2,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Users,
+} from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
 
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -21,7 +29,13 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { signalloopRequest } from "@/lib/signalloop-api"
@@ -80,22 +94,33 @@ const createEditableStep = (step?: SequenceStep): EditableStep => ({
   body_template: step?.body_template ?? "",
 })
 
-const statusVariant = (active: boolean): "default" | "outline" => (active ? "default" : "outline")
+const statusVariant = (active: boolean): "default" | "outline" =>
+  active ? "default" : "outline"
 
 const formatStatusLabel = (active: boolean) => (active ? "Active" : "Draft")
 
 const formatDate = (value: string) => new Date(value).toLocaleString()
 
-const formatCampaignName = (campaignId: string, campaigns: CampaignSummary[]) => {
-  return campaigns.find((campaign) => campaign.id === campaignId)?.name ?? "Unknown campaign"
+const formatCampaignName = (
+  campaignId: string,
+  campaigns: CampaignSummary[],
+) => {
+  return (
+    campaigns.find((campaign) => campaign.id === campaignId)?.name ??
+    "Unknown campaign"
+  )
 }
 
 export default function SequencesPage() {
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([])
   const [sequences, setSequences] = useState<SequenceSummary[]>([])
-  const [selectedSequenceId, setSelectedSequenceId] = useState<string | null>(null)
-  const [selectedSequence, setSelectedSequence] = useState<SequenceDetail | null>(null)
-  const [selectedProgress, setSelectedProgress] = useState<SequenceProgress | null>(null)
+  const [selectedSequenceId, setSelectedSequenceId] = useState<string | null>(
+    null,
+  )
+  const [selectedSequence, setSelectedSequence] =
+    useState<SequenceDetail | null>(null)
+  const [selectedProgress, setSelectedProgress] =
+    useState<SequenceProgress | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -108,7 +133,7 @@ export default function SequencesPage() {
   const [active, setActive] = useState(false)
   const [steps, setSteps] = useState<EditableStep[]>([createEditableStep()])
 
-  const loadIndex = async () => {
+  const loadIndex = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -119,7 +144,10 @@ export default function SequencesPage() {
       setCampaigns(campaignResponse.data)
       setSequences(sequenceResponse.data)
       setSelectedSequenceId((current) => {
-        if (current && sequenceResponse.data.some((sequence) => sequence.id === current)) {
+        if (
+          current &&
+          sequenceResponse.data.some((sequence) => sequence.id === current)
+        ) {
           return current
         }
         return sequenceResponse.data[0]?.id ?? null
@@ -128,30 +156,40 @@ export default function SequencesPage() {
         setCampaignId(campaignResponse.data[0].id)
       }
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to load sequences")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to load sequences",
+      )
     } finally {
       setLoading(false)
     }
-  }
+  }, [campaignId])
 
-  const loadSelectedSequence = async (sequenceId: string) => {
+  const loadSelectedSequence = useCallback(async (sequenceId: string) => {
     try {
       const [detail, progress] = await Promise.all([
         signalloopRequest<SequenceDetail>(`/api/v1/sequences/${sequenceId}`),
-        signalloopRequest<SequenceProgress>(`/api/v1/sequences/${sequenceId}/progress`),
+        signalloopRequest<SequenceProgress>(
+          `/api/v1/sequences/${sequenceId}/progress`,
+        ),
       ])
       setSelectedSequence(detail)
       setSelectedProgress(progress)
     } catch (requestError) {
       setSelectedSequence(null)
       setSelectedProgress(null)
-      setError(requestError instanceof Error ? requestError.message : "Failed to load sequence details")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to load sequence details",
+      )
     }
-  }
+  }, [])
 
   useEffect(() => {
     void loadIndex()
-  }, [])
+  }, [loadIndex])
 
   useEffect(() => {
     if (!selectedSequenceId) {
@@ -160,7 +198,7 @@ export default function SequencesPage() {
       return
     }
     void loadSelectedSequence(selectedSequenceId)
-  }, [selectedSequenceId])
+  }, [selectedSequenceId, loadSelectedSequence])
 
   const openCreateDialog = () => {
     setEditorMode("create")
@@ -188,7 +226,11 @@ export default function SequencesPage() {
   }
 
   const updateStep = (localId: string, patch: Partial<EditableStep>) => {
-    setSteps((current) => current.map((step) => (step.localId === localId ? { ...step, ...patch } : step)))
+    setSteps((current) =>
+      current.map((step) =>
+        step.localId === localId ? { ...step, ...patch } : step,
+      ),
+    )
   }
 
   const addStep = () => {
@@ -196,7 +238,11 @@ export default function SequencesPage() {
   }
 
   const removeStep = (localId: string) => {
-    setSteps((current) => (current.length > 1 ? current.filter((step) => step.localId !== localId) : current))
+    setSteps((current) =>
+      current.length > 1
+        ? current.filter((step) => step.localId !== localId)
+        : current,
+    )
   }
 
   const saveSequence = async () => {
@@ -212,7 +258,11 @@ export default function SequencesPage() {
       body_template: step.body_template.trim(),
     }))
 
-    if (normalizedSteps.some((step) => !step.subject_template || !step.body_template)) {
+    if (
+      normalizedSteps.some(
+        (step) => !step.subject_template || !step.body_template,
+      )
+    ) {
       setError("Each sequence step needs both a subject and a body.")
       return
     }
@@ -223,42 +273,57 @@ export default function SequencesPage() {
     try {
       let sequenceId = selectedSequence?.id
       if (editorMode === "create") {
-        const created = await signalloopRequest<SequenceSummary>("/api/v1/sequences/", {
-          method: "POST",
-          idempotent: true,
-          body: {
-            name: sequenceName.trim(),
-            campaign_id: campaignId,
+        const created = await signalloopRequest<SequenceSummary>(
+          "/api/v1/sequences/",
+          {
+            method: "POST",
+            idempotent: true,
+            body: {
+              name: sequenceName.trim(),
+              campaign_id: campaignId,
+            },
           },
-        })
+        )
         sequenceId = created.id
       } else if (sequenceId) {
-        await signalloopRequest<SequenceSummary>(`/api/v1/sequences/${sequenceId}`, {
-          method: "PUT",
-          idempotent: true,
-          body: {
-            name: sequenceName.trim(),
-            active,
+        await signalloopRequest<SequenceSummary>(
+          `/api/v1/sequences/${sequenceId}`,
+          {
+            method: "PUT",
+            idempotent: true,
+            body: {
+              name: sequenceName.trim(),
+              active,
+            },
           },
-        })
+        )
       }
 
       if (!sequenceId) {
         throw new Error("Sequence id was not returned by the API.")
       }
 
-      await signalloopRequest<SequenceDetail>(`/api/v1/sequences/${sequenceId}/steps`, {
-        method: "PUT",
-        idempotent: true,
-        body: { steps: normalizedSteps },
-      })
+      await signalloopRequest<SequenceDetail>(
+        `/api/v1/sequences/${sequenceId}/steps`,
+        {
+          method: "PUT",
+          idempotent: true,
+          body: { steps: normalizedSteps },
+        },
+      )
 
       await loadIndex()
       setSelectedSequenceId(sequenceId)
-      setFeedback(editorMode === "create" ? "Sequence created." : "Sequence updated.")
+      setFeedback(
+        editorMode === "create" ? "Sequence created." : "Sequence updated.",
+      )
       setDialogOpen(false)
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not save sequence")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Could not save sequence",
+      )
     } finally {
       setSaving(false)
     }
@@ -278,12 +343,18 @@ export default function SequencesPage() {
       })
       const deletedId = selectedSequence.id
       await loadIndex()
-      setSelectedSequenceId((current) => (current === deletedId ? null : current))
+      setSelectedSequenceId((current) =>
+        current === deletedId ? null : current,
+      )
       setSelectedSequence(null)
       setSelectedProgress(null)
       setFeedback("Sequence deleted.")
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not delete sequence")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Could not delete sequence",
+      )
     } finally {
       setSaving(false)
     }
@@ -297,7 +368,10 @@ export default function SequencesPage() {
     setError(null)
     setFeedback(null)
     try {
-      const result = await signalloopRequest<{ enrolled: number; message: string }>(
+      const result = await signalloopRequest<{
+        enrolled: number
+        message: string
+      }>(
         `/api/v1/sequences/${selectedSequence.id}/enroll/${selectedSequence.campaign_id}`,
         {
           method: "POST",
@@ -307,7 +381,11 @@ export default function SequencesPage() {
       await loadSelectedSequence(selectedSequence.id)
       setFeedback(result.message)
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not enroll contacts")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Could not enroll contacts",
+      )
     } finally {
       setEnrolling(false)
     }
@@ -322,15 +400,28 @@ export default function SequencesPage() {
             Sequences
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage live multi-step outreach flows against the backend sequence service.
+            Manage live multi-step outreach flows against the backend sequence
+            service.
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => void loadIndex()} disabled={loading}>
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+          <Button
+            variant="outline"
+            onClick={() => void loadIndex()}
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
             Refresh
           </Button>
-          <Button className="gap-2" onClick={openCreateDialog} disabled={campaigns.length === 0}>
+          <Button
+            className="gap-2"
+            onClick={openCreateDialog}
+            disabled={campaigns.length === 0}
+          >
             <Plus className="h-4 w-4" />
             New Sequence
           </Button>
@@ -350,147 +441,205 @@ export default function SequencesPage() {
 
         <TabsContent value="list">
           <div className="grid gap-6 xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
-        <Card className="border-border/70">
-          <CardHeader>
-            <CardTitle>Real sequences</CardTitle>
-            <CardDescription>
-              Loaded from the backend. Select a sequence to inspect, edit, or enroll campaign contacts.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {loading && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading sequences...
-              </div>
-            )}
-
-            {!loading && sequences.length === 0 && (
-              <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                No sequences exist yet for this workspace. Create one to start wiring campaign outreach.
-              </div>
-            )}
-
-            {sequences.map((sequence) => (
-              <button
-                key={sequence.id}
-                type="button"
-                onClick={() => setSelectedSequenceId(sequence.id)}
-                className={`w-full rounded-lg border p-4 text-left transition-colors ${
-                  selectedSequenceId === sequence.id ? "border-primary bg-primary/5" : "border-border/70 hover:border-primary/40"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{sequence.name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {formatCampaignName(sequence.campaign_id, campaigns)}
-                    </p>
-                  </div>
-                  <Badge variant={statusVariant(sequence.active)}>{formatStatusLabel(sequence.active)}</Badge>
-                </div>
-                <p className="mt-3 text-xs text-muted-foreground">Created {formatDate(sequence.created_at)}</p>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/70">
-          <CardHeader>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <CardTitle>{selectedSequence?.name ?? "Sequence details"}</CardTitle>
+            <Card className="border-border/70">
+              <CardHeader>
+                <CardTitle>Real sequences</CardTitle>
                 <CardDescription>
-                  {selectedSequence
-                    ? `Campaign: ${formatCampaignName(selectedSequence.campaign_id, campaigns)}`
-                    : "Select a sequence to view backend-backed steps and enrollment progress."}
+                  Loaded from the backend. Select a sequence to inspect, edit,
+                  or enroll campaign contacts.
                 </CardDescription>
-              </div>
-              {selectedSequence && (
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={openEditDialog}>
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={enrollSelectedSequence} disabled={enrolling}>
-                    {enrolling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Users className="mr-2 h-4 w-4" />}
-                    Enroll contacts
-                  </Button>
-                  <Button size="sm" variant="ghost" className="text-rose-500 hover:text-rose-600" onClick={deleteSelectedSequence} disabled={saving}>
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </Button>
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {!selectedSequence && !loading && (
-              <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
-                Choose a sequence from the list to inspect its real step content and campaign enrollment status.
-              </div>
-            )}
-
-            {selectedSequence && (
-              <>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <MetricCard label="Status" value={formatStatusLabel(selectedSequence.active)} />
-                  <MetricCard label="Total enrolled" value={String(selectedProgress?.total_enrolled ?? 0)} />
-                  <MetricCard label="Steps" value={String(selectedSequence.steps.length)} />
-                </div>
-
-                <div>
-                  <div className="mb-2 flex items-center gap-2">
-                    <h3 className="font-medium">Step preview</h3>
-                    <Badge variant="outline">Backend data</Badge>
-                  </div>
-                  <div className="space-y-3">
-                    {selectedSequence.steps.map((step) => (
-                      <div key={step.id} className="rounded-lg border p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-medium">Step {step.step_order}</p>
-                          <span className="text-xs text-muted-foreground">Delay: {step.delay_days} day(s)</span>
-                        </div>
-                        <p className="mt-3 text-sm font-medium">{step.subject_template}</p>
-                        <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{step.body_template}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <h3 className="font-medium">Supported personalization tokens</h3>
-                    <p className="text-sm text-muted-foreground">
-                      These tokens match the current backend sequence rendering support.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {TOKEN_LABELS.map((token) => (
-                      <Badge key={token} variant="secondary">{`{{${token}}}`}</Badge>
-                    ))}
-                  </div>
-                </div>
-
-                {selectedProgress && (
-                  <div className="space-y-3">
-                    <div>
-                      <h3 className="font-medium">Enrollment status</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Live backend progress for the selected sequence.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(selectedProgress.status_breakdown).map(([status, count]) => (
-                        <Badge key={status} variant="outline">{`${status}: ${count}`}</Badge>
-                      ))}
-                    </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {loading && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading sequences...
                   </div>
                 )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+
+                {!loading && sequences.length === 0 && (
+                  <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                    No sequences exist yet for this workspace. Create one to
+                    start wiring campaign outreach.
+                  </div>
+                )}
+
+                {sequences.map((sequence) => (
+                  <button
+                    key={sequence.id}
+                    type="button"
+                    onClick={() => setSelectedSequenceId(sequence.id)}
+                    className={`w-full rounded-lg border p-4 text-left transition-colors ${
+                      selectedSequenceId === sequence.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border/70 hover:border-primary/40"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{sequence.name}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {formatCampaignName(sequence.campaign_id, campaigns)}
+                        </p>
+                      </div>
+                      <Badge variant={statusVariant(sequence.active)}>
+                        {formatStatusLabel(sequence.active)}
+                      </Badge>
+                    </div>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Created {formatDate(sequence.created_at)}
+                    </p>
+                  </button>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/70">
+              <CardHeader>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle>
+                      {selectedSequence?.name ?? "Sequence details"}
+                    </CardTitle>
+                    <CardDescription>
+                      {selectedSequence
+                        ? `Campaign: ${formatCampaignName(selectedSequence.campaign_id, campaigns)}`
+                        : "Select a sequence to view backend-backed steps and enrollment progress."}
+                    </CardDescription>
+                  </div>
+                  {selectedSequence && (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={openEditDialog}
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={enrollSelectedSequence}
+                        disabled={enrolling}
+                      >
+                        {enrolling ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Users className="mr-2 h-4 w-4" />
+                        )}
+                        Enroll contacts
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-rose-500 hover:text-rose-600"
+                        onClick={deleteSelectedSequence}
+                        disabled={saving}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {!selectedSequence && !loading && (
+                  <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+                    Choose a sequence from the list to inspect its real step
+                    content and campaign enrollment status.
+                  </div>
+                )}
+
+                {selectedSequence && (
+                  <>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <MetricCard
+                        label="Status"
+                        value={formatStatusLabel(selectedSequence.active)}
+                      />
+                      <MetricCard
+                        label="Total enrolled"
+                        value={String(selectedProgress?.total_enrolled ?? 0)}
+                      />
+                      <MetricCard
+                        label="Steps"
+                        value={String(selectedSequence.steps.length)}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="mb-2 flex items-center gap-2">
+                        <h3 className="font-medium">Step preview</h3>
+                        <Badge variant="outline">Backend data</Badge>
+                      </div>
+                      <div className="space-y-3">
+                        {selectedSequence.steps.map((step) => (
+                          <div key={step.id} className="rounded-lg border p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-medium">
+                                Step {step.step_order}
+                              </p>
+                              <span className="text-xs text-muted-foreground">
+                                Delay: {step.delay_days} day(s)
+                              </span>
+                            </div>
+                            <p className="mt-3 text-sm font-medium">
+                              {step.subject_template}
+                            </p>
+                            <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                              {step.body_template}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <h3 className="font-medium">
+                          Supported personalization tokens
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          These tokens match the current backend sequence
+                          rendering support.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {TOKEN_LABELS.map((token) => (
+                          <Badge
+                            key={token}
+                            variant="secondary"
+                          >{`{{${token}}}`}</Badge>
+                        ))}
+                      </div>
+                    </div>
+
+                    {selectedProgress && (
+                      <div className="space-y-3">
+                        <div>
+                          <h3 className="font-medium">Enrollment status</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Live backend progress for the selected sequence.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(
+                            selectedProgress.status_breakdown,
+                          ).map(([status, count]) => (
+                            <Badge
+                              key={status}
+                              variant="outline"
+                            >{`${status}: ${count}`}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
@@ -498,10 +647,15 @@ export default function SequencesPage() {
           <Card>
             <CardHeader>
               <CardTitle>Builder</CardTitle>
-              <CardDescription>Create or edit ordered outreach steps.</CardDescription>
+              <CardDescription>
+                Create or edit ordered outreach steps.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button onClick={openCreateDialog} disabled={campaigns.length === 0}>
+              <Button
+                onClick={openCreateDialog}
+                disabled={campaigns.length === 0}
+              >
                 <Plus className="mr-2 h-4 w-4" />
                 New Sequence
               </Button>
@@ -513,17 +667,26 @@ export default function SequencesPage() {
           <Card>
             <CardHeader>
               <CardTitle>Enrollments</CardTitle>
-              <CardDescription>Current enrollment status for the selected sequence.</CardDescription>
+              <CardDescription>
+                Current enrollment status for the selected sequence.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {selectedProgress ? (
                 <div className="flex flex-wrap gap-2">
-                  {Object.entries(selectedProgress.status_breakdown).map(([status, count]) => (
-                    <Badge key={status} variant="outline">{`${status}: ${count}`}</Badge>
-                  ))}
+                  {Object.entries(selectedProgress.status_breakdown).map(
+                    ([status, count]) => (
+                      <Badge
+                        key={status}
+                        variant="outline"
+                      >{`${status}: ${count}`}</Badge>
+                    ),
+                  )}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">Select a sequence to inspect enrollments.</p>
+                <p className="text-sm text-muted-foreground">
+                  Select a sequence to inspect enrollments.
+                </p>
               )}
             </CardContent>
           </Card>
@@ -533,10 +696,14 @@ export default function SequencesPage() {
           <Card>
             <CardHeader>
               <CardTitle>Performance</CardTitle>
-              <CardDescription>Delivery and response metrics appear here when connected.</CardDescription>
+              <CardDescription>
+                Delivery and response metrics appear here when connected.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">No sequence performance data is available for this build.</p>
+              <p className="text-sm text-muted-foreground">
+                No sequence performance data is available for this build.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -545,9 +712,12 @@ export default function SequencesPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{editorMode === "create" ? "Create sequence" : "Edit sequence"}</DialogTitle>
+            <DialogTitle>
+              {editorMode === "create" ? "Create sequence" : "Edit sequence"}
+            </DialogTitle>
             <DialogDescription>
-              Persist the sequence against the real API, including ordered steps and campaign linkage.
+              Persist the sequence against the real API, including ordered steps
+              and campaign linkage.
             </DialogDescription>
           </DialogHeader>
 
@@ -555,7 +725,12 @@ export default function SequencesPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="sequence-name">Sequence name</Label>
-                <Input id="sequence-name" value={sequenceName} onChange={(event) => setSequenceName(event.target.value)} placeholder="e.g. Spring launch outreach" />
+                <Input
+                  id="sequence-name"
+                  value={sequenceName}
+                  onChange={(event) => setSequenceName(event.target.value)}
+                  placeholder="e.g. Spring launch outreach"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Campaign</Label>
@@ -565,7 +740,9 @@ export default function SequencesPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {campaigns.map((campaign) => (
-                      <SelectItem key={campaign.id} value={campaign.id}>{campaign.name}</SelectItem>
+                      <SelectItem key={campaign.id} value={campaign.id}>
+                        {campaign.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -575,7 +752,10 @@ export default function SequencesPage() {
             {editorMode === "edit" && (
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select value={active ? "active" : "draft"} onValueChange={(value) => setActive(value === "active")}>
+                <Select
+                  value={active ? "active" : "draft"}
+                  onValueChange={(value) => setActive(value === "active")}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -591,7 +771,9 @@ export default function SequencesPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="font-medium">Steps</h3>
-                  <p className="text-sm text-muted-foreground">These are saved through the real batch step upsert endpoint.</p>
+                  <p className="text-sm text-muted-foreground">
+                    These are saved through the real batch step upsert endpoint.
+                  </p>
                 </div>
                 <Button type="button" variant="outline" onClick={addStep}>
                   <Plus className="mr-2 h-4 w-4" />
@@ -600,10 +782,18 @@ export default function SequencesPage() {
               </div>
 
               {steps.map((step, index) => (
-                <div key={step.localId} className="rounded-lg border p-4 space-y-4">
+                <div
+                  key={step.localId}
+                  className="rounded-lg border p-4 space-y-4"
+                >
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-medium">Step {index + 1}</p>
-                    <Button type="button" variant="ghost" onClick={() => removeStep(step.localId)} disabled={steps.length === 1}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => removeStep(step.localId)}
+                      disabled={steps.length === 1}
+                    >
                       <Trash2 className="mr-2 h-4 w-4" />
                       Remove
                     </Button>
@@ -614,14 +804,22 @@ export default function SequencesPage() {
                       type="number"
                       min={0}
                       value={step.delay_days}
-                      onChange={(event) => updateStep(step.localId, { delay_days: Number(event.target.value) })}
+                      onChange={(event) =>
+                        updateStep(step.localId, {
+                          delay_days: Number(event.target.value),
+                        })
+                      }
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>Subject template</Label>
                     <Input
                       value={step.subject_template}
-                      onChange={(event) => updateStep(step.localId, { subject_template: event.target.value })}
+                      onChange={(event) =>
+                        updateStep(step.localId, {
+                          subject_template: event.target.value,
+                        })
+                      }
                       placeholder="Subject line"
                     />
                   </div>
@@ -629,7 +827,11 @@ export default function SequencesPage() {
                     <Label>Body template</Label>
                     <Textarea
                       value={step.body_template}
-                      onChange={(event) => updateStep(step.localId, { body_template: event.target.value })}
+                      onChange={(event) =>
+                        updateStep(step.localId, {
+                          body_template: event.target.value,
+                        })
+                      }
                       placeholder="Email body"
                     />
                   </div>
@@ -639,9 +841,20 @@ export default function SequencesPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
-            <Button onClick={() => void saveSequence()} disabled={saving || !campaignId || !sequenceName.trim()}>
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <Button
+              variant="outline"
+              onClick={() => setDialogOpen(false)}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void saveSequence()}
+              disabled={saving || !campaignId || !sequenceName.trim()}
+            >
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               {editorMode === "create" ? "Create sequence" : "Save changes"}
             </Button>
           </DialogFooter>

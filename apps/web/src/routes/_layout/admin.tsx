@@ -1,5 +1,10 @@
 import { useSuspenseQuery } from "@tanstack/react-query"
-import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router"
+import {
+  createFileRoute,
+  Outlet,
+  redirect,
+  useRouterState,
+} from "@tanstack/react-router"
 import { Suspense } from "react"
 
 import { type UserPublic, UsersService } from "@/client"
@@ -18,7 +23,11 @@ type UserWithRole = UserPublic & {
 }
 
 const isDeadLetterOperator = (user: UserWithRole) =>
-  Boolean(user.is_superuser || user.role === "operator" || user.role === "super_admin")
+  Boolean(
+    user.is_superuser ||
+      user.role === "operator" ||
+      user.role === "super_admin",
+  )
 
 const tenantAdminCapabilities = new Set([
   "tenant.members.manage",
@@ -38,11 +47,15 @@ function getUsersQueryOptions() {
 export const Route = createFileRoute("/_layout/admin")({
   component: Admin,
   beforeLoad: async ({ location }) => {
-    if (isChatbotDemoMode() && location.pathname === "/admin/chatbot/dead-letters") {
+    if (
+      isChatbotDemoMode() &&
+      location.pathname === "/admin/chatbot/dead-letters"
+    ) {
       return
     }
-    const user = await UsersService.readUserMe() as UserWithRole
-    const isDeadLettersRoute = location.pathname === "/admin/chatbot/dead-letters"
+    const user = (await UsersService.readUserMe()) as UserWithRole
+    const isDeadLettersRoute =
+      location.pathname === "/admin/chatbot/dead-letters"
     if (isDeadLettersRoute && isDeadLetterOperator(user)) {
       return
     }
@@ -53,7 +66,11 @@ export const Route = createFileRoute("/_layout/admin")({
 
     try {
       const suiteContext = await getSuiteContext()
-      if (suiteContext.capabilities.some((capability) => tenantAdminCapabilities.has(capability))) {
+      if (
+        suiteContext.capabilities.some((capability) =>
+          tenantAdminCapabilities.has(capability),
+        )
+      ) {
         return
       }
     } catch {
@@ -94,7 +111,9 @@ function UsersTable() {
 }
 
 function Admin() {
-  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
   const { user } = useAuth()
 
   if (pathname !== "/admin") {
@@ -111,7 +130,12 @@ function Admin() {
         <TenantAdminWorkspacePage
           title="Tenant overview"
           description="Manage your tenant's people, enabled products, brand, security, and messaging settings."
-          sections={["People and roles", "Products", "Security and messaging", "Tenant audit"]}
+          sections={[
+            "People and roles",
+            "Products",
+            "Security and messaging",
+            "Tenant audit",
+          ]}
         />
       </TenantAdminLayout>
     )

@@ -11,7 +11,12 @@ function TenantMembers() {
     <TenantAdminWorkspacePage
       title="People and roles"
       description="Manage memberships and role bundles for this tenant only."
-      sections={["Tenant owners", "Product administrators", "Employees and managers", "Invitation history"]}
+      sections={[
+        "Tenant owners",
+        "Product administrators",
+        "Employees and managers",
+        "Invitation history",
+      ]}
     />
   )
 }

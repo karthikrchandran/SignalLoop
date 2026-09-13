@@ -22,7 +22,7 @@ from app.domain.revenue_intelligence.persistence_models import (
     RevenueSignalRecord,
 )
 from app.domain.sequences.suppression import EmailSuppression
-from app.domain.tenants.models import Tenant
+from app.domain.tenants.models import Tenant, TenantOperationalControl
 from app.domain_models import (
     ActionQueue,
     Contact,
@@ -63,6 +63,7 @@ def _session() -> Session:
             RevenueInterventionDispatch.__table__,
             RevenueInterventionTransition.__table__,
             RevenueInterventionOutcome.__table__,
+            TenantOperationalControl.__table__,
             AuditEvent.__table__,
         ],
     )

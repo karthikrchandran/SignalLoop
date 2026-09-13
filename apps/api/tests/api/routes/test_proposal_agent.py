@@ -125,7 +125,7 @@ def test_admin_creates_grounded_generative_job_with_durable_replay(
 
 def _second_superuser_headers(db: Session) -> dict[str, str]:
     user = User(
-        email=f"proposal-approver-{uuid.uuid4().hex[:8]}@example.test",
+        email=f"proposal-approver-{uuid.uuid4().hex[:8]}@example.com",
         hashed_password="unused",
         is_active=True,
         is_superuser=True,

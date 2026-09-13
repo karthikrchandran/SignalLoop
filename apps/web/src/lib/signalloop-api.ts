@@ -42,7 +42,12 @@ export type SuiteContext = {
 export type RevenueEssentials = {
   generated_at: string
   source_freshness: Array<{ source: string; status: string; message: string }>
-  cards: Array<{ kind: string; title: string; detail: string; owner_user_id: string }>
+  cards: Array<{
+    kind: string
+    title: string
+    detail: string
+    owner_user_id: string
+  }>
   blocked_actions: string[]
 }
 
@@ -187,7 +192,10 @@ export async function signalloopRequest<T>(
     headers.set("Authorization", `Bearer ${authToken}`)
   }
   headers.set("X-Workspace-Id", options?.workspaceId || getWorkspaceId())
-  if (path === "/api/v1/me/suite-context" || path === "/api/v1/revenueos/essentials") {
+  if (
+    path === "/api/v1/me/suite-context" ||
+    path === "/api/v1/revenueos/essentials"
+  ) {
     headers.set("X-Tenant-Key", options?.workspaceId || getWorkspaceId())
   }
 

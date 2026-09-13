@@ -110,7 +110,7 @@ def test_campaign_audience_can_select_existing_contacts_by_filter(
     workspace_id = f"ws-contact-pool-{uuid.uuid4().hex[:8]}"
     campaign_response = client.post(
         f"{settings.API_V1_STR}/campaigns/",
-        headers=_headers(superuser_token_headers, workspace_id),
+        headers=_headers(superuser_token_headers, workspace_id, idempotency=True),
         json={"name": "Existing Pool Campaign"},
     )
     assert campaign_response.status_code == 200
@@ -129,7 +129,7 @@ def test_campaign_audience_can_select_existing_contacts_by_filter(
 
     response = client.post(
         f"{settings.API_V1_STR}/campaigns/{campaign_id}/audience",
-        headers=_headers(superuser_token_headers, workspace_id),
+        headers=_headers(superuser_token_headers, workspace_id, idempotency=True),
         json={
             "segment_name": "SaaS leads",
             "rules": [{"field_name": "company", "operator": "contains", "value": "SaaS"}],

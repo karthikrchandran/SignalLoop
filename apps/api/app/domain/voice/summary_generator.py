@@ -3,9 +3,8 @@ from __future__ import annotations
 
 import html
 from dataclasses import dataclass
-from datetime import datetime
 
-from app.domain.voice.models import CallOutcome, CallSession
+from app.domain.voice.models import CallSession
 
 
 @dataclass

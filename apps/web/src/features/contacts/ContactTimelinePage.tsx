@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react"
 import { RefreshCw } from "lucide-react"
+import { type ReactNode, useCallback, useEffect, useState } from "react"
 
 import { AuditLogEntry } from "@/components/AuditLogEntry"
 import { AutomationCard, type TimelineEvent } from "@/components/AutomationCard"
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Sheet,
   SheetContent,
@@ -81,54 +82,55 @@ export default function ContactTimelinePage({
   const [detail, setDetail] = useState<TimelineEventDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
 
-  async function fetchTimeline({
-    reset = false,
-    cursor = null,
-    filters = { eventTypes, fromDate, toDate },
-  }: {
-    reset?: boolean
-    cursor?: string | null
-    filters?: TimelineFilters
-  } = {}) {
-    setLoading(true)
-    setError(null)
+  const fetchTimeline = useCallback(
+    async ({
+      reset = false,
+      cursor = null,
+      filters = { eventTypes, fromDate, toDate },
+    }: {
+      reset?: boolean
+      cursor?: string | null
+      filters?: TimelineFilters
+    } = {}) => {
+      setLoading(true)
+      setError(null)
 
-    try {
-      const params = new URLSearchParams()
-      params.set("limit", String(limit))
-      if (campaignId) params.set("campaign_id", campaignId)
-      if (cursor) params.set("cursor", cursor)
-      if (filters.eventTypes.length > 0) {
-        params.set("event_type", filters.eventTypes.join(","))
+      try {
+        const params = new URLSearchParams()
+        params.set("limit", String(limit))
+        if (campaignId) params.set("campaign_id", campaignId)
+        if (cursor) params.set("cursor", cursor)
+        if (filters.eventTypes.length > 0) {
+          params.set("event_type", filters.eventTypes.join(","))
+        }
+        if (filters.fromDate)
+          params.set("from", startOfDayIso(filters.fromDate))
+        if (filters.toDate) params.set("to", endOfDayIso(filters.toDate))
+
+        const result = await signalloopRequest<TimelinePage>(
+          `/api/v1/contacts/${contactId}/timeline?${params.toString()}`,
+        )
+        if (reset || !cursor) {
+          setEvents(result.data)
+        } else {
+          setEvents((prev) => [...prev, ...result.data])
+        }
+        setTotal(result.count)
+        setNextCursor(result.next_cursor ?? null)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load timeline")
+      } finally {
+        setLoading(false)
       }
-      if (filters.fromDate) params.set("from", startOfDayIso(filters.fromDate))
-      if (filters.toDate) params.set("to", endOfDayIso(filters.toDate))
-
-      const result = await signalloopRequest<TimelinePage>(
-        `/api/v1/contacts/${contactId}/timeline?${params.toString()}`,
-      )
-      if (reset || !cursor) {
-        setEvents(result.data)
-      } else {
-        setEvents((prev) => [...prev, ...result.data])
-      }
-      setTotal(result.count)
-      setNextCursor(result.next_cursor ?? null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load timeline")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const eventTypesKey = eventTypes.join(",")
+    },
+    [campaignId, contactId, eventTypes, fromDate, toDate],
+  )
 
   useEffect(() => {
     if (contactId) {
       void fetchTimeline({ reset: true })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contactId, campaignId, eventTypesKey, fromDate, toDate])
+  }, [contactId, fetchTimeline])
 
   async function handleEventClick(event: TimelineEvent) {
     setSelectedEvent(event)
@@ -192,28 +194,36 @@ export default function ContactTimelinePage({
 
       <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-card p-4">
         <div className="flex min-w-72 flex-col gap-1">
-          <label className="text-xs text-muted-foreground">Event types</label>
+          <span className="text-xs text-muted-foreground">Event types</span>
           <div className="flex flex-wrap gap-2 rounded-md border px-3 py-2">
             {EVENT_TYPE_OPTIONS.map((option) => (
-              <label
+              <Label
                 key={option.value}
+                htmlFor={`event-type-${option.value}`}
                 className="flex items-center gap-1.5 text-sm text-foreground"
               >
                 <Checkbox
+                  id={`event-type-${option.value}`}
                   checked={eventTypes.includes(option.value)}
                   onCheckedChange={(checked) =>
                     toggleEventType(option.value, checked === true)
                   }
                 />
                 {option.label}
-              </label>
+              </Label>
             ))}
           </div>
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">From</label>
+          <Label
+            htmlFor="timeline-from-date"
+            className="text-xs text-muted-foreground"
+          >
+            From
+          </Label>
           <Input
+            id="timeline-from-date"
             type="date"
             value={fromDate}
             onChange={(event) => setFromDate(event.target.value)}
@@ -222,8 +232,14 @@ export default function ContactTimelinePage({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">To</label>
+          <Label
+            htmlFor="timeline-to-date"
+            className="text-xs text-muted-foreground"
+          >
+            To
+          </Label>
           <Input
+            id="timeline-to-date"
             type="date"
             value={toDate}
             onChange={(event) => setToDate(event.target.value)}
@@ -231,7 +247,12 @@ export default function ContactTimelinePage({
           />
         </div>
 
-        <Button size="sm" variant="ghost" onClick={resetFilters} disabled={loading}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={resetFilters}
+          disabled={loading}
+        >
           Reset
         </Button>
       </div>
@@ -305,9 +326,13 @@ export default function ContactTimelinePage({
                 actor={detail.actor}
               />
 
-              {detail.channel && <DetailRow label="Channel">{detail.channel}</DetailRow>}
+              {detail.channel && (
+                <DetailRow label="Channel">{detail.channel}</DetailRow>
+              )}
 
-              {detail.outcome && <DetailRow label="Outcome">{detail.outcome}</DetailRow>}
+              {detail.outcome && (
+                <DetailRow label="Outcome">{detail.outcome}</DetailRow>
+              )}
 
               {detail.reason_code && (
                 <DetailRow label="Reason code">
@@ -322,16 +347,22 @@ export default function ContactTimelinePage({
               )}
 
               {detail.confidence_tier && (
-                <DetailRow label="Confidence">{detail.confidence_tier}</DetailRow>
+                <DetailRow label="Confidence">
+                  {detail.confidence_tier}
+                </DetailRow>
               )}
 
               {detail.template_ref && (
                 <DetailRow label="Template">
-                  <span className="font-mono text-xs">{detail.template_ref}</span>
+                  <span className="font-mono text-xs">
+                    {detail.template_ref}
+                  </span>
                 </DetailRow>
               )}
 
-              {detail.rule_name && <DetailRow label="Rule">{detail.rule_name}</DetailRow>}
+              {detail.rule_name && (
+                <DetailRow label="Rule">{detail.rule_name}</DetailRow>
+              )}
 
               {detail.rule_condition && (
                 <DetailRow label="Condition">
@@ -354,7 +385,10 @@ export default function ContactTimelinePage({
               )}
 
               <DetailRow label="Event ID">
-                <Badge variant="secondary" className="break-all font-mono text-xs">
+                <Badge
+                  variant="secondary"
+                  className="break-all font-mono text-xs"
+                >
                   {detail.id}
                 </Badge>
               </DetailRow>

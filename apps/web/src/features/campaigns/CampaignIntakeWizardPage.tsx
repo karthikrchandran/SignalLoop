@@ -1,10 +1,16 @@
-import { useEffect, useMemo, useState } from "react"
 import { CheckCircle2, Loader2, Search, Users } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -68,13 +74,22 @@ const audienceModes = [
 
 type AudienceMode = (typeof audienceModes)[number]["value"]
 
-const filterFields = ["email", "firstName", "lastName", "company", "phone", "timezone"]
+const filterFields = [
+  "email",
+  "firstName",
+  "lastName",
+  "company",
+  "phone",
+  "timezone",
+]
 const segmentOperators = ["equals", "contains", "startsWith", "in-list"]
 
 const steps = ["Draft basics", "Audience and segment", "Launch setup"]
 
 function contactName(contact: Contact) {
-  return [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "-"
+  return (
+    [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "-"
+  )
 }
 
 export default function CampaignIntakeWizardPage() {
@@ -90,9 +105,12 @@ export default function CampaignIntakeWizardPage() {
   const [segmentField, setSegmentField] = useState("company")
   const [segmentOperator, setSegmentOperator] = useState("contains")
   const [segmentValue, setSegmentValue] = useState("")
-  const [audienceResult, setAudienceResult] = useState<CampaignAudiencePublic | null>(null)
+  const [audienceResult, setAudienceResult] =
+    useState<CampaignAudiencePublic | null>(null)
   const [offerPackVersionId, setOfferPackVersionId] = useState("")
-  const [assignableOfferPacks, setAssignableOfferPacks] = useState<OfferPackPublic[]>([])
+  const [assignableOfferPacks, setAssignableOfferPacks] = useState<
+    OfferPackPublic[]
+  >([])
   const [channelStrategy, setChannelStrategy] = useState('{"channel":"email"}')
   const [feedback, setFeedback] = useState("")
   const [busy, setBusy] = useState(false)
@@ -106,29 +124,43 @@ export default function CampaignIntakeWizardPage() {
       return segmentValue.trim().length > 0
     }
     return channelStrategy.trim().length > 1
-  }, [step, campaignName, audienceMode, contactCount, selectedContactIds.length, segmentValue, channelStrategy])
+  }, [
+    step,
+    campaignName,
+    audienceMode,
+    contactCount,
+    selectedContactIds.length,
+    segmentValue,
+    channelStrategy,
+  ])
 
-  async function loadContacts(nextSearch = contactSearch) {
-    setLoadingContacts(true)
-    try {
-      const params = new URLSearchParams()
-      if (nextSearch.trim()) params.set("search", nextSearch.trim())
-      const response = await signalloopRequest<ContactsResponse>(`/api/v1/contacts/?${params.toString()}`)
-      setContacts(response.data)
-      setContactCount(response.count)
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "Failed to load contacts")
-    } finally {
-      setLoadingContacts(false)
-    }
-  }
+  const loadContacts = useCallback(
+    async (nextSearch = contactSearch) => {
+      setLoadingContacts(true)
+      try {
+        const params = new URLSearchParams()
+        if (nextSearch.trim()) params.set("search", nextSearch.trim())
+        const response = await signalloopRequest<ContactsResponse>(
+          `/api/v1/contacts/?${params.toString()}`,
+        )
+        setContacts(response.data)
+        setContactCount(response.count)
+      } catch (error) {
+        setFeedback(
+          error instanceof Error ? error.message : "Failed to load contacts",
+        )
+      } finally {
+        setLoadingContacts(false)
+      }
+    },
+    [contactSearch],
+  )
 
   useEffect(() => {
     if (step === 1) {
       void loadContacts("")
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step])
+  }, [step, loadContacts])
 
   useEffect(() => {
     if (step !== 2 || !campaignId) {
@@ -138,11 +170,15 @@ export default function CampaignIntakeWizardPage() {
     let cancelled = false
     const loadAssignableOfferPacks = async () => {
       try {
-        const response = await signalloopRequest<OfferPacksPublic>("/api/v1/offer-packs/assignable")
+        const response = await signalloopRequest<OfferPacksPublic>(
+          "/api/v1/offer-packs/assignable",
+        )
         if (!cancelled) {
           setAssignableOfferPacks(response.data)
           if (!offerPackVersionId) {
-            const defaultVersion = response.data.find((pack) => pack.current_version?.is_default)?.current_version
+            const defaultVersion = response.data.find(
+              (pack) => pack.current_version?.is_default,
+            )?.current_version
             if (defaultVersion) {
               setOfferPackVersionId(defaultVersion.id)
             }
@@ -150,7 +186,11 @@ export default function CampaignIntakeWizardPage() {
         }
       } catch (error) {
         if (!cancelled) {
-          setFeedback(error instanceof Error ? error.message : "Failed to load assignable offer packs")
+          setFeedback(
+            error instanceof Error
+              ? error.message
+              : "Failed to load assignable offer packs",
+          )
         }
       }
     }
@@ -175,10 +215,13 @@ export default function CampaignIntakeWizardPage() {
 
   const createCampaign = async () => {
     await runWithFeedback(async () => {
-      const campaign = await signalloopRequest<CampaignPublic>("/api/v1/campaigns/", {
-        method: "POST",
-        body: { name: campaignName.trim() },
-      })
+      const campaign = await signalloopRequest<CampaignPublic>(
+        "/api/v1/campaigns/",
+        {
+          method: "POST",
+          body: { name: campaignName.trim() },
+        },
+      )
       setCampaignId(campaign.id)
       setFeedback(`Draft ${campaign.name} created.`)
       setStep(1)
@@ -189,9 +232,16 @@ export default function CampaignIntakeWizardPage() {
     if (!campaignId) return
 
     await runWithFeedback(async () => {
-      const rules = audienceMode === "filtered"
-        ? [{ field_name: segmentField, operator: segmentOperator, value: segmentValue }]
-        : []
+      const rules =
+        audienceMode === "filtered"
+          ? [
+              {
+                field_name: segmentField,
+                operator: segmentOperator,
+                value: segmentValue,
+              },
+            ]
+          : []
       const result = await signalloopRequest<CampaignAudiencePublic>(
         `/api/v1/campaigns/${campaignId}/audience`,
         {
@@ -199,13 +249,16 @@ export default function CampaignIntakeWizardPage() {
           body: {
             include_all_contacts: audienceMode === "all",
             contact_ids: audienceMode === "selected" ? selectedContactIds : [],
-            segment_name: audienceMode === "all" ? null : segmentName.trim() || null,
+            segment_name:
+              audienceMode === "all" ? null : segmentName.trim() || null,
             rules,
           },
         },
       )
       setAudienceResult(result)
-      setFeedback(`Audience ready: ${result.selected_count} selected, ${result.added_count} newly assigned.`)
+      setFeedback(
+        `Audience ready: ${result.selected_count} selected, ${result.added_count} newly assigned.`,
+      )
       setStep(2)
     })
   }
@@ -242,20 +295,28 @@ export default function CampaignIntakeWizardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Campaign draft builder</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">
+          Campaign draft builder
+        </h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Create a draft, choose an audience, and line up the launch details before the campaign goes live.
+          Create a draft, choose an audience, and line up the launch details
+          before the campaign goes live.
         </p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Progress</CardTitle>
-          <CardDescription>{steps.map((item, index) => `${index + 1}. ${item}`).join("  |  ")}</CardDescription>
+          <CardDescription>
+            {steps.map((item, index) => `${index + 1}. ${item}`).join("  |  ")}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-sm">
-            Current step: <strong>{step + 1}. {steps[step]}</strong>
+            Current step:{" "}
+            <strong>
+              {step + 1}. {steps[step]}
+            </strong>
           </p>
         </CardContent>
       </Card>
@@ -267,7 +328,12 @@ export default function CampaignIntakeWizardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <Label htmlFor="campaignName">Draft name</Label>
-            <Input id="campaignName" value={campaignName} onChange={(event) => setCampaignName(event.target.value)} placeholder="Q2 Product Outreach" />
+            <Input
+              id="campaignName"
+              value={campaignName}
+              onChange={(event) => setCampaignName(event.target.value)}
+              placeholder="Q2 Product Outreach"
+            />
           </CardContent>
         </Card>
       )}
@@ -276,7 +342,9 @@ export default function CampaignIntakeWizardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Step 2: Audience and segment</CardTitle>
-            <CardDescription>{contactCount} available contact{contactCount === 1 ? "" : "s"}</CardDescription>
+            <CardDescription>
+              {contactCount} available contact{contactCount === 1 ? "" : "s"}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="grid gap-3 md:grid-cols-3">
@@ -301,7 +369,11 @@ export default function CampaignIntakeWizardPage() {
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
                   <Label htmlFor="segmentName">Subset name</Label>
-                  <Input id="segmentName" value={segmentName} onChange={(event) => setSegmentName(event.target.value)} />
+                  <Input
+                    id="segmentName"
+                    value={segmentName}
+                    onChange={(event) => setSegmentName(event.target.value)}
+                  />
                 </div>
                 {audienceMode === "filtered" && (
                   <div className="grid grid-cols-3 gap-2">
@@ -311,9 +383,15 @@ export default function CampaignIntakeWizardPage() {
                         id="segmentField"
                         className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                         value={segmentField}
-                        onChange={(event) => setSegmentField(event.target.value)}
+                        onChange={(event) =>
+                          setSegmentField(event.target.value)
+                        }
                       >
-                        {filterFields.map((field) => <option key={field} value={field}>{field}</option>)}
+                        {filterFields.map((field) => (
+                          <option key={field} value={field}>
+                            {field}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div>
@@ -322,14 +400,26 @@ export default function CampaignIntakeWizardPage() {
                         id="segmentOperator"
                         className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                         value={segmentOperator}
-                        onChange={(event) => setSegmentOperator(event.target.value)}
+                        onChange={(event) =>
+                          setSegmentOperator(event.target.value)
+                        }
                       >
-                        {segmentOperators.map((operator) => <option key={operator} value={operator}>{operator}</option>)}
+                        {segmentOperators.map((operator) => (
+                          <option key={operator} value={operator}>
+                            {operator}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div>
                       <Label htmlFor="segmentValue">Value</Label>
-                      <Input id="segmentValue" value={segmentValue} onChange={(event) => setSegmentValue(event.target.value)} />
+                      <Input
+                        id="segmentValue"
+                        value={segmentValue}
+                        onChange={(event) =>
+                          setSegmentValue(event.target.value)
+                        }
+                      />
                     </div>
                   </div>
                 )}
@@ -349,8 +439,16 @@ export default function CampaignIntakeWizardPage() {
                   placeholder="Search contacts"
                 />
               </div>
-              <Button variant="outline" onClick={() => void loadContacts(contactSearch)} disabled={loadingContacts}>
-                {loadingContacts ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Search className="mr-2 size-4" />}
+              <Button
+                variant="outline"
+                onClick={() => void loadContacts(contactSearch)}
+                disabled={loadingContacts}
+              >
+                {loadingContacts ? (
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                ) : (
+                  <Search className="mr-2 size-4" />
+                )}
                 Search
               </Button>
             </div>
@@ -358,7 +456,9 @@ export default function CampaignIntakeWizardPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {audienceMode === "selected" && <TableHead className="w-12">Pick</TableHead>}
+                  {audienceMode === "selected" && (
+                    <TableHead className="w-12">Pick</TableHead>
+                  )}
                   <TableHead>Email</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Company</TableHead>
@@ -369,7 +469,10 @@ export default function CampaignIntakeWizardPage() {
               <TableBody>
                 {contacts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={audienceMode === "selected" ? 6 : 5} className="py-10 text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={audienceMode === "selected" ? 6 : 5}
+                      className="py-10 text-center text-muted-foreground"
+                    >
                       No contacts found.
                     </TableCell>
                   </TableRow>
@@ -380,14 +483,22 @@ export default function CampaignIntakeWizardPage() {
                         <TableCell>
                           <Checkbox
                             checked={selectedContactIds.includes(contact.id)}
-                            onCheckedChange={(checked) => toggleContact(contact.id, checked === true)}
+                            onCheckedChange={(checked) =>
+                              toggleContact(contact.id, checked === true)
+                            }
                           />
                         </TableCell>
                       )}
-                      <TableCell className="font-medium">{contact.email}</TableCell>
+                      <TableCell className="font-medium">
+                        {contact.email}
+                      </TableCell>
                       <TableCell>{contactName(contact)}</TableCell>
                       <TableCell>{contact.company || "-"}</TableCell>
-                      <TableCell>{contact.phone || <Badge variant="outline">No phone</Badge>}</TableCell>
+                      <TableCell>
+                        {contact.phone || (
+                          <Badge variant="outline">No phone</Badge>
+                        )}
+                      </TableCell>
                       <TableCell>{contact.timezone || "UTC"}</TableCell>
                     </TableRow>
                   ))
@@ -403,7 +514,9 @@ export default function CampaignIntakeWizardPage() {
           <CardHeader>
             <CardTitle>Step 3: Launch setup</CardTitle>
             {audienceResult && (
-              <CardDescription>{audienceResult.selected_count} contacts assigned to this draft</CardDescription>
+              <CardDescription>
+                {audienceResult.selected_count} contacts assigned to this draft
+              </CardDescription>
             )}
           </CardHeader>
           <CardContent className="space-y-3">
@@ -425,7 +538,8 @@ export default function CampaignIntakeWizardPage() {
                     const defaultLabel = current.is_default ? " (default)" : ""
                     return (
                       <option key={current.id} value={current.id}>
-                        {pack.name} - {versionLabel}{defaultLabel}
+                        {pack.name} - {versionLabel}
+                        {defaultLabel}
                       </option>
                     )
                   })}
@@ -433,7 +547,11 @@ export default function CampaignIntakeWizardPage() {
             </div>
             <div>
               <Label htmlFor="channelStrategy">Channel strategy JSON</Label>
-              <Input id="channelStrategy" value={channelStrategy} onChange={(event) => setChannelStrategy(event.target.value)} />
+              <Input
+                id="channelStrategy"
+                value={channelStrategy}
+                onChange={(event) => setChannelStrategy(event.target.value)}
+              />
             </div>
           </CardContent>
         </Card>
@@ -454,7 +572,13 @@ export default function CampaignIntakeWizardPage() {
           Back
         </Button>
         <Button onClick={onContinue} disabled={!canMoveForward || busy}>
-          {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : step === 1 ? <Users className="mr-2 size-4" /> : <CheckCircle2 className="mr-2 size-4" />}
+          {busy ? (
+            <Loader2 className="mr-2 size-4 animate-spin" />
+          ) : step === 1 ? (
+            <Users className="mr-2 size-4" />
+          ) : (
+            <CheckCircle2 className="mr-2 size-4" />
+          )}
           {step === steps.length - 1 ? "Save draft setup" : "Continue"}
         </Button>
       </div>

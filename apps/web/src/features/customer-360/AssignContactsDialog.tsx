@@ -62,7 +62,8 @@ export default function AssignContactsDialog({
   const availableContacts = useMemo(
     () =>
       contacts.filter(
-        (contact) => !contact.account_id && !existingContactIdSet.has(contact.id),
+        (contact) =>
+          !contact.account_id && !existingContactIdSet.has(contact.id),
       ),
     [contacts, existingContactIdSet],
   )

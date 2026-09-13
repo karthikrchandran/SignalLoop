@@ -17,7 +17,7 @@ from app.domain.revenue_intelligence.persistence_models import (
     RevenueInterventionTransition,
     RevenueSignalRecord,
 )
-from app.domain.tenants.models import Tenant, utc_now
+from app.domain.tenants.models import Tenant, TenantOperationalControl, utc_now
 
 
 def _session() -> Session:
@@ -31,6 +31,7 @@ def _session() -> Session:
             RevenueInterventionDispatch.__table__,
             RevenueInterventionTransition.__table__,
             RevenueInterventionOutcome.__table__,
+            TenantOperationalControl.__table__,
             AuditEvent.__table__,
         ],
     )

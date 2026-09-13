@@ -14,8 +14,10 @@ export async function signUpNewUser(
   await page.getByTestId("confirm-password-input").fill(password)
 
   const signupResponse = page.waitForResponse((response) => {
-    return response.url().includes("/api/v1/users/signup")
-      && response.request().method() === "POST"
+    return (
+      response.url().includes("/api/v1/users/signup") &&
+      response.request().method() === "POST"
+    )
   })
   await page.getByRole("button", { name: "Sign Up" }).click()
   await signupResponse

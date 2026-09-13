@@ -33,9 +33,24 @@ test("employee sees CommitArc and RevenueOS Essentials but no SignalLoop authori
         roles: ["EMPLOYEE"],
         capabilities: ["revenueos.essentials.read"],
         products: {
-          commitarc: { visible: true, mode: "FULL", href: "/commitarc", capabilities: [] },
-          revenueos: { visible: true, mode: "ESSENTIALS", href: "/", capabilities: ["revenueos.essentials.read"] },
-          signalloop: { visible: false, mode: null, href: null, capabilities: [] },
+          commitarc: {
+            visible: true,
+            mode: "FULL",
+            href: "/commitarc",
+            capabilities: [],
+          },
+          revenueos: {
+            visible: true,
+            mode: "ESSENTIALS",
+            href: "/",
+            capabilities: ["revenueos.essentials.read"],
+          },
+          signalloop: {
+            visible: false,
+            mode: null,
+            href: null,
+            capabilities: [],
+          },
         },
         default_route: "/",
       }),
@@ -51,13 +66,16 @@ test("employee sees CommitArc and RevenueOS Essentials but no SignalLoop authori
           {
             source: "CommitArc",
             status: "UNAVAILABLE",
-            message: "No signed CommitArc projection has been received for this tenant.",
+            message:
+              "No signed CommitArc projection has been received for this tenant.",
             observed_at: null,
           },
         ],
         cards: [],
         metrics: [],
-        blocked_actions: ["Connect a signed CommitArc projection before recommendations can be generated."],
+        blocked_actions: [
+          "Connect a signed CommitArc projection before recommendations can be generated.",
+        ],
         permitted_questions: [],
         personal_goals: [],
         intervention_outcomes: [],
@@ -74,7 +92,11 @@ test("employee sees CommitArc and RevenueOS Essentials but no SignalLoop authori
     page.getByRole("link", { name: "RevenueOS Essentials", exact: true }),
   ).toBeVisible()
   await expect(
-    page.getByText("No signed CommitArc projection has been received for this tenant."),
+    page.getByText(
+      "No signed CommitArc projection has been received for this tenant.",
+    ),
   ).toBeVisible()
-  await expect(page.getByRole("link", { name: /Open campaigns/i })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: /Open campaigns/i })).toHaveCount(
+    0,
+  )
 })

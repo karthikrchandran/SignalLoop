@@ -21,8 +21,20 @@ const CAMPAIGNS = [
 ]
 
 const SEQUENCES = [
-  { id: "seq-1", campaign_id: "camp-1", name: "Welcome Drip", active: true, created_at: "2025-01-01T00:00:00Z" },
-  { id: "seq-2", campaign_id: "camp-2", name: "Follow-Up", active: false, created_at: "2025-01-02T00:00:00Z" },
+  {
+    id: "seq-1",
+    campaign_id: "camp-1",
+    name: "Welcome Drip",
+    active: true,
+    created_at: "2025-01-01T00:00:00Z",
+  },
+  {
+    id: "seq-2",
+    campaign_id: "camp-2",
+    name: "Follow-Up",
+    active: false,
+    created_at: "2025-01-02T00:00:00Z",
+  },
 ]
 
 const SEQ_DETAIL = {
@@ -32,12 +44,27 @@ const SEQ_DETAIL = {
   active: true,
   created_at: "2025-01-01T00:00:00Z",
   steps: [
-    { id: "step-1", step_order: 1, delay_days: 0, subject_template: "Hi!", body_template: "Welcome." },
-    { id: "step-2", step_order: 2, delay_days: 3, subject_template: "Follow-up", body_template: "Checking in." },
+    {
+      id: "step-1",
+      step_order: 1,
+      delay_days: 0,
+      subject_template: "Hi!",
+      body_template: "Welcome.",
+    },
+    {
+      id: "step-2",
+      step_order: 2,
+      delay_days: 3,
+      subject_template: "Follow-up",
+      body_template: "Checking in.",
+    },
   ],
 }
 
-const SEQ_PROGRESS = { total_enrolled: 5, status_breakdown: { inbox: 3, replied: 2 } }
+const SEQ_PROGRESS = {
+  total_enrolled: 5,
+  status_breakdown: { inbox: 3, replied: 2 },
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -55,7 +82,12 @@ test.beforeEach(async ({ page }) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ id: "user-1", email: "admin@example.com", full_name: "Admin", is_superuser: true }),
+      body: JSON.stringify({
+        id: "user-1",
+        email: "admin@example.com",
+        full_name: "Admin",
+        is_superuser: true,
+      }),
     })
   })
 
@@ -108,7 +140,9 @@ test("Sequences page loads and shows the sequence list", async ({ page }) => {
   await expect(page.getByRole("tab", { name: "Builder" })).toBeVisible()
   await expect(page.getByRole("tab", { name: "Enrollments" })).toBeVisible()
   await expect(page.getByRole("tab", { name: "Performance" })).toBeVisible()
-  await expect(page.getByRole("button", { name: /Welcome Drip/i })).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: /Welcome Drip/i }),
+  ).toBeVisible()
   await expect(page.getByRole("button", { name: /Follow-Up/i })).toBeVisible()
 })
 
@@ -116,7 +150,9 @@ test("Sequences page loads and shows the sequence list", async ({ page }) => {
 // Create
 // ---------------------------------------------------------------------------
 
-test("Create new sequence opens dialog, submits, and shows success feedback", async ({ page }) => {
+test("Create new sequence opens dialog, submits, and shows success feedback", async ({
+  page,
+}) => {
   let postCalled = false
   let stepsPutCalled = false
 
@@ -134,7 +170,13 @@ test("Create new sequence opens dialog, submits, and shows success feedback", as
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ id: "seq-new", campaign_id: "camp-1", name: "New Seq", active: false, created_at: "2025-01-03T00:00:00Z" }),
+        body: JSON.stringify({
+          id: "seq-new",
+          campaign_id: "camp-1",
+          name: "New Seq",
+          active: false,
+          created_at: "2025-01-03T00:00:00Z",
+        }),
       })
       return
     }
@@ -146,7 +188,14 @@ test("Create new sequence opens dialog, submits, and shows success feedback", as
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ id: "seq-new", campaign_id: "camp-1", name: "New Seq", active: false, created_at: "2025-01-03T00:00:00Z", steps: [] }),
+      body: JSON.stringify({
+        id: "seq-new",
+        campaign_id: "camp-1",
+        name: "New Seq",
+        active: false,
+        created_at: "2025-01-03T00:00:00Z",
+        steps: [],
+      }),
     })
   })
 
@@ -154,12 +203,23 @@ test("Create new sequence opens dialog, submits, and shows success feedback", as
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ id: "seq-new", campaign_id: "camp-1", name: "New Seq", active: false, created_at: "2025-01-03T00:00:00Z", steps: [] }),
+      body: JSON.stringify({
+        id: "seq-new",
+        campaign_id: "camp-1",
+        name: "New Seq",
+        active: false,
+        created_at: "2025-01-03T00:00:00Z",
+        steps: [],
+      }),
     })
   })
 
   await page.route("**/api/v1/sequences/seq-new/progress", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SEQ_PROGRESS) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SEQ_PROGRESS),
+    })
   })
 
   await page.route("**/api/v1/sequences/seq-1", async (route) => {
@@ -171,7 +231,11 @@ test("Create new sequence opens dialog, submits, and shows success feedback", as
   })
 
   await page.route("**/api/v1/sequences/seq-1/progress", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SEQ_PROGRESS) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SEQ_PROGRESS),
+    })
   })
 
   await page.goto("/sequences")
@@ -193,12 +257,18 @@ test("Create new sequence opens dialog, submits, and shows success feedback", as
 // Edit
 // ---------------------------------------------------------------------------
 
-test("Edit existing sequence sends PUT and shows success feedback", async ({ page }) => {
+test("Edit existing sequence sends PUT and shows success feedback", async ({
+  page,
+}) => {
   let putCalled = false
 
   await page.route("**/api/v1/sequences/", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: SEQUENCES }) })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: SEQUENCES }),
+      })
       return
     }
     await route.continue()
@@ -206,23 +276,39 @@ test("Edit existing sequence sends PUT and shows success feedback", async ({ pag
 
   await page.route("**/api/v1/sequences/seq-1", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SEQ_DETAIL) })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(SEQ_DETAIL),
+      })
       return
     }
     if (route.request().method() === "PUT") {
       putCalled = true
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...SEQ_DETAIL, name: "Renamed" }) })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ...SEQ_DETAIL, name: "Renamed" }),
+      })
       return
     }
     await route.continue()
   })
 
   await page.route("**/api/v1/sequences/seq-1/progress", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SEQ_PROGRESS) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SEQ_PROGRESS),
+    })
   })
 
   await page.route("**/api/v1/sequences/seq-1/steps", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...SEQ_DETAIL, steps: [] }) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ...SEQ_DETAIL, steps: [] }),
+    })
   })
 
   await page.goto("/sequences")
@@ -243,12 +329,18 @@ test("Edit existing sequence sends PUT and shows success feedback", async ({ pag
 // Delete
 // ---------------------------------------------------------------------------
 
-test("Delete sequence sends DELETE and removes item from list", async ({ page }) => {
+test("Delete sequence sends DELETE and removes item from list", async ({
+  page,
+}) => {
   let deleteCalled = false
 
   await page.route("**/api/v1/sequences/", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: SEQUENCES }) })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: SEQUENCES }),
+      })
       return
     }
     await route.continue()
@@ -256,24 +348,39 @@ test("Delete sequence sends DELETE and removes item from list", async ({ page })
 
   await page.route("**/api/v1/sequences/seq-1", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SEQ_DETAIL) })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(SEQ_DETAIL),
+      })
       return
     }
     if (route.request().method() === "DELETE") {
       deleteCalled = true
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ message: "Sequence deleted" }) })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Sequence deleted" }),
+      })
       return
     }
     await route.continue()
   })
 
   await page.route("**/api/v1/sequences/seq-1/progress", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SEQ_PROGRESS) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SEQ_PROGRESS),
+    })
   })
 
   await page.goto("/sequences")
 
-  await page.getByRole("button", { name: /delete/i }).first().click()
+  await page
+    .getByRole("button", { name: /delete/i })
+    .first()
+    .click()
 
   await expect(page.getByText(/^Sequence deleted\.$/)).toBeVisible()
   expect(deleteCalled).toBe(true)
@@ -283,23 +390,37 @@ test("Delete sequence sends DELETE and removes item from list", async ({ page })
 // Enroll
 // ---------------------------------------------------------------------------
 
-test("Enroll contacts calls enroll endpoint and shows feedback", async ({ page }) => {
+test("Enroll contacts calls enroll endpoint and shows feedback", async ({
+  page,
+}) => {
   let enrollCalled = false
 
   await page.route("**/api/v1/sequences/", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: SEQUENCES }) })
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: SEQUENCES }),
+      })
       return
     }
     await route.continue()
   })
 
   await page.route("**/api/v1/sequences/seq-1", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SEQ_DETAIL) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SEQ_DETAIL),
+    })
   })
 
   await page.route("**/api/v1/sequences/seq-1/progress", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SEQ_PROGRESS) })
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(SEQ_PROGRESS),
+    })
   })
 
   await page.route("**/api/v1/sequences/seq-1/enroll/camp-1", async (route) => {
@@ -313,7 +434,10 @@ test("Enroll contacts calls enroll endpoint and shows feedback", async ({ page }
 
   await page.goto("/sequences")
 
-  await page.getByRole("button", { name: /enroll/i }).first().click()
+  await page
+    .getByRole("button", { name: /enroll/i })
+    .first()
+    .click()
 
   await expect(page.getByText(/^Enrolled 3 contacts\.$/)).toBeVisible()
   expect(enrollCalled).toBe(true)
@@ -325,7 +449,11 @@ test("Enroll contacts calls enroll endpoint and shows feedback", async ({ page }
 
 test("API error on load shows error alert", async ({ page }) => {
   await page.route("**/api/v1/sequences/", async (route) => {
-    await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "server error" }) })
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "server error" }),
+    })
   })
 
   await page.goto("/sequences")

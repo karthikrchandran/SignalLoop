@@ -175,25 +175,6 @@ const DEFAULT_VOICE_LANGUAGE = VOICE_LANGUAGES[0]
 const VOICE_PROFILES: VoiceProfile[] = [
   {
     id: "alex",
-    name: "Alex",
-    gender: "Male",
-    accent: "Neutral North American",
-    tone: "Professional and authoritative",
-    description:
-      "Best for B2B outreach, appointment confirmations, and executive-level conversations.",
-    demoGreetings: {
-      "en-US":
-        "Good morning. My name is Alex, and I am your outreach assistant. I am here to make every conversation count.",
-      "hi-IN":
-        "Namaste. Mera naam Alex hai, aur main aapka outreach assistant hoon.",
-    },
-    voiceHints: {
-      "en-US": ["david", "alex", "daniel", "mark", "male", "en-us"],
-      "hi-IN": ["hemant", "ravi", "google hindi", "hi-in", "india"],
-    },
-    pitch: 0.9,
-    rate: 0.95,
-    languages: ["en-US"],
     name: "Morgan",
     gender: "Female",
     accent: "Neutral North American",
@@ -229,7 +210,15 @@ const VOICE_PROFILES: VoiceProfile[] = [
         "Namaste. Mera naam Rajesh hai, aur main aapki madad ke liye call kar raha hoon.",
     },
     voiceHints: {
-      "en-US": ["ravi", "narayanan", "google uk english male", "david", "mark", "james", "hemant"],
+      "en-US": [
+        "ravi",
+        "narayanan",
+        "google uk english male",
+        "david",
+        "mark",
+        "james",
+        "hemant",
+      ],
       "hi-IN": [],
     },
     pitch: 0.82,
@@ -251,7 +240,16 @@ const VOICE_PROFILES: VoiceProfile[] = [
         "Namaste! Main Priya hoon, aur aapse baat karke bahut khushi hui. Main aapki kaise madad kar sakti hoon?",
     },
     voiceHints: {
-      "en-US": ["ava", "emma", "mia", "neerja", "jenny", "aria", "zira", "kalpana"],
+      "en-US": [
+        "ava",
+        "emma",
+        "mia",
+        "neerja",
+        "jenny",
+        "aria",
+        "zira",
+        "kalpana",
+      ],
       "hi-IN": ["swara", "kalpana", "heera", "google हिन्दी"],
     },
     pitch: 1.08,
@@ -359,7 +357,10 @@ function pickSpeechVoice(
   // For non-English languages, keep a native voice even if gender is imperfect —
   // an Indian-accented Hindi voice with low pitch sounds far better than an
   // English voice trying to speak Hindi text
-  if (!languageId.toLowerCase().startsWith("en") && candidateVoices.length > 0) {
+  if (
+    !languageId.toLowerCase().startsWith("en") &&
+    candidateVoices.length > 0
+  ) {
     return candidateVoices[0]
   }
   // Cross-language gender rescue (English only) — prefer correctly-gendered
@@ -419,7 +420,10 @@ export default function VoiceAgentsPage() {
   const handleSelectVoiceProfile = (id: VoiceProfileId) => {
     setSelectedVoiceProfileId(id)
     const profile = VOICE_PROFILES.find((p) => p.id === id)
-    if (profile?.languages && !profile.languages.includes(selectedVoiceLanguageId)) {
+    if (
+      profile?.languages &&
+      !profile.languages.includes(selectedVoiceLanguageId)
+    ) {
       setSelectedVoiceLanguageId(profile.languages[0])
     }
   }
@@ -867,7 +871,9 @@ export default function VoiceAgentsPage() {
             const langId = value as VoiceLanguageId
             setSelectedVoiceLanguageId(langId)
             // If the current profile doesn't support the new language, switch to Priya
-            const current = VOICE_PROFILES.find((p) => p.id === selectedVoiceProfileId)
+            const current = VOICE_PROFILES.find(
+              (p) => p.id === selectedVoiceProfileId,
+            )
             if (current?.languages && !current.languages.includes(langId)) {
               setSelectedVoiceProfileId("priya")
             }
@@ -887,8 +893,10 @@ export default function VoiceAgentsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {VOICE_PROFILES.filter((profile) =>
-          !profile.languages || profile.languages.includes(selectedVoiceLanguageId)
+        {VOICE_PROFILES.filter(
+          (profile) =>
+            !profile.languages ||
+            profile.languages.includes(selectedVoiceLanguageId),
         ).map((profile) => (
           <VoiceProfileCard
             key={profile.id}

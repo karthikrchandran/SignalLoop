@@ -113,7 +113,9 @@ export function listContacts(search = "") {
   if (search.trim()) {
     params.set("search", search.trim())
   }
-  return signalloopRequest<ContactListResponse>(`/api/v1/contacts/?${params.toString()}`)
+  return signalloopRequest<ContactListResponse>(
+    `/api/v1/contacts/?${params.toString()}`,
+  )
 }
 
 export function listReadyContacts(search = "") {
@@ -127,19 +129,27 @@ export function listReadyContacts(search = "") {
 }
 
 export function runProspectingResearch(input: ProspectingResearchRequest) {
-  return signalloopRequest<ProspectingResearchResult>("/api/v1/prospecting/research", {
-    method: "POST",
-    idempotent: true,
-    body: input,
-  })
+  return signalloopRequest<ProspectingResearchResult>(
+    "/api/v1/prospecting/research",
+    {
+      method: "POST",
+      idempotent: true,
+      body: input,
+    },
+  )
 }
 
-export function runBulkProspectingResearch(input: ProspectingBulkResearchRequest) {
-  return signalloopRequest<ProspectingResearchListResponse>("/api/v1/prospecting/research/bulk", {
-    method: "POST",
-    idempotent: true,
-    body: input,
-  })
+export function runBulkProspectingResearch(
+  input: ProspectingBulkResearchRequest,
+) {
+  return signalloopRequest<ProspectingResearchListResponse>(
+    "/api/v1/prospecting/research/bulk",
+    {
+      method: "POST",
+      idempotent: true,
+      body: input,
+    },
+  )
 }
 
 export function listProspectingResearch(contactId?: string) {
@@ -154,17 +164,24 @@ export function listProspectingResearch(contactId?: string) {
 }
 
 export function listProspectingCampaigns() {
-  return signalloopRequest<ProspectingCampaignListResponse>("/api/v1/campaigns/")
+  return signalloopRequest<ProspectingCampaignListResponse>(
+    "/api/v1/campaigns/",
+  )
 }
 
 export function listProspectingSequences() {
-  return signalloopRequest<ProspectingSequenceListResponse>("/api/v1/sequences/")
+  return signalloopRequest<ProspectingSequenceListResponse>(
+    "/api/v1/sequences/",
+  )
 }
 
 export function enrollProspects(input: ProspectingEnrollmentRequest) {
-  return signalloopRequest<ProspectingEnrollmentResult>("/api/v1/prospecting/enroll", {
-    method: "POST",
-    idempotent: true,
-    body: input,
-  })
+  return signalloopRequest<ProspectingEnrollmentResult>(
+    "/api/v1/prospecting/enroll",
+    {
+      method: "POST",
+      idempotent: true,
+      body: input,
+    },
+  )
 }

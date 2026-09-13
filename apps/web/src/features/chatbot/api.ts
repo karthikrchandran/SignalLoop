@@ -1,14 +1,13 @@
-import { signalloopRequest, getWorkspaceId } from "@/lib/signalloop-api"
 import {
   demoCreateChatbotChannel,
   demoCreateKnowledgeSource,
   demoDeleteKnowledgeSource,
-  demoGetChatbotAnalytics,
   demoExportChatbotThreads,
+  demoGetChatbotAnalytics,
   demoGetChatbotConfig,
   demoGetChatbotThread,
-  demoListChatbotDeadLetters,
   demoListChatbotChannels,
+  demoListChatbotDeadLetters,
   demoListChatbotOptOuts,
   demoListChatbotThreads,
   demoListKnowledgeSources,
@@ -17,8 +16,8 @@ import {
   demoRemoveChatbotOptOut,
   demoReopenChatbotThread,
   demoReplyToChatbotThread,
-  demoRetryChatbotDeadLetter,
   demoResolveChatbotThread,
+  demoRetryChatbotDeadLetter,
   demoStreamChatbotInboxEvents,
   demoTestChatbotQuestion,
   demoToggleChatbotChannel,
@@ -27,6 +26,7 @@ import {
   demoUploadKnowledgeDocument,
   isChatbotDemoMode,
 } from "@/features/chatbot/demo"
+import { getWorkspaceId, signalloopRequest } from "@/lib/signalloop-api"
 
 export type ChatbotChannelType =
   | "facebook_messenger"
@@ -88,7 +88,9 @@ export type ChatbotChannelInput = {
   is_active: boolean
 }
 
-export type ChatbotChannelUpdateInput = Partial<Omit<ChatbotChannelInput, "channel_type">>
+export type ChatbotChannelUpdateInput = Partial<
+  Omit<ChatbotChannelInput, "channel_type">
+>
 
 const channelPath = (workspaceId = getWorkspaceId()) => ({
   workspaceId,
@@ -97,10 +99,16 @@ const channelPath = (workspaceId = getWorkspaceId()) => ({
 
 export function listChatbotChannels(workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoListChatbotChannels()
-  return signalloopRequest<ChatbotChannelsResponse>(channelPath(workspaceId).path, { workspaceId })
+  return signalloopRequest<ChatbotChannelsResponse>(
+    channelPath(workspaceId).path,
+    { workspaceId },
+  )
 }
 
-export function createChatbotChannel(input: ChatbotChannelInput, workspaceId = getWorkspaceId()) {
+export function createChatbotChannel(
+  input: ChatbotChannelInput,
+  workspaceId = getWorkspaceId(),
+) {
   if (isChatbotDemoMode()) return demoCreateChatbotChannel(input)
   return signalloopRequest<ChatbotChannel>(channelPath(workspaceId).path, {
     method: "POST",
@@ -115,11 +123,14 @@ export function updateChatbotChannel(
   workspaceId = getWorkspaceId(),
 ) {
   if (isChatbotDemoMode()) return demoUpdateChatbotChannel(channelId, input)
-  return signalloopRequest<ChatbotChannel>(`${channelPath(workspaceId).path}/${channelId}`, {
-    method: "PUT",
-    body: input,
-    workspaceId,
-  })
+  return signalloopRequest<ChatbotChannel>(
+    `${channelPath(workspaceId).path}/${channelId}`,
+    {
+      method: "PUT",
+      body: input,
+      workspaceId,
+    },
+  )
 }
 
 export function toggleChatbotChannel(
@@ -128,11 +139,14 @@ export function toggleChatbotChannel(
   workspaceId = getWorkspaceId(),
 ) {
   if (isChatbotDemoMode()) return demoToggleChatbotChannel(channelId, isActive)
-  return signalloopRequest<ChatbotChannel>(`${channelPath(workspaceId).path}/${channelId}/toggle`, {
-    method: "PATCH",
-    body: { is_active: isActive },
-    workspaceId,
-  })
+  return signalloopRequest<ChatbotChannel>(
+    `${channelPath(workspaceId).path}/${channelId}/toggle`,
+    {
+      method: "PATCH",
+      body: { is_active: isActive },
+      workspaceId,
+    },
+  )
 }
 
 export type ChatbotKnowledgeSourceType =
@@ -233,13 +247,19 @@ export type ChatbotAnalyticsRange = {
   to?: string
 }
 
-export function getChatbotAnalytics(range: ChatbotAnalyticsRange = {}, workspaceId = getWorkspaceId()) {
+export function getChatbotAnalytics(
+  range: ChatbotAnalyticsRange = {},
+  workspaceId = getWorkspaceId(),
+) {
   if (isChatbotDemoMode()) return demoGetChatbotAnalytics(range)
   const params = new URLSearchParams()
   if (range.from) params.set("from", range.from)
   if (range.to) params.set("to", range.to)
   const query = params.toString()
-  return signalloopRequest<ChatbotAnalytics>(`/api/v1/chatbot/analytics${query ? `?${query}` : ""}`, { workspaceId })
+  return signalloopRequest<ChatbotAnalytics>(
+    `/api/v1/chatbot/analytics${query ? `?${query}` : ""}`,
+    { workspaceId },
+  )
 }
 
 export type ChatbotTestBotSource = {
@@ -261,10 +281,15 @@ const knowledgePath = "/api/v1/chatbot/knowledge-sources"
 
 export function listKnowledgeSources(workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoListKnowledgeSources()
-  return signalloopRequest<ChatbotKnowledgeSourcesResponse>(knowledgePath, { workspaceId })
+  return signalloopRequest<ChatbotKnowledgeSourcesResponse>(knowledgePath, {
+    workspaceId,
+  })
 }
 
-export function createKnowledgeSource(input: ChatbotKnowledgeSourceInput, workspaceId = getWorkspaceId()) {
+export function createKnowledgeSource(
+  input: ChatbotKnowledgeSourceInput,
+  workspaceId = getWorkspaceId(),
+) {
   if (isChatbotDemoMode()) return demoCreateKnowledgeSource(input)
   return signalloopRequest<ChatbotKnowledgeSource>(knowledgePath, {
     method: "POST",
@@ -273,18 +298,27 @@ export function createKnowledgeSource(input: ChatbotKnowledgeSourceInput, worksp
   })
 }
 
-export function uploadKnowledgeDocument(file: File, workspaceId = getWorkspaceId()) {
+export function uploadKnowledgeDocument(
+  file: File,
+  workspaceId = getWorkspaceId(),
+) {
   if (isChatbotDemoMode()) return demoUploadKnowledgeDocument(file)
   const formData = new FormData()
   formData.append("file", file)
-  return signalloopRequest<ChatbotKnowledgeSource>(`${knowledgePath}/documents`, {
-    method: "POST",
-    formData,
-    workspaceId,
-  })
+  return signalloopRequest<ChatbotKnowledgeSource>(
+    `${knowledgePath}/documents`,
+    {
+      method: "POST",
+      formData,
+      workspaceId,
+    },
+  )
 }
 
-export function deleteKnowledgeSource(sourceId: string, workspaceId = getWorkspaceId()) {
+export function deleteKnowledgeSource(
+  sourceId: string,
+  workspaceId = getWorkspaceId(),
+) {
   if (isChatbotDemoMode()) return demoDeleteKnowledgeSource(sourceId)
   return signalloopRequest<void>(`${knowledgePath}/${sourceId}`, {
     method: "DELETE",
@@ -292,12 +326,18 @@ export function deleteKnowledgeSource(sourceId: string, workspaceId = getWorkspa
   })
 }
 
-export function reindexKnowledgeSource(sourceId: string, workspaceId = getWorkspaceId()) {
+export function reindexKnowledgeSource(
+  sourceId: string,
+  workspaceId = getWorkspaceId(),
+) {
   if (isChatbotDemoMode()) return demoReindexKnowledgeSource(sourceId)
-  return signalloopRequest<ChatbotReindexResponse>(`${knowledgePath}/${sourceId}/reindex`, {
-    method: "POST",
-    workspaceId,
-  })
+  return signalloopRequest<ChatbotReindexResponse>(
+    `${knowledgePath}/${sourceId}/reindex`,
+    {
+      method: "POST",
+      workspaceId,
+    },
+  )
 }
 
 export function reindexAllKnowledgeSources(workspaceId = getWorkspaceId()) {
@@ -309,7 +349,10 @@ export function reindexAllKnowledgeSources(workspaceId = getWorkspaceId()) {
   })
 }
 
-export function testChatbotQuestion(question: string, workspaceId = getWorkspaceId()) {
+export function testChatbotQuestion(
+  question: string,
+  workspaceId = getWorkspaceId(),
+) {
   if (isChatbotDemoMode()) return demoTestChatbotQuestion(question)
   return signalloopRequest<ChatbotTestBotResponse>("/api/v1/chatbot/test-bot", {
     method: "POST",
@@ -390,7 +433,10 @@ const getApiBase = () => {
 
 const chatbotHeaders = (workspaceId = getWorkspaceId()) => {
   const headers = new Headers()
-  headers.set("Authorization", `Bearer ${localStorage.getItem("access_token") || ""}`)
+  headers.set(
+    "Authorization",
+    `Bearer ${localStorage.getItem("access_token") || ""}`,
+  )
   headers.set("X-Workspace-Id", workspaceId)
   return headers
 }
@@ -406,44 +452,77 @@ const parseChatbotFetchError = async (response: Response) => {
   return `Request failed with status ${response.status}`
 }
 
-export function listChatbotThreads(filters: ChatbotThreadFilters = {}, workspaceId = getWorkspaceId()) {
+export function listChatbotThreads(
+  filters: ChatbotThreadFilters = {},
+  workspaceId = getWorkspaceId(),
+) {
   if (isChatbotDemoMode()) return demoListChatbotThreads(filters)
   const params = new URLSearchParams()
-  if (filters.channel_type && filters.channel_type !== "all") params.set("channel_type", filters.channel_type)
-  if (filters.status && filters.status !== "all") params.set("status", filters.status)
+  if (filters.channel_type && filters.channel_type !== "all")
+    params.set("channel_type", filters.channel_type)
+  if (filters.status && filters.status !== "all")
+    params.set("status", filters.status)
   if (filters.cursor) params.set("cursor", filters.cursor)
   const query = params.toString()
-  return signalloopRequest<ChatbotThreadsResponse>(`${inboxPath}/threads${query ? `?${query}` : ""}`, { workspaceId })
+  return signalloopRequest<ChatbotThreadsResponse>(
+    `${inboxPath}/threads${query ? `?${query}` : ""}`,
+    { workspaceId },
+  )
 }
 
-export function getChatbotThread(threadId: string, workspaceId = getWorkspaceId()) {
+export function getChatbotThread(
+  threadId: string,
+  workspaceId = getWorkspaceId(),
+) {
   if (isChatbotDemoMode()) return demoGetChatbotThread(threadId)
-  return signalloopRequest<ChatbotThreadDetail>(`${inboxPath}/threads/${threadId}`, { workspaceId })
+  return signalloopRequest<ChatbotThreadDetail>(
+    `${inboxPath}/threads/${threadId}`,
+    { workspaceId },
+  )
 }
 
-export function replyToChatbotThread(threadId: string, message: string, workspaceId = getWorkspaceId()) {
+export function replyToChatbotThread(
+  threadId: string,
+  message: string,
+  workspaceId = getWorkspaceId(),
+) {
   if (isChatbotDemoMode()) return demoReplyToChatbotThread(threadId, message)
-  return signalloopRequest<{ thread: ChatbotThreadDetail }>(`${inboxPath}/threads/${threadId}/reply`, {
-    method: "POST",
-    body: { message },
-    workspaceId,
-  })
+  return signalloopRequest<{ thread: ChatbotThreadDetail }>(
+    `${inboxPath}/threads/${threadId}/reply`,
+    {
+      method: "POST",
+      body: { message },
+      workspaceId,
+    },
+  )
 }
 
-export function resolveChatbotThread(threadId: string, workspaceId = getWorkspaceId()) {
+export function resolveChatbotThread(
+  threadId: string,
+  workspaceId = getWorkspaceId(),
+) {
   if (isChatbotDemoMode()) return demoResolveChatbotThread(threadId)
-  return signalloopRequest<{ thread: ChatbotThreadDetail }>(`${inboxPath}/threads/${threadId}/resolve`, {
-    method: "PATCH",
-    workspaceId,
-  })
+  return signalloopRequest<{ thread: ChatbotThreadDetail }>(
+    `${inboxPath}/threads/${threadId}/resolve`,
+    {
+      method: "PATCH",
+      workspaceId,
+    },
+  )
 }
 
-export function reopenChatbotThread(threadId: string, workspaceId = getWorkspaceId()) {
+export function reopenChatbotThread(
+  threadId: string,
+  workspaceId = getWorkspaceId(),
+) {
   if (isChatbotDemoMode()) return demoReopenChatbotThread(threadId)
-  return signalloopRequest<{ thread: ChatbotThreadDetail }>(`${inboxPath}/threads/${threadId}/reopen`, {
-    method: "PATCH",
-    workspaceId,
-  })
+  return signalloopRequest<{ thread: ChatbotThreadDetail }>(
+    `${inboxPath}/threads/${threadId}/reopen`,
+    {
+      method: "PATCH",
+      workspaceId,
+    },
+  )
 }
 
 export type ChatbotExportFormat = "csv" | "json"
@@ -455,17 +534,23 @@ export async function exportChatbotThreads(
 ) {
   if (isChatbotDemoMode()) return demoExportChatbotThreads(format, filters)
   const params = new URLSearchParams({ format })
-  if (filters.channel_type && filters.channel_type !== "all") params.set("channel_type", filters.channel_type)
+  if (filters.channel_type && filters.channel_type !== "all")
+    params.set("channel_type", filters.channel_type)
 
-  const response = await fetch(`${getApiBase()}${inboxPath}/threads/export?${params.toString()}`, {
-    headers: chatbotHeaders(workspaceId),
-  })
+  const response = await fetch(
+    `${getApiBase()}${inboxPath}/threads/export?${params.toString()}`,
+    {
+      headers: chatbotHeaders(workspaceId),
+    },
+  )
   if (!response.ok) {
     throw new Error(await parseChatbotFetchError(response))
   }
 
   const disposition = response.headers.get("Content-Disposition") || ""
-  const filename = disposition.match(/filename=([^;]+)/)?.[1]?.replace(/"/g, "") || `chatbot-conversations.${format}`
+  const filename =
+    disposition.match(/filename=([^;]+)/)?.[1]?.replace(/"/g, "") ||
+    `chatbot-conversations.${format}`
   return { blob: await response.blob(), filename }
 }
 
@@ -548,14 +633,21 @@ export type ChatbotConfig = {
   updated_at: string
 }
 
-export type ChatbotConfigUpdate = Partial<Omit<ChatbotConfig, "workspace_id" | "channel_overrides" | "updated_at">>
+export type ChatbotConfigUpdate = Partial<
+  Omit<ChatbotConfig, "workspace_id" | "channel_overrides" | "updated_at">
+>
 
 export function getChatbotConfig(workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoGetChatbotConfig()
-  return signalloopRequest<ChatbotConfig>("/api/v1/chatbot/config", { workspaceId })
+  return signalloopRequest<ChatbotConfig>("/api/v1/chatbot/config", {
+    workspaceId,
+  })
 }
 
-export function updateChatbotConfig(input: ChatbotConfigUpdate, workspaceId = getWorkspaceId()) {
+export function updateChatbotConfig(
+  input: ChatbotConfigUpdate,
+  workspaceId = getWorkspaceId(),
+) {
   if (isChatbotDemoMode()) return demoUpdateChatbotConfig(input)
   return signalloopRequest<ChatbotConfig>("/api/v1/chatbot/config", {
     method: "PUT",
@@ -583,15 +675,23 @@ export type ChatbotOptOutsResponse = {
 
 export function listChatbotOptOuts(workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoListChatbotOptOuts()
-  return signalloopRequest<ChatbotOptOutsResponse>("/api/v1/chatbot/opt-outs", { workspaceId })
-}
-
-export function removeChatbotOptOut(optOutId: string, workspaceId = getWorkspaceId()) {
-  if (isChatbotDemoMode()) return demoRemoveChatbotOptOut(optOutId)
-  return signalloopRequest<{ id: string; removed: boolean }>(`/api/v1/chatbot/opt-outs/${optOutId}`, {
-    method: "DELETE",
+  return signalloopRequest<ChatbotOptOutsResponse>("/api/v1/chatbot/opt-outs", {
     workspaceId,
   })
+}
+
+export function removeChatbotOptOut(
+  optOutId: string,
+  workspaceId = getWorkspaceId(),
+) {
+  if (isChatbotDemoMode()) return demoRemoveChatbotOptOut(optOutId)
+  return signalloopRequest<{ id: string; removed: boolean }>(
+    `/api/v1/chatbot/opt-outs/${optOutId}`,
+    {
+      method: "DELETE",
+      workspaceId,
+    },
+  )
 }
 
 export type ChatbotDeadLetter = {
@@ -613,13 +713,23 @@ export type ChatbotDeadLettersResponse = {
 
 export function listChatbotDeadLetters(workspaceId = getWorkspaceId()) {
   if (isChatbotDemoMode()) return demoListChatbotDeadLetters()
-  return signalloopRequest<ChatbotDeadLettersResponse>("/api/v1/chatbot/dead-letters", { workspaceId })
+  return signalloopRequest<ChatbotDeadLettersResponse>(
+    "/api/v1/chatbot/dead-letters",
+    { workspaceId },
+  )
 }
 
-export function retryChatbotDeadLetter(deadLetterId: string, workspaceId = getWorkspaceId()) {
+export function retryChatbotDeadLetter(
+  deadLetterId: string,
+  workspaceId = getWorkspaceId(),
+) {
   if (isChatbotDemoMode()) return demoRetryChatbotDeadLetter(deadLetterId)
-  return signalloopRequest<{ id: string; requeued: boolean; inbound_queue_key: string }>(
-    `/api/v1/chatbot/dead-letters/${deadLetterId}/retry`,
-    { method: "POST", workspaceId },
-  )
+  return signalloopRequest<{
+    id: string
+    requeued: boolean
+    inbound_queue_key: string
+  }>(`/api/v1/chatbot/dead-letters/${deadLetterId}/retry`, {
+    method: "POST",
+    workspaceId,
+  })
 }

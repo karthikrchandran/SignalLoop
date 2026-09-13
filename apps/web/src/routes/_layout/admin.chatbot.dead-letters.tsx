@@ -10,13 +10,17 @@ type UserWithRole = {
 }
 
 const isOperator = (user: UserWithRole) =>
-  Boolean(user.is_superuser || user.role === "operator" || user.role === "super_admin")
+  Boolean(
+    user.is_superuser ||
+      user.role === "operator" ||
+      user.role === "super_admin",
+  )
 
 export const Route = createFileRoute("/_layout/admin/chatbot/dead-letters")({
   component: DeadLettersPage,
   beforeLoad: async () => {
     if (isChatbotDemoMode()) return
-    const user = await UsersService.readUserMe() as UserWithRole
+    const user = (await UsersService.readUserMe()) as UserWithRole
     if (!isOperator(user)) {
       throw redirect({ to: "/chatbot/inbox" })
     }

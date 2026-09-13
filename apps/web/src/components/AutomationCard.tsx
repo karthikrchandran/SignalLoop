@@ -9,10 +9,9 @@ import {
   Shuffle,
   Zap,
 } from "lucide-react"
-
+import { ReasonCodeBadge } from "@/components/ReasonCodeBadge"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import { ReasonCodeBadge } from "@/components/ReasonCodeBadge"
 
 export interface TimelineEvent {
   id: string
@@ -71,7 +70,11 @@ function confidenceTierClass(tier?: string | null) {
  * Shows: event type → reason code → template applied.
  * Clicking opens the explainability detail panel.
  */
-export function AutomationCard({ event, onClick, className }: AutomationCardProps) {
+export function AutomationCard({
+  event,
+  onClick,
+  className,
+}: AutomationCardProps) {
   const ts = new Date(event.timestamp)
   const label = event.event_type.replace(/_/g, " ")
 
@@ -85,9 +88,9 @@ export function AutomationCard({ event, onClick, className }: AutomationCardProp
             ? "border-l-emerald-400"
             : event.source_system === "signal_events"
               ? "border-l-purple-400"
-          : event.source_system === "contact_events"
-            ? "border-l-blue-400"
-            : "border-l-yellow-400",
+              : event.source_system === "contact_events"
+                ? "border-l-blue-400"
+                : "border-l-yellow-400",
         className,
       )}
       onClick={() => onClick?.(event)}

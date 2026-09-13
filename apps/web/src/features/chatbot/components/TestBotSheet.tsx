@@ -1,5 +1,5 @@
-import { useState } from "react"
 import { Bot, Send } from "lucide-react"
+import { useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -35,7 +35,11 @@ export function TestBotSheet({ open, onOpenChange }: TestBotSheetProps) {
     try {
       setResponse(await testChatbotQuestion(question.trim()))
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to test bot")
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Failed to test bot",
+      )
     } finally {
       setLoading(false)
     }
@@ -49,7 +53,9 @@ export function TestBotSheet({ open, onOpenChange }: TestBotSheetProps) {
             <Bot className="size-5" />
             Test Bot
           </SheetTitle>
-          <SheetDescription>Run a grounded answer against the current index.</SheetDescription>
+          <SheetDescription>
+            Run a grounded answer against the current index.
+          </SheetDescription>
         </SheetHeader>
         <div className="grid gap-4 px-4">
           <Textarea
@@ -58,7 +64,11 @@ export function TestBotSheet({ open, onOpenChange }: TestBotSheetProps) {
             rows={4}
             placeholder="Ask a question"
           />
-          {error ? <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div> : null}
+          {error ? (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
           {response ? (
             <div className="grid gap-4">
               <div className="rounded-lg border p-4">
@@ -69,7 +79,10 @@ export function TestBotSheet({ open, onOpenChange }: TestBotSheetProps) {
               </div>
               <div className="grid gap-2">
                 {response.sources.map((source) => (
-                  <div key={source.chunk_id} className="rounded-lg border p-3 text-sm">
+                  <div
+                    key={source.chunk_id}
+                    className="rounded-lg border p-3 text-sm"
+                  >
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <span className="font-medium">{source.source_title}</span>
                       <Badge variant="outline">{source.score.toFixed(2)}</Badge>
@@ -82,7 +95,11 @@ export function TestBotSheet({ open, onOpenChange }: TestBotSheetProps) {
           ) : null}
         </div>
         <SheetFooter>
-          <Button onClick={ask} disabled={loading || !question.trim()} className="gap-2">
+          <Button
+            onClick={ask}
+            disabled={loading || !question.trim()}
+            className="gap-2"
+          >
             <Send className="size-4" />
             {loading ? "Testing" : "Send"}
           </Button>

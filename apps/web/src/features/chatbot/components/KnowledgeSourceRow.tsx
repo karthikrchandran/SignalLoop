@@ -1,9 +1,19 @@
-import { FileText, Globe2, HelpCircle, MessageSquareText, RefreshCw, Trash2 } from "lucide-react"
+import {
+  FileText,
+  Globe2,
+  HelpCircle,
+  MessageSquareText,
+  RefreshCw,
+  Trash2,
+} from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TableCell, TableRow } from "@/components/ui/table"
-import type { ChatbotKnowledgeSource, ChatbotKnowledgeSourceType } from "@/features/chatbot/api"
+import type {
+  ChatbotKnowledgeSource,
+  ChatbotKnowledgeSourceType,
+} from "@/features/chatbot/api"
 
 type KnowledgeSourceRowProps = {
   source: ChatbotKnowledgeSource
@@ -21,9 +31,12 @@ const typeLabel: Record<ChatbotKnowledgeSourceType, string> = {
 }
 
 const TypeIcon = ({ type }: { type: ChatbotKnowledgeSourceType }) => {
-  if (type === "website") return <Globe2 className="size-4 text-muted-foreground" />
-  if (type === "document") return <FileText className="size-4 text-muted-foreground" />
-  if (type === "qa_pair") return <HelpCircle className="size-4 text-muted-foreground" />
+  if (type === "website")
+    return <Globe2 className="size-4 text-muted-foreground" />
+  if (type === "document")
+    return <FileText className="size-4 text-muted-foreground" />
+  if (type === "qa_pair")
+    return <HelpCircle className="size-4 text-muted-foreground" />
   return <MessageSquareText className="size-4 text-muted-foreground" />
 }
 
@@ -47,7 +60,9 @@ export function KnowledgeSourceRow({
           <TypeIcon type={source.source_type} />
           <div className="min-w-0">
             <div className="truncate font-medium">{source.title}</div>
-            <div className="truncate text-xs text-muted-foreground">{typeLabel[source.source_type]}</div>
+            <div className="truncate text-xs text-muted-foreground">
+              {typeLabel[source.source_type]}
+            </div>
           </div>
         </div>
       </TableCell>
@@ -55,15 +70,29 @@ export function KnowledgeSourceRow({
         <Badge variant={statusVariant(source.status)}>{source.status}</Badge>
       </TableCell>
       <TableCell>{source.chunk_count}</TableCell>
-      <TableCell>{source.indexed_at ? new Date(source.indexed_at).toLocaleString() : "-"}</TableCell>
-      <TableCell className="max-w-64 truncate text-muted-foreground">{source.error_message || "-"}</TableCell>
+      <TableCell>
+        {source.indexed_at ? new Date(source.indexed_at).toLocaleString() : "-"}
+      </TableCell>
+      <TableCell className="max-w-64 truncate text-muted-foreground">
+        {source.error_message || "-"}
+      </TableCell>
       <TableCell>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" size="icon" onClick={onReindex} disabled={busy}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onReindex}
+            disabled={busy}
+          >
             <RefreshCw className={busy ? "size-4 animate-spin" : "size-4"} />
             <span className="sr-only">Re-index</span>
           </Button>
-          <Button variant="outline" size="icon" onClick={onDelete} disabled={busy}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onDelete}
+            disabled={busy}
+          >
             <Trash2 className="size-4" />
             <span className="sr-only">Delete</span>
           </Button>
