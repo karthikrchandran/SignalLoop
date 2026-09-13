@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from sqlmodel import Session, select
 
@@ -33,6 +34,12 @@ class ResolvedVoiceDeployment:
     capacity_metric: str
 
 
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def resolve_active_voice_deployment(
     session: Session,
     *,
@@ -52,6 +59,7 @@ def resolve_active_voice_deployment(
         installation is None
         or installation.tenant_id != binding.tenant_id
         or ProductCode(installation.product_code) is not ProductCode.SIGNAL_LOOP
+        or installation.local_identifier != workspace_id
         or installation.status != "ACTIVE"
     ):
         raise VoiceDeploymentResolutionError("active SignalLoop installation is required")
@@ -76,14 +84,29 @@ def resolve_active_voice_deployment(
     ):
         raise VoiceDeploymentResolutionError("published voice catalog definition is required")
 
-    entitlement = session.exec(
+    now = datetime.now(timezone.utc)
+    entitlements = session.exec(
         select(AgentPlanEntitlement).where(
             AgentPlanEntitlement.tenant_id == binding.tenant_id,
             AgentPlanEntitlement.installation_id == binding.installation_id,
             AgentPlanEntitlement.status == "ACTIVE",
         )
-    ).first()
-    if entitlement is None or AgentType.VOICE_CONVERSATION.value not in entitlement.allowed_agent_types:
+    ).all()
+    eligible = [
+        entitlement
+        for entitlement in entitlements
+        if _as_utc(entitlement.effective_from) <= now
+        and (
+            entitlement.effective_to is None
+            or _as_utc(entitlement.effective_to) > now
+        )
+    ]
+    if len(eligible) != 1:
+        raise VoiceDeploymentResolutionError(
+            "exactly one active voice entitlement is required"
+        )
+    entitlement = eligible[0]
+    if AgentType.VOICE_CONVERSATION.value not in entitlement.allowed_agent_types:
         raise VoiceDeploymentResolutionError("active voice entitlement is required")
 
     return ResolvedVoiceDeployment(

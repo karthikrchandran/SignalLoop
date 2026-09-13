@@ -136,3 +136,25 @@ def test_rejects_workspace_without_active_tenant_binding() -> None:
 
         with pytest.raises(VoiceDeploymentResolutionError, match="binding"):
             resolve_active_voice_deployment(session, workspace_id="workspace_ara_global")
+
+
+def test_rejects_workspace_with_ambiguous_active_voice_entitlements() -> None:
+    with _session() as session:
+        deployment = _voice_context(session)
+        assert deployment is not None
+        session.add(
+            AgentPlanEntitlement(
+                tenant_id=deployment.tenant_id,
+                installation_id=deployment.installation_id,
+                plan_code="voice-demo-duplicate",
+                contract_version="2026-09-duplicate",
+                purchased_slots=1,
+                allowed_agent_types=[AgentType.VOICE_CONVERSATION.value],
+            )
+        )
+        session.commit()
+
+        with pytest.raises(VoiceDeploymentResolutionError, match="exactly one"):
+            resolve_active_voice_deployment(
+                session, workspace_id=deployment.workspace_id
+            )
