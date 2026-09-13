@@ -43,6 +43,7 @@ jobs:
       POSTGRES_DB: signalloop_ci
       FIRST_SUPERUSER: ci@example.com
       FIRST_SUPERUSER_PASSWORD: ci-only-password
+      EMAILS_FROM_EMAIL: ci@example.com
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
