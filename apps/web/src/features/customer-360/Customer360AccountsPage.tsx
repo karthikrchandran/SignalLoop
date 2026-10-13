@@ -133,7 +133,7 @@ export default function Customer360AccountsPage() {
             <Building2 className="size-4" />
             Account workspace
           </div>
-          <h1 className="text-3xl font-semibold tracking-tight">
+          <h1 className="text-xl font-semibold tracking-tight">
             Customer 360
           </h1>
           <p className="text-sm text-muted-foreground">

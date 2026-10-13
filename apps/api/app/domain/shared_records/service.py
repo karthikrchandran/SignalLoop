@@ -529,12 +529,23 @@ def list_shared_contacts(
     }
     if parent_id is not None:
         request["parent_id"] = parent_id
-    response = ecrm_shared_records.list_shared_records(**request)
-    contacts = [
-        shared_contact_to_public(record, workspace_id=workspace_id)
-        for record in _records_from_response(response)
-    ]
-    return [contact for contact in contacts if contact.workspace_id == workspace_id]
+    try:
+        response = ecrm_shared_records.list_shared_records(**request)
+        contacts = [
+            shared_contact_to_public(record, workspace_id=workspace_id)
+            for record in _records_from_response(response)
+        ]
+        return [contact for contact in contacts if contact.workspace_id == workspace_id]
+    except Exception:
+        with _local_session(session) as local_session:
+            repo = _local_repo(local_session)
+            rows = repo.list_contacts(
+                workspace_id=workspace_id,
+                search=search,
+                parent_public_id=uuid.UUID(parent_id) if parent_id else None,
+                limit=limit,
+            )
+        return [_platform_contact_to_public(row, repo=repo) for row in rows]
 
 
 def get_shared_contact(
@@ -667,7 +678,33 @@ def list_shared_accounts(
         return rows
 
     rows: list[Customer360AccountRowPublic] = []
-    for record in _list_customer_records(search=search, limit=limit):
+    try:
+        customer_records = _list_customer_records(search=search, limit=limit)
+    except Exception:
+        with _local_session(session) as local_session:
+            repo = _local_repo(local_session)
+            accounts = repo.list_accounts(
+                workspace_id=workspace_id,
+                search=search,
+                limit=limit,
+            )
+            for account in accounts:
+                contact_count = repo.count_contacts_for_account(
+                    workspace_id=workspace_id,
+                    account_public_id=account["id"],
+                )
+                rows.append(
+                    Customer360AccountRowPublic(
+                        **_platform_account_to_public(account, repo=repo).model_dump(),
+                        contact_count=contact_count,
+                        last_activity_at=None,
+                        channel_counts={},
+                        top_next_action=None,
+                    )
+                )
+        return rows
+
+    for record in customer_records:
         account = shared_account_to_public(record, workspace_id=workspace_id)
         if account.workspace_id != workspace_id:
             continue

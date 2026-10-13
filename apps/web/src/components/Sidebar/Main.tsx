@@ -46,15 +46,15 @@ export function Main({ items = [], groups }: MainProps) {
       {visibleGroups.map((group, index) => (
         <SidebarGroup
           key={group.title ?? `sidebar-group-${index}`}
-          className="px-2 py-1"
+          className="px-2 py-0.5"
         >
           {group.title ? (
-            <SidebarGroupLabel className="h-7 px-2 text-[0.7rem] font-semibold uppercase text-sidebar-foreground/55">
+            <SidebarGroupLabel className="h-6 px-2 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/55">
               {group.title}
             </SidebarGroupLabel>
           ) : null}
           <SidebarGroupContent>
-            <SidebarMenu className="gap-1">
+            <SidebarMenu className="gap-px">
               {group.items.map((item) => {
                 const isActive =
                   currentPath === item.path ||
@@ -66,7 +66,7 @@ export function Main({ items = [], groups }: MainProps) {
                       tooltip={item.title}
                       isActive={isActive}
                       asChild
-                      className="h-9 rounded-md text-sidebar-foreground/78 hover:bg-white/10 hover:text-white data-[active=true]:bg-white/16 data-[active=true]:text-white data-[active=true]:shadow-[inset_3px_0_0_var(--sidebar-primary)]"
+                      className="h-7 rounded-md text-[13px] text-sidebar-foreground/80 hover:bg-white/10 hover:text-white data-[active=true]:bg-white/16 data-[active=true]:font-medium data-[active=true]:text-white data-[active=true]:shadow-[inset_3px_0_0_var(--sidebar-primary)]"
                     >
                       <RouterLink
                         to={item.path}

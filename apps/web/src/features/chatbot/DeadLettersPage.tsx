@@ -225,7 +225,7 @@ function MetricCard({ label, value }: { label: string; value: string }) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="truncate text-3xl font-semibold tracking-tight">
+        <div className="truncate text-2xl font-semibold tracking-tight tabular-nums">
           {value}
         </div>
       </CardContent>

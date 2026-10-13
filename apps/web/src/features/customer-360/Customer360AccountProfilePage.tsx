@@ -245,7 +245,7 @@ export default function Customer360AccountProfilePage({
             <p className="text-sm text-muted-foreground">
               Customer 360 account
             </p>
-            <h1 className="mt-1 break-words text-3xl font-semibold tracking-tight">
+            <h1 className="mt-1 break-words text-xl font-semibold tracking-tight">
               {accountName}
             </h1>
             {account ? (

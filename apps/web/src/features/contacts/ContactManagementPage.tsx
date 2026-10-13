@@ -283,7 +283,7 @@ export default function ContactManagementPage({
           <Button asChild variant="outline">
             <Link to="/contacts">Back to Contacts</Link>
           </Button>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight">
+          <h1 className="mt-4 text-xl font-semibold tracking-tight">
             {selectedLeadGroup.name}
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -324,7 +324,7 @@ export default function ContactManagementPage({
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Contacts</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Contacts</h1>
           <p className="text-sm text-muted-foreground">
             {count} lead{count === 1 ? "" : "s"} in the active workspace
           </p>

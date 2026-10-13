@@ -111,7 +111,7 @@ export default function OfferPackLibraryPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Offer packs</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Offer packs</h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
           Compose reusable offer bundles from published template versions and
           promote a default pack per workspace.

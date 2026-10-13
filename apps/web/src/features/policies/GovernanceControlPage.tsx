@@ -66,7 +66,7 @@ export default function GovernanceControlPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1 className="text-xl font-semibold tracking-tight">
           Outreach Controls
         </h1>
         <p className="max-w-3xl text-sm text-muted-foreground">

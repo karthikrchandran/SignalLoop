@@ -3,6 +3,7 @@ import {
   BadgeDollarSign,
   BarChart3,
   Bot,
+  Compass,
   Handshake,
   Megaphone,
   ReceiptText,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { WorkspacePage } from "@/components/workspace/WorkspacePage"
 import useAuth from "@/hooks/useAuth"
 
 type WorkspaceCard = {
@@ -25,6 +27,16 @@ type WorkspaceCard = {
 const salesOpsUrl = import.meta.env.VITE_ECRM_APP_URL ?? "http://localhost:3000"
 
 const workspaces: WorkspaceCard[] = [
+  {
+    title: "Lead Discovery",
+    stage: "Source & Discover",
+    description:
+      "Firmographic search, internal AI entity resolution, fit scoring, and waterfall enrichment.",
+    href: "/lead-discovery",
+    action: "Open Lead Discovery",
+    icon: Compass,
+    roles: ["marketing", "engagement", "sdr", "sales", "sales_leader", "revops", "admin"],
+  },
   {
     title: "EngageHub",
     stage: "Capture",
@@ -118,22 +130,13 @@ export default function RevenueOsHomePage() {
   const visibleWorkspaces = workspaces.filter((card) => canOpen(card, user))
 
   return (
-    <div className="space-y-8">
-      <section className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/15 via-background to-background p-6 sm:p-8">
-        <Badge variant="secondary">ARA Global</Badge>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-          Revenue OS
-        </h1>
-        <p className="mt-2 text-lg text-muted-foreground">
-          One customer record. One operating rhythm.
-        </p>
-        <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground">
-          Reach, qualify, close, fulfill, get paid, and improve performance
-          without handing customer context from one disconnected tool to
-          another.
-        </p>
-      </section>
-
+    <WorkspacePage
+      eyebrow="ARA Global"
+      icon={BarChart3}
+      title="Revenue OS"
+      description="One customer record. One operating rhythm."
+      note="Reach, qualify, close, fulfill, get paid, and improve performance without handing customer context from one disconnected tool to another."
+    >
       <section>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -147,33 +150,35 @@ export default function RevenueOsHomePage() {
             {visibleWorkspaces.length} authorised areas
           </Badge>
         </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {visibleWorkspaces.map((workspace) => {
             const Icon = workspace.icon
             const external = workspace.href.startsWith("http")
             return (
               <a
-                className="group rounded-xl border bg-card p-5 transition-colors hover:border-primary/60 hover:bg-muted/30"
+                className="workspace-link-card group"
                 href={workspace.href}
                 key={workspace.title}
                 rel={external ? "noreferrer" : undefined}
                 target={external ? "_blank" : undefined}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="rounded-lg bg-primary/10 p-2 text-primary">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="rounded-xl border border-primary/20 bg-primary/10 p-2.5 text-primary transition-transform duration-200 group-hover:scale-105">
                     <Icon className="size-5" />
                   </div>
-                  <Badge variant="outline">{workspace.stage}</Badge>
+                  <Badge variant="secondary" className="text-[10px] font-semibold uppercase tracking-wider">
+                    {workspace.stage}
+                  </Badge>
                 </div>
-                <h3 className="mt-4 text-lg font-semibold">
+                <h3 className="mt-4 text-base font-bold tracking-tight text-foreground sm:text-lg">
                   {workspace.title}
                 </h3>
-                <p className="mt-2 min-h-12 text-sm leading-6 text-muted-foreground">
+                <p className="mt-2 min-h-12 flex-1 text-xs leading-relaxed text-muted-foreground">
                   {workspace.description}
                 </p>
-                <span className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-primary">
+                <span className="mt-5 inline-flex items-center gap-1.5 text-xs font-semibold text-primary transition-all duration-150 group-hover:gap-2">
                   {workspace.action}
-                  <ArrowUpRight className="size-4" />
+                  <ArrowUpRight className="size-3.5" />
                 </span>
               </a>
             )
@@ -181,14 +186,21 @@ export default function RevenueOsHomePage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-dashed p-5">
-        <h2 className="text-lg font-semibold">Agent workforce</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Capture: Outreach, Campaign & Funnel, Chat & Bot. Qualify: Lead
+      <section className="relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-r from-card via-card to-primary/5 p-6 shadow-xs">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider border-primary/30 text-primary">
+            Autonomous Engine
+          </Badge>
+        </div>
+        <h2 className="mt-2 text-base font-bold tracking-tight text-foreground sm:text-lg">
+          Agent workforce
+        </h2>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+          Capture: Outreach, Campaign &amp; Funnel, Chat &amp; Bot. Qualify: Lead
           Scoring, Pipeline, Proposal. Fulfill: Order Tracking, Payment, ERP
           Sync. Performance: Incentive, Target Tracking, Analytics.
         </p>
       </section>
-    </div>
+    </WorkspacePage>
   )
 }

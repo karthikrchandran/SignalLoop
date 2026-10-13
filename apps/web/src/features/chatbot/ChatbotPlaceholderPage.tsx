@@ -141,7 +141,7 @@ function ChatbotPlaceholderPage({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-semibold tracking-tight">
+              <div className="text-2xl font-semibold tracking-tight tabular-nums">
                 {metric.value}
               </div>
             </CardContent>

@@ -9,6 +9,10 @@ from worker_app.calendar_scheduler_worker import (
 )
 from worker_app.call_worker import POLL_INTERVAL_SECONDS as CALL_POLL_INTERVAL_SECONDS
 from worker_app.call_worker import poll_and_dispatch
+from worker_app.lead_discovery_worker import (
+    LEAD_DISCOVERY_POLL_INTERVAL_SECONDS,
+    run_lead_discovery_scheduled_batch,
+)
 from worker_app.lead_preparation_worker import (
     LEAD_PREPARATION_POLL_INTERVAL_SECONDS,
     process_lead_preparation_batch,
@@ -143,6 +147,19 @@ async def _run_proposal_agent_job() -> None:
         logger.exception("Proposal agent poll failed")
 
 
+async def _run_lead_discovery_job() -> None:
+    gate = EnforcementGate()
+    if gate.is_paused():
+        logger.info("EnforcementGate paused — skipping lead discovery poll")
+        return
+    try:
+        count = await asyncio.to_thread(run_lead_discovery_scheduled_batch)
+        if count:
+            logger.info("Lead discovery worker processed %d lead(s)", count)
+    except Exception:
+        logger.exception("Lead discovery worker poll failed")
+
+
 def main() -> None:
     gate = EnforcementGate()
     logger.info("SignalLoop worker initializing (paused=%s)", gate.is_paused())
@@ -209,6 +226,14 @@ def main() -> None:
         trigger="interval",
         seconds=PROPOSAL_AGENT_POLL_INTERVAL_SECONDS,
         id="proposal_agent_worker",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        _run_lead_discovery_job,
+        trigger="interval",
+        seconds=LEAD_DISCOVERY_POLL_INTERVAL_SECONDS,
+        id="lead_discovery_worker",
         max_instances=1,
         coalesce=True,
     )

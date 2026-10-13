@@ -26,6 +26,7 @@ import { Route as LayoutReportingRouteImport } from './routes/_layout/reporting'
 import { Route as LayoutProspectingRouteImport } from './routes/_layout/prospecting'
 import { Route as LayoutPlatformRouteImport } from './routes/_layout/platform'
 import { Route as LayoutOfferPacksRouteImport } from './routes/_layout/offer-packs'
+import { Route as LayoutLeadDiscoveryRouteImport } from './routes/_layout/lead-discovery'
 import { Route as LayoutHomeRouteImport } from './routes/_layout/home'
 import { Route as LayoutGovernanceRouteImport } from './routes/_layout/governance'
 import { Route as LayoutDashboardRouteImport } from './routes/_layout/dashboard'
@@ -148,6 +149,11 @@ const LayoutPlatformRoute = LayoutPlatformRouteImport.update({
 const LayoutOfferPacksRoute = LayoutOfferPacksRouteImport.update({
   id: '/offer-packs',
   path: '/offer-packs',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutLeadDiscoveryRoute = LayoutLeadDiscoveryRouteImport.update({
+  id: '/lead-discovery',
+  path: '/lead-discovery',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutHomeRoute = LayoutHomeRouteImport.update({
@@ -369,6 +375,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof LayoutDashboardRoute
   '/governance': typeof LayoutGovernanceRoute
   '/home': typeof LayoutHomeRoute
+  '/lead-discovery': typeof LayoutLeadDiscoveryRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
   '/platform': typeof LayoutPlatformRouteWithChildren
   '/prospecting': typeof LayoutProspectingRoute
@@ -425,6 +432,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof LayoutDashboardRoute
   '/governance': typeof LayoutGovernanceRoute
   '/home': typeof LayoutHomeRoute
+  '/lead-discovery': typeof LayoutLeadDiscoveryRoute
   '/offer-packs': typeof LayoutOfferPacksRoute
   '/platform': typeof LayoutPlatformRouteWithChildren
   '/prospecting': typeof LayoutProspectingRoute
@@ -484,6 +492,7 @@ export interface FileRoutesById {
   '/_layout/dashboard': typeof LayoutDashboardRoute
   '/_layout/governance': typeof LayoutGovernanceRoute
   '/_layout/home': typeof LayoutHomeRoute
+  '/_layout/lead-discovery': typeof LayoutLeadDiscoveryRoute
   '/_layout/offer-packs': typeof LayoutOfferPacksRoute
   '/_layout/platform': typeof LayoutPlatformRouteWithChildren
   '/_layout/prospecting': typeof LayoutProspectingRoute
@@ -544,6 +553,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/governance'
     | '/home'
+    | '/lead-discovery'
     | '/offer-packs'
     | '/platform'
     | '/prospecting'
@@ -600,6 +610,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/governance'
     | '/home'
+    | '/lead-discovery'
     | '/offer-packs'
     | '/platform'
     | '/prospecting'
@@ -658,6 +669,7 @@ export interface FileRouteTypes {
     | '/_layout/dashboard'
     | '/_layout/governance'
     | '/_layout/home'
+    | '/_layout/lead-discovery'
     | '/_layout/offer-packs'
     | '/_layout/platform'
     | '/_layout/prospecting'
@@ -828,6 +840,13 @@ declare module '@tanstack/react-router' {
       path: '/offer-packs'
       fullPath: '/offer-packs'
       preLoaderRoute: typeof LayoutOfferPacksRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/lead-discovery': {
+      id: '/_layout/lead-discovery'
+      path: '/lead-discovery'
+      fullPath: '/lead-discovery'
+      preLoaderRoute: typeof LayoutLeadDiscoveryRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/home': {
@@ -1243,6 +1262,7 @@ interface LayoutRouteChildren {
   LayoutDashboardRoute: typeof LayoutDashboardRoute
   LayoutGovernanceRoute: typeof LayoutGovernanceRoute
   LayoutHomeRoute: typeof LayoutHomeRoute
+  LayoutLeadDiscoveryRoute: typeof LayoutLeadDiscoveryRoute
   LayoutOfferPacksRoute: typeof LayoutOfferPacksRoute
   LayoutPlatformRoute: typeof LayoutPlatformRouteWithChildren
   LayoutProspectingRoute: typeof LayoutProspectingRoute
@@ -1268,6 +1288,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutDashboardRoute: LayoutDashboardRoute,
   LayoutGovernanceRoute: LayoutGovernanceRoute,
   LayoutHomeRoute: LayoutHomeRoute,
+  LayoutLeadDiscoveryRoute: LayoutLeadDiscoveryRoute,
   LayoutOfferPacksRoute: LayoutOfferPacksRoute,
   LayoutPlatformRoute: LayoutPlatformRouteWithChildren,
   LayoutProspectingRoute: LayoutProspectingRoute,

@@ -4,7 +4,7 @@ $svcDir  = "$env:USERPROFILE\.local-services"
 New-Item -ItemType Directory -Force -Path $svcDir | Out-Null
 
 Write-Host "Starting Postgres..."
-pg_ctl -D $pgData -l $pgLog start
+Start-Process -FilePath "pg_ctl" -ArgumentList "-D `"$pgData`" -l `"$pgLog`" start" -WindowStyle Hidden
 
 Write-Host "Starting Redis..."
 Start-Process -FilePath "redis-server" `

@@ -20,22 +20,22 @@ export function WorkspaceHeader({
   return (
     <section
       className={cn(
-        "rounded-md border border-[var(--workspace-border)] bg-[var(--workspace-surface)] px-5 py-5 shadow-[0_18px_44px_-32px_rgba(22,53,81,0.55)] sm:px-6",
+        "rounded-lg border border-[var(--workspace-border)] bg-[var(--workspace-surface)] px-5 py-4 shadow-xs",
         className,
       )}
     >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           {eyebrow ? (
-            <p className="text-xs font-semibold uppercase text-primary">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-primary">
               {eyebrow}
             </p>
           ) : null}
-          <h1 className="mt-2 text-2xl font-semibold text-foreground sm:text-3xl">
+          <h1 className="text-xl font-semibold leading-tight text-foreground">
             {title}
           </h1>
           {description ? (
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+            <p className="mt-0.5 max-w-3xl text-[13px] leading-snug text-muted-foreground">
               {description}
             </p>
           ) : null}

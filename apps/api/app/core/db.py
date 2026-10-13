@@ -4,7 +4,7 @@ from sqlmodel import Session, create_engine, select
 
 from app.core.config import settings
 
-engine = create_engine(str(settings.SQLALCHEMY_DATABASE_URI))
+engine = create_engine(str(settings.SQLALCHEMY_DATABASE_URI), pool_pre_ping=True)
 
 
 # make sure all SQLModel models are imported (app.models) before initializing DB

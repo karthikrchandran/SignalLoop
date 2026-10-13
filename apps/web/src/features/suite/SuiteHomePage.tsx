@@ -42,7 +42,7 @@ export function SuiteHomePage() {
         <p className="text-sm font-medium text-primary">
           {tenant.display_name}
         </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+        <h1 className="mt-2 text-xl font-semibold tracking-tight">
           What needs attention
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">

@@ -151,7 +151,7 @@ export default function AnalyticsDashboardPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
+          <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
             <BarChart3 className="h-7 w-7 text-primary" />
             Analytics
           </h1>

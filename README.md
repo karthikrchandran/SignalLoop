@@ -1,6 +1,18 @@
 # SignalLoop
 
-SignalLoop is a hybrid monorepo for governed campaign orchestration across email and voice channels. The implementation baseline follows the FastAPI full-stack starter structure under `apps/api` and `apps/web`, with additional workspace stubs for workers, mobile, and shared packages.
+SignalLoop is the governed operating platform for multichannel campaign orchestration (voice, email, messaging), autonomous commercial agents, AI lead discovery and waterfall enrichment, and lead-to-cash execution integrated with Revenue OS and eCRM.
+
+The system is architected as a high-performance hybrid monorepo: FastAPI + SQLModel + Casbin RBAC backend (`apps/api`), TanStack Router + Vite + Tailwind operator console (`apps/web`), and an asynchronous multi-worker engine (`apps/workers`) executing background enrichment, scoring, delivery, and agent operations.
+
+## Key Capabilities
+
+- **AI Lead Discovery & Multi-Provider Waterfall Enrichment:** Search prospects across firmographic matrices (industry, revenue, headcount, tech stack, geography), query external providers sequentially (Apollo.io, Clay.com, Burkettopti / leadspti, and deterministic sandbox fallback), canonicalize entities, calculate 4-pillar AI fit scores (0–100), synthesize opportunity briefs with personalized conversation angles, and promote 1-click into CRM contacts.
+- **Unified Commercial Agent Suite:** Governed agent registry with capacity metering and slot enforcement across autonomous agents: `LEAD_DISCOVERY`, `LEAD_PREPARATION`, `EMAIL_OUTREACH`, `VOICE_CONVERSATION`, `PROPOSAL_DRAFTING`, `CALENDAR_SCHEDULER`, and `REVENUE_INTERVENTION`.
+- **Governed Generative Proposals:** Synthesize commercial proposal drafts grounded in customer requirements, line items, and pricing policies with human review gates and signed event handoffs to eCRM.
+- **Autonomous Calendar Scheduling:** Calculate available meeting windows, issue booking links, reconcile timezones, and durably confirm bookings with immutable receipt records.
+- **Multichannel Campaigns & Voice Outreach:** Governed email sequences, AI voice calls with custom voice profiles, script versioning, postcall audio transcription, and call summarization.
+- **Messaging Hub & Customer 360:** Website chatbot with live knowledge base indexing, operator inbox, conversation containment analytics, and unified customer timeline intelligence.
+- **Enterprise Multi-Tenancy & Revenue OS:** Strict workspace/tenant isolation, OIDC/SSO authentication, custom tenant branding, audit logging, and signed event streaming to eCRM.
 
 ## Prerequisites
 
@@ -14,11 +26,11 @@ SignalLoop is a hybrid monorepo for governed campaign orchestration across email
 
 ## Workspace Layout
 
-- `apps/api`: FastAPI backend, SQLModel domain, auth, governance APIs
-- `apps/web`: React/Vite operator console
-- `apps/workers`: worker process scaffold for async enforcement and delivery jobs
-- `apps/mobile`: mobile shell scaffold
-- `packages/*`: shared types, contracts, client, and design token packages
+- `apps/api`: FastAPI backend, SQLModel domain models, auth, commercial agent registry, lead discovery, governance APIs
+- `apps/web`: React/Vite/TanStack Router operator console (Outreach, Messaging Hub, Tenant Admin, Platform Control Plane)
+- `apps/workers`: Production async worker suite executing lead discovery, lead preparation, proposals, calendar scheduling, email sequences, voice calls, postcall processing, projections, and revenue interventions
+- `packages/*`: Shared TypeScript packages (`api-client`, `event-contracts`, `shared-types`, `ui-tokens`)
+- `docs/`: Comprehensive documentation tree (User Guide, Developer Guide, Architecture, Sales Materials, Operations)
 
 ## Local Development Setup
 
@@ -48,10 +60,18 @@ uv run alembic upgrade head
 uv run python -m app.initial_data         # seed superuser
 uv run fastapi dev app/main.py --port 8001 # http://localhost:8001
 
-# 2. In separate terminals — workers (each is a long-running process)
-uv run python -m app.workers.sequence_worker
-uv run python -m app.workers.call_worker
-uv run python -m app.workers.postcall_worker
+# 2. In separate terminals — worker suite or individual background workers
+cd ..\workers
+uv sync
+uv run python -m worker_app.main           # runs the full unified background worker suite
+# or run individually:
+# uv run python -m worker_app.lead_discovery_worker
+# uv run python -m worker_app.lead_preparation_worker
+# uv run python -m worker_app.proposal_agent_worker
+# uv run python -m worker_app.calendar_scheduler_worker
+# uv run python -m worker_app.sequence_worker
+# uv run python -m worker_app.call_worker
+# uv run python -m worker_app.postcall_worker
 
 # 3. Frontend
 cd ..\web
