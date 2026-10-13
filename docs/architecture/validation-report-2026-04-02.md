@@ -1,11 +1,3 @@
----
-title: SignalLoop Architecture Documentation Validation Report
-description: Validation of architecture docs against planning artifacts and implementation status.
-author: Paige (BMAD Tech Writer)
-date: 2026-04-02
-status: validated-with-updates
----
-
 # Architecture Documentation Validation Report (2026-04-02)
 
 ## Scope

@@ -1,10 +1,3 @@
----
-title: SignalLoop Process Flows
-description: Operational flows for API requests, campaign intake, policy approval, and future delivery processing.
-author: Codex
-date: 2026-04-02
----
-
 # SignalLoop Process Flows
 
 This document captures the main runtime flows that matter for operators and developers. The goal is to show where context is enforced, where state changes happen, and where asynchronous processing is expected to take over.
@@ -14,7 +7,19 @@ This document captures the main runtime flows that matter for operators and deve
 Every important mutation follows the same high-level envelope:
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#EFF6FF", "primaryTextColor": "#1F2937", "primaryBorderColor": "#1D4ED8", "lineColor": "#334155", "secondaryColor": "#F3F4F6", "secondaryTextColor": "#1F2937", "tertiaryColor": "#DBEAFE", "tertiaryTextColor": "#1E3A8A", "background": "#F9FAFB", "clusterBkg": "#FFFFFF", "clusterBorder": "#BFDBFE", "fontFamily": "Inter, Segoe UI, sans-serif"}}}%%
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    "fontSize": "12px",
+    "actorBkg": "#ffffff",
+    "actorBorder": "#0f172a",
+    "actorTextColor": "#0f172a",
+    "actorLineColor": "#64748b",
+    "signalColor": "#64748b"
+  },
+  "themeCSS": ".messageText { fill: #0f172a !important; stroke: #ffffff !important; stroke-width: 4px !important; paint-order: stroke fill !important; stroke-linejoin: round !important; } rect.actor { fill: #ffffff !important; stroke: #0f172a !important; stroke-width: 2px !important; } text.actor > tspan { fill: #0f172a !important; font-weight: bold; } line { stroke: #64748b !important; }"
+}}%%
 sequenceDiagram
     participant Client
     participant Middleware as Middleware Stack
@@ -41,8 +46,9 @@ sequenceDiagram
 This is the most complete business flow in the repo today.
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#EFF6FF", "primaryTextColor": "#1F2937", "primaryBorderColor": "#1D4ED8", "lineColor": "#334155", "secondaryColor": "#F3F4F6", "secondaryTextColor": "#1F2937", "tertiaryColor": "#DBEAFE", "tertiaryTextColor": "#1E3A8A", "background": "#F9FAFB", "clusterBkg": "#FFFFFF", "clusterBorder": "#BFDBFE", "fontFamily": "Inter, Segoe UI, sans-serif"}}}%%
 flowchart TD
+    classDef default fill:#ffffff,stroke:#1e293b,stroke-width:2px,color:#0f172a;
+
     A["Operator creates campaign"] --> B["POST /campaigns"]
     B --> C["Campaign row saved"]
     C --> D["Audit event written to audit_events (PostgreSQL)"]
@@ -65,7 +71,19 @@ flowchart TD
 ## 3. Template Authoring And Publish Guardrail Flow
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#EFF6FF", "primaryTextColor": "#1F2937", "primaryBorderColor": "#1D4ED8", "lineColor": "#334155", "secondaryColor": "#F3F4F6", "secondaryTextColor": "#1F2937", "tertiaryColor": "#DBEAFE", "tertiaryTextColor": "#1E3A8A", "background": "#F9FAFB", "clusterBkg": "#FFFFFF", "clusterBorder": "#BFDBFE", "fontFamily": "Inter, Segoe UI, sans-serif"}}}%%
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    "fontSize": "12px",
+    "actorBkg": "#ffffff",
+    "actorBorder": "#0f172a",
+    "actorTextColor": "#0f172a",
+    "actorLineColor": "#64748b",
+    "signalColor": "#64748b"
+  },
+  "themeCSS": ".messageText { fill: #0f172a !important; stroke: #ffffff !important; stroke-width: 4px !important; paint-order: stroke fill !important; stroke-linejoin: round !important; } rect.actor { fill: #ffffff !important; stroke: #0f172a !important; stroke-width: 2px !important; } text.actor > tspan { fill: #0f172a !important; font-weight: bold; } line { stroke: #64748b !important; }"
+}}%%
 sequenceDiagram
     participant Lead
     participant API as Templates Route
@@ -95,26 +113,27 @@ sequenceDiagram
 This flow captures how approval thresholds and governance controls are expected to work together.
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#EFF6FF", "primaryTextColor": "#1F2937", "primaryBorderColor": "#1D4ED8", "lineColor": "#334155", "secondaryColor": "#F3F4F6", "secondaryTextColor": "#1F2937", "tertiaryColor": "#DBEAFE", "tertiaryTextColor": "#1E3A8A", "background": "#F9FAFB", "clusterBkg": "#FFFFFF", "clusterBorder": "#BFDBFE", "fontFamily": "Inter, Segoe UI, sans-serif"}}}%%
-flowchart LR
-    subgraph OperatorLane["Operator"]
-        O1["Submit approval request"]
+flowchart TD
+    classDef default fill:#ffffff,stroke:#1e293b,stroke-width:2px,color:#0f172a;
+
+    subgraph OperatorLane ["1. Operator Actions"]
+        O1["<b>Submit Approval Request</b><br/>POST /approvals/submit"]
     end
 
-    subgraph SystemLane["System"]
-        S1["requires_approval(...)"]
-        S2["Create policy_approval_requests row"]
-        S3["Write audit event"]
+    subgraph SystemLane ["2. Automated Governance & Rules Engine"]
+        S1{"<b>requires_approval(...)</b><br/>Policy threshold check"}
+        S2["<b>Create Request Row</b><br/>policy_approval_requests (pending)"]
+        S3[("<b>Append Audit Event</b><br/>audit_events: approval.submitted")]
     end
 
-    subgraph AdminLane["Admin"]
-        A1["Review request"]
-        A2["Approve or reject"]
+    subgraph AdminLane ["3. Administrative Review"]
+        A1["<b>Review Request</b><br/>Inspect payload, context & rules"]
+        A2["<b>Approve or Reject</b><br/>POST /approvals/{id}/approve or reject"]
     end
 
     O1 --> S1
-    S1 -->|Approval not needed| S2
-    S1 -->|Approval required| S2
+    S1 -->|Approval Required| S2
+    S1 -->|Auto-Approved| S3
     S2 --> S3
     S2 --> A1
     A1 --> A2
@@ -123,7 +142,19 @@ flowchart LR
 And the approval decision itself:
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#EFF6FF", "primaryTextColor": "#1F2937", "primaryBorderColor": "#1D4ED8", "lineColor": "#334155", "secondaryColor": "#F3F4F6", "secondaryTextColor": "#1F2937", "tertiaryColor": "#DBEAFE", "tertiaryTextColor": "#1E3A8A", "background": "#F9FAFB", "clusterBkg": "#FFFFFF", "clusterBorder": "#BFDBFE", "fontFamily": "Inter, Segoe UI, sans-serif"}}}%%
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    "fontSize": "12px",
+    "actorBkg": "#ffffff",
+    "actorBorder": "#0f172a",
+    "actorTextColor": "#0f172a",
+    "actorLineColor": "#64748b",
+    "signalColor": "#64748b"
+  },
+  "themeCSS": ".messageText { fill: #0f172a !important; stroke: #ffffff !important; stroke-width: 4px !important; paint-order: stroke fill !important; stroke-linejoin: round !important; } rect.actor { fill: #ffffff !important; stroke: #0f172a !important; stroke-width: 2px !important; } text.actor > tspan { fill: #0f172a !important; font-weight: bold; } line { stroke: #64748b !important; }"
+}}%%
 sequenceDiagram
     participant Operator
     participant API as Approvals Route
@@ -148,7 +179,19 @@ sequenceDiagram
 ## 5. Policy Evaluation Flow
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#EFF6FF", "primaryTextColor": "#1F2937", "primaryBorderColor": "#1D4ED8", "lineColor": "#334155", "secondaryColor": "#F3F4F6", "secondaryTextColor": "#1F2937", "tertiaryColor": "#DBEAFE", "tertiaryTextColor": "#1E3A8A", "background": "#F9FAFB", "clusterBkg": "#FFFFFF", "clusterBorder": "#BFDBFE", "fontFamily": "Inter, Segoe UI, sans-serif"}}}%%
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    "fontSize": "12px",
+    "actorBkg": "#ffffff",
+    "actorBorder": "#0f172a",
+    "actorTextColor": "#0f172a",
+    "actorLineColor": "#64748b",
+    "signalColor": "#64748b"
+  },
+  "themeCSS": ".messageText { fill: #0f172a !important; stroke: #ffffff !important; stroke-width: 4px !important; paint-order: stroke fill !important; stroke-linejoin: round !important; } rect.actor { fill: #ffffff !important; stroke: #0f172a !important; stroke-width: 2px !important; } text.actor > tspan { fill: #0f172a !important; font-weight: bold; } line { stroke: #64748b !important; }"
+}}%%
 sequenceDiagram
     participant Operator
     participant API as Policies Route
@@ -170,8 +213,9 @@ sequenceDiagram
 ## 6. Pause And Resume Control Flow
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#EFF6FF", "primaryTextColor": "#1F2937", "primaryBorderColor": "#1D4ED8", "lineColor": "#334155", "secondaryColor": "#F3F4F6", "secondaryTextColor": "#1F2937", "tertiaryColor": "#DBEAFE", "tertiaryTextColor": "#1E3A8A", "background": "#F9FAFB", "clusterBkg": "#FFFFFF", "clusterBorder": "#BFDBFE", "fontFamily": "Inter, Segoe UI, sans-serif"}}}%%
 flowchart TD
+    classDef default fill:#ffffff,stroke:#1e293b,stroke-width:2px,color:#0f172a;
+
     A["Admin issues pause or resume request"] --> B["Controls route checks role and permission"]
     B --> C["Load or create global_control_state"]
     C --> D["Apply pause state or clear it"]
@@ -180,78 +224,185 @@ flowchart TD
     F --> G["Worker EnforcementGate consumes equivalent state to stop dequeueing"]
 ```
 
-## 7. Target Delivery Pipeline Flow
-
-This flow is partially implemented in schema and scaffolding. It describes the intended runtime path signaled by the Epic 2 tables.
+## 7. Multi-Channel Async Delivery Pipeline Flow
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#EFF6FF", "primaryTextColor": "#1F2937", "primaryBorderColor": "#1D4ED8", "lineColor": "#334155", "secondaryColor": "#F3F4F6", "secondaryTextColor": "#1F2937", "tertiaryColor": "#DBEAFE", "tertiaryTextColor": "#1E3A8A", "background": "#F9FAFB", "clusterBkg": "#FFFFFF", "clusterBorder": "#BFDBFE", "fontFamily": "Inter, Segoe UI, sans-serif"}}}%%
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    "fontSize": "12px",
+    "actorBkg": "#ffffff",
+    "actorBorder": "#0f172a",
+    "actorTextColor": "#0f172a",
+    "actorLineColor": "#64748b",
+    "signalColor": "#64748b"
+  },
+  "themeCSS": ".messageText { fill: #0f172a !important; stroke: #ffffff !important; stroke-width: 4px !important; paint-order: stroke fill !important; stroke-linejoin: round !important; } rect.actor { fill: #ffffff !important; stroke: #0f172a !important; stroke-width: 2px !important; } text.actor > tspan { fill: #0f172a !important; font-weight: bold; } line { stroke: #64748b !important; }"
+}}%%
 sequenceDiagram
     participant API
     participant PG as PostgreSQL
-    participant Outbox as Outbox Publisher
-    participant Worker
-    participant Queue as Action Queue
-    participant Provider as External Provider
+    participant Redis as Redis Queue / Lock
+    participant Worker as Async Delivery Worker
+    participant Provider as Comms Provider (SendGrid / Twilio / Vapi)
     participant Audit as audit_events (PG)
 
-    API->>PG: Save contact progression or delivery intent
-    API->>PG: Insert outbox_events row in same transaction
-    Outbox->>PG: Poll unpublished outbox rows
-    Outbox->>Queue: Enqueue action work item
-    Worker->>Queue: Dequeue eligible action
-    Worker->>Provider: Send message or initiate provider action
-    Provider-->>Worker: Delivery result or error
+    API->>PG: Save contact progression and delivery intent
+    API->>Redis: Enqueue work item with idempotency key
+    Worker->>Redis: Dequeue eligible action and acquire lease lock
+    Worker->>Provider: Send email or initiate outbound call
+    Provider-->>Worker: Delivery result or call event
     Worker->>PG: Update action_queue and contact_progression
     Worker->>PG: Append contact_state_history
-    Worker->>Audit: Append audit_events / timeline event
+    Worker->>Audit: Append audit_events record
 ```
 
-## 8. Swimlane View Of Current And Emerging Responsibilities
+## 8. Swimlane View Of System Responsibilities
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#EFF6FF", "primaryTextColor": "#1F2937", "primaryBorderColor": "#1D4ED8", "lineColor": "#334155", "secondaryColor": "#F3F4F6", "secondaryTextColor": "#1F2937", "tertiaryColor": "#DBEAFE", "tertiaryTextColor": "#1E3A8A", "background": "#F9FAFB", "clusterBkg": "#FFFFFF", "clusterBorder": "#BFDBFE", "fontFamily": "Inter, Segoe UI, sans-serif"}}}%%
-flowchart LR
-    subgraph Human["Human Operators"]
-        H1["Create campaigns"]
-        H2["Author templates"]
-        H3["Review approvals"]
-        H4["Pause or resume activity"]
+flowchart TD
+    classDef default fill:#ffffff,stroke:#1e293b,stroke-width:2px,color:#0f172a;
+    classDef store fill:#f8fafc,stroke:#1e293b,stroke-width:2px,color:#0f172a;
+
+    subgraph Human ["1. Human Operators"]
+        H1["Create Campaigns · Author Templates · Review Approvals · Pause/Resume"]
     end
 
-    subgraph API["API Layer"]
-        A1["Validate headers and auth"]
-        A2["Enforce RBAC and permissions"]
-        A3["Persist operational state"]
-        A4["Write audit events"]
+    subgraph API ["2. API & Governance Layer"]
+        A1["Validate Headers & OIDC Auth · Enforce Casbin RBAC · Persist State · Write Audit Events"]
     end
 
-    subgraph Worker["Worker Layer"]
-        W1["Check pause gate"]
-        W2["Dequeue actions"]
-        W3["Invoke providers"]
-        W4["Update progression and history"]
+    subgraph Worker ["3. Async Worker Layer"]
+        W1["Enforce Pause Gate · Dequeue Action Queue · Invoke Providers · Update Progression"]
     end
 
-    subgraph Data["Data Stores"]
-        D1["PostgreSQL\n(operational + audit_events)"]
-        D3["Redis"]
+    subgraph Data ["4. Data & State Stores"]
+        direction LR
+        D1[("<b>PostgreSQL</b><br/>Operational State & Append-Only Audit Trail")]:::store
+        D3[("<b>Redis</b><br/>Locks, Queues & Caps")]:::store
     end
 
-    H1 --> A1
-    H2 --> A1
-    H3 --> A1
-    H4 --> A1
-    A1 --> A2
-    A2 --> A3
-    A3 --> D1
-    A4 --> D1
-    D1 --> W1
-    W1 --> W2
-    W2 --> W3
-    W3 --> W4
-    W4 --> D1
-    W1 --> D3
+    Human --> API
+    API --> Data
+    API --> Worker
+    Worker --> Data
+```
+
+## 9. AI Lead Discovery & Waterfall Enrichment Flow
+
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    "fontSize": "12px",
+    "actorBkg": "#ffffff",
+    "actorBorder": "#0f172a",
+    "actorTextColor": "#0f172a",
+    "actorLineColor": "#64748b",
+    "signalColor": "#64748b"
+  },
+  "themeCSS": ".messageText { fill: #0f172a !important; stroke: #ffffff !important; stroke-width: 4px !important; paint-order: stroke fill !important; stroke-linejoin: round !important; } rect.actor { fill: #ffffff !important; stroke: #0f172a !important; stroke-width: 2px !important; } text.actor > tspan { fill: #0f172a !important; font-weight: bold; } line { stroke: #64748b !important; }"
+}}%%
+sequenceDiagram
+    participant Operator as Operator / Cron
+    participant API as Lead Discovery Route
+    participant Gateway as Waterfall Gateway
+    participant Resolver as Entity Resolver
+    participant Scorer as AI 4-Pillar Scorer
+    participant PG as PostgreSQL
+
+    Operator->>API: POST /lead-discovery/search (ICP criteria)
+    API->>Gateway: search_leads(criteria)
+    Gateway->>Gateway: Query Apollo / Clay / Burkettopti / Sandbox
+    Gateway-->>API: DiscoveredLeadDTO list
+    API->>PG: Persist to discovered_leads & log query
+    API-->>Operator: 200 Discovered Leads with Initial Scores
+
+    Operator->>API: POST /lead-discovery/promote {lead_id}
+    API->>Resolver: resolve_lead_entity(domain, company_name)
+    Resolver->>PG: Match against existing accounts/contacts
+    Resolver-->>API: MatchConfidence (EXACT, FUZZY, NEW)
+    API->>PG: Create contacts row & update discovered_leads.is_promoted
+    API->>PG: Enqueue welcome sequence into action_queue
+    API->>PG: Append audit_events (lead_discovery.promoted)
+    API-->>Operator: Promoted Contact ID & Enrollment Status
+```
+
+## 10. Governed Generative Proposal Generation Flow
+
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    "fontSize": "12px",
+    "actorBkg": "#ffffff",
+    "actorBorder": "#0f172a",
+    "actorTextColor": "#0f172a",
+    "actorLineColor": "#64748b",
+    "signalColor": "#64748b"
+  },
+  "themeCSS": ".messageText { fill: #0f172a !important; stroke: #ffffff !important; stroke-width: 4px !important; paint-order: stroke fill !important; stroke-linejoin: round !important; } rect.actor { fill: #ffffff !important; stroke: #0f172a !important; stroke-width: 2px !important; } text.actor > tspan { fill: #0f172a !important; font-weight: bold; } line { stroke: #64748b !important; }"
+}}%%
+sequenceDiagram
+    participant Operator
+    participant API as Proposal Agent Route
+    participant Grounding as Grounding Engine
+    participant LLM as LLM Synthesis (Groq/Ollama)
+    participant PG as PostgreSQL
+    participant eCRM as eCRM Lead-to-Cash System
+
+    Operator->>API: POST /proposal-agent/generate
+    API->>Grounding: gather_grounding_evidence(account_id)
+    Grounding->>PG: Load account signals, meeting notes, offer packs
+    Grounding-->>API: GroundingContext
+    API->>LLM: synthesize_proposal(GroundingContext, pricing_rules)
+    LLM-->>API: Generated Proposal JSON
+    API->>PG: Persist proposal_generation_jobs (status: under_review)
+    API-->>Operator: Reviewable Proposal Draft
+
+    Operator->>API: POST /proposal-agent/{id}/approve
+    API->>PG: Update status to approved & record reviewer
+    API->>eCRM: Send signed commercial proposal event
+    eCRM-->>API: 200 Proposal Acknowledged
+    API->>PG: Record proposal_email_handoffs receipt
+    API-->>Operator: Proposal Dispatched & Synchronized
+```
+
+## 11. Autonomous Calendar Scheduling & Booking Confirmation Flow
+
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    "fontSize": "12px",
+    "actorBkg": "#ffffff",
+    "actorBorder": "#0f172a",
+    "actorTextColor": "#0f172a",
+    "actorLineColor": "#64748b",
+    "signalColor": "#64748b"
+  },
+  "themeCSS": ".messageText { fill: #0f172a !important; stroke: #ffffff !important; stroke-width: 4px !important; paint-order: stroke fill !important; stroke-linejoin: round !important; } rect.actor { fill: #ffffff !important; stroke: #0f172a !important; stroke-width: 2px !important; } text.actor > tspan { fill: #0f172a !important; font-weight: bold; } line { stroke: #64748b !important; }"
+}}%%
+sequenceDiagram
+    participant Prospect
+    participant Worker as Calendar Scheduler Worker
+    participant Provider as Cal Provider (Google/Outlook)
+    participant PG as PostgreSQL
+
+    Prospect->>Worker: Clicks verified booking link
+    Worker->>PG: Validate scheduling_offers window & policy
+    Worker->>Provider: Verify real-time slot availability
+    Prospect->>Worker: Confirms time slot selection
+    Worker->>Provider: Create calendar event & generate meeting URL
+    Provider-->>Worker: external_event_id & confirmed_start
+    Worker->>PG: Save calendar_booking_jobs & calendar_booking_receipts
+    Worker->>PG: Transition contact_progression to booked
+    Worker->>PG: Append audit_events (scheduling.booking_confirmed)
+    Worker-->>Prospect: Booking Confirmation & ICS Invite
 ```
 
 ## Practical Takeaway
@@ -260,5 +411,5 @@ If you want one short summary of the product flow, it is this:
 
 1. Humans configure and govern outreach through the API.
 2. The API captures durable intent and audit evidence.
-3. The worker layer is being built to turn that intent into reliable outbound actions.
-4. Policy, approval, and pause controls exist to make sure automation stays governable.
+3. The worker layer executes async delivery, lead enrichment, proposal generation, and calendar bookings reliably.
+4. Policy, approval, and pause controls ensure all autonomous actions remain strictly governable.

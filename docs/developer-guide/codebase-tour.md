@@ -1,9 +1,3 @@
----
-title: Codebase Tour
-description: A guided walk through the SignalLoop monorepo so a new engineer knows where things live before they start changing code.
-date: 2026-05-28
----
-
 # Codebase Tour
 
 SignalLoop is a hybrid monorepo: Python backend + workers in `apps/api` and `apps/workers`, a React/Vite frontend in `apps/web`, and a few shared TypeScript packages. There is no Lerna/Nx orchestration — each app is independently runnable, with PowerShell scripts at the repo root tying them together for local dev.
@@ -71,13 +65,23 @@ apps/api/
 | `campaigns.py`, `campaign_health.py` | Campaign intake, audience selection, health metrics. |
 | `templates.py`, `offer_packs.py` | Template/offer-pack governance and publishing. |
 | `sequences.py` | Sequence definition and enrolment. |
-| `contacts.py` | Lead pool, CSV import, timeline. |
+| `contacts.py`, `accounts.py` | Lead pool, CSV import, timeline, customer accounts. |
+| `lead_discovery.py` | AI Lead Discovery, waterfall enrichment gateway, 4-pillar scoring, CRM promotion, external webhooks. |
+| `lead_preparation.py` | Autonomous lead preparation agent, versioned scoring policies, worker leases, evidence briefs. |
+| `commercial_agents.py` | Commercial agent registry, slot allocation, and capacity metering. |
+| `proposal_agent.py` | Governed generative proposal drafting, review workflows, grounding, and eCRM handoffs. |
+| `scheduling.py` | Autonomous Calendar Scheduler Agent, meeting slot discovery, booking links, and durable confirmations. |
+| `customer_360.py` | Unified customer 360 profile, cross-channel engagement timelines, and next best action. |
 | `controls.py` | Daily caps, quiet hours, emergency pause/resume. |
-| `voice.py`, `calls.py`, `scripts.py` | Voice agents, call sessions, scripts. |
+| `voice.py`, `calls.py`, `scripts.py` | Voice agents, call sessions, scripts, voice profile management. |
 | `provider_credentials.py` | Per-workspace provider credential management. |
 | `webhooks.py`, `triggers.py`, `signals.py` | Inbound provider webhooks, trigger evaluation, behavioural signals. |
 | `audit_log.py` | Append-only audit trail readback. |
 | `dashboard.py`, `kpis.py` | Aggregate dashboards and KPI surfaces. |
+| `revenue_essentials.py`, `revenue_interventions.py` | Revenue OS core intelligence, risk detection, and corrective actions. |
+| `ecrm_installations.py` | eCRM installation bindings and revenue projections. |
+| `tenant_admin.py`, `platform_admin.py` | Tenant administration, platform control plane, and product entitlements. |
+| `oidc.py`, `public_branding.py`, `suite_context.py` | SSO/OIDC identity, custom branding assets, and suite context. |
 | `workspace_runtime_config.py` | Per-workspace runtime configuration. |
 | `utils.py` | Health-check + utility endpoints. |
 | `private.py` | Internal-only endpoints (not exposed publicly). |
@@ -87,19 +91,25 @@ apps/api/
 - Every mutating request must carry `X-Workspace-Id` and `Idempotency-Key` headers. `request_context.py` enforces this.
 - Casbin policy lives in `core/` and is loaded at startup; authorisation decisions go through helpers, not raw `if user.role == ...` checks.
 - Append-only audit goes into the `audit_events` table with a JSONB payload column — read `apps/api/app/domain/audit.py` (or equivalent service) before adding new event types.
-- Background work is enqueued, not executed inline. The actual delivery loop is implemented in `apps/api/app/workers/`.
+- Background work is enqueued, not executed inline. The actual delivery and agent loops are implemented in `apps/workers/worker_app/`.
 
 ## `apps/workers` — Async workers
 
-Three worker processes, each launched independently:
+Nine worker processes, run via `apps/workers/worker_app/main.py` or launched individually:
 
-| Worker | Entry point | Job |
+| Worker | Entry point (`apps/workers/worker_app/`) | Job |
 | --- | --- | --- |
-| Sequence worker | `python -m app.workers.sequence_worker` | Sends queued email steps via SendGrid. |
-| Call worker | `python -m app.workers.call_worker` | Places Twilio outbound calls; respects daily cap and quiet hours. |
-| Postcall worker | `python -m app.workers.postcall_worker` | Transcribes recordings (Deepgram) and summarises (Groq). |
+| Lead discovery worker | `lead_discovery_worker.py` | Polls discovered lead batches, executes waterfall enrichment, and calculates 4-pillar AI scores. |
+| Lead preparation worker | `lead_preparation_worker.py` | Evaluates contact pools against versioned scoring policies with atomic lease locks. |
+| Proposal agent worker | `proposal_agent_worker.py` | Generates governed proposal drafts grounded in customer requirements and pricing policies. |
+| Calendar scheduler worker | `calendar_scheduler_worker.py` | Evaluates meeting windows, issues booking links, and durably reconciles calendar invites. |
+| Sequence worker | `sequence_worker.py` | Sends queued email steps via SendGrid/SMTP with daily caps and quiet hours. |
+| Call worker | `call_worker.py` | Places Twilio/Vapi outbound voice calls respecting daily caps and quiet hours. |
+| Postcall worker | `postcall_worker.py` | Transcribes audio (Deepgram/faster-whisper) and summarizes calls (Groq/Ollama). |
+| Projection worker | `projection_worker.py` | Projects multi-tenant events and synchronizes cross-product state. |
+| Revenue intervention worker | `revenue_intervention_worker.py` | Evaluates revenue risk and executes governed corrective interventions. |
 
-The `StartApp.ps1 -Workers` flag launches all three in separate named PowerShell windows. They share the API's `app/` package and the same `.env`.
+The `StartApp.ps1 -Workers` flag launches the worker suite. Workers share the API's `app/` domain packages and the same `.env`.
 
 ## `apps/web` — React operator console
 

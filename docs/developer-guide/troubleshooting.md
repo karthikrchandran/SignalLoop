@@ -1,9 +1,3 @@
----
-title: Troubleshooting
-description: Known local-development failure modes and how to recover.
-date: 2026-05-28
----
-
 # Troubleshooting
 
 If something broke, walk this list top to bottom. Most "I can't run the app" reports are one of the first five entries.

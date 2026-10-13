@@ -1,6 +1,6 @@
 # SignalLoop User Guide
 
-Version: September 12, 2026
+Version: October 10, 2026
 Audience: outreach operators, Messaging Hub users, tenant administrators, and platform administrators
 
 SignalLoop is the governed operating workspace for campaigns, voice, messaging, and account work. This guide reflects the routes and controls verified in the current local application. It distinguishes available workflows from screens that require connected providers, workers, or business data. Every screen below is shown once, in the order you would reach it by clicking through the left navigation.
@@ -36,7 +36,7 @@ The three controls at the top of the left navigation switch the menu between pro
 
 ### Outreach
 
-Switching to Outreach exposes Home, Dashboard, Campaigns, SignalLoop AI, Customer 360, Sequences, Voice Agents, Meetings, Contacts, Lead Preparation, Analytics, Templates, Controls, and Settings.
+Switching to Outreach exposes Home, Dashboard, Campaigns, SignalLoop AI, Customer 360, Sequences, Voice Agents, Meetings, Contacts, Lead Discovery, Lead Preparation, Analytics, Templates, Controls, and Settings.
 
 #### Home
 
@@ -88,19 +88,30 @@ Switching to Outreach exposes Home, Dashboard, Campaigns, SignalLoop AI, Custome
 
 #### Meetings
 
-**Meetings** lists contacts that expressed booking interest and supports booking-link or booked-state follow-up.
+**Meetings** lists contacts that expressed booking interest and manages the scheduling lifecycle. Under the hood, the autonomous **Calendar Scheduler Agent** calculates open meeting windows, generates verified booking links, reconciles timezones, and writes immutable booking receipts with durable recovery across worker restarts.
 
 ![Meetings](screenshots/14-meetings.png)
 
 #### Contacts
 
-**Contacts** is the active-workspace lead pool. Download the CSV template when importing; filter and review contacts before using them in campaigns or sequences.
+**Contacts** is the active-workspace lead pool. Download the CSV template when importing; filter and review contacts, timelines, and suppression status before using them in campaigns or sequences.
 
 ![Contacts](screenshots/15-contacts.png)
 
+#### Lead Discovery
+
+**Lead Discovery** provides an enterprise prospecting and AI enrichment console at `/lead-discovery`. It connects external market data sources with proprietary AI entity resolution and multi-dimensional qualification, enabling operators to find, enrich, score, and promote target accounts directly into active outreach.
+
+- **ICP Filter Matrix:** Target prospects by industry vertical (Technology & SaaS, Fintech, Healthcare, Logistics, etc.), job titles (e.g., VP of Sales, Head of Growth), company size (employee count brackets), revenue ranges, geography, and target technology stack signals (e.g., Salesforce, AWS, HubSpot).
+- **Pluggable Waterfall Gateway:** Queries external enrichment providers sequentially (Apollo.io, Clay.com, Burkettopti / leadspti, with an enterprise deterministic Sandbox fallback). If a provider lacks verified data or hits quota, the waterfall automatically cascades to the next adapter, maximizing direct-dial and email fill rates without vendor lock-in.
+- **AI Entity Resolution & CRM Deduplication:** Automatically normalizes company names, strips corporate suffixes, canonicalizes root domains (`https://www.corp.acme.co.uk/about` -> `acme.co.uk`), and performs fuzzy matching against existing CRM accounts to classify match confidence (`EXACT_DOMAIN_MATCH`, `FUZZY_NAME_MATCH`, `NEW_ENTITY`).
+- **4-Pillar AI Scoring & Opportunity Briefs:** Evaluates prospects across four objective pillars (100-point scale): Firmographic Fit (35 pts), Intent/Trigger Signals (30 pts), Role Authority (20 pts), and Data Completeness (15 pts). Assigns actionable fit bands (`HOT_OPPORTUNITY`, `HIGH_FIT`, `NURTURE`, `UNQUALIFIED`) and synthesizes LLM opportunity briefs with pain point analysis and tailored conversation starters for cold email and voice dialers.
+- **1-Click CRM Promotion:** Converts discovered leads into tenant-scoped CRM contacts with strict workspace isolation and immediately enrolls them into active sequences or campaigns with append-only audit logging.
+- **External Webhook Ingestion:** Ingests streaming lead signals from external sources and landing pages via `/api/v1/lead-discovery/webhooks/{provider}` for autonomous background enrichment and scoring.
+
 #### Lead Preparation
 
-**Lead Preparation** selects contacts, builds lead briefs, and hands prepared contacts to campaigns or sequences.
+**Lead Preparation** is powered by the autonomous **Lead Preparation Agent**. It continuously evaluates contacts against versioned scoring policies, acquires atomic worker leases to prevent duplicate processing, compiles rich evidence packages, and feeds qualified leads into campaigns, sequences, or proposal generation.
 
 ![Lead Preparation](screenshots/16-lead-preparation.png)
 
@@ -237,6 +248,21 @@ Tenant-scoped administration for the RevenueOS product.
 Tenant-scoped administration for the SignalLoop product.
 
 ![SignalLoop administration](screenshots/38-admin-signalloop.png)
+
+### Autonomous Commercial Agents
+
+SignalLoop includes a unified **Commercial Agent Registry** that manages task-specific autonomous agents with strict slot enforcement, daily capacity metering, and governance policies:
+
+- **Lead Discovery Agent (`LEAD_DISCOVERY`):** Executes automated firmographic searches, waterfall provider enrichment (Apollo, Clay, Burkettopti), 4-pillar AI scoring, and CRM contact promotion.
+- **Lead Preparation Agent (`LEAD_PREPARATION`):** Evaluates contact pools against versioned scoring policies, manages atomic worker leases, and synthesizes actionable sales briefs.
+- **Email Outreach Agent (`EMAIL_OUTREACH`):** Dispatches governed multi-touch sequences while strictly enforcing daily caps, quiet hours, and suppression rules.
+- **Voice Outreach Agent (`VOICE_CONVERSATION`):** Executes AI-driven outbound phone calls with custom voice profiles, script compliance, and call transcription analysis.
+- **Proposal Drafting Agent (`PROPOSAL_DRAFTING`):** Generates grounded commercial proposal drafts from conversation signals, pricing policies, and approved line items for human review or automated eCRM handoff.
+- **Calendar Scheduler Agent (`CALENDAR_SCHEDULER`):** Calculates available meeting windows, issues verified booking links, and records durable booking receipts across provider APIs.
+- **Revenue Intervention Agent (`REVENUE_INTERVENTION`):** Detects customer revenue risk and triggers governed corrective interventions across linked workspaces.
+- **Chat Lead Capture Agent (`CHAT_LEAD_CAPTURE`):** Handles website visitor intake, knowledge-grounded Q&A, and direct lead capture in Messaging Hub.
+
+Each active agent deployment consumes one commercial slot, while throughput and provider consumption are metered transparently against tenant quotas.
 
 ## Platform administration
 

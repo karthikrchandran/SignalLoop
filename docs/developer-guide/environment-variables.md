@@ -1,9 +1,3 @@
----
-title: Environment Variables Reference
-description: Every environment variable SignalLoop reads, what it does, and whether it is required for local development.
-date: 2026-05-28
----
-
 # Environment Variables Reference
 
 SignalLoop reads its configuration from two `.env` files:
@@ -78,6 +72,10 @@ Each adapter fails closed when its key is empty, so the API and UI still boot wi
 | `OLLAMA_MODEL` | Local LLM | Local Ollama model. Defaults to `llama3.2:1b`. |
 | `FASTER_WHISPER_BASE_URL` | Local STT | Local faster-whisper service URL. Defaults to `http://localhost:9000`. |
 | `FASTER_WHISPER_MODEL` | Local STT | Local faster-whisper model name. Defaults to `base`. |
+| `APOLLO_API_KEY` | Lead Discovery | Optional API key for Apollo.io waterfall prospecting. Fallback is Sandbox. |
+| `CLAY_API_KEY` | Lead Discovery | Optional API key for Clay.com waterfall enrichment. Fallback is Sandbox. |
+| `BURKETT_API_KEY` | Lead Discovery | Optional API key for Burkettopti / leadspti deep enrichment. Fallback is Sandbox. |
+| `BURKETT_BASE_URL` | Lead Discovery | Base URL for Burkettopti API. Defaults to `https://api.burkettopti.com/v1`. |
 
 ### Operational
 

@@ -99,8 +99,8 @@ const html = `<!doctype html>
   <section class="page">
     <div class="eyebrow">Commercial pricing brief · United States</div>
     <h1>Competitive entry. Governed scale.</h1>
-    <p class="lead">SignalLoop executes governed multichannel engagement and AI-assisted prospecting. eCRM operates the lead-to-cash workflow. Both remain independently sellable.</p>
-    <div class="chips"><span class="chip">Annual commitment · monthly billing</span><span class="chip">USD · taxes excluded</span><span class="chip">Provider usage and hosting separate</span><span class="chip">Research snapshot: 12 Sep 2026</span></div>
+    <p class="lead">SignalLoop executes governed multichannel engagement, AI lead discovery &amp; waterfall enrichment, and autonomous commercial agents. eCRM operates the lead-to-cash workflow. Both remain independently sellable.</p>
+    <div class="chips"><span class="chip">Annual commitment · monthly billing</span><span class="chip">USD · taxes excluded</span><span class="chip">Provider usage and hosting separate</span><span class="chip">Research snapshot: 10 Oct 2026</span></div>
 
     <div class="section-title"><h2>AI sales and CRM reference points</h2></div>
     <div class="benchmarks">
@@ -113,10 +113,10 @@ const html = `<!doctype html>
 
     <div class="section-title"><h2>Recommended competitive US launch list</h2></div>
     <div class="products">
-      ${productTable("SignalLoop", "Email, voice, chat, sequences and governed agents", "", [
-        { name: "Launch", setup: "Setup $750", price: "$199/mo", envelope: "3 users · 1 workspace · 5,000 active contacts · 1 production AI agent" },
-        { name: "Scale", setup: "Setup $2,500", price: "$599/mo", envelope: "10 users · 25,000 active contacts · connector · 4 production AI agents" },
-        { name: "Enterprise", setup: "Setup from $7,500", price: "From $1,499/mo", envelope: "Higher limits, SSO or dedicated operating requirements; quote after release review" },
+      ${productTable("SignalLoop", "Email, voice, sequences, AI lead discovery &amp; governed agents", "", [
+        { name: "Launch", setup: "Setup $750", price: "$199/mo", envelope: "3 users · 1 workspace · 5,000 active contacts · 1 production agent slot · 500 AI enrichments/mo" },
+        { name: "Scale", setup: "Setup $2,500", price: "$599/mo", envelope: "10 users · 25,000 active contacts · connector · 4 production agent slots · 2,500 AI enrichments/mo" },
+        { name: "Enterprise", setup: "Setup from $7,500", price: "From $1,499/mo", envelope: "Higher limits, dedicated agent slots, enterprise waterfall data feeds, SSO; quote after review" },
       ])}
       ${productTable("eCRM", "Customer 360, pipeline, orders, production and finance", "crm", [
         { name: "Team Cell", setup: "Setup $2,000", price: "$399/mo", envelope: "10 users · dedicated customer cell · complete lead-to-cash workflow" },
@@ -150,9 +150,9 @@ const html = `<!doctype html>
 
     <div class="section-title"><h2>Recommended competitive India launch list</h2></div>
     <div class="products">
-      ${productTable("SignalLoop", "Governed engagement across email, voice and chat", "", [
-        { name: "Launch", setup: "Setup ₹35,000", price: "₹9,900/mo", envelope: "3 users · 1 workspace · 5,000 active contacts · 1 production AI agent" },
-        { name: "Scale", setup: "Setup ₹1,00,000", price: "₹29,900/mo", envelope: "10 users · 25,000 active contacts · connector · 4 production AI agents" },
+      ${productTable("SignalLoop", "Governed engagement across email, voice, AI discovery and chat", "", [
+        { name: "Launch", setup: "Setup ₹35,000", price: "₹9,900/mo", envelope: "3 users · 1 workspace · 5,000 active contacts · 1 production agent slot · 500 AI enrichments/mo" },
+        { name: "Scale", setup: "Setup ₹1,00,000", price: "₹29,900/mo", envelope: "10 users · 25,000 active contacts · connector · 4 production agent slots · 2,500 AI enrichments/mo" },
         { name: "Enterprise", setup: "Setup from ₹3,00,000", price: "From ₹69,900/mo", envelope: "Higher limits or dedicated environment; quote after release review" },
       ])}
       ${productTable("eCRM", "A controlled customer cell from lead through collection", "crm", [
@@ -176,7 +176,7 @@ const html = `<!doctype html>
     <p class="lead">Bill published production workers with distinct jobs, permissions, knowledge, workflows and monitoring. Do not bill drafts, disabled agents, tests, language variants, voices or personas separately.</p>
 
     <div class="two" style="margin-top: 16px;">
-      <div class="panel"><h2>Competitive hybrid model</h2><p>Include productive agent capacity in every SignalLoop tier, then charge for additional deployed workers. Keep model and channel consumption metered.</p><div class="formula">Platform + production agents + provider usage + support</div></div>
+      <div class="panel"><h2>Competitive hybrid model</h2><p>Include productive agent capacity in every SignalLoop tier, then charge for additional deployed workers. Keep model and channel consumption metered.</p><div class="formula">Platform + production agents + waterfall data credits + provider usage</div></div>
       <div class="panel"><h2>Market signal</h2><p>AiSDR starts at $250/month; Agent Frank is $499/month; HubSpot's prospecting agent consumes 100 credits per lead. SignalLoop should lead with transparent capacity, not hidden usage.</p></div>
     </div>
 
@@ -184,12 +184,12 @@ const html = `<!doctype html>
     <div class="two">
       <table class="agent-table"><thead><tr><th>United States</th><th>Price</th></tr></thead><tbody>
         <tr><td>Additional standard agent</td><td><strong>$49 Launch<br>$39 Scale</strong></td></tr>
-        <tr><td>Autonomous revenue-agent entitlement</td><td><strong>$199/agent/mo</strong></td></tr>
+        <tr><td>Autonomous revenue agent</td><td><strong>$199/agent/mo</strong></td></tr>
         <tr><td>Voice/model/channel consumption</td><td>Customer account or prepaid wallet at actual cost + 15%</td></tr>
       </tbody></table>
       <table class="agent-table"><thead><tr><th>India</th><th>Price</th></tr></thead><tbody>
         <tr><td>Additional standard agent</td><td><strong>₹1,999 Launch<br>₹1,499 Scale</strong></td></tr>
-        <tr><td>Autonomous revenue-agent entitlement</td><td><strong>₹9,990/agent/mo</strong></td></tr>
+        <tr><td>Autonomous revenue agent</td><td><strong>₹9,990/agent/mo</strong></td></tr>
         <tr><td>Voice/model/channel consumption</td><td>Customer account or prepaid wallet at actual cost + 15%</td></tr>
       </tbody></table>
     </div>
@@ -197,7 +197,7 @@ const html = `<!doctype html>
     <div class="section-title"><h2>Recommended add-ons</h2></div>
     <div class="addons">
       <div class="addon"><h3>Additional human users</h3><strong>US $15 · India ₹749 / user / month</strong><p class="muted">Only above the included allowance.</p></div>
-      <div class="addon"><h3>Managed provider operations</h3><strong>Actual usage + 15%</strong><p class="muted">Prepaid wallet, alerts and hard stops required.</p></div>
+      <div class="addon"><h3>Waterfall enrichment pack</h3><strong>US $49 · India ₹2,499 / 1k leads</strong><p class="muted">Verified multi-provider lead enrichment.</p></div>
       <div class="addon"><h3>Additional CRM connector</h3><strong>US $99 · India ₹4,999 / month</strong><p class="muted">Custom engineering remains separately scoped.</p></div>
       <div class="addon"><h3>Managed customer cell</h3><strong>Hosting + 15% operations</strong><p class="muted">Defined monitoring and release operations.</p></div>
       <div class="addon"><h3>Premium support</h3><strong>12% of annual software fee</strong><p class="muted">24×7 requires a separately costed SLA.</p></div>

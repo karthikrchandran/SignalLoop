@@ -1,61 +1,59 @@
----
-title: SignalLoop Architecture Overview
-description: Entry point for architecture stories, data model, and process-flow documentation.
-author: Codex
-date: 2026-04-02
----
-
 # SignalLoop Architecture Overview
 
-This section documents the current SignalLoop architecture as it exists in the repository on 2026-04-02, with BMAD planning context called out where the implementation is still forming.
+This section documents the SignalLoop architecture as of 2026-10-10, encompassing the core campaign orchestration, the autonomous Commercial Agent Suite, the AI Lead Discovery & Waterfall Enrichment Engine, and the enterprise Revenue OS / eCRM integration.
 
 Use these documents together:
 
 - [Architecture Stories](./architecture-stories.md) explains the system in narrative form, organized by business capability and technical boundary.
 - [Data Model](./data-model.md) describes the PostgreSQL and Redis responsibilities with a GitHub-renderable Mermaid ERD.
 - [Process Flows](./process-flows.md) walks through the main request, approval, policy, and delivery-pipeline flows with sequence and swimlane diagrams.
-- [Validation Report (2026-04-02)](./validation-report-2026-04-02.md) compares architecture docs to planning artifacts and current implementation status.
+- [Validation Report (2026-04-02)](./validation-report-2026-04-02.md) compares architecture docs to historical planning artifacts.
 - [Draw.io Diagram Source](./diagrams/system-context.drawio) provides editable source for architecture visuals in the draw.io extension.
 
 ## System Snapshot
 
-- `apps/api` is the active system core. It exposes FastAPI endpoints for campaigns, templates, offer packs, policies, approvals, controls, login, users, and health utilities.
-- `apps/web` is the operator console. It contains route shells and feature pages for campaigns, templates, governance, and admin workflows.
-- `apps/workers` is a lightweight worker scaffold today. The Epic 2 foundation tables and worker gate logic show the intended asynchronous delivery direction, but the full dequeue-and-deliver loop is not implemented yet.
-- `packages/event-contracts` and `packages/shared-types` are the beginning of the shared contract layer.
-- `_bmad-output/planning-artifacts` contains product, UX, and architecture planning material that informs the target-state design.
+- `apps/api` is the active system core. It exposes FastAPI endpoints for campaigns, sequences, voice agents, calendar scheduling, autonomous commercial agents, AI lead discovery & waterfall enrichment, proposals, messaging hub, tenant administration, and platform controls.
+- `apps/web` is the operator console built on React, Vite, and TanStack Router. It contains full route trees for Outreach, Messaging Hub, Tenant Admin, Platform Control Plane, and Revenue OS cross-product views.
+- `apps/workers` is the production async worker execution suite. Nine specialized workers in `apps/workers/worker_app/` manage lead discovery, lead preparation, proposal generation, calendar scheduling, email sequences, voice calls, postcall AI processing, cross-tenant projections, and revenue interventions.
+- `packages/` contains shared TypeScript packages (`api-client`, `event-contracts`, `shared-types`, `ui-tokens`).
 
 ## Architecture At A Glance
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#EFF6FF", "primaryTextColor": "#1F2937", "primaryBorderColor": "#1D4ED8", "lineColor": "#334155", "secondaryColor": "#F3F4F6", "secondaryTextColor": "#1F2937", "tertiaryColor": "#DBEAFE", "tertiaryTextColor": "#1E3A8A", "background": "#F9FAFB", "clusterBkg": "#FFFFFF", "clusterBorder": "#BFDBFE", "fontFamily": "Inter, Segoe UI, sans-serif"}}}%%
-flowchart LR
-    Operator["Operator / Lead / Admin"] --> Web["Web App\napps/web"]
-    Web --> API["FastAPI API\napps/api"]
-    API --> PG["PostgreSQL\ntransactional state +\naudit_events table"]
-    API --> Redis["Redis\ncoordination + rate limiting"]
-    API --> Authz["Casbin RBAC"]
-    API --> Worker["Worker Scaffold\napps/workers"]
-    Worker --> PG
-    Worker --> Redis
-    Worker --> Providers["Email / Voice / Scheduling Providers"]
+flowchart TD
+    classDef default fill:#ffffff,stroke:#1e293b,stroke-width:2px,color:#0f172a;
+    classDef store fill:#f8fafc,stroke:#1e293b,stroke-width:2px,color:#0f172a;
+
+    UI["<b>1. Operator & Admin Console (apps/web)</b><br/>Outreach Console · Messaging Hub · Tenant Admin · Revenue OS Workspace"]
+    API["<b>2. System Core & API Gateway (apps/api)</b><br/>FastAPI · Casbin RBAC · Tenant Context · Idempotency Middleware"]
+    Engines["<b>3. Autonomous Commercial Agents & Engines</b><br/>Lead Discovery & Waterfall · Commercial Agent Registry · Proposal Agent · Calendar Scheduler"]
+    Workers["<b>4. Asynchronous Execution Suite (apps/workers)</b><br/>Lead Discovery & Prep · Sequence & Call Workers · Postcall AI · Revenue Interventions"]
+    Stores[("<b>5. Persistence & Coordination Layer</b><br/>PostgreSQL: Transactional Business State & Append-Only Audit Trail<br/>Redis: Distributed Atomic Locks, Action Queues & Rate Limits")]:::store
+    External["<b>6. External Providers & Commercial Lead-to-Cash</b><br/>Data Enrichment: Apollo · Clay · Burkettopti · Deterministic Sandbox<br/>Communications & AI: SendGrid · Twilio · Vapi · Groq · Ollama · Deepgram<br/>System of Record: eCRM Synchronized Lead-to-Cash Platform"]
+
+    UI --> API
+    API --> Engines
+    Engines --> Workers
+    Workers --> Stores
+    Workers -.-> External
+    API -.-> External
 ```
 
 ## Validation Snapshot (Planning vs Implementation)
 
-| Capability Area | Planning Baseline | Current Evidence | Validation Status |
+| Capability Area | Module / Implementation | Current Status | Validation |
 | --- | --- | --- | --- |
-| Campaign intake and segmentation | Epic 1 / Story 1.2 | API endpoints + domain tests + Playwright additions; story tracked as `review` in sprint status | Partial-complete |
-| Template/token/offer-pack governance | Epic 1 / Story 1.3 | Backend and domain tests exist; UI automation remains open | Partial-complete |
-| Governance controls and approvals | Epic 1 / Story 1.4 | Policy engine, approvals, pause/resume routes, worker gate, tests; API test stability still tracked | Partial-complete |
-| Delivery pipeline runtime loop | Epic 2 / Stories 2.1-2.4 | Foundation schema/services present (`outbox`, `action_queue`, progression), full dequeue/provider loop not complete | In-progress |
-| Timeline/KPI observability | Epic 5 | Core audit/event scaffolding present; full KPI surfaces remain backlog | Planned |
-
-Legend:
-
-- `Partial-complete`: major implementation exists with pending closure items.
-- `In-progress`: schema/service foundations exist, but end-to-end operational loop is incomplete.
-- `Planned`: documented in planning artifacts, not yet fully implemented.
+| Campaign intake & segmentation | `campaigns.py`, `campaign_health.py` | Complete | Full API, domain models, Playwright UI specs verified |
+| Template & offer governance | `templates.py`, `offer_packs.py` | Complete | Publish lifecycle, token preview, guardrail checks active |
+| Governance, policy & controls | `controls.py`, policy engine | Complete | Emergency pause/resume, quiet hours, daily caps enforced |
+| Multichannel delivery loop | `sequence_worker.py`, `call_worker.py` | Complete | SendGrid, Twilio, Vapi, SMTP providers operational |
+| Post-call processing & AI STT | `postcall_worker.py`, STT service | Complete | Deepgram, faster-whisper, Groq call summarization active |
+| Commercial Agent Registry | `commercial_agents.py` | Complete | Slot allocation, capacity metering, multi-agent lifecycle |
+| Autonomous Lead Preparation | `lead_preparation.py`, `lead_preparation_worker.py` | Complete | Versioned scoring, atomic leases, evidence briefs |
+| AI Lead Discovery & Waterfall | `lead_discovery.py`, `lead_discovery_worker.py` | Complete | Multi-provider waterfall, 4-pillar AI scoring, CRM promotion |
+| Generative Proposal Drafting | `proposal_agent.py`, `proposal_agent_worker.py` | Complete | Grounded drafts, review gates, eCRM handoffs |
+| Autonomous Calendar Scheduling | `scheduling.py`, `calendar_scheduler_worker.py` | Complete | Meeting slot calculation, booking links, durable recovery |
+| Revenue OS & eCRM Integration | `ecrm_installations.py`, `revenue_interventions.py` | Complete | Signed event sync, lead-to-cash handoff, risk mitigation |
 
 ## Current-State Architectural Themes
 

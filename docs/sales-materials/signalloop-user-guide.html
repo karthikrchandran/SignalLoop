@@ -29,7 +29,7 @@
   .guide-cover .guide-lead { max-width:150mm; margin-top:5mm; color:#d3e4eb; font-size:12pt; }
   .guide-cover .guide-meta { display:flex; justify-content:space-between; align-items:end; gap:8mm; color:#a9c0cc; font-size:8pt; }
   .guide-cover .guide-audience { max-width:125mm; }
-</style></head><body><section class="guide-cover"><img class="guide-cover-art" src="assets/graphics/revenue-os-signal-to-cash-hero-v2.png" alt="Signal to cash operating journey"><div class="guide-cover-shade"></div><div class="guide-cover-content"><div class="guide-brand"><span class="guide-mark"></span><span>SignalLoop</span></div><div><p class="guide-kicker">Visual user guide | Revenue OS edition</p><h1>Operate governed engagement with confidence.</h1><p class="guide-lead">A screen-led guide to campaigns, AI agents, voice, messaging, customer context, enterprise controls, and the Revenue OS workspace.</p></div><div class="guide-meta"><span class="guide-audience">For outreach operators, Messaging Hub users, tenant administrators, and platform administrators.</span><span>September 12, 2026</span></div></div></section><h2>Start here</h2>
+</style></head><body><section class="guide-cover"><img class="guide-cover-art" src="assets/graphics/revenue-os-signal-to-cash-hero-v2.png" alt="Signal to cash operating journey"><div class="guide-cover-shade"></div><div class="guide-cover-content"><div class="guide-brand"><span class="guide-mark"></span><span>SignalLoop</span></div><div><p class="guide-kicker">Visual user guide | Revenue OS edition</p><h1>Operate governed engagement with confidence.</h1><p class="guide-lead">A screen-led guide to campaigns, AI lead discovery & enrichment, autonomous commercial agents, voice, messaging, customer context, enterprise controls, and the Revenue OS workspace.</p></div><div class="guide-meta"><span class="guide-audience">For outreach operators, Messaging Hub users, tenant administrators, and platform administrators.</span><span>October 10, 2026</span></div></div></section><h2>Start here</h2>
 <ol>
 <li>Open the SignalLoop URL supplied by your administrator.</li>
 <li>Sign in with your work account. Use <strong>Sign up</strong> or <strong>Forgot your password?</strong> only when those actions are enabled for your deployment.</li>
@@ -51,7 +51,7 @@
 <h2>Left-navigation modes</h2>
 <p>The three controls at the top of the left navigation switch the menu between product areas: <strong>Outreach</strong>, <strong>Messaging</strong>, and, for superusers, <strong>Admin</strong>. The inactive controls may appear as icons until selected; select one to expose its menu. The walkthroughs below follow each mode in left-to-right nav order, the way an operator would click through it.</p>
 <h3>Outreach</h3>
-<p>Switching to Outreach exposes Home, Dashboard, Campaigns, SignalLoop AI, Customer 360, Sequences, Voice Agents, Meetings, Contacts, Lead Preparation, Analytics, Templates, Controls, and Settings.</p>
+<p>Switching to Outreach exposes Home, Dashboard, Campaigns, SignalLoop AI, Customer 360, Sequences, Voice Agents, Meetings, Contacts, Lead Discovery, Lead Preparation, Analytics, Templates, Controls, and Settings.</p>
 <h4>Home</h4>
 <p><strong>Home</strong> provides product and workflow shortcuts for choosing where to work next.</p>
 <figure><img src="../user-guide/screenshots/04-home.png" alt="Home"><figcaption>Home</figcaption></figure>
@@ -77,13 +77,23 @@
 <p><strong>Voice Agents</strong> lets you choose a voice profile and language, maintain campaign scripts, inspect provider and callback readiness, and queue a manual test call when the required contact and script are selected. Browser preview validates the selected voice and script experience; it is not proof that a provider completed a live outbound call.</p>
 <figure><img src="../user-guide/screenshots/13-voice-agents.png" alt="Voice Agents"><figcaption>Voice Agents</figcaption></figure>
 <h4>Meetings</h4>
-<p><strong>Meetings</strong> lists contacts that expressed booking interest and supports booking-link or booked-state follow-up.</p>
+<p><strong>Meetings</strong> lists contacts that expressed booking interest and manages the scheduling lifecycle. Under the hood, the autonomous <strong>Calendar Scheduler Agent</strong> calculates open meeting windows, generates verified booking links, reconciles timezones, and writes immutable booking receipts with durable recovery across worker restarts.</p>
 <figure><img src="../user-guide/screenshots/14-meetings.png" alt="Meetings"><figcaption>Meetings</figcaption></figure>
 <h4>Contacts</h4>
-<p><strong>Contacts</strong> is the active-workspace lead pool. Download the CSV template when importing; filter and review contacts before using them in campaigns or sequences.</p>
+<p><strong>Contacts</strong> is the active-workspace lead pool. Download the CSV template when importing; filter and review contacts, timelines, and suppression status before using them in campaigns or sequences.</p>
 <figure><img src="../user-guide/screenshots/15-contacts.png" alt="Contacts"><figcaption>Contacts</figcaption></figure>
+<h4>Lead Discovery</h4>
+<p><strong>Lead Discovery</strong> provides an enterprise prospecting and AI enrichment console at <code>/lead-discovery</code>. It connects external market data sources with proprietary AI entity resolution and multi-dimensional qualification, enabling operators to find, enrich, score, and promote target accounts directly into active outreach.</p>
+<ul>
+<li><strong>ICP Filter Matrix:</strong> Target prospects by industry vertical (Technology &amp; SaaS, Fintech, Healthcare, Logistics, etc.), job titles (e.g., VP of Sales, Head of Growth), company size (employee count brackets), revenue ranges, geography, and target technology stack signals (e.g., Salesforce, AWS, HubSpot).</li>
+<li><strong>Pluggable Waterfall Gateway:</strong> Queries external enrichment providers sequentially (Apollo.io, Clay.com, Burkettopti / leadspti, with an enterprise deterministic Sandbox fallback). If a provider lacks verified data or hits quota, the waterfall automatically cascades to the next adapter, maximizing direct-dial and email fill rates without vendor lock-in.</li>
+<li><strong>AI Entity Resolution &amp; CRM Deduplication:</strong> Automatically normalizes company names, strips corporate suffixes, canonicalizes root domains (<code>https://www.corp.acme.co.uk/about</code> -&gt; <code>acme.co.uk</code>), and performs fuzzy matching against existing CRM accounts to classify match confidence (<code>EXACT_DOMAIN_MATCH</code>, <code>FUZZY_NAME_MATCH</code>, <code>NEW_ENTITY</code>).</li>
+<li><strong>4-Pillar AI Scoring &amp; Opportunity Briefs:</strong> Evaluates prospects across four objective pillars (100-point scale): Firmographic Fit (35 pts), Intent/Trigger Signals (30 pts), Role Authority (20 pts), and Data Completeness (15 pts). Assigns actionable fit bands (<code>HOT_OPPORTUNITY</code>, <code>HIGH_FIT</code>, <code>NURTURE</code>, <code>UNQUALIFIED</code>) and synthesizes LLM opportunity briefs with pain point analysis and tailored conversation starters for cold email and voice dialers.</li>
+<li><strong>1-Click CRM Promotion:</strong> Converts discovered leads into tenant-scoped CRM contacts with strict workspace isolation and immediately enrolls them into active sequences or campaigns with append-only audit logging.</li>
+<li><strong>External Webhook Ingestion:</strong> Ingests streaming lead signals from external sources and landing pages via <code>/api/v1/lead-discovery/webhooks/{provider}</code> for autonomous background enrichment and scoring.</li>
+</ul>
 <h4>Lead Preparation</h4>
-<p><strong>Lead Preparation</strong> selects contacts, builds lead briefs, and hands prepared contacts to campaigns or sequences.</p>
+<p><strong>Lead Preparation</strong> is powered by the autonomous <strong>Lead Preparation Agent</strong>. It continuously evaluates contacts against versioned scoring policies, acquires atomic worker leases to prevent duplicate processing, compiles rich evidence packages, and feeds qualified leads into campaigns, sequences, or proposal generation.</p>
 <figure><img src="../user-guide/screenshots/16-lead-preparation.png" alt="Lead Preparation"><figcaption>Lead Preparation</figcaption></figure>
 <h4>Analytics</h4>
 <p><strong>Analytics</strong> presents campaign, email, and voice performance; use the correct workspace and time range for decisions. The current <strong>Reporting</strong> route renders an error screen in the verified build — treat it as unavailable until repaired.</p>
@@ -152,6 +162,19 @@
 <h4>SignalLoop administration</h4>
 <p>Tenant-scoped administration for the SignalLoop product.</p>
 <figure><img src="../user-guide/screenshots/38-admin-signalloop.png" alt="SignalLoop administration"><figcaption>SignalLoop administration</figcaption></figure>
+<h3>Autonomous Commercial Agents</h3>
+<p>SignalLoop includes a unified <strong>Commercial Agent Registry</strong> that manages task-specific autonomous agents with strict slot enforcement, daily capacity metering, and governance policies:</p>
+<ul>
+<li><strong>Lead Discovery Agent (<code>LEAD_DISCOVERY</code>):</strong> Executes automated firmographic searches, waterfall provider enrichment (Apollo, Clay, Burkettopti), 4-pillar AI scoring, and CRM contact promotion.</li>
+<li><strong>Lead Preparation Agent (<code>LEAD_PREPARATION</code>):</strong> Evaluates contact pools against versioned scoring policies, manages atomic worker leases, and synthesizes actionable sales briefs.</li>
+<li><strong>Email Outreach Agent (<code>EMAIL_OUTREACH</code>):</strong> Dispatches governed multi-touch sequences while strictly enforcing daily caps, quiet hours, and suppression rules.</li>
+<li><strong>Voice Outreach Agent (<code>VOICE_CONVERSATION</code>):</strong> Executes AI-driven outbound phone calls with custom voice profiles, script compliance, and call transcription analysis.</li>
+<li><strong>Proposal Drafting Agent (<code>PROPOSAL_DRAFTING</code>):</strong> Generates grounded commercial proposal drafts from conversation signals, pricing policies, and approved line items for human review or automated eCRM handoff.</li>
+<li><strong>Calendar Scheduler Agent (<code>CALENDAR_SCHEDULER</code>):</strong> Calculates available meeting windows, issues verified booking links, and records durable booking receipts across provider APIs.</li>
+<li><strong>Revenue Intervention Agent (<code>REVENUE_INTERVENTION</code>):</strong> Detects customer revenue risk and triggers governed corrective interventions across linked workspaces.</li>
+<li><strong>Chat Lead Capture Agent (<code>CHAT_LEAD_CAPTURE</code>):</strong> Handles website visitor intake, knowledge-grounded Q&amp;A, and direct lead capture in Messaging Hub.</li>
+</ul>
+<p>Each active agent deployment consumes one commercial slot, while throughput and provider consumption are metered transparently against tenant quotas.</p>
 <h2>Platform administration</h2>
 <p><strong>Platform</strong> is the suite control plane for tenant lifecycle, products, identity, messaging defaults, provider policies, usage and health, support access, and audit. It sits outside the three tenant-scoped nav modes above and is reserved for platform administrators. Selecting a tenant here never grants access to its business data, and support access should be approved, time-bound, revocable, and audited.</p>
 <h4>Platform administration</h4>

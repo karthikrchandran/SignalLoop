@@ -1,9 +1,3 @@
----
-title: SignalLoop Developer Guide
-description: Entry point for engineer handovers — onboarding, codebase tour, local setup, testing, and troubleshooting.
-date: 2026-05-28
----
-
 # SignalLoop Developer Guide
 
 This is the starter pack for any engineer joining or taking over the SignalLoop codebase. Read it in order on day one; come back to individual pages later as reference.
@@ -30,7 +24,7 @@ This is the starter pack for any engineer joining or taking over the SignalLoop 
 | --- | --- |
 | `apps/api` | FastAPI backend (SQLModel, Alembic, Casbin RBAC). Primary system core. |
 | `apps/web` | React + Vite + TanStack Router operator console. |
-| `apps/workers` | Async worker scaffold (sequence, call, post-call). Run as separate processes. |
+| `apps/workers` | Production async worker suite: 9 specialized background workers (lead discovery, lead preparation, proposals, calendar scheduling, sequences, calls, postcall, projections, revenue interventions). |
 | `apps/mobile` | Mobile shell scaffold (not yet active). |
 | `packages/api-client` | Generated TypeScript client (from FastAPI OpenAPI). |
 | `packages/event-contracts` | Shared event payload definitions. |

@@ -1,10 +1,3 @@
----
-title: SignalLoop Architecture Stories
-description: Narrative architecture documentation for the current SignalLoop platform.
-author: Codex
-date: 2026-04-02
----
-
 # SignalLoop Architecture Stories
 
 This document explains the architecture as a set of stories. Each story ties business intent to code structure so the repo remains understandable as it grows.
@@ -103,59 +96,52 @@ That is the start of an event-aware orchestration model, even though the end-to-
 ## Component Map
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#EFF6FF", "primaryTextColor": "#1F2937", "primaryBorderColor": "#1D4ED8", "lineColor": "#334155", "secondaryColor": "#F3F4F6", "secondaryTextColor": "#1F2937", "tertiaryColor": "#DBEAFE", "tertiaryTextColor": "#1E3A8A", "background": "#F9FAFB", "clusterBkg": "#FFFFFF", "clusterBorder": "#BFDBFE", "fontFamily": "Inter, Segoe UI, sans-serif"}}}%%
-flowchart TB
-    subgraph Experience["Experience Layer"]
-        Web["Web Operator Console"]
-        Mobile["Mobile Shell"]
+flowchart TD
+    classDef default fill:#ffffff,stroke:#1e293b,stroke-width:2px,color:#0f172a;
+    classDef store fill:#f8fafc,stroke:#1e293b,stroke-width:2px,color:#0f172a;
+
+    subgraph Layer1 ["1. Experience Layer (apps/web)"]
+        Web["<b>SignalLoop Web Console</b><br/>Outreach Console · Messaging Hub · Tenant Administration · Revenue OS Workspace"]
     end
 
-    subgraph APIBoundary["API Boundary"]
-        Routes["FastAPI Routes"]
-        Context["Workspace + Idempotency + Request ID"]
-        Authz["Casbin RBAC / Permission Checks"]
+    subgraph Layer2 ["2. API Boundary & Gateway (apps/api)"]
+        API["<b>FastAPI Application Factory & Endpoints</b><br/>Casbin RBAC · OIDC Authentication · Tenant & Idempotency Context Middleware"]
     end
 
-    subgraph Domain["Domain Services"]
-        Contacts["Contacts Import + Mapping + Segmentation"]
-        Templates["Template Rendering + Guardrails"]
-        Policies["Policy Engine + Approval Logic"]
-        Controls["Pause / Resume Control Logic"]
-        Audit["Audit Event Writer"]
+    subgraph Layer3 ["3. Domain Services Layer (apps/api/app/domain)"]
+        direction TB
+        D1["<b>Commercial & Prospecting Services</b><br/>Lead Discovery Gateway · Commercial Agent Registry · Lead Prep & Scoring Policies"]
+        D2["<b>Engagement & Revenue Services</b><br/>Campaigns & Sequences Engine · Generative Proposals · Calendar Scheduling"]
+        D3["<b>Governance & Safety Services</b><br/>Policy Engine & Approvals · Emergency Stop Controls · Audit Event Logger"]
+        D1 ~~~ D2
+        D2 ~~~ D3
     end
 
-    subgraph Data["Data Layer"]
-        Postgres["PostgreSQL\n(operational + audit_events)"]
-        Redis["Redis"]
+    subgraph Layer4 ["4. Asynchronous Worker Suite (apps/workers)"]
+        direction TB
+        W1["<b>Prospecting & Outreach Workers</b><br/>Lead Discovery Worker · Lead Prep Worker · Sequence Worker · Voice Call Worker"]
+        W2["<b>Intelligence & Operational Workers</b><br/>Postcall AI Worker · Proposal Agent Worker · Calendar Worker · Revenue Interventions"]
+        W1 ~~~ W2
     end
 
-    subgraph Async["Async Delivery Foundation"]
-        Outbox["Outbox Events"]
-        Queue["Action Queue"]
-        Worker["Worker Enforcement Gate"]
-        Providers["External Providers"]
+    subgraph Layer5 ["5. Persistence & Coordination Layer"]
+        PG[("<b>PostgreSQL Database</b><br/>Transactional Business Records & Append-Only Audit Trail")]:::store
+        Redis[("<b>Redis Engine</b><br/>Atomic Distributed Locks, Action Queues & Daily Cap Counters")]:::store
+        PG ~~~ Redis
     end
 
-    Web --> Routes
-    Mobile --> Routes
-    Routes --> Context
-    Routes --> Authz
-    Routes --> Contacts
-    Routes --> Templates
-    Routes --> Policies
-    Routes --> Controls
-    Routes --> Audit
-    Contacts --> Postgres
-    Templates --> Postgres
-    Policies --> Postgres
-    Controls --> Postgres
-    Audit --> Postgres
-    Postgres --> Outbox
-    Outbox --> Worker
-    Queue --> Worker
-    Worker --> Providers
-    Worker --> Postgres
-    Worker --> Redis
+    subgraph Layer6 ["6. External Providers & Commercial Lead-to-Cash"]
+        direction TB
+        X1["<b>Data & Comms Providers</b><br/>Enrichment: Apollo, Clay, Burkettopti, Sandbox · Comms: SendGrid, Twilio, Vapi"]
+        X2["<b>AI Services & System of Record</b><br/>AI Models: Groq, Ollama, Deepgram, Whisper · CRM: eCRM Synchronized Platform"]
+        X1 ~~~ X2
+    end
+
+    Layer1 --> Layer2
+    Layer2 --> Layer3
+    Layer3 --> Layer4
+    Layer4 --> Layer5
+    Layer5 --> Layer6
 ```
 
 ## Implementation Status Notes
