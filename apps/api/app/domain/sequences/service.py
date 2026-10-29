@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain.sequences.models import (
     ContactSequenceState,
@@ -59,7 +59,7 @@ def get_sequence_detail(session: Session, sequence_id: uuid.UUID) -> SequenceDet
     steps = session.exec(
         select(SequenceStep)
         .where(SequenceStep.sequence_id == sequence_id)
-        .order_by(SequenceStep.step_order)
+        .order_by(col(SequenceStep.step_order))
     ).all()
     return SequenceDetailPublic(
         id=seq.id,

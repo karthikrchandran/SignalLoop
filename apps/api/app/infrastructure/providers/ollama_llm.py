@@ -71,7 +71,9 @@ class OllamaLLMAdapter(LlmAdapter):
                     except ValueError:
                         logger.error("Ollama LLM returned invalid JSON")
                         return ""
-                    return (data.get("message") or {}).get("content", "")
+                    message = data.get("message") if isinstance(data, dict) else None
+                    content = message.get("content") if isinstance(message, dict) else None
+                    return content if isinstance(content, str) else ""
                 logger.error("Ollama LLM error: status=%d", resp.status_code)
         except httpx.HTTPError:
             logger.exception("Ollama LLM request failed")

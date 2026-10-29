@@ -102,7 +102,7 @@ async def upsert_workspace_runtime_config(
     request: Request,
     idempotency_key: IdempotencyKeyDep,
 ) -> WorkspaceRuntimeConfigPublic:
-    return await run_idempotent_mutation(
+    return WorkspaceRuntimeConfigPublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -112,7 +112,7 @@ async def upsert_workspace_runtime_config(
         mutation=lambda: _upsert_workspace_runtime_config_once(
             workspace_id, workspace_header, session, body
         ),
-    )
+    ))
 
 
 def _upsert_workspace_runtime_config_once(

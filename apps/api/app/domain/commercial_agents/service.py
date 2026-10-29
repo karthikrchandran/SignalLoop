@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from app.domain.commercial_agents.models import (
     AgentCatalogDefinition,
@@ -157,10 +157,10 @@ def _validate_slot_limit(
     entitlement: AgentPlanEntitlement,
 ) -> None:
     occupied = session.exec(
-        select(func.count(AgentDeployment.id)).where(
-            AgentDeployment.tenant_id == deployment.tenant_id,
-            AgentDeployment.id != deployment.id,
-            AgentDeployment.status.in_(_SLOT_CONSUMING_STATES),
+        select(func.count(col(AgentDeployment.id))).where(
+            col(AgentDeployment.tenant_id) == deployment.tenant_id,
+            col(AgentDeployment.id) != deployment.id,
+            col(AgentDeployment.status).in_(_SLOT_CONSUMING_STATES),
         )
     ).one()
     if int(occupied) >= entitlement.purchased_slots:
@@ -170,11 +170,11 @@ def _validate_slot_limit(
     if ceiling is None:
         return
     same_type = session.exec(
-        select(func.count(AgentDeployment.id)).where(
-            AgentDeployment.tenant_id == deployment.tenant_id,
-            AgentDeployment.id != deployment.id,
-            AgentDeployment.agent_type == AgentType(deployment.agent_type),
-            AgentDeployment.status.in_(_SLOT_CONSUMING_STATES),
+        select(func.count(col(AgentDeployment.id))).where(
+            col(AgentDeployment.tenant_id) == deployment.tenant_id,
+            col(AgentDeployment.id) != deployment.id,
+            col(AgentDeployment.agent_type) == AgentType(deployment.agent_type),
+            col(AgentDeployment.status).in_(_SLOT_CONSUMING_STATES),
         )
     ).one()
     if int(same_type) >= ceiling:

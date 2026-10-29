@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.api.deps import SessionDep
 from app.domain.chatbot.models import (
@@ -32,7 +34,7 @@ from app.domain_models import Campaign, ContactProgression, ProspectingSnapshot
 from app.models import User
 from app.routers.chatbot.router import WorkspaceId, require_chatbot_agent
 
-router = APIRouter(prefix="/analytics", tags=["chatbot-analytics"])
+router: APIRouter = APIRouter(prefix="/analytics", tags=["chatbot-analytics"])
 
 
 def _date_bounds(date_from: date | None, date_to: date | None) -> tuple[date, date]:
@@ -59,11 +61,11 @@ def _row_date(value: datetime | None) -> date:
     return value.astimezone(timezone.utc).date()
 
 
-def _enum_value(value) -> str:
-    return value.value if hasattr(value, "value") else str(value)
+def _enum_value(value: object) -> str:
+    return str(getattr(value, "value", value))
 
 
-def _channel_type(value) -> ChatbotChannelType:
+def _channel_type(value: object) -> ChatbotChannelType:
     return value if isinstance(value, ChatbotChannelType) else ChatbotChannelType(str(value))
 
 
@@ -81,13 +83,13 @@ def _is_bot_resolved(conversation: ChatbotConversation) -> bool:
     return _enum_value(conversation.outcome) == ChatbotConversationOutcome.bot_resolved.value or not conversation.escalated
 
 
-def _distinct_contact_count(rows) -> int:
+def _distinct_contact_count(rows: Iterable[UUID | None]) -> int:
     return len({row for row in rows if row is not None})
 
 
 def _conversion_funnel(
     *,
-    session,
+    session: SessionDep,
     workspace_id: str,
     conversations: list[ChatbotConversation],
     leads_captured: int,
@@ -112,17 +114,17 @@ def _conversion_funnel(
         session.exec(
             select(ProspectingSnapshot.contact_id).where(
                 ProspectingSnapshot.workspace_id == workspace_id,
-                ProspectingSnapshot.shared_contact_id.in_(contact_ids),
+                col(ProspectingSnapshot.shared_contact_id).in_(contact_ids),
             )
         ).all()
     )
     added_to_campaign = _distinct_contact_count(
         session.exec(
             select(ContactProgression.contact_id)
-            .join(Campaign, ContactProgression.campaign_id == Campaign.id)
+            .join(Campaign, col(ContactProgression.campaign_id) == col(Campaign.id))
             .where(
                 Campaign.workspace_id == workspace_id,
-                ContactProgression.shared_contact_id.in_(contact_ids),
+                col(ContactProgression.shared_contact_id).in_(contact_ids),
             )
         ).all()
     )
@@ -131,12 +133,12 @@ def _conversion_funnel(
             select(ContactSequenceState.contact_id)
             .join(
                 EmailSequence,
-                ContactSequenceState.sequence_id == EmailSequence.id,
+                col(ContactSequenceState.sequence_id) == col(EmailSequence.id),
             )
-            .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+            .join(Campaign, col(EmailSequence.campaign_id) == col(Campaign.id))
             .where(
                 Campaign.workspace_id == workspace_id,
-                ContactSequenceState.shared_contact_id.in_(contact_ids),
+                col(ContactSequenceState.shared_contact_id).in_(contact_ids),
             )
         ).all()
     )
@@ -144,7 +146,7 @@ def _conversion_funnel(
         session.exec(
             select(CallRequest.contact_id).where(
                 CallRequest.workspace_id == workspace_id,
-                CallRequest.shared_contact_id.in_(contact_ids),
+                col(CallRequest.shared_contact_id).in_(contact_ids),
             )
         ).all()
     )
@@ -176,9 +178,9 @@ def get_chatbot_analytics(
         session.exec(
             select(ChatbotConversation).where(
                 ChatbotConversation.workspace_id == workspace_id,
-                ChatbotConversation.deleted_at.is_(None),
-                ChatbotConversation.last_message_at >= start_at,
-                ChatbotConversation.last_message_at < end_at,
+                col(ChatbotConversation.deleted_at).is_(None),
+                col(ChatbotConversation.last_message_at) >= start_at,
+                col(ChatbotConversation.last_message_at) < end_at,
             )
         ).all()
     )
@@ -190,8 +192,8 @@ def get_chatbot_analytics(
                 session.exec(
                     select(ChatbotMessage.id).where(
                         ChatbotMessage.workspace_id == workspace_id,
-                        ChatbotMessage.conversation_id.in_(conversation_ids),
-                        ChatbotMessage.deleted_at.is_(None),
+                        col(ChatbotMessage.conversation_id).in_(conversation_ids),
+                        col(ChatbotMessage.deleted_at).is_(None),
                         ChatbotMessage.sender == ChatbotMessageSender.bot,
                     )
                 ).all()
@@ -255,8 +257,8 @@ def get_chatbot_analytics(
         bot_messages = session.exec(
             select(ChatbotMessage.created_at).where(
                 ChatbotMessage.workspace_id == workspace_id,
-                ChatbotMessage.conversation_id.in_(conversation_ids),
-                ChatbotMessage.deleted_at.is_(None),
+                col(ChatbotMessage.conversation_id).in_(conversation_ids),
+                col(ChatbotMessage.deleted_at).is_(None),
                 ChatbotMessage.sender == ChatbotMessageSender.bot,
             )
         ).all()

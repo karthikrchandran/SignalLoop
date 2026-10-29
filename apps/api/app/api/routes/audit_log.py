@@ -5,13 +5,14 @@ import csv
 import io
 import json
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import and_, func
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep
@@ -77,7 +78,7 @@ def _event_row(event: AuditEvent) -> dict[str, Any]:
     }
 
 
-def _iter_export_rows(session: SessionDep, job: dict[str, Any]):
+def _iter_export_rows(session: SessionDep, job: dict[str, Any]) -> Iterator[dict[str, Any]]:
     offset = 0
     batch_size = 500
     filters = _audit_filters(
@@ -92,7 +93,7 @@ def _iter_export_rows(session: SessionDep, job: dict[str, Any]):
         events = session.exec(
             select(AuditEvent)
             .where(and_(*filters))
-            .order_by(AuditEvent.created_at.desc())
+            .order_by(col(AuditEvent.created_at).desc())
             .offset(offset)
             .limit(batch_size)
         ).all()
@@ -103,7 +104,7 @@ def _iter_export_rows(session: SessionDep, job: dict[str, Any]):
         offset += len(events)
 
 
-def _stream_json_export(session: SessionDep, job: dict[str, Any]):
+def _stream_json_export(session: SessionDep, job: dict[str, Any]) -> Iterator[str]:
     yield "["
     first = True
     for row in _iter_export_rows(session, job):
@@ -114,7 +115,7 @@ def _stream_json_export(session: SessionDep, job: dict[str, Any]):
     yield "]"
 
 
-def _stream_csv_export(session: SessionDep, job: dict[str, Any]):
+def _stream_csv_export(session: SessionDep, job: dict[str, Any]) -> Iterator[str]:
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=EXPORT_FIELDNAMES)
     writer.writeheader()
@@ -158,14 +159,14 @@ def list_audit_events(
 
     where_clause = and_(*filters)
 
-    total: int = session.scalar(  # type: ignore[assignment]
+    total: int = session.scalar(
         select(func.count()).select_from(AuditEvent).where(where_clause)
     ) or 0
 
     events = session.exec(
         select(AuditEvent)
         .where(where_clause)
-        .order_by(AuditEvent.created_at.desc())
+        .order_by(col(AuditEvent.created_at).desc())
         .offset((page - 1) * limit)
         .limit(limit)
     ).all()

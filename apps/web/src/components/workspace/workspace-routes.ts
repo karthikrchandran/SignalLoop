@@ -30,7 +30,8 @@ const routes: Array<{ prefix: string; section: string; title: string }> = [
 
 export function resolveWorkspaceLocation(pathname: string): WorkspaceLocation {
   const match = routes.find(
-    (route) => pathname === route.prefix || pathname.startsWith(`${route.prefix}/`),
+    (route) =>
+      pathname === route.prefix || pathname.startsWith(`${route.prefix}/`),
   )
   if (match) return { section: match.section, title: match.title }
   if (pathname === "/") return { section: "Work", title: "Revenue OS" }

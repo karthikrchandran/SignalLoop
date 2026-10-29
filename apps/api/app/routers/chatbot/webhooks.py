@@ -6,6 +6,7 @@ import json
 import uuid
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
+from redis.asyncio import Redis
 
 from app.api.deps import SessionDep
 from app.core.encryption import decrypt
@@ -15,12 +16,12 @@ from app.domain.chatbot.webhook_ingestion import enqueue_inbound_message
 from app.domain_models import ProviderCredential
 from app.infrastructure.providers.chat.registry import build_chat_adapter
 
-router = APIRouter(prefix="/webhooks", tags=["chatbot-webhooks"])
+router: APIRouter = APIRouter(prefix="/webhooks", tags=["chatbot-webhooks"])
 
 
-def _redis_client(request: Request):
+def _redis_client(request: Request) -> Redis:
     manager = getattr(request.app.state, "redis_manager", None)
-    redis = getattr(manager, "client", None)
+    redis: Redis | None = getattr(manager, "client", None)
     if redis is None:
         raise HTTPException(status_code=503, detail="Redis is not available")
     return redis

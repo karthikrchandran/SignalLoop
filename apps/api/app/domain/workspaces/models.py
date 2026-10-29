@@ -29,8 +29,8 @@ class Workspace(SQLModel, table=True):
 
     id: str = Field(sa_column=Column(String(64), primary_key=True))
     display_name: str = Field(default="Workspace", max_length=255)
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
-    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
+    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class WorkspaceMembership(SQLModel, table=True):
@@ -64,5 +64,5 @@ class WorkspaceMembership(SQLModel, table=True):
     )
     role: str = Field(default="operator", max_length=50, index=True)
     status: str = Field(default="active", max_length=32, index=True)
-    created_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
-    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
+    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))

@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any
 
 from sqlalchemy import (
     JSON,
@@ -41,7 +42,7 @@ class SchedulingRequestSource(str, Enum):
     manual = "manual"
 
 
-class SchedulingRequest(SQLModel, table=True):  # type: ignore[call-arg]
+class SchedulingRequest(SQLModel, table=True):
     """A scheduling request created when a contact expresses meeting intent."""
 
     __tablename__ = "scheduling_requests"
@@ -83,21 +84,15 @@ class SchedulingRequest(SQLModel, table=True):  # type: ignore[call-arg]
 
     meeting_link: str | None = Field(default=None, sa_type=Text)
     calendly_event_id: str | None = Field(default=None, max_length=255)
-    meeting_datetime: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
-    )
+    meeting_datetime: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
     assigned_to_email: str | None = Field(default=None, max_length=255)
     notes: str | None = Field(default=None, sa_type=Text)
 
-    created_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
-    updated_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
+    updated_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
 
 
-class CalendarMeetingType(SQLModel, table=True):  # type: ignore[call-arg]
+class CalendarMeetingType(SQLModel, table=True):
     __tablename__ = "calendar_meeting_type"
     __table_args__ = (
         UniqueConstraint(
@@ -134,12 +129,10 @@ class CalendarMeetingType(SQLModel, table=True):  # type: ignore[call-arg]
     buffer_after_minutes: int = Field(default=0, ge=0, le=1440)
     minimum_notice_minutes: int = Field(default=60, ge=0, le=10080)
     status: str = Field(default="ACTIVE", max_length=32, index=True)
-    created_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
 
 
-class CalendarProviderBinding(SQLModel, table=True):  # type: ignore[call-arg]
+class CalendarProviderBinding(SQLModel, table=True):
     __tablename__ = "calendar_provider_binding"
     __table_args__ = (
         UniqueConstraint(
@@ -168,12 +161,10 @@ class CalendarProviderBinding(SQLModel, table=True):  # type: ignore[call-arg]
     credential_secret_ref: str = Field(max_length=1024)
     capabilities: list[str] = Field(sa_column=Column(JSON, nullable=False))
     status: str = Field(default="ACTIVE", max_length=32, index=True)
-    created_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
 
 
-class SchedulingOffer(SQLModel, table=True):  # type: ignore[call-arg]
+class SchedulingOffer(SQLModel, table=True):
     __tablename__ = "scheduling_offer"
     __table_args__ = (
         UniqueConstraint(
@@ -204,14 +195,12 @@ class SchedulingOffer(SQLModel, table=True):  # type: ignore[call-arg]
     version: int = Field(ge=1)
     offer_digest: str = Field(max_length=64)
     slots: list[dict[str, str]] = Field(sa_column=Column(JSON, nullable=False))
-    expires_at: datetime = Field(sa_type=DateTime(timezone=True), index=True)
+    expires_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False, index=True))
     status: str = Field(default="OPEN", max_length=32, index=True)
-    created_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
 
 
-class SchedulingConfirmation(SQLModel, table=True):  # type: ignore[call-arg]
+class SchedulingConfirmation(SQLModel, table=True):
     __tablename__ = "scheduling_confirmation"
     __table_args__ = (
         UniqueConstraint("offer_id", name="uq_scheduling_confirmation_offer"),
@@ -242,12 +231,10 @@ class SchedulingConfirmation(SQLModel, table=True):  # type: ignore[call-arg]
     selected_slot_digest: str = Field(max_length=64)
     confirmed_by: str = Field(max_length=255)
     confirmation_key: str = Field(max_length=255)
-    confirmed_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    confirmed_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
 
 
-class CalendarBookingJob(SQLModel, table=True):  # type: ignore[call-arg]
+class CalendarBookingJob(SQLModel, table=True):
     __tablename__ = "calendar_booking_job"
     __table_args__ = (
         UniqueConstraint(
@@ -302,31 +289,21 @@ class CalendarBookingJob(SQLModel, table=True):  # type: ignore[call-arg]
     )
     status: str = Field(default="PENDING", max_length=32, index=True)
     command_key: str = Field(max_length=255, unique=True)
-    command_envelope: dict | None = Field(default=None, sa_column=Column(JSON))
+    command_envelope: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     command_digest: str | None = Field(default=None, max_length=64)
     attempt_count: int = Field(default=0, ge=0)
     max_attempts: int = Field(default=5, ge=1, le=20)
-    available_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    available_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
     lease_token: uuid.UUID | None = Field(default=None, index=True)
-    lease_expires_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
-    )
-    provider_attempted_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
-    )
+    lease_expires_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
+    provider_attempted_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
     usage_reservation_id: uuid.UUID | None = Field(default=None)
     last_error_code: str | None = Field(default=None, max_length=64)
-    created_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
-    updated_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
+    updated_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
 
 
-class CalendarBookingReceipt(SQLModel, table=True):  # type: ignore[call-arg]
+class CalendarBookingReceipt(SQLModel, table=True):
     __tablename__ = "calendar_booking_receipt"
     __table_args__ = (
         UniqueConstraint(
@@ -366,6 +343,4 @@ class CalendarBookingReceipt(SQLModel, table=True):  # type: ignore[call-arg]
     provider_event_id: str = Field(max_length=255)
     provider_receipt_id: str = Field(max_length=255)
     command_digest: str = Field(max_length=64)
-    created_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))

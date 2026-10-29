@@ -20,9 +20,11 @@ The system is architected as a high-performance hybrid monorepo: FastAPI + SQLMo
 - [uv](https://docs.astral.sh/uv/)
 - Node.js 20+
 - npm for the web frontend
+- PostgreSQL 18 as the repository baseline (Compose and CI use 18); see the version-safety note below for existing native installations
+- Redis for local coordination
 - Mailpit for local email capture (`scoop install mailpit`)
 - Ollama for local LLM demos (`llama3.2:1b` is the default model)
-- Docker Desktop with Docker Compose is optional for containerized runs
+- Docker Compose is optional for containerized runs, including Docker running in WSL
 
 ## Workspace Layout
 
@@ -36,12 +38,15 @@ The system is architected as a high-performance hybrid monorepo: FastAPI + SQLMo
 
 ### Option A — Native local services with uv (recommended)
 
-Postgres and Redis must be reachable on `localhost`. On Windows with scoop:
+Postgres and Redis must be reachable on `localhost`. Your existing native startup workflow remains supported; Docker and Supabase are not required.
+
+For a new database installation, use PostgreSQL 18 to match Compose and CI. Check `pg_ctl --version` and the data directory's `PG_VERSION` before changing binaries. Scoop's current `postgresql` package may install a newer major version, so it is not a version-18 pin. Do not downgrade an existing newer native database or point different-major binaries at its data directory. Back up existing databases and plan a supported migration separately if a version change is necessary.
+
+On Windows, with the existing Scoop-managed PostgreSQL installation:
 
 ```powershell
-# Postgres (already installed in this workspace via scoop)
-scoop install postgresql           # if not yet installed
-pg_ctl -D "$env:USERPROFILE\scoop\apps\postgresql\current\data" -l postgres.log start
+# Verify PostgreSQL 18 and reuse the existing cluster without replacing data.
+.\StartDatabase.ps1
 createdb -U postgres signalloop
 
 # Redis — scoop ships a Windows port; or use Memurai
@@ -79,7 +84,7 @@ npm install
 npm run dev     # http://localhost:5173
 ```
 
-`.env` already targets `localhost` for both Postgres and Redis, so no further config edits are needed for local-only runs. Provider credentials (`SENDGRID_*`, `TWILIO_*`, `DEEPGRAM_API_KEY`, `GROQ_API_KEY`) are optional — the adapters fail closed when keys are absent, so the API and UI still boot for development.
+Copy `.env.example` to `.env` only if you do not already have a local environment file, and set your database credentials. The example targets `localhost` for both Postgres and Redis. Leave `POSTGRES_SSLMODE` empty to preserve the existing local connection behavior. Provider credentials (`SENDGRID_*`, `TWILIO_*`, `DEEPGRAM_API_KEY`, `GROQ_API_KEY`) are optional — the adapters fail closed when keys are absent, so the API and UI still boot for development.
 
 Confirm service health:
 
@@ -109,6 +114,14 @@ Use Compose only when you specifically want a containerized run:
 ```bash
 docker compose up --build
 ```
+
+Compose and CI use `pgvector/pgvector:pg18`. The Compose database uses a new `postgres18-data` volume at `/var/lib/postgresql`, with `PGDATA=/var/lib/postgresql/18/docker`. Old volumes are neither reused nor deleted, and their data is not automatically migrated. Check that native or hosted PostgreSQL has the `vector` extension available before using knowledge-base vector search.
+
+## Hosted Database
+
+SignalLoop connects to standard PostgreSQL through SQLModel/SQLAlchemy and Psycopg; it does not require Supabase or Neon. Use the same `POSTGRES_SERVER`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` configuration for any compatible provider, with `POSTGRES_SSLMODE=require` or the provider's certificate-verifying settings. API, workers, and Alembic share this configuration.
+
+Keep development, launch/customer environments, and eCRM databases separate, with separate credentials. Select a service tier with suitable availability, backups, restore procedures, and monitoring. Do not depend on auto-pausing free tiers for continuous availability. The [launch runbook](docs/operations/scheduled-launch-desktop.md) describes the provider-neutral hosted setup; it does not change the native local startup path.
 
 ## Backend Dependency Install
 

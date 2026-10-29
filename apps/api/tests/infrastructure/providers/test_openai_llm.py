@@ -88,6 +88,23 @@ def test_chat_completion_empty_choices(monkeypatch: pytest.MonkeyPatch) -> None:
     assert _run(a.chat_completion(system_prompt="s", messages=[])) == ""
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [None, [], {"choices": None}, {"choices": [None]},
+     {"choices": [{"message": None}]},
+     {"choices": [{"message": {"content": None}}]},
+     {"choices": [{"message": {"content": ["not text"]}}]}],
+)
+def test_chat_completion_invalid_response_shape(
+    monkeypatch: pytest.MonkeyPatch, payload: object,
+) -> None:
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = payload
+    _patch(monkeypatch, _Client(resp))
+    adapter = OpenAILLMAdapter(api_key="test-key")
+    assert _run(adapter.chat_completion(system_prompt="s", messages=[])) == ""
+
+
 def test_chat_completion_invalid_json(monkeypatch: pytest.MonkeyPatch) -> None:
     resp = MagicMock(status_code=200)
     resp.json.side_effect = ValueError("bad")

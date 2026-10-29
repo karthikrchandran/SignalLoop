@@ -31,7 +31,7 @@ def _parse_html(url: str, html: str) -> tuple[str, str, list[str]]:
     title = soup.title.string.strip() if soup.title and soup.title.string else url
     text = " ".join(soup.get_text(" ").split())
     links = [link.get("href") for link in soup.find_all("a", href=True)]
-    return title, text, [href for href in links if href]
+    return title, text, [href for href in links if isinstance(href, str) and href]
 
 
 def _same_origin(base_url: str, candidate: str) -> bool:

@@ -1,11 +1,11 @@
 services:
   db:
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:pg18
     restart: unless-stopped
     env_file:
       - .env
     environment:
-      PGDATA: /var/lib/postgresql/data/pgdata
+      PGDATA: /var/lib/postgresql/18/docker
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -17,7 +17,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data/pgdata
+      - postgres18-data:/var/lib/postgresql
 
   redis:
     image: redis:7
@@ -130,5 +130,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres-data:
+  postgres18-data:
   redis-data:

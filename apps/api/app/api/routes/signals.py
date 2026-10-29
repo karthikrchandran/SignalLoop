@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import SQLModel, select
@@ -100,7 +101,7 @@ def get_campaign_signal_summary(
     session: SessionDep,
     workspace_id: WorkspaceIdDep,
     campaign_id: uuid.UUID,
-) -> dict:
+) -> dict[str, Any]:
     """Return campaign signal summary."""
     _ensure_campaign_in_workspace(session, campaign_id, workspace_id)
     return aggregation_service.get_campaign_signal_summary(

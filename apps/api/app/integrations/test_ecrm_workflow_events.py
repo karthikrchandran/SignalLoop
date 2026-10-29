@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import Mock
 
+import httpx
 import pytest
 
 from app.integrations.ecrm_workflow_events import (
@@ -14,9 +15,7 @@ def test_emit_event_posts_workflow_payload(monkeypatch: pytest.MonkeyPatch) -> N
     client = EcrmWorkflowEventsClient(base_url="https://ecrm.test", token="token-123")
     mock_request = Mock(return_value=Mock(status_code=201, json=lambda: {"ok": True}, text="{}"))
 
-    import app.integrations.ecrm_workflow_events as module
-
-    monkeypatch.setattr(module.httpx, "request", mock_request)
+    monkeypatch.setattr(httpx, "request", mock_request)
 
     result = client.emit_event(
         {
@@ -44,9 +43,7 @@ def test_emit_event_raises_on_failed_response(
     client = EcrmWorkflowEventsClient(base_url="https://ecrm.test", token="token-123")
     mock_request = Mock(return_value=Mock(status_code=status_code, text="boom", json=lambda: {}))
 
-    import app.integrations.ecrm_workflow_events as module
-
-    monkeypatch.setattr(module.httpx, "request", mock_request)
+    monkeypatch.setattr(httpx, "request", mock_request)
 
     with pytest.raises(EcrmWorkflowEventsError):
         client.emit_event({"sourceApp": "emailvoice", "sourceEventType": "meeting_booked", "entityType": "LEAD", "summary": "x"})

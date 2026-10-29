@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
-from sqlmodel import select
+from pydantic import TypeAdapter
+from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.api.request_context import IdempotencyKeyDep
@@ -27,6 +28,7 @@ from app.domain.commercial_agents.models import (
 )
 from app.domain.lead_preparation.models import (
     LeadPreparationJob,
+    LeadPreparationJobStatus,
     LeadPreparationPackage,
     LeadScoringPolicy,
     LeadScoringPolicyStatus,
@@ -170,7 +172,7 @@ def list_policies(
                 LeadScoringPolicy.tenant_id == tenant_id,
                 LeadScoringPolicy.workspace_id == workspace_id,
             )
-            .order_by(LeadScoringPolicy.version.desc())
+            .order_by(col(LeadScoringPolicy.version).desc())
         ).all()
     )
 
@@ -230,7 +232,7 @@ async def create_policy(
         )
         return LeadPolicyPublic.model_validate(policy).model_dump(mode="json")
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -239,7 +241,7 @@ async def create_policy(
         request_payload=payload.model_dump(mode="json"),
         mutation=create_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.get(
@@ -295,7 +297,7 @@ async def replay_dead_letter(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return LeadPreparationJobPublic.model_validate(job).model_dump(mode="json")
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -304,7 +306,7 @@ async def replay_dead_letter(
         request_payload=payload.model_dump(mode="json"),
         mutation=replay_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post(
@@ -357,7 +359,7 @@ async def create_outcome(
         )
         return LeadOutcomePublic.model_validate(observation).model_dump(mode="json")
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -366,7 +368,7 @@ async def create_outcome(
         request_payload=payload.model_dump(mode="json"),
         mutation=ingest_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post(
@@ -445,7 +447,7 @@ async def approve_policy(
         session.flush()
         return LeadPolicyPublic.model_validate(policy).model_dump(mode="json")
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -454,7 +456,7 @@ async def approve_policy(
         request_payload=payload.model_dump(mode="json"),
         mutation=approve_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post(
@@ -543,7 +545,7 @@ async def publish_policy(
         session.flush()
         return LeadPolicyPublic.model_validate(policy).model_dump(mode="json")
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -552,7 +554,7 @@ async def publish_policy(
         request_payload={},
         mutation=publish_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post(
@@ -599,7 +601,7 @@ async def create_job(
         )
         return LeadPreparationJobPublic.model_validate(job).model_dump(mode="json")
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -608,7 +610,7 @@ async def create_job(
         request_payload=payload.model_dump(mode="json"),
         mutation=create_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.get(
@@ -626,7 +628,7 @@ def list_packages(
                 LeadPreparationPackage.tenant_id == tenant_id,
                 LeadPreparationPackage.workspace_id == workspace_id,
             )
-            .order_by(LeadPreparationPackage.created_at.desc())
+            .order_by(col(LeadPreparationPackage.created_at).desc())
         ).all()
     )
 
@@ -681,7 +683,7 @@ async def _review_package(
         session.flush()
         return LeadPackagePublic.model_validate(package).model_dump(mode="json")
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -690,7 +692,7 @@ async def _review_package(
         request_payload=payload.model_dump(mode="json"),
         mutation=review_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post("/tenants/{tenant_id}/packages/{package_id}/approve")
@@ -814,7 +816,7 @@ async def route_package(
             select(LeadPreparationJob).where(LeadPreparationJob.package_id == package.id)
         ).one_or_none()
         if job is not None:
-            job.status = "ROUTED"
+            job.status = LeadPreparationJobStatus.ROUTED
             session.add(job)
         append_audit_event_to_session(
             session,
@@ -829,7 +831,7 @@ async def route_package(
         session.flush()
         return LeadPackagePublic.model_validate(package).model_dump(mode="json")
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -838,4 +840,4 @@ async def route_package(
         request_payload=payload.model_dump(mode="json"),
         mutation=route_once,
         safe_to_retry_on_failure=True,
-    )
+    ))

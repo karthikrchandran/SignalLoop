@@ -22,6 +22,7 @@ from app.domain.providers.credential_resolver import (
 )
 from app.domain.runtime_settings import (
     ResolvedRuntimeValue,
+    ResolvedWorkspaceRuntimeConfig,
     resolve_workspace_runtime_config,
 )
 from app.domain_models import (
@@ -316,7 +317,7 @@ def _provider_capability_integration(
     capability: ProviderCapability,
     *,
     credentials: dict[tuple[NotificationProvider, str], ProviderCredential],
-    runtime_config,
+    runtime_config: ResolvedWorkspaceRuntimeConfig,
 ) -> SetupIntegrationPublic:
     provider = resolve_active_provider(session, workspace_id, capability)
     channel = _CAPABILITY_CHANNEL[capability]
@@ -378,7 +379,7 @@ async def _redis_health(request: Request) -> bool:
     if redis_manager is None:
         return False
     try:
-        return await redis_manager.ping()
+        return bool(await redis_manager.ping())
     except Exception:
         return False
 

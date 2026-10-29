@@ -30,7 +30,12 @@ Copy `./.env.example` to `./.env` to start. Frontend defaults in `apps/web/.env`
 | `POSTGRES_DB` | `signalloop` | Database name. Must exist (`createdb -U postgres signalloop`). |
 | `POSTGRES_USER` | `postgres` | Postgres user. |
 | `POSTGRES_PASSWORD` | `changethis` | Postgres password. Must be changed in non-local environments. |
+| `POSTGRES_SSLMODE` | empty | Optional Psycopg TLS mode: `disable`, `allow`, `prefer`, `require`, `verify-ca`, or `verify-full`. Empty preserves the driver's existing behavior locally. Use `require` or the provider's certificate-verifying mode for hosted databases. |
 | `REDIS_URL` | `redis://localhost:6379/0` | Full Redis URL. Override DB index with `/1`, `/2`, etc. |
+
+These settings are provider-neutral and shared by the API, workers, and Alembic. No Supabase URL or SDK key is required. PostgreSQL 18 is the Compose/CI baseline; an existing native database must not be downgraded or reopened with mismatched major-version binaries.
+
+For hosted connections, `require` encrypts traffic but does not by itself guarantee hostname verification. Prefer `verify-full` where the provider supports it and supply its CA through Psycopg/libpq's `PGSSLROOTCERT` **process environment variable** (or the standard libpq root-certificate location). `PGSSLROOTCERT` is not an application Settings field, so placing it only in this repository's `.env` does not export it to native child processes. Do not disable TLS to work around certificate errors.
 
 ### Outbound SMTP (optional — for transactional email like password reset)
 

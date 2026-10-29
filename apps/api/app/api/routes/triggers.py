@@ -1,6 +1,8 @@
 """Trigger rule management API."""
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import SQLModel
 
@@ -18,7 +20,7 @@ class TriggerUpdateRequest(SQLModel):
 
 
 @router.get("/")
-def list_triggers() -> list[dict]:
+def list_triggers() -> list[dict[str, Any]]:
     """Return a list of triggers."""
     return get_trigger_rules()
 

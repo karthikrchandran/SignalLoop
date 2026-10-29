@@ -10,6 +10,9 @@ instruction.md
 # Environment files
 .env
 .env.*
+!.env.example
+!.env.ara-global.example
+!.env.ai-consulting.example
 
 # Logs
 *.log

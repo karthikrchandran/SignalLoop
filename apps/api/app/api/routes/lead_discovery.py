@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import WorkspaceIdDep
@@ -16,7 +16,6 @@ from app.domain.lead_discovery.models import (
     LeadFitBand,
     LeadMatchConfidence,
 )
-from app.domain.lead_discovery.scoring import score_discovered_lead
 from app.domain.lead_discovery.schemas import (
     DiscoveredLeadDTO,
     DiscoverySearchCriteria,
@@ -27,6 +26,7 @@ from app.domain.lead_discovery.schemas import (
     LeadPromotionResponse,
     LeadScoringResponse,
 )
+from app.domain.lead_discovery.scoring import score_discovered_lead
 from app.domain.lead_discovery.service import (
     LeadNotFoundError,
     enrich_entity_for_workspace,
@@ -47,7 +47,7 @@ async def search_discovered_leads(
     *,
     session: SessionDep,
     workspace_id: WorkspaceIdDep,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
     criteria: DiscoverySearchCriteria,
 ) -> DiscoverySearchResponse:
     """Search, resolve, and AI-score leads based on firmographic and contact parameters."""
@@ -67,7 +67,7 @@ async def enrich_lead_entity(
     *,
     session: SessionDep,
     workspace_id: WorkspaceIdDep,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
     request: EnrichmentRequest,
 ) -> EnrichmentResponse:
     """Enrich company firmographics, tech stack, and verified contacts via waterfall engine."""
@@ -93,7 +93,7 @@ def score_lead(
     *,
     session: SessionDep,
     workspace_id: WorkspaceIdDep,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
     lead_id: uuid.UUID,
 ) -> LeadScoringResponse:
     """Compute AI fit scoring breakdown and synthesized sales conversation starters."""
@@ -119,7 +119,7 @@ def promote_lead(
     *,
     session: SessionDep,
     workspace_id: WorkspaceIdDep,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
     request: LeadPromotionRequest,
 ) -> LeadPromotionResponse:
     """Promote a discovered lead into the workspace CRM contacts with sequence enrollment."""
@@ -139,14 +139,15 @@ def promote_lead(
 @router.post(
     "/webhooks/{provider}",
     response_model=dict,
+    dependencies=[Depends(require_admin)],
 )
 async def ingest_lead_webhook(
     *,
     session: SessionDep,
     provider: str,
-    payload: dict,
-    workspace_id: str = Query(..., description="Target workspace ID for incoming lead"),
-) -> dict:
+    payload: dict[str, Any],
+    workspace_id: WorkspaceIdDep,
+) -> dict[str, Any]:
     """Ingest external lead discovery webhook (e.g. from internal pipelines or Apollo)."""
     email = payload.get("email")
     if not email or "@" not in email:
@@ -234,7 +235,7 @@ async def ingest_lead_webhook(
 )
 def list_available_providers(
     *,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
 ) -> list[str]:
     """List configured and supported discovery / enrichment provider adapters."""
     return [p.value for p in DiscoveryProviderType]

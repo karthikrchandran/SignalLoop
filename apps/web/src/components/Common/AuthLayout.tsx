@@ -26,16 +26,20 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         </div>
         <ul className="mt-8 space-y-3 text-sm text-white/80">
           <li className="flex items-center gap-2">
-            <span className="text-[#8fd2ff]">✓</span> Multi-channel campaign management
+            <span className="text-[#8fd2ff]">✓</span> Multi-channel campaign
+            management
           </li>
           <li className="flex items-center gap-2">
-            <span className="text-[#8fd2ff]">✓</span> Voice agents with custom scripts
+            <span className="text-[#8fd2ff]">✓</span> Voice agents with custom
+            scripts
           </li>
           <li className="flex items-center gap-2">
-            <span className="text-[#8fd2ff]">✓</span> Real-time analytics &amp; reporting
+            <span className="text-[#8fd2ff]">✓</span> Real-time analytics &amp;
+            reporting
           </li>
           <li className="flex items-center gap-2">
-            <span className="text-[#8fd2ff]">✓</span> Reusable email sequence templates
+            <span className="text-[#8fd2ff]">✓</span> Reusable email sequence
+            templates
           </li>
         </ul>
       </div>

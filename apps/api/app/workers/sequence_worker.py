@@ -9,9 +9,10 @@ import logging
 import re
 import uuid
 from datetime import datetime, time, timedelta, timezone
+from typing import Any
 
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.core.db import engine
 from app.domain.policies.consent_sync_service import is_contact_actionable
@@ -86,16 +87,16 @@ def _daily_send_count(
     campaign_id: uuid.UUID | None = None,
 ) -> int:
     today = datetime.now(timezone.utc).date()
-    statement = select(func.count(SendRequest.id))
+    statement = select(func.count(col(SendRequest.id)))
     if workspace_id is not None or campaign_id is not None:
         statement = (
             statement
             .join(
                 ContactSequenceState,
-                SendRequest.contact_sequence_state_id == ContactSequenceState.id,
+                col(SendRequest.contact_sequence_state_id) == col(ContactSequenceState.id),
             )
-            .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
-            .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+            .join(EmailSequence, col(ContactSequenceState.sequence_id) == col(EmailSequence.id))
+            .join(Campaign, col(EmailSequence.campaign_id) == col(Campaign.id))
         )
     statement = statement.where(
         func.date(SendRequest.created_at) == today,
@@ -153,7 +154,7 @@ def _is_outreach_paused(
     return campaign_pause is not None
 
 
-def _policy_daily_cap(payload: dict, *, campaign_scope: bool) -> int | None:
+def _policy_daily_cap(payload: dict[str, Any], *, campaign_scope: bool) -> int | None:
     keys = (
         ("campaignDailyCap", "campaignCap", "max_per_day", "maxPerDay", "dailyCap")
         if campaign_scope
@@ -258,11 +259,11 @@ async def _process_batch() -> int:
         now = datetime.now(timezone.utc)
         workspace_ids = session.exec(
             select(Campaign.workspace_id)
-            .join(EmailSequence, EmailSequence.campaign_id == Campaign.id)
-            .join(ContactSequenceState, ContactSequenceState.sequence_id == EmailSequence.id)
+            .join(EmailSequence, col(EmailSequence.campaign_id) == col(Campaign.id))
+            .join(ContactSequenceState, col(ContactSequenceState.sequence_id) == col(EmailSequence.id))
             .where(
                 ContactSequenceState.status == SequenceStatus.active,
-                ContactSequenceState.next_send_at <= now,
+                col(ContactSequenceState.next_send_at) <= now,
             )
             .distinct()
             .order_by(Campaign.workspace_id)
@@ -273,14 +274,14 @@ async def _process_batch() -> int:
         for workspace_id in workspace_ids:
             due_states = session.exec(
                 select(ContactSequenceState)
-                .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
-                .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+                .join(EmailSequence, col(ContactSequenceState.sequence_id) == col(EmailSequence.id))
+                .join(Campaign, col(EmailSequence.campaign_id) == col(Campaign.id))
                 .where(
                     Campaign.workspace_id == workspace_id,
                     ContactSequenceState.status == SequenceStatus.active,
-                    ContactSequenceState.next_send_at <= now,
+                    col(ContactSequenceState.next_send_at) <= now,
                 )
-                .order_by(ContactSequenceState.next_send_at)
+                .order_by(col(ContactSequenceState.next_send_at))
                 .limit(BATCH_SIZE)
                 .with_for_update(skip_locked=True)
             ).all()

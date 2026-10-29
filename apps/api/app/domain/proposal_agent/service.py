@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import update
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.core.encryption import decrypt, encrypt
 from app.domain.audit.audit_events import append_audit_event_to_session
@@ -166,7 +166,7 @@ def _claim(
     candidate = session.exec(
         select(ProposalGenerationJob.id)
         .where(
-            ProposalGenerationJob.status.in_(
+            col(ProposalGenerationJob.status).in_(
                 [
                     ProposalJobStatus.PENDING.value,
                     ProposalJobStatus.RETRY_SCHEDULED.value,
@@ -174,7 +174,7 @@ def _claim(
             ),
             ProposalGenerationJob.available_at <= now,
         )
-        .order_by(ProposalGenerationJob.created_at, ProposalGenerationJob.id)
+        .order_by(col(ProposalGenerationJob.created_at), col(ProposalGenerationJob.id))
         .limit(1)
     ).first()
     if candidate is None:
@@ -183,14 +183,14 @@ def _claim(
     result = session.exec(
         update(ProposalGenerationJob)
         .where(
-            ProposalGenerationJob.id == candidate,
-            ProposalGenerationJob.status.in_(
+            col(ProposalGenerationJob.id) == candidate,
+            col(ProposalGenerationJob.status).in_(
                 [
                     ProposalJobStatus.PENDING.value,
                     ProposalJobStatus.RETRY_SCHEDULED.value,
                 ]
             ),
-            ProposalGenerationJob.available_at <= now,
+            col(ProposalGenerationJob.available_at) <= now,
         )
         .values(
             status=ProposalJobStatus.IN_PROGRESS.value,
@@ -262,10 +262,10 @@ def _persist_success(
         claimed = session.exec(
             update(ProposalGenerationJob)
             .where(
-                ProposalGenerationJob.id == job.id,
-                ProposalGenerationJob.status == ProposalJobStatus.IN_PROGRESS.value,
-                ProposalGenerationJob.lease_token == lease_token,
-                ProposalGenerationJob.lease_expires_at >= now,
+                col(ProposalGenerationJob.id) == job.id,
+                col(ProposalGenerationJob.status) == ProposalJobStatus.IN_PROGRESS.value,
+                col(ProposalGenerationJob.lease_token) == lease_token,
+                col(ProposalGenerationJob.lease_expires_at) >= now,
             )
             .values(
                 status=ProposalJobStatus.COMPLETED.value,
@@ -411,6 +411,7 @@ def run_proposal_batch(
             job.command_envelope = envelope
             job.command_digest = _digest(envelope)
             job.usage_reservation_id = reservation.id
+            reservation_id = reservation.id
             job.command_attempted_at = datetime.now(timezone.utc)
             session.add(job)
             session.commit()
@@ -448,7 +449,7 @@ def run_proposal_batch(
         if lease_expires is None or lease_expires < completed_at:
             mark_capacity_unknown(
                 session,
-                reservation_id=job.usage_reservation_id,
+                reservation_id=reservation_id,
                 reason="PROPOSAL_LEASE_EXPIRED_AFTER_ECRM_CALL",
             )
             job.status = ProposalJobStatus.UNKNOWN_EXTERNAL_OUTCOME
@@ -487,7 +488,7 @@ def recover_expired_proposal_leases(
     jobs = session.exec(
         select(ProposalGenerationJob).where(
             ProposalGenerationJob.status == ProposalJobStatus.IN_PROGRESS.value,
-            ProposalGenerationJob.lease_expires_at < at,
+            col(ProposalGenerationJob.lease_expires_at) < at,
         )
     ).all()
     for job in jobs:

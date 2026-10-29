@@ -5523,6 +5523,404 @@
         "title": "DestinationEnvelope",
         "type": "object"
       },
+      "DiscoveredLeadDTO": {
+        "description": "Public representation of a discovered lead.",
+        "properties": {
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "company_domain": {
+            "title": "Company Domain",
+            "type": "string"
+          },
+          "company_name": {
+            "title": "Company Name",
+            "type": "string"
+          },
+          "conversation_starters": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Conversation Starters",
+            "type": "array"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "employee_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Count"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "fit_band": {
+            "$ref": "#/components/schemas/LeadFitBand"
+          },
+          "fit_score": {
+            "title": "Fit Score",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry"
+          },
+          "intent_signals": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Intent Signals",
+            "type": "array"
+          },
+          "is_promoted": {
+            "default": false,
+            "title": "Is Promoted",
+            "type": "boolean"
+          },
+          "last_name": {
+            "title": "Last Name",
+            "type": "string"
+          },
+          "match_confidence": {
+            "$ref": "#/components/schemas/LeadMatchConfidence"
+          },
+          "matched_account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matched Account Id"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "promoted_contact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promoted Contact Id"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "revenue_range": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Range"
+          },
+          "score_rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Rationale"
+          },
+          "seniority": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seniority"
+          },
+          "source_provider": {
+            "$ref": "#/components/schemas/DiscoveryProviderType"
+          },
+          "tech_stack": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tech Stack",
+            "type": "array"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "first_name",
+          "last_name",
+          "email",
+          "company_name",
+          "company_domain",
+          "source_provider",
+          "match_confidence",
+          "fit_score",
+          "fit_band",
+          "created_at"
+        ],
+        "title": "DiscoveredLeadDTO",
+        "type": "object"
+      },
+      "DiscoveryProviderType": {
+        "description": "Sources for discovered leads and enrichment data.",
+        "enum": [
+          "SANDBOX",
+          "APOLLO",
+          "CLAY",
+          "INTERNAL_AI",
+          "CUSTOM_WEBHOOK"
+        ],
+        "title": "DiscoveryProviderType",
+        "type": "string"
+      },
+      "DiscoverySearchCriteria": {
+        "description": "Firmographic and demographic search parameters.",
+        "properties": {
+          "countries": {
+            "description": "Target countries (e.g. US, UK, CA)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "employee_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Maximum headcount",
+            "title": "Employee Max"
+          },
+          "employee_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Minimum headcount",
+            "title": "Employee Min"
+          },
+          "industries": {
+            "description": "Target industries (e.g. SaaS, Fintech, Healthcare)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Industries",
+            "type": "array"
+          },
+          "job_titles": {
+            "description": "Target job titles (e.g. VP Sales, CTO, Head of Growth)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Job Titles",
+            "type": "array"
+          },
+          "keywords": {
+            "description": "Keyword search in company or role description",
+            "items": {
+              "type": "string"
+            },
+            "title": "Keywords",
+            "type": "array"
+          },
+          "limit": {
+            "default": 25,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "regions": {
+            "description": "Target states/regions (e.g. California, Texas)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "revenue_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Maximum estimated revenue in USD",
+            "title": "Revenue Max"
+          },
+          "revenue_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Minimum estimated revenue in USD",
+            "title": "Revenue Min"
+          },
+          "seniority_levels": {
+            "description": "C-Level, VP, Director, Manager",
+            "items": {
+              "type": "string"
+            },
+            "title": "Seniority Levels",
+            "type": "array"
+          },
+          "tech_stack": {
+            "description": "Technologies used (e.g. Salesforce, AWS, Snowflake)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Tech Stack",
+            "type": "array"
+          }
+        },
+        "title": "DiscoverySearchCriteria",
+        "type": "object"
+      },
+      "DiscoverySearchResponse": {
+        "description": "Response containing discovered leads matching filter criteria.",
+        "properties": {
+          "criteria": {
+            "$ref": "#/components/schemas/DiscoverySearchCriteria"
+          },
+          "leads": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveredLeadDTO"
+            },
+            "title": "Leads",
+            "type": "array"
+          },
+          "provider_used": {
+            "$ref": "#/components/schemas/DiscoveryProviderType"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "leads",
+          "provider_used",
+          "criteria"
+        ],
+        "title": "DiscoverySearchResponse",
+        "type": "object"
+      },
       "DraftClaim": {
         "additionalProperties": false,
         "properties": {
@@ -5642,6 +6040,160 @@
           "pipeline_risks"
         ],
         "title": "EngagementOverviewPublic",
+        "type": "object"
+      },
+      "EnrichmentRequest": {
+        "description": "Enrichment request by domain or company name or contact email.",
+        "properties": {
+          "company_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Name"
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "providers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DiscoveryProviderType"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Providers"
+          }
+        },
+        "title": "EnrichmentRequest",
+        "type": "object"
+      },
+      "EnrichmentResponse": {
+        "description": "Enrichment result combining firmographics, technologies, and verified contacts.",
+        "properties": {
+          "company_name": {
+            "title": "Company Name",
+            "type": "string"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "domain": {
+            "title": "Domain",
+            "type": "string"
+          },
+          "employee_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Count"
+          },
+          "enrichment_source": {
+            "$ref": "#/components/schemas/DiscoveryProviderType"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry"
+          },
+          "intent_signals": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Intent Signals",
+            "type": "array"
+          },
+          "key_contacts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Key Contacts",
+            "type": "array"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "revenue_range": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Range"
+          },
+          "tech_stack": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tech Stack",
+            "type": "array"
+          }
+        },
+        "required": [
+          "company_name",
+          "domain",
+          "enrichment_source"
+        ],
+        "title": "EnrichmentResponse",
         "type": "object"
       },
       "EnrollmentResult": {
@@ -6158,6 +6710,28 @@
         ],
         "title": "KnowledgeGapPublic",
         "type": "object"
+      },
+      "LeadFitBand": {
+        "description": "Overall qualification band computed by the internal AI scoring engine.",
+        "enum": [
+          "HOT_OPPORTUNITY",
+          "HIGH_FIT",
+          "NURTURE",
+          "UNQUALIFIED"
+        ],
+        "title": "LeadFitBand",
+        "type": "string"
+      },
+      "LeadMatchConfidence": {
+        "description": "Confidence category for matching a discovered entity with existing CRM records.",
+        "enum": [
+          "EXACT_MATCH",
+          "HIGH_CONFIDENCE_FUZZY",
+          "AMBIGUOUS_CONFLICT",
+          "NEW_ENTITY"
+        ],
+        "title": "LeadMatchConfidence",
+        "type": "string"
       },
       "LeadOutcomeCreate": {
         "additionalProperties": false,
@@ -6879,6 +7453,112 @@
         "title": "LeadPreparationReconciliationReport",
         "type": "object"
       },
+      "LeadPromotionRequest": {
+        "description": "Request to promote a discovered lead into the workspace CRM contacts.",
+        "properties": {
+          "campaign_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Id"
+          },
+          "lead_id": {
+            "format": "uuid",
+            "title": "Lead Id",
+            "type": "string"
+          },
+          "sequence_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sequence Id"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "lead_id"
+        ],
+        "title": "LeadPromotionRequest",
+        "type": "object"
+      },
+      "LeadPromotionResponse": {
+        "description": "Result of promoting a discovered lead.",
+        "properties": {
+          "contact_id": {
+            "format": "uuid",
+            "title": "Contact Id",
+            "type": "string"
+          },
+          "enrolled_campaign_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrolled Campaign Id"
+          },
+          "enrolled_sequence_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrolled Sequence Id"
+          },
+          "lead_id": {
+            "format": "uuid",
+            "title": "Lead Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lead_id",
+          "contact_id",
+          "workspace_id",
+          "status",
+          "message"
+        ],
+        "title": "LeadPromotionResponse",
+        "type": "object"
+      },
       "LeadScoreBand": {
         "enum": [
           "HOT",
@@ -6888,6 +7568,35 @@
         ],
         "title": "LeadScoreBand",
         "type": "string"
+      },
+      "LeadScoreContribution": {
+        "description": "Individual points contributing to the total lead fit score.",
+        "properties": {
+          "max_points": {
+            "title": "Max Points",
+            "type": "integer"
+          },
+          "pillar": {
+            "title": "Pillar",
+            "type": "string"
+          },
+          "points": {
+            "title": "Points",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pillar",
+          "points",
+          "max_points",
+          "reason"
+        ],
+        "title": "LeadScoreContribution",
+        "type": "object"
       },
       "LeadScoreDryRunPublic": {
         "properties": {
@@ -6963,6 +7672,53 @@
         ],
         "title": "LeadScoringPolicyStatus",
         "type": "string"
+      },
+      "LeadScoringResponse": {
+        "description": "AI score breakdown and opportunity rationale.",
+        "properties": {
+          "contributions": {
+            "items": {
+              "$ref": "#/components/schemas/LeadScoreContribution"
+            },
+            "title": "Contributions",
+            "type": "array"
+          },
+          "conversation_starters": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Conversation Starters",
+            "type": "array"
+          },
+          "fit_band": {
+            "$ref": "#/components/schemas/LeadFitBand"
+          },
+          "fit_score": {
+            "title": "Fit Score",
+            "type": "integer"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "suggested_channels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Suggested Channels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "fit_score",
+          "fit_band",
+          "contributions",
+          "rationale",
+          "conversation_starters",
+          "suggested_channels"
+        ],
+        "title": "LeadScoringResponse",
+        "type": "object"
       },
       "MembershipCreate": {
         "properties": {
@@ -18617,6 +19373,403 @@
         "summary": "Get Engagement Overview",
         "tags": [
           "engagement-intelligence"
+        ]
+      }
+    },
+    "/api/v1/lead-discovery/enrich": {
+      "post": {
+        "description": "Enrich company firmographics, tech stack, and verified contacts via waterfall engine.",
+        "operationId": "lead-discovery-enrich_lead_entity",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrichmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrichmentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Enrich Lead Entity",
+        "tags": [
+          "lead-discovery"
+        ]
+      }
+    },
+    "/api/v1/lead-discovery/promote": {
+      "post": {
+        "description": "Promote a discovered lead into the workspace CRM contacts with sequence enrollment.",
+        "operationId": "lead-discovery-promote_lead",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadPromotionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadPromotionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Promote Lead",
+        "tags": [
+          "lead-discovery"
+        ]
+      }
+    },
+    "/api/v1/lead-discovery/providers": {
+      "get": {
+        "description": "List configured and supported discovery / enrichment provider adapters.",
+        "operationId": "lead-discovery-list_available_providers",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Lead-Discovery-List Available Providers",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Available Providers",
+        "tags": [
+          "lead-discovery"
+        ]
+      }
+    },
+    "/api/v1/lead-discovery/score/{lead_id}": {
+      "post": {
+        "description": "Compute AI fit scoring breakdown and synthesized sales conversation starters.",
+        "operationId": "lead-discovery-score_lead",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lead_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lead Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadScoringResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Score Lead",
+        "tags": [
+          "lead-discovery"
+        ]
+      }
+    },
+    "/api/v1/lead-discovery/search": {
+      "post": {
+        "description": "Search, resolve, and AI-score leads based on firmographic and contact parameters.",
+        "operationId": "lead-discovery-search_discovered_leads",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscoverySearchCriteria"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoverySearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Search Discovered Leads",
+        "tags": [
+          "lead-discovery"
+        ]
+      }
+    },
+    "/api/v1/lead-discovery/webhooks/{provider}": {
+      "post": {
+        "description": "Ingest external lead discovery webhook (e.g. from internal pipelines or Apollo).",
+        "operationId": "lead-discovery-ingest_lead_webhook",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "title": "Provider",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Workspace-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Workspace-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Lead-Discovery-Ingest Lead Webhook",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Ingest Lead Webhook",
+        "tags": [
+          "lead-discovery"
         ]
       }
     },

@@ -36,6 +36,8 @@ class EscalationDecision:
 def confidence_threshold(bot_config: ChatbotBotConfig) -> float:
     """Return configured confidence threshold with a safe default."""
     raw = bot_config.lead_capture_json.get("confidence_threshold")
+    if raw is None:
+        return DEFAULT_CONFIDENCE_THRESHOLD
     try:
         value = float(raw)
     except (TypeError, ValueError):
@@ -94,4 +96,3 @@ def evaluate_escalation(
         return EscalationDecision(True, "low_confidence")
 
     return EscalationDecision(False)
-

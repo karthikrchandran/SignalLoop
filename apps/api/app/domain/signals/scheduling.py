@@ -45,10 +45,8 @@ class SchedulingRequest(SQLModel, table=True):
         alias="contact_id",
         sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
     )
-    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
+    contact_id: ClassVar[Synonym[uuid.UUID]] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     signal_event_id: uuid.UUID = Field(foreign_key="signal_events.id")
     status: SchedulingStatus = Field(default=SchedulingStatus.pending)
-    created_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))

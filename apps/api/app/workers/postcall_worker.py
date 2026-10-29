@@ -7,7 +7,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.core.db import engine
 from app.domain.outreach.outbox_service import (
@@ -89,8 +89,8 @@ async def _process_completed_calls() -> int:
         pending_sessions = session.exec(
             select(CallSession)
             .where(
-                CallSession.outcome.is_not(None),
-                CallSession.postcall_status.is_(None),
+                col(CallSession.outcome).is_not(None),
+                col(CallSession.postcall_status).is_(None),
             )
             .limit(20)
             .with_for_update(skip_locked=True)

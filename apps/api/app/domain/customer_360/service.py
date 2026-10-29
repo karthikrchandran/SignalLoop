@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import TypedDict
 
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain.chatbot.models import (
     ChatbotConversation,
@@ -68,9 +68,9 @@ def _latest_message(
         .where(
             ChatbotMessage.conversation_id == conversation.id,
             ChatbotMessage.workspace_id == conversation.workspace_id,
-            ChatbotMessage.deleted_at.is_(None),
+            col(ChatbotMessage.deleted_at).is_(None),
         )
-        .order_by(ChatbotMessage.created_at.desc())
+        .order_by(col(ChatbotMessage.created_at).desc())
     ).first()
 
 
@@ -267,34 +267,34 @@ def _build_profile_parts(
             select(ChatbotConversation)
             .where(
                 ChatbotConversation.workspace_id == account.workspace_id,
-                ChatbotConversation.shared_contact_id.in_(contact_ids),
-                ChatbotConversation.deleted_at.is_(None),
+                col(ChatbotConversation.shared_contact_id).in_(contact_ids),
+                col(ChatbotConversation.deleted_at).is_(None),
             )
-            .order_by(ChatbotConversation.last_message_at.desc()),
+            .order_by(col(ChatbotConversation.last_message_at).desc()),
         ).all()
     )
     call_rows = list(
         session.exec(
             select(CallRequest, CallSession)
-            .join(Campaign, Campaign.id == CallRequest.campaign_id)
-            .outerjoin(CallSession, CallRequest.id == CallSession.call_request_id)
+            .join(Campaign, col(Campaign.id) == col(CallRequest.campaign_id))
+            .outerjoin(CallSession, col(CallRequest.id) == col(CallSession.call_request_id))
             .where(
-                CallRequest.shared_contact_id.in_(contact_ids),
+                col(CallRequest.shared_contact_id).in_(contact_ids),
                 Campaign.workspace_id == account.workspace_id,
             )
-            .order_by(CallRequest.created_at.desc()),
+            .order_by(col(CallRequest.created_at).desc()),
         ).all()
     )
     sequence_states = list(
         session.exec(
             select(ContactSequenceState)
-            .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
-            .join(Campaign, Campaign.id == EmailSequence.campaign_id)
+            .join(EmailSequence, col(ContactSequenceState.sequence_id) == col(EmailSequence.id))
+            .join(Campaign, col(Campaign.id) == col(EmailSequence.campaign_id))
             .where(
-                ContactSequenceState.shared_contact_id.in_(contact_ids),
+                col(ContactSequenceState.shared_contact_id).in_(contact_ids),
                 Campaign.workspace_id == account.workspace_id,
             )
-            .order_by(ContactSequenceState.created_at.desc()),
+            .order_by(col(ContactSequenceState.created_at).desc()),
         ).all()
     )
     snapshots = list(
@@ -302,9 +302,9 @@ def _build_profile_parts(
             select(ProspectingSnapshot)
             .where(
                 ProspectingSnapshot.workspace_id == account.workspace_id,
-                ProspectingSnapshot.shared_contact_id.in_(contact_ids),
+                col(ProspectingSnapshot.shared_contact_id).in_(contact_ids),
             )
-            .order_by(ProspectingSnapshot.created_at.desc()),
+            .order_by(col(ProspectingSnapshot.created_at).desc()),
         ).all()
     )
 
@@ -321,28 +321,28 @@ def _build_profile_parts(
                 select(ContactSequenceState, SendRequest)
                 .join(
                     SendRequest,
-                    SendRequest.contact_sequence_state_id == ContactSequenceState.id,
+                    col(SendRequest.contact_sequence_state_id) == col(ContactSequenceState.id),
                 )
-                .where(ContactSequenceState.id.in_(state_ids))
-                .order_by(SendRequest.sent_at.desc(), SendRequest.created_at.desc()),
+                .where(col(ContactSequenceState.id).in_(state_ids))
+                .order_by(col(SendRequest.sent_at).desc(), col(SendRequest.created_at).desc()),
             ).all()
         )
         if send_rows:
             send_ids = [send_request.id for _state, send_request in send_rows]
             opened_count = int(
                 session.exec(
-                    select(func.count(EmailEvent.id)).where(
-                        EmailEvent.send_request_id.in_(send_ids),
-                        EmailEvent.event_type.in_(["opened", "clicked"]),
+                    select(func.count(col(EmailEvent.id))).where(
+                        col(EmailEvent.send_request_id).in_(send_ids),
+                        col(EmailEvent.event_type).in_(["opened", "clicked"]),
                     )
                 ).one()
             )
             events = list(
                 session.exec(
                     select(EmailEvent, SendRequest.contact_sequence_state_id)
-                    .join(SendRequest, EmailEvent.send_request_id == SendRequest.id)
-                    .where(EmailEvent.send_request_id.in_(send_ids))
-                    .order_by(EmailEvent.timestamp.desc()),
+                    .join(SendRequest, col(EmailEvent.send_request_id) == col(SendRequest.id))
+                    .where(col(EmailEvent.send_request_id).in_(send_ids))
+                    .order_by(col(EmailEvent.timestamp).desc()),
                 ).all()
             )
             email_events = [
@@ -353,9 +353,8 @@ def _build_profile_parts(
 
     email_count = len(send_rows) if send_rows else len(sequence_states)
     scheduling_count = sum(
-        1
+        bool(call_session and call_session.scheduling_interest)
         for _call_request, call_session in call_rows
-        if call_session and call_session.scheduling_interest
     )
     escalated_count = sum(1 for conversation in conversations if conversation.escalated)
 

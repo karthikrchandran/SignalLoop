@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, String, UniqueConstraint
+from sqlalchemy import Column, DateTime, String, UniqueConstraint
 from sqlmodel import Field, Session, SQLModel, select
 
 
@@ -27,9 +27,9 @@ class EmailSuppression(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     workspace_id: str = Field(max_length=64, index=True)
-    email: str = Field(sa_type=String(255), index=True)
+    email: str = Field(sa_column=Column(String(255), nullable=False, index=True))
     reason: str = Field(max_length=64)
-    created_at: datetime = Field(default_factory=_utcnow, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
 
 
 def is_email_suppressed(session: Session, workspace_id: str, email: str) -> bool:

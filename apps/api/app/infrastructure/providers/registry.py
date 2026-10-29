@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal, overload
 
 from sqlmodel import Session
 
@@ -268,6 +268,48 @@ def get_adapter(
             capability.value,
         )
         return default_factory()
+
+
+@overload
+def get_strict_adapter(
+    session: Session, *, workspace_id: str, capability: Literal[ProviderCapability.email],
+) -> EmailAdapter: ...
+
+
+@overload
+def get_strict_adapter(
+    session: Session, *, workspace_id: str, capability: Literal[ProviderCapability.sms],
+) -> SmsAdapter: ...
+
+
+@overload
+def get_strict_adapter(
+    session: Session, *, workspace_id: str, capability: Literal[ProviderCapability.voice],
+) -> VoiceAdapter: ...
+
+
+@overload
+def get_strict_adapter(
+    session: Session, *, workspace_id: str, capability: Literal[ProviderCapability.stt],
+) -> SttAdapter: ...
+
+
+@overload
+def get_strict_adapter(
+    session: Session, *, workspace_id: str, capability: Literal[ProviderCapability.tts],
+) -> TtsAdapter: ...
+
+
+@overload
+def get_strict_adapter(
+    session: Session, *, workspace_id: str, capability: Literal[ProviderCapability.llm],
+) -> LlmAdapter: ...
+
+
+@overload
+def get_strict_adapter(
+    session: Session, *, workspace_id: str, capability: ProviderCapability,
+) -> CapabilityAdapter: ...
 
 
 def get_strict_adapter(

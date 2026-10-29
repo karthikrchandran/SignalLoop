@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import Field, field_validator
 from sqlmodel import SQLModel
 
 
@@ -61,11 +61,11 @@ class CalendlyWebhookPayload(SQLModel):
     """Minimal shape of a Calendly webhook invitee.created payload."""
 
     event: str
-    payload: dict
+    payload: dict[str, Any]
 
 
 class CalendarMeetingTypeCreate(SQLModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = {"extra": "forbid"}
 
     workspace_id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=255)
@@ -79,7 +79,7 @@ class CalendarMeetingTypeCreate(SQLModel):
 
 
 class CalendarProviderBindingCreate(SQLModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = {"extra": "forbid"}
 
     workspace_id: str = Field(min_length=1, max_length=64)
     provider: str = Field(pattern=r"^CALENDLY$")
@@ -96,7 +96,7 @@ class CalendarProviderBindingCreate(SQLModel):
 
 
 class CalendarOfferCreate(SQLModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = {"extra": "forbid"}
 
     workspace_id: str = Field(min_length=1, max_length=64)
     meeting_type_id: uuid.UUID
@@ -107,7 +107,7 @@ class CalendarOfferCreate(SQLModel):
 
 
 class CalendarConfirmationCreate(SQLModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = {"extra": "forbid"}
 
     workspace_id: str = Field(min_length=1, max_length=64)
     deployment_id: uuid.UUID
@@ -119,14 +119,14 @@ class CalendarConfirmationCreate(SQLModel):
 
 
 class CalendarCancellationCreate(SQLModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = {"extra": "forbid"}
 
     workspace_id: str = Field(min_length=1, max_length=64)
     reason: str = Field(min_length=3, max_length=500)
 
 
 class CalendarReconciliationCreate(SQLModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = {"extra": "forbid"}
 
     workspace_id: str = Field(min_length=1, max_length=64)
     provider_accepted: bool
@@ -135,7 +135,7 @@ class CalendarReconciliationCreate(SQLModel):
 
 
 class CalendarReplayCreate(SQLModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = {"extra": "forbid"}
 
     workspace_id: str = Field(min_length=1, max_length=64)
     reason: str = Field(min_length=3, max_length=500)

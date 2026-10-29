@@ -132,6 +132,20 @@ def test_send_email_omits_optional_fields_when_not_provided(
     assert "custom_args" not in call["json"]["personalizations"][0]
 
 
+def test_send_email_accepts_unsupported_adapter_extras(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeAsyncClient([_mk_response(202)])
+    _patch_client(monkeypatch, fake)
+    adapter = SendGridAdapter(api_key="test-key", from_email="sender@example.test")
+    result = _run(adapter.send_email(
+        to="recipient@example.test", subject="s", body_html="h", body_text="t",
+        provider_specific_extra="ignored",
+    ))
+    assert result["status_code"] == 202
+    assert "provider_specific_extra" not in fake.calls[0]["json"]
+
+
 def test_send_email_returns_empty_message_id_when_header_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from app.domain.lead_discovery.models import (
@@ -89,7 +91,7 @@ class EnrichmentResponse(BaseModel):
     region: str | None = None
     tech_stack: list[str] = Field(default_factory=list)
     intent_signals: list[str] = Field(default_factory=list)
-    key_contacts: list[dict] = Field(default_factory=list)
+    key_contacts: list[dict[str, Any]] = Field(default_factory=list)
     enrichment_source: DiscoveryProviderType
 
 

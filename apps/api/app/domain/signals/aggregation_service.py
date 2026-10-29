@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain.signals.models import SignalEvent
 
@@ -30,7 +30,7 @@ def get_contact_signals(
         query = query.where(SignalEvent.signal_type == signal_type)
     if since:
         query = query.where(SignalEvent.created_at >= since)
-    return list(session.exec(query.order_by(SignalEvent.created_at.desc())).all())
+    return list(session.exec(query.order_by(col(SignalEvent.created_at).desc())).all())
 
 
 def get_latest_signal(
@@ -43,7 +43,7 @@ def get_latest_signal(
             SignalEvent.workspace_id == workspace_id,
             SignalEvent.shared_contact_id == shared_contact_id,
         )
-        .order_by(SignalEvent.created_at.desc())
+        .order_by(col(SignalEvent.created_at).desc())
         .limit(1)
     ).first()
 
@@ -56,7 +56,7 @@ def get_campaign_signal_summary(
         select(
             SignalEvent.channel,
             SignalEvent.signal_type,
-            func.count(SignalEvent.id),
+            func.count(col(SignalEvent.id)),
         )
         .where(
             SignalEvent.workspace_id == workspace_id,

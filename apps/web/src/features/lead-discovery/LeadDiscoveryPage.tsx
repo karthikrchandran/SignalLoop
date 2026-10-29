@@ -56,6 +56,16 @@ const SAMPLE_INDUSTRIES = [
   "Logistics & Supply Chain",
 ]
 
+const INITIAL_CRITERIA: DiscoverySearchCriteria = {
+  industries: ["Technology & SaaS"],
+  job_titles: ["VP of Sales"],
+  employee_min: 50,
+  employee_max: 500,
+  countries: ["United States"],
+  tech_stack: ["Salesforce"],
+  limit: 15,
+}
+
 export default function LeadDiscoveryPage() {
   const [industry, setIndustry] = useState("Technology & SaaS")
   const [jobTitle, setJobTitle] = useState("VP of Sales")
@@ -75,44 +85,52 @@ export default function LeadDiscoveryPage() {
 
   // Enrichment modal state
   const [enrichingId, setEnrichingId] = useState<string | null>(null)
-  const [enrichedData, setEnrichedData] = useState<EnrichmentResponse | null>(null)
+  const [enrichedData, setEnrichedData] = useState<EnrichmentResponse | null>(
+    null,
+  )
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  const handleSearch = useCallback(async () => {
+  const search = useCallback(async (criteria: DiscoverySearchCriteria) => {
     setIsLoading(true)
     setError(null)
     try {
-      const criteria: DiscoverySearchCriteria = {
-        industries: industry ? [industry] : [],
-        job_titles: jobTitle ? [jobTitle] : [],
-        employee_min: employeeMin || undefined,
-        employee_max: employeeMax || undefined,
-        countries: country ? [country] : [],
-        tech_stack: techStack ? [techStack] : [],
-        limit: 15,
-      }
       const response = await searchDiscoveredLeads(criteria)
       setLeads(response.leads)
-      if (response.leads.length > 0 && !expandedLeadId) {
-        setExpandedLeadId(response.leads[0].id)
+      if (response.leads.length > 0) {
+        setExpandedLeadId((current) => current ?? response.leads[0].id)
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to search leads")
     } finally {
       setIsLoading(false)
     }
-  }, [industry, jobTitle, employeeMin, employeeMax, country, techStack, expandedLeadId])
+  }, [])
 
   useEffect(() => {
-    handleSearch()
-  }, []) // Initial search on mount
+    void search(INITIAL_CRITERIA)
+  }, [search])
+
+  const handleSearch = () =>
+    search({
+      industries: industry ? [industry] : [],
+      job_titles: jobTitle ? [jobTitle] : [],
+      employee_min: employeeMin || undefined,
+      employee_max: employeeMax || undefined,
+      countries: country ? [country] : [],
+      tech_stack: techStack ? [techStack] : [],
+      limit: 15,
+    })
 
   const handlePromote = async (lead: DiscoveredLead) => {
     setPromotingId(lead.id)
     try {
       await promoteDiscoveredLead({
         lead_id: lead.id,
-        tags: ["ai-discovered", "waterfall-enriched", lead.fit_band.toLowerCase()],
+        tags: [
+          "ai-discovered",
+          "waterfall-enriched",
+          lead.fit_band.toLowerCase(),
+        ],
       })
       setPromotedIds((prev) => new Set(prev).add(lead.id))
     } catch (err: unknown) {
@@ -163,13 +181,20 @@ export default function LeadDiscoveryPage() {
           icon: Flame,
           tone: "success",
         },
-        { label: "High fit ICP", value: metrics.high, icon: Target, tone: "info" },
+        {
+          label: "High fit ICP",
+          value: metrics.high,
+          icon: Target,
+          tone: "info",
+        },
         {
           label: "Average AI score",
           value: (
             <>
               {metrics.avgScore}
-              <span className="ml-1 text-xs font-normal text-muted-foreground">/ 100</span>
+              <span className="ml-1 text-xs font-normal text-muted-foreground">
+                / 100
+              </span>
             </>
           ),
           icon: TrendingUp,
@@ -177,7 +202,10 @@ export default function LeadDiscoveryPage() {
       ]}
     >
       {error && (
-        <Alert variant="destructive" className="border-destructive/50 text-destructive">
+        <Alert
+          variant="destructive"
+          className="border-destructive/50 text-destructive"
+        >
           {error}
         </Alert>
       )}
@@ -192,7 +220,8 @@ export default function LeadDiscoveryPage() {
                 Firmographic & Demographics Filter Matrix
               </CardTitle>
               <CardDescription className="text-xs">
-                Refine lead criteria across industry, employee count, geography, and technologies.
+                Refine lead criteria across industry, employee count, geography,
+                and technologies.
               </CardDescription>
             </div>
           </div>
@@ -310,7 +339,8 @@ export default function LeadDiscoveryPage() {
           <Card className="p-8 text-center">
             <Compass className="mx-auto h-8 w-8 text-muted-foreground/50" />
             <p className="mt-2 text-sm text-muted-foreground">
-              No leads discovered for the selected criteria. Adjust your search filters and try again.
+              No leads discovered for the selected criteria. Adjust your search
+              filters and try again.
             </p>
           </Card>
         )}
@@ -348,8 +378,8 @@ export default function LeadDiscoveryPage() {
                           lead.fit_band === "HOT_OPPORTUNITY"
                             ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
                             : lead.fit_band === "HIGH_FIT"
-                            ? "border-blue-500/40 text-blue-600 dark:text-blue-400 bg-blue-500/10"
-                            : "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                              ? "border-blue-500/40 text-blue-600 dark:text-blue-400 bg-blue-500/10"
+                              : "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
                         }`}
                       >
                         {lead.fit_band.replace("_", " ")}
@@ -359,7 +389,10 @@ export default function LeadDiscoveryPage() {
                           Existing Account
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] text-muted-foreground"
+                        >
                           New Prospect
                         </Badge>
                       )}
@@ -466,7 +499,9 @@ export default function LeadDiscoveryPage() {
                 <div className="mt-3 pt-3 border-t border-border/50">
                   <button
                     type="button"
-                    onClick={() => setExpandedLeadId(isExpanded ? null : lead.id)}
+                    onClick={() =>
+                      setExpandedLeadId(isExpanded ? null : lead.id)
+                    }
                     className="flex w-full items-center justify-between text-xs font-semibold text-primary hover:underline"
                   >
                     <span className="flex items-center gap-1.5">
@@ -487,7 +522,8 @@ export default function LeadDiscoveryPage() {
                           Qualification Rationale:
                         </span>{" "}
                         <span className="text-muted-foreground">
-                          {lead.score_rationale || "High ICP alignment based on firmographics and role authority."}
+                          {lead.score_rationale ||
+                            "High ICP alignment based on firmographics and role authority."}
                         </span>
                       </div>
 
@@ -526,7 +562,8 @@ export default function LeadDiscoveryPage() {
               Waterfall Deep Intelligence
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Live enrichment returned from internal intelligence & waterfall gateway.
+              Live enrichment returned from internal intelligence & waterfall
+              gateway.
             </DialogDescription>
           </DialogHeader>
 
@@ -537,18 +574,24 @@ export default function LeadDiscoveryPage() {
                 {enrichedData.company_name} ({enrichedData.domain})
               </div>
               <div>
-                <span className="font-semibold text-foreground">Revenue Range:</span>{" "}
+                <span className="font-semibold text-foreground">
+                  Revenue Range:
+                </span>{" "}
                 {enrichedData.revenue_range || "N/A"}
               </div>
               <div>
-                <span className="font-semibold text-foreground">Headcount:</span>{" "}
+                <span className="font-semibold text-foreground">
+                  Headcount:
+                </span>{" "}
                 {enrichedData.employee_count} employees
               </div>
 
               <Separator />
 
               <div>
-                <span className="font-semibold text-foreground">Verified Tech Stack:</span>
+                <span className="font-semibold text-foreground">
+                  Verified Tech Stack:
+                </span>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {enrichedData.tech_stack.map((t) => (
                     <Badge key={t} variant="secondary" className="text-[10px]">
@@ -559,12 +602,21 @@ export default function LeadDiscoveryPage() {
               </div>
 
               <div>
-                <span className="font-semibold text-foreground">Key Decision Makers:</span>
+                <span className="font-semibold text-foreground">
+                  Key Decision Makers:
+                </span>
                 <div className="space-y-1 mt-1">
                   {enrichedData.key_contacts.map((c) => (
-                    <div key={c.email} className="rounded border bg-muted/30 p-2">
-                      <div className="font-semibold text-foreground">{c.name}</div>
-                      <div className="text-muted-foreground">{c.title} • {c.email}</div>
+                    <div
+                      key={c.email}
+                      className="rounded border bg-muted/30 p-2"
+                    >
+                      <div className="font-semibold text-foreground">
+                        {c.name}
+                      </div>
+                      <div className="text-muted-foreground">
+                        {c.title} • {c.email}
+                      </div>
                     </div>
                   ))}
                 </div>

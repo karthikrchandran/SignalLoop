@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import difflib
 import re
+from typing import Any
 from urllib.parse import urlparse
 
 from app.domain.lead_discovery.models import LeadMatchConfidence
@@ -95,12 +96,11 @@ def fuzzy_company_similarity(name_a: str, name_b: str) -> float:
 def resolve_lead_entity(
     domain: str,
     company_name: str,
-    existing_accounts: list[dict],
-    existing_contacts: list[dict],
-) -> tuple[LeadMatchConfidence, dict | None]:
+    existing_accounts: list[dict[str, Any]],
+    existing_contacts: list[dict[str, Any]],
+) -> tuple[LeadMatchConfidence, dict[str, Any] | None]:
     """Resolve a discovered company/lead against existing CRM accounts and contacts."""
     lead_domain = canonicalize_domain(domain)
-    clean_name = normalize_company_name(company_name)
 
     # 1. Exact domain match against existing accounts
     for account in existing_accounts:
@@ -120,7 +120,7 @@ def resolve_lead_entity(
 
     # 3. Fuzzy company name match
     best_sim = 0.0
-    best_acc: dict | None = None
+    best_acc: dict[str, Any] | None = None
     for account in existing_accounts:
         acc_name = str(account.get("name") or "")
         sim = fuzzy_company_similarity(company_name, acc_name)

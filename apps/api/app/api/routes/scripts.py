@@ -6,7 +6,8 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlmodel import select
+from pydantic import TypeAdapter
+from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
@@ -53,7 +54,7 @@ def _get_script_or_404(
 ) -> VoiceScript:
     script = session.exec(
         select(VoiceScript)
-        .join(Campaign, VoiceScript.campaign_id == Campaign.id)
+        .join(Campaign, col(VoiceScript.campaign_id) == col(Campaign.id))
         .where(
             VoiceScript.id == script_id,
             Campaign.workspace_id == workspace_id,
@@ -85,7 +86,7 @@ async def create_script(
     body: ScriptCreate,
 ) -> ScriptPublic:
     """Create script."""
-    return await run_idempotent_mutation(
+    return ScriptPublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -98,7 +99,7 @@ async def create_script(
             workspace_id=workspace_id,
             body=body,
         ),
-    )
+    ))
 
 
 def _create_script_once(
@@ -144,12 +145,12 @@ def list_scripts(
     """Return a list of scripts."""
     query = (
         select(VoiceScript)
-        .join(Campaign, VoiceScript.campaign_id == Campaign.id)
+        .join(Campaign, col(VoiceScript.campaign_id) == col(Campaign.id))
         .where(VoiceScript.active == True, Campaign.workspace_id == workspace_id)  # noqa: E712
     )
     if campaign_id:
         query = query.where(VoiceScript.campaign_id == campaign_id)
-    scripts = session.exec(query.order_by(VoiceScript.created_at.desc())).all()
+    scripts = session.exec(query.order_by(col(VoiceScript.created_at).desc())).all()
     return ScriptsPublic(
         data=[
             ScriptPublic(
@@ -200,7 +201,7 @@ async def update_script(
     body: ScriptUpdate,
 ) -> ScriptDetailPublic:
     """Update script."""
-    return await run_idempotent_mutation(
+    return ScriptDetailPublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -217,7 +218,7 @@ async def update_script(
             script_id=script_id,
             body=body,
         ),
-    )
+    ))
 
 
 def _update_script_once(
@@ -264,7 +265,7 @@ async def delete_script(
     idempotency_key: IdempotencyKeyDep,
 ) -> dict[str, str]:
     """Delete script."""
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, str]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -277,7 +278,7 @@ async def delete_script(
             workspace_id=workspace_id,
             script_id=script_id,
         ),
-    )
+    ))
 
 
 def _delete_script_once(

@@ -5,7 +5,8 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from sqlmodel import Session, select
+from pydantic import TypeAdapter
+from sqlmodel import Session, col, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
@@ -38,6 +39,7 @@ from app.domain_models import (
     Contact,
     ContactProgression,
     ContactProgressionState,
+    ContactPublic,
     ImportPreviewPublic,
     ImportRowError,
     OfferPack,
@@ -77,14 +79,14 @@ def _latest_import(session: Session, campaign_id: uuid.UUID) -> CampaignContactI
     campaign_import = session.exec(
         select(CampaignContactImport)
         .where(CampaignContactImport.campaign_id == campaign_id)
-        .order_by(CampaignContactImport.created_at.desc())
+        .order_by(col(CampaignContactImport.created_at).desc())
     ).first()
     if not campaign_import:
         raise HTTPException(status_code=404, detail="Campaign import not found")
     return campaign_import
 
 
-def _contact_filter_row(contact: Contact) -> dict[str, str]:
+def _contact_filter_row(contact: Contact | ContactPublic) -> dict[str, str]:
     return {
         "email": contact.email,
         "firstName": contact.first_name or "",
@@ -98,7 +100,7 @@ def _contact_filter_row(contact: Contact) -> dict[str, str]:
 
 
 def _matches_campaign_audience_rules(
-    contact: Contact, rules: list[dict[str, str]]
+    contact: Contact | ContactPublic, rules: list[dict[str, str]]
 ) -> bool:
     row = _contact_filter_row(contact)
     return all(
@@ -115,7 +117,7 @@ def _list_campaign_audience_contacts(
     session: Session,
     workspace_id: str,
     contact_ids: list[uuid.UUID] | None,
-) -> list[Contact]:
+) -> list[ContactPublic]:
     shared_contacts = shared_record_service.list_shared_contacts(
         workspace_id=workspace_id,
         search=None,
@@ -128,7 +130,7 @@ def _list_campaign_audience_contacts(
     return list(shared_contacts)
 
 
-def _ensure_operational_contact_row(session: Session, contact: Contact) -> None:
+def _ensure_operational_contact_row(session: Session, contact: ContactPublic) -> None:
     existing = session.get(Contact, contact.id)
     if existing is not None:
         existing.workspace_id = contact.workspace_id
@@ -156,7 +158,7 @@ def read_campaigns(
     campaigns = session.exec(
         select(Campaign)
         .where(Campaign.workspace_id == workspace_id)
-        .order_by(Campaign.created_at.desc())
+        .order_by(col(Campaign.created_at).desc())
     ).all()
     return CampaignsPublic(
         data=[
@@ -183,7 +185,7 @@ async def create_campaign(
     request: Request,
     idempotency_key: IdempotencyKeyDep,
 ) -> CampaignPublic:
-    return await run_idempotent_mutation(
+    return CampaignPublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -193,7 +195,7 @@ async def create_campaign(
         mutation=lambda: _create_campaign_once(
             session, current_user, workspace_id, body
         ),
-    )
+    ))
 
 
 def _create_campaign_once(
@@ -245,7 +247,7 @@ async def import_contacts(
 ) -> CampaignImportPublic:
     """Import contacts."""
     file_bytes = await file.read()
-    return await run_idempotent_mutation(
+    return CampaignImportPublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -258,7 +260,7 @@ async def import_contacts(
         mutation=lambda: _import_contacts_once(
             session, current_user, campaign_id, workspace_id, file.filename, file_bytes
         ),
-    )
+    ))
 
 
 def _import_contacts_once(
@@ -351,7 +353,7 @@ async def persist_mapping(
     request: Request,
     idempotency_key: IdempotencyKeyDep,
 ) -> ImportPreviewPublic:
-    return await run_idempotent_mutation(
+    return ImportPreviewPublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -361,7 +363,7 @@ async def persist_mapping(
         mutation=lambda: _persist_mapping_once(
             session, current_user, campaign_id, workspace_id, body
         ),
-    )
+    ))
 
 
 def _persist_mapping_once(
@@ -451,7 +453,7 @@ async def assign_existing_contacts_to_campaign(
     request: Request,
     idempotency_key: IdempotencyKeyDep,
 ) -> CampaignAudiencePublic:
-    return await run_idempotent_mutation(
+    return CampaignAudiencePublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -461,7 +463,7 @@ async def assign_existing_contacts_to_campaign(
         mutation=lambda: _assign_existing_contacts_to_campaign_once(
             session, current_user, campaign_id, workspace_id, body
         ),
-    )
+    ))
 
 
 def _assign_existing_contacts_to_campaign_once(
@@ -577,7 +579,7 @@ def get_import_preview(
     staged_rows = session.exec(
         select(CampaignContactStage)
         .where(CampaignContactStage.import_id == campaign_import.id)
-        .order_by(CampaignContactStage.row_number)
+        .order_by(col(CampaignContactStage.row_number))
     ).all()
     valid = [row for row in staged_rows if row.is_valid]
     errors = [
@@ -610,7 +612,7 @@ async def create_segment(
     request: Request,
     idempotency_key: IdempotencyKeyDep,
 ) -> CampaignSegmentPublic:
-    return await run_idempotent_mutation(
+    return CampaignSegmentPublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -620,7 +622,7 @@ async def create_segment(
         mutation=lambda: _create_segment_once(
             session, current_user, campaign_id, workspace_id, body
         ),
-    )
+    ))
 
 
 def _create_segment_once(
@@ -700,7 +702,7 @@ async def assign_strategy(
     request: Request,
     idempotency_key: IdempotencyKeyDep,
 ) -> StrategyPublic:
-    return await run_idempotent_mutation(
+    return StrategyPublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -710,7 +712,7 @@ async def assign_strategy(
         mutation=lambda: _assign_strategy_once(
             session, current_user, campaign_id, workspace_id, body
         ),
-    )
+    ))
 
 
 def _assign_strategy_once(
@@ -799,7 +801,7 @@ async def pause_campaign(
     request: Request,
     idempotency_key: IdempotencyKeyDep,
 ) -> dict[str, str]:
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, str]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -809,7 +811,7 @@ async def pause_campaign(
         mutation=lambda: _pause_campaign_once(
             session, current_user, campaign_id, workspace_id
         ),
-    )
+    ))
 
 
 def _pause_campaign_once(
@@ -853,7 +855,7 @@ async def resume_campaign(
     request: Request,
     idempotency_key: IdempotencyKeyDep,
 ) -> dict[str, str]:
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, str]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -863,7 +865,7 @@ async def resume_campaign(
         mutation=lambda: _resume_campaign_once(
             session, current_user, campaign_id, workspace_id
         ),
-    )
+    ))
 
 
 def _resume_campaign_once(

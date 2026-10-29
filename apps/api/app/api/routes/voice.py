@@ -390,7 +390,7 @@ async def media_stream(websocket: WebSocket) -> None:
     call_sid = ""
     expected_account_sid = ""
     stream_sid = ""
-    stt_task: asyncio.Task | None = None
+    stt_task: asyncio.Task[None] | None = None
     connected_at = time.monotonic()
     save_results = False
 
@@ -580,7 +580,7 @@ def _consume_media_stream_token(call_sid: str, account_sid: str, token: str) -> 
         return True
 
 
-async def _cancel_task(task: asyncio.Task | None) -> None:
+async def _cancel_task(task: asyncio.Task[None] | None) -> None:
     if task is None:
         return
     if not task.done():

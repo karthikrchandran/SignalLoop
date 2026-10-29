@@ -54,7 +54,7 @@ class AgentUsageState(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
-class AgentCatalogDefinition(SQLModel, table=True):  # type: ignore[call-arg]
+class AgentCatalogDefinition(SQLModel, table=True):
     """Immutable published definition for one commercial agent type/version."""
 
     __tablename__ = "agent_catalog_definition"
@@ -95,7 +95,7 @@ class AgentCatalogDefinition(SQLModel, table=True):  # type: ignore[call-arg]
     )
 
 
-class AgentPlanEntitlement(SQLModel, table=True):  # type: ignore[call-arg]
+class AgentPlanEntitlement(SQLModel, table=True):
     """Tenant contract governing purchasable agent slots."""
 
     __tablename__ = "agent_plan_entitlement"
@@ -151,7 +151,7 @@ class AgentPlanEntitlement(SQLModel, table=True):  # type: ignore[call-arg]
     )
 
 
-class AgentDeployment(SQLModel, table=True):  # type: ignore[call-arg]
+class AgentDeployment(SQLModel, table=True):
     """One independently configured, slot-consuming commercial agent."""
 
     __tablename__ = "agent_deployment"
@@ -230,7 +230,7 @@ class AgentDeployment(SQLModel, table=True):  # type: ignore[call-arg]
     )
 
 
-class AgentDependency(SQLModel, table=True):  # type: ignore[call-arg]
+class AgentDependency(SQLModel, table=True):
     __tablename__ = "agent_dependency"
     __table_args__ = (
         UniqueConstraint(
@@ -273,7 +273,7 @@ class AgentDependency(SQLModel, table=True):  # type: ignore[call-arg]
     )
 
 
-class AgentCapacityOverride(SQLModel, table=True):  # type: ignore[call-arg]
+class AgentCapacityOverride(SQLModel, table=True):
     __tablename__ = "agent_capacity_override"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -310,7 +310,7 @@ class AgentCapacityOverride(SQLModel, table=True):  # type: ignore[call-arg]
     )
 
 
-class AgentUsageLedger(SQLModel, table=True):  # type: ignore[call-arg]
+class AgentUsageLedger(SQLModel, table=True):
     __tablename__ = "agent_usage_ledger"
     __table_args__ = (
         UniqueConstraint(
@@ -367,7 +367,7 @@ class AgentUsageLedger(SQLModel, table=True):  # type: ignore[call-arg]
     )
 
 
-class AgentLifecycleEvent(SQLModel, table=True):  # type: ignore[call-arg]
+class AgentLifecycleEvent(SQLModel, table=True):
     __tablename__ = "agent_lifecycle_event"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)

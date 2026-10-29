@@ -71,9 +71,15 @@ class OpenAILLMAdapter(LlmAdapter):
                     except ValueError:
                         logger.error("OpenAI LLM returned invalid JSON")
                         return ""
+                    if not isinstance(data, dict):
+                        return ""
                     choices = data.get("choices", [])
-                    if choices:
-                        return choices[0].get("message", {}).get("content", "")
+                    if not isinstance(choices, list) or not choices:
+                        return ""
+                    choice = choices[0]
+                    message = choice.get("message") if isinstance(choice, dict) else None
+                    content = message.get("content") if isinstance(message, dict) else None
+                    return content if isinstance(content, str) else ""
                 logger.error("OpenAI LLM error: status=%d", resp.status_code)
         except httpx.HTTPError:
             logger.exception("OpenAI LLM request failed")

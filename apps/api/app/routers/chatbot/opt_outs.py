@@ -23,11 +23,11 @@ from app.domain.chatbot.schemas import (
 from app.models import User
 from app.routers.chatbot.router import WorkspaceId, require_chatbot_admin
 
-router = APIRouter(prefix="/opt-outs", tags=["chatbot-opt-outs"])
+router: APIRouter = APIRouter(prefix="/opt-outs", tags=["chatbot-opt-outs"])
 
 
-def _enum_value(value) -> str:
-    return value.value if hasattr(value, "value") else str(value)
+def _enum_value(value: object) -> str:
+    return str(getattr(value, "value", value))
 
 
 def _public(row: ChatbotOptOut) -> ChatbotOptOutPublic:
@@ -56,7 +56,7 @@ def list_opt_out_rows(
             select(ChatbotOptOut)
             .where(
                 ChatbotOptOut.workspace_id == workspace_id,
-                ChatbotOptOut.reopt_in_invited_at.is_(None),
+                col(ChatbotOptOut.reopt_in_invited_at).is_(None),
             )
             .order_by(col(ChatbotOptOut.created_at).desc())
         ).all()

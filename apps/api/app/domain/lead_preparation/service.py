@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import update
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain.commercial_agents.models import (
     AgentDeployment,
@@ -106,7 +106,7 @@ def require_policy_evaluation_evidence(
             LeadPolicyEvaluationEvidence.workspace_id == policy.workspace_id,
             LeadPolicyEvaluationEvidence.policy_digest == policy.policy_digest,
         )
-        .order_by(LeadPolicyEvaluationEvidence.created_at.desc())
+        .order_by(col(LeadPolicyEvaluationEvidence.created_at).desc())
         .limit(1)
     ).one_or_none()
     if evidence is None:
@@ -264,7 +264,7 @@ def claim_preparation_job(
     candidate = session.exec(
         select(LeadPreparationJob.id)
         .where(
-            LeadPreparationJob.status.in_(
+            col(LeadPreparationJob.status).in_(
                 [
                     LeadPreparationJobStatus.PENDING.value,
                     LeadPreparationJobStatus.RETRY_SCHEDULED.value,
@@ -272,7 +272,7 @@ def claim_preparation_job(
             ),
             LeadPreparationJob.available_at <= at,
         )
-        .order_by(LeadPreparationJob.created_at, LeadPreparationJob.id)
+        .order_by(col(LeadPreparationJob.created_at), col(LeadPreparationJob.id))
         .limit(1)
     ).first()
     if candidate is None:
@@ -281,14 +281,14 @@ def claim_preparation_job(
     statement = (
         update(LeadPreparationJob)
         .where(
-            LeadPreparationJob.id == candidate,
-            LeadPreparationJob.status.in_(
+            col(LeadPreparationJob.id) == candidate,
+            col(LeadPreparationJob.status).in_(
                 [
                     LeadPreparationJobStatus.PENDING.value,
                     LeadPreparationJobStatus.RETRY_SCHEDULED.value,
                 ]
             ),
-            LeadPreparationJob.available_at <= at,
+            col(LeadPreparationJob.available_at) <= at,
         )
         .values(
             status=LeadPreparationJobStatus.IN_PROGRESS.value,
@@ -321,9 +321,9 @@ def recover_expired_preparation_leases(
     result = session.exec(
         update(LeadPreparationJob)
         .where(
-            LeadPreparationJob.status == LeadPreparationJobStatus.IN_PROGRESS.value,
-            LeadPreparationJob.lease_expires_at < at,
-            LeadPreparationJob.package_id.is_(None),
+            col(LeadPreparationJob.status) == LeadPreparationJobStatus.IN_PROGRESS.value,
+            col(LeadPreparationJob.lease_expires_at) < at,
+            col(LeadPreparationJob.package_id).is_(None),
         )
         .values(
             status=LeadPreparationJobStatus.RETRY_SCHEDULED.value,

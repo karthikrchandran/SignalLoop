@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.domain.scheduling.availability import BusyInterval
 from app.domain.scheduling.providers import (
@@ -19,31 +19,31 @@ class CalendlyClient(Protocol):
         credential_secret_ref: str,
         start_date: date,
         end_date: date,
-    ) -> list[dict]: ...
+    ) -> list[dict[str, Any]]: ...
 
     def create_scheduled_event(
-        self, payload: dict, idempotency_key: str, credential_secret_ref: str
-    ) -> dict: ...
+        self, payload: dict[str, Any], idempotency_key: str, credential_secret_ref: str
+    ) -> dict[str, Any]: ...
 
     def update_scheduled_event(
         self,
         event_id: str,
-        payload: dict,
+        payload: dict[str, Any],
         idempotency_key: str,
         credential_secret_ref: str,
-    ) -> dict: ...
+    ) -> dict[str, Any]: ...
 
     def cancel_scheduled_event(
         self,
         event_id: str,
-        payload: dict,
+        payload: dict[str, Any],
         idempotency_key: str,
         credential_secret_ref: str,
-    ) -> dict: ...
+    ) -> dict[str, Any]: ...
 
     def find_scheduled_event(
         self, idempotency_key: str, credential_secret_ref: str
-    ) -> dict | None: ...
+    ) -> dict[str, Any] | None: ...
 
 
 class CalendlyAdapter:
@@ -106,7 +106,7 @@ class CalendlyAdapter:
         return None if raw is None else self._receipt(command_key, raw)
 
     @staticmethod
-    def _receipt(command_key: str, raw: dict) -> CalendarProviderReceipt:
+    def _receipt(command_key: str, raw: dict[str, Any]) -> CalendarProviderReceipt:
         return CalendarProviderReceipt(
             command_key=command_key,
             provider_event_id=raw["event_id"],

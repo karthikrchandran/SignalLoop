@@ -9,8 +9,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlmodel import select
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
+from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.api.request_context import IdempotencyKeyDep
@@ -21,6 +21,7 @@ from app.domain.audit.audit_events import (
     audit_actor_role,
 )
 from app.domain.proposal_agent.ecrm_adapter import (
+    EcrmProposalAdapter,
     EcrmProposalAdapterConfigurationError,
     load_ecrm_proposal_adapter,
 )
@@ -122,7 +123,7 @@ def _digest(value: object) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def _load_adapter():
+def _load_adapter() -> EcrmProposalAdapter:
     try:
         return load_ecrm_proposal_adapter()
     except EcrmProposalAdapterConfigurationError as exc:
@@ -162,7 +163,7 @@ async def reconcile_proposal_job(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return {"job_id": str(job.id), "status": job.status.value}
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -171,7 +172,7 @@ async def reconcile_proposal_job(
         request_payload=payload.model_dump(mode="json"),
         mutation=reconcile_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post("/tenants/{tenant_id}/jobs/{job_id}/replay")
@@ -203,7 +204,7 @@ async def replay_proposal_dead_letter(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return {"job_id": str(job.id), "status": job.status.value}
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -212,7 +213,7 @@ async def replay_proposal_dead_letter(
         request_payload=payload.model_dump(mode="json"),
         mutation=replay_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post(
@@ -236,9 +237,9 @@ async def create_generative_job(
             ProposalGroundingSource.workspace_id == payload.workspace_id,
             ProposalGroundingSource.ecrm_cell_id == payload.ecrm_cell_id,
             ProposalGroundingSource.client_account_id == payload.client_account_id,
-            ProposalGroundingSource.reference.in_(payload.source_references),
+            col(ProposalGroundingSource.reference).in_(payload.source_references),
             ProposalGroundingSource.status == "PUBLISHED",
-            ProposalGroundingSource.approved_by.is_not(None),
+            col(ProposalGroundingSource.approved_by).is_not(None),
         )
     ).all()
     if len(stored_sources) != len(set(payload.source_references)):
@@ -246,12 +247,12 @@ async def create_generative_job(
             status_code=409, detail="All grounding sources must be published"
         )
     approved_sources = [
-        GroundedSource(
-            reference=source.reference,
-            digest=source.source_digest,
-            allowed_claim_types=set(source.allowed_claim_types),
-            allowed_claim_digests=set(source.allowed_claim_digests),
-        )
+        GroundedSource.model_validate({
+            "reference": source.reference,
+            "digest": source.source_digest,
+            "allowed_claim_types": set(source.allowed_claim_types),
+            "allowed_claim_digests": set(source.allowed_claim_digests),
+        })
         for source in stored_sources
     ]
     assessment = assess_grounded_draft(draft=payload.draft, sources=approved_sources)
@@ -308,7 +309,7 @@ async def create_generative_job(
             model_id=review.model_id,
         ).model_dump(mode="json")
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -317,7 +318,7 @@ async def create_generative_job(
         request_payload=payload.model_dump(mode="json"),
         mutation=create_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post(
@@ -367,7 +368,7 @@ async def publish_grounding_source(
         )
         return {"id": str(source.id), "status": source.status}
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -376,7 +377,7 @@ async def publish_grounding_source(
         request_payload=payload.model_dump(mode="json"),
         mutation=publish_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post("/tenants/{tenant_id}/grounding-sources/{source_id}/approve")
@@ -456,7 +457,7 @@ async def approve_grounding_source(
         session.flush()
         return {"id": str(source.id), "status": source.status}
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -465,4 +466,4 @@ async def approve_grounding_source(
         request_payload=payload.model_dump(mode="json"),
         mutation=approve_once,
         safe_to_retry_on_failure=True,
-    )
+    ))

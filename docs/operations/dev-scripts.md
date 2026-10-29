@@ -1,6 +1,6 @@
 # Dev Scripts — Start & Stop Reference
 
-Four PowerShell scripts at the repo root manage the full local dev environment.  
+Five PowerShell scripts at the repo root manage the full local dev environment.
 Run them from the repo root: `c:\Users\K.Ramachandran\eMailVoice\`
 
 > **First-time requirement:** Allow script execution in your terminal session before running any `.ps1` file:
@@ -15,6 +15,10 @@ Run them from the repo root: `c:\Users\K.Ramachandran\eMailVoice\`
 
 These control the background services that the app depends on (database, cache, email capture).
 
+The native startup path does not require Docker or Supabase. `StartServer.ps1` calls `StartDatabase.ps1`, which requires PostgreSQL 18 binaries and a matching existing data directory, reuses a running server, and fails explicitly instead of creating or replacing data. Redis and Mailpit startup also reuse existing listeners. Keep eCRM and SignalLoop databases and credentials separate even if they share the native server on port `5432`.
+
+To start only the shared database, run `.\StartDatabase.ps1`. To use another existing version-18 cluster, pass `-DataDirectory`, `-PostgresBin`, and `-Port` explicitly. Neither script installs PostgreSQL or performs migrations.
+
 ### `StartServer.ps1` — Start Postgres, Redis, Mailpit
 
 ```powershell
@@ -27,7 +31,7 @@ These control the background services that the app depends on (database, cache, 
 | Redis    | 6379  | Task queue and session cache         |
 | Mailpit  | 1025  | SMTP capture (web UI: :8025)         |
 
-After running, the script prints UP/DOWN status for each port so you can confirm all three are healthy.
+Before printing UP status, the script checks PostgreSQL readiness, Redis `PING`, and Mailpit's HTTP `/readyz` endpoint in addition to the listening ports. A failed check is an explicit error.
 
 **Mailpit web UI:** http://localhost:8025 — all outgoing dev emails appear here.
 
@@ -61,13 +65,15 @@ The script expects Postgres and Redis to be available locally. It does not insta
 
 ---
 
-### `StopServer.ps1` — Stop Postgres, Redis, Mailpit
+### `StopServer.ps1` — Stop Redis and Mailpit; keep shared PostgreSQL running
 
 ```powershell
 .\StopServer.ps1
 ```
 
-Gracefully stops all three infrastructure services. Run this at end of day or before a system restart.
+Stops the native Scoop Redis/Mailpit instances identified by their listener ports, not every process with a matching name. Unexpected process ownership is an error. Redis uses its shutdown command; Mailpit is stopped by its verified PID.
+
+PostgreSQL stays running by default because eCRM shares it. Use `.\StopServer.ps1 -StopSharedPostgres` only after stopping both apps and coordinating with all other database users. Preview targets without stopping anything using `.\StopServer.ps1 -StopSharedPostgres -WhatIf`. Redis/Mailpit may also be shared, so coordinate their shutdown if another app uses them.
 
 > Stopping infrastructure while the app is running will cause DB/Redis connection errors. Always run `StopApp.ps1` first.
 

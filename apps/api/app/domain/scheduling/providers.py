@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 import os
 from datetime import date, datetime
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -40,6 +40,7 @@ class CalendarProviderReceipt(BaseModel):
     ends_at: datetime
 
 
+@runtime_checkable
 class CalendarProvider(Protocol):
     def free_busy(
         self,
@@ -83,7 +84,7 @@ def load_calendar_provider() -> CalendarProvider:
     factory = getattr(importlib.import_module(module_name), callable_name, None)
     if not callable(factory):
         raise CalendarProviderConfigurationError("calendar provider factory is invalid")
-    provider = factory()
+    provider: object = factory()
     required = (
         "free_busy",
         "create_event",
@@ -91,7 +92,9 @@ def load_calendar_provider() -> CalendarProvider:
         "cancel_event",
         "lookup_event",
     )
-    if not all(callable(getattr(provider, name, None)) for name in required):
+    if not isinstance(provider, CalendarProvider) or not all(
+        callable(getattr(provider, name, None)) for name in required
+    ):
         raise CalendarProviderConfigurationError(
             "calendar provider contract is incomplete"
         )

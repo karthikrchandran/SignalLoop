@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from collections.abc import Callable
+from typing import Annotated, NoReturn
 from uuid import UUID, uuid4
 
 from fastapi import Depends, Header, HTTPException, status
@@ -21,7 +22,7 @@ from app.domain.workspaces.service import (
 )
 
 
-def semantic_error(code: str, message: str, semantic: str, details: dict | None = None):
+def semantic_error(code: str, message: str, semantic: str, details: dict[str, object] | None = None) -> NoReturn:
     """Semantic error."""
     correlation_id = str(uuid4())
     raise HTTPException(
@@ -38,7 +39,7 @@ def semantic_error(code: str, message: str, semantic: str, details: dict | None 
     )
 
 
-def _workspace_required_error() -> None:
+def _workspace_required_error() -> NoReturn:
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail={
@@ -53,7 +54,7 @@ def _workspace_required_error() -> None:
     )
 
 
-def _workspace_access_denied_error(workspace_id: str) -> None:
+def _workspace_access_denied_error(workspace_id: str) -> NoReturn:
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail={
@@ -125,7 +126,7 @@ WorkspaceIdDep = Annotated[str, Depends(require_workspace_id)]
 WorkspaceAccessIdDep = Annotated[str, Depends(require_workspace_access)]
 
 
-def require_workspace_access_with_support(required_capability: str):
+def require_workspace_access_with_support(required_capability: str) -> Callable[..., str]:
     """Permit tenant access through a live, tenant-matched support grant."""
 
     def dependency(

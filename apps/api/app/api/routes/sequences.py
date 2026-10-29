@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlmodel import select
+from pydantic import TypeAdapter
+from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
@@ -52,7 +54,7 @@ def _get_sequence_or_404(
 ) -> EmailSequence:
     sequence = session.exec(
         select(EmailSequence)
-        .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+        .join(Campaign, col(EmailSequence.campaign_id) == col(Campaign.id))
         .where(
             EmailSequence.id == sequence_id,
             Campaign.workspace_id == workspace_id,
@@ -74,7 +76,7 @@ async def create_sequence(
     body: SequenceCreate,
 ) -> SequencePublic:
     """Create sequence."""
-    return await run_idempotent_mutation(
+    return SequencePublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -87,7 +89,7 @@ async def create_sequence(
             workspace_id=workspace_id,
             body=body,
         ),
-    )
+    ))
 
 
 def _create_sequence_once(
@@ -131,12 +133,12 @@ def list_sequences(
     """Return a list of sequences."""
     query = (
         select(EmailSequence)
-        .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+        .join(Campaign, col(EmailSequence.campaign_id) == col(Campaign.id))
         .where(Campaign.workspace_id == workspace_id)
     )
     if campaign_id:
         query = query.where(EmailSequence.campaign_id == campaign_id)
-    sequences = session.exec(query.order_by(EmailSequence.created_at.desc())).all()
+    sequences = session.exec(query.order_by(col(EmailSequence.created_at).desc())).all()
     return SequencesPublic(
         data=[
             SequencePublic(
@@ -175,7 +177,7 @@ async def update_sequence(
     body: SequenceUpdate,
 ) -> SequencePublic:
     """Update sequence."""
-    return await run_idempotent_mutation(
+    return SequencePublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -192,7 +194,7 @@ async def update_sequence(
             sequence_id=sequence_id,
             body=body,
         ),
-    )
+    ))
 
 
 def _update_sequence_once(
@@ -242,7 +244,7 @@ async def update_steps(
     body: StepsBatchUpdate,
 ) -> SequenceDetailPublic:
     """Update steps."""
-    return await run_idempotent_mutation(
+    return SequenceDetailPublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -259,7 +261,7 @@ async def update_steps(
             sequence_id=sequence_id,
             body=body,
         ),
-    )
+    ))
 
 
 def _update_steps_once(
@@ -299,7 +301,7 @@ async def delete_sequence(
     idempotency_key: IdempotencyKeyDep,
 ) -> dict[str, str]:
     """Delete sequence."""
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, str]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -312,7 +314,7 @@ async def delete_sequence(
             workspace_id=workspace_id,
             sequence_id=sequence_id,
         ),
-    )
+    ))
 
 
 def _delete_sequence_once(
@@ -354,7 +356,7 @@ async def enroll_contacts(
     idempotency_key: IdempotencyKeyDep,
 ) -> EnrollmentResult:
     """Enroll contacts."""
-    return await run_idempotent_mutation(
+    return EnrollmentResult.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -371,7 +373,7 @@ async def enroll_contacts(
             sequence_id=sequence_id,
             campaign_id=campaign_id,
         ),
-    )
+    ))
 
 
 def _enroll_contacts_once(
@@ -412,7 +414,7 @@ def get_sequence_progress(
     session: SessionDep,
     workspace_id: WorkspaceIdDep,
     sequence_id: uuid.UUID,
-) -> dict:
+) -> dict[str, Any]:
     """Get step-by-step progress breakdown for a sequence."""
     from sqlalchemy import func as sa_func
 
@@ -428,20 +430,20 @@ def get_sequence_progress(
     steps = session.exec(
         select(SequenceStep)
         .where(SequenceStep.sequence_id == sequence_id)
-        .order_by(SequenceStep.step_order)
+        .order_by(col(SequenceStep.step_order))
     ).all()
 
     # Get contact state aggregates
     total = session.exec(
-        select(sa_func.count(ContactSequenceState.id)).where(
-            ContactSequenceState.sequence_id == sequence_id
+        select(sa_func.count(col(ContactSequenceState.id))).where(
+            col(ContactSequenceState.sequence_id) == sequence_id
         )
     ).one()
 
     status_counts = session.exec(
         select(
             ContactSequenceState.status,
-            sa_func.count(ContactSequenceState.id),
+            sa_func.count(col(ContactSequenceState.id)),
         )
         .where(ContactSequenceState.sequence_id == sequence_id)
         .group_by(ContactSequenceState.status)
@@ -451,13 +453,13 @@ def get_sequence_progress(
     step_progress = session.exec(
         select(
             ContactSequenceState.current_step,
-            sa_func.count(ContactSequenceState.id),
+            sa_func.count(col(ContactSequenceState.id)),
         )
         .where(
             ContactSequenceState.sequence_id == sequence_id,
             ContactSequenceState.status == SequenceStatus.active,
         )
-        .group_by(ContactSequenceState.current_step)
+        .group_by(col(ContactSequenceState.current_step))
     ).all()
 
     return {
@@ -481,7 +483,7 @@ def get_sequence_contacts(
     status: str | None = None,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
-) -> dict:
+) -> dict[str, Any]:
     """Paginated list of contacts in a sequence with their states."""
     from sqlalchemy import func as sa_func
 
@@ -492,8 +494,8 @@ def get_sequence_contacts(
     query = select(ContactSequenceState).where(
         ContactSequenceState.sequence_id == sequence_id
     )
-    count_query = select(sa_func.count(ContactSequenceState.id)).where(
-        ContactSequenceState.sequence_id == sequence_id
+    count_query = select(sa_func.count(col(ContactSequenceState.id))).where(
+        col(ContactSequenceState.sequence_id) == sequence_id
     )
 
     if status:

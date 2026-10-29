@@ -43,7 +43,7 @@ from app.infrastructure.rag.document_parser import (
 from app.models import User
 from app.routers.chatbot.router import WorkspaceId, require_chatbot_admin
 
-router = APIRouter(tags=["chatbot-knowledge"])
+router: APIRouter = APIRouter(tags=["chatbot-knowledge"])
 
 
 def _progress(row: ChatbotKnowledgeSource) -> int:
@@ -256,9 +256,9 @@ def test_bot(
         question=body.question,
         index_version=index_version,
     )
-    return ChatbotTestBotResponse(
-        answer=answer,
-        ai_disclosure="AI assistant",
-        sources=sources,
-        no_kb=no_kb,
-    )
+    return ChatbotTestBotResponse.model_validate({
+        "answer": answer,
+        "ai_disclosure": "AI assistant",
+        "sources": sources,
+        "no_kb": no_kb,
+    })

@@ -49,6 +49,7 @@ class SendGridAdapter(NotificationProviderAdapter):
         idempotency_key: str | None = None,
         reply_to: str | None = None,
         custom_args: dict[str, str] | None = None,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         """Send email."""
         headers = {
@@ -122,7 +123,7 @@ class SendGridAdapter(NotificationProviderAdapter):
             raise last_exc
         return {"status_code": 0, "error": "Max retries exceeded", "message_id": ""}
 
-    async def send_sms(self, *, to: str, message: str) -> dict[str, Any]:
+    async def send_sms(self, *, to: str, message: str, **_kwargs: Any) -> dict[str, Any]:
         """Send sms."""
         raise NotImplementedError("SendGrid does not support SMS")
 

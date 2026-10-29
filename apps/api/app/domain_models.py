@@ -162,13 +162,9 @@ class Campaign(SQLModel, table=True):
     name: str = Field(max_length=255)
     status: CampaignStatus = Field(default=CampaignStatus.draft)
     created_by: uuid.UUID
-    workspace_id: str = Field(sa_type=String(64), index=True)
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
-    updated_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
+    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class CampaignContactImport(SQLModel, table=True):
@@ -184,9 +180,7 @@ class CampaignContactImport(SQLModel, table=True):
     invalid_rows: int = 0
     mapping_json: dict[str, str] = Field(default_factory=dict, sa_column=Column(JSON))
     headers_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class CampaignContactStage(SQLModel, table=True):
@@ -197,7 +191,7 @@ class CampaignContactStage(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     import_id: uuid.UUID = Field(foreign_key="campaign_contact_imports.id", index=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     row_number: int
     is_valid: bool = False
     mapped_data_json: dict[str, Any] = Field(
@@ -206,9 +200,7 @@ class CampaignContactStage(SQLModel, table=True):
     error_json: list[dict[str, Any]] = Field(
         default_factory=list, sa_column=Column(JSON)
     )
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class CampaignSegment(SQLModel, table=True):
@@ -218,12 +210,10 @@ class CampaignSegment(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     name: str = Field(max_length=255)
     estimated_count: int = 0
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class CampaignSegmentRule(SQLModel, table=True):
@@ -248,18 +238,14 @@ class CampaignChannelStrategy(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     offer_pack_id: uuid.UUID | None = Field(default=None, foreign_key="offer_packs.id")
     offer_pack_version_id: uuid.UUID | None = Field(
         default=None, foreign_key="offer_pack_versions.id"
     )
     strategy_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
-    updated_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
+    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class Template(SQLModel, table=True):
@@ -268,13 +254,11 @@ class Template(SQLModel, table=True):
     __tablename__ = "templates"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     name: str = Field(max_length=255)
     channel: str = Field(max_length=32)
     created_by: uuid.UUID
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class TemplateVersion(SQLModel, table=True):
@@ -289,7 +273,7 @@ class TemplateVersion(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     template_id: uuid.UUID = Field(foreign_key="templates.id", index=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     version_number: int
     status: TemplateStatus = Field(default=TemplateStatus.draft)
     subject: str | None = Field(default=None, max_length=255)
@@ -298,10 +282,8 @@ class TemplateVersion(SQLModel, table=True):
     guardrail_report_json: list[dict[str, Any]] = Field(
         default_factory=list, sa_column=Column(JSON)
     )
-    published_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    published_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class TemplateToken(SQLModel, table=True):
@@ -323,12 +305,10 @@ class OfferPack(SQLModel, table=True):
     __tablename__ = "offer_packs"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     name: str = Field(max_length=255)
     created_by: uuid.UUID
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class OfferPackVersion(SQLModel, table=True):
@@ -343,15 +323,13 @@ class OfferPackVersion(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     offer_pack_id: uuid.UUID = Field(foreign_key="offer_packs.id", index=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     version_number: int
     status: TemplateStatus = Field(default=TemplateStatus.draft)
     is_default: bool = False
     guardrail_compliant: bool = False
-    published_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    published_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class OfferPackTemplateBinding(SQLModel, table=True):
@@ -376,7 +354,7 @@ class GovernancePolicy(SQLModel, table=True):
     __tablename__ = "governance_policies"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     campaign_id: uuid.UUID | None = Field(
         default=None, foreign_key="campaigns.id", index=True
     )
@@ -384,12 +362,8 @@ class GovernancePolicy(SQLModel, table=True):
     policy_type: PolicyType
     payload_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     status: PolicyStatus = Field(default=PolicyStatus.active)
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
-    updated_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
+    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class CampaignPolicyBinding(SQLModel, table=True):
@@ -423,14 +397,14 @@ class GlobalControlState(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     campaign_id: uuid.UUID | None = Field(
         default=None, foreign_key="campaigns.id", index=True
     )
     paused: bool = False
     paused_by: uuid.UUID | None = None
     paused_reason: str | None = Field(default=None, max_length=255)
-    paused_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    paused_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
 
 
 # ---------------------------------------------------------------------------
@@ -450,20 +424,16 @@ class Account(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
-    name: str = Field(sa_type=String(255))
-    account_key: str = Field(sa_type=String(255), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
+    name: str = Field(sa_column=Column(String(255), nullable=False))
+    account_key: str = Field(sa_column=Column(String(255), nullable=False, index=True))
     website_url: str | None = Field(default=None, sa_type=Text)
     industry: str | None = Field(default=None, max_length=255)
     status: str = Field(default="active", max_length=64)
     summary: str | None = Field(default=None, sa_type=Text)
     tags_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
-    updated_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
+    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class Contact(SQLModel, table=True):
@@ -475,14 +445,14 @@ class Contact(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     shared_account_id: uuid.UUID | None = Field(
         default=None,
         alias="account_id",
         sa_column=Column("account_id", Uuid(), index=True, nullable=True),
     )
-    account_id: ClassVar[Synonym] = synonym("shared_account_id")
-    email: str = Field(sa_type=String(255), index=True)
+    account_id: ClassVar[Synonym[uuid.UUID | None]] = synonym("shared_account_id")
+    email: str = Field(sa_column=Column(String(255), nullable=False, index=True))
     first_name: str | None = Field(default=None, max_length=255)
     last_name: str | None = Field(default=None, max_length=255)
     company: str | None = Field(default=None, max_length=255)
@@ -495,10 +465,8 @@ class Contact(SQLModel, table=True):
     consent_voice: bool = Field(default=False, nullable=False)
     do_not_contact: bool = Field(default=False, nullable=False)
     suppressed: bool = Field(default=False, nullable=False)
-    last_seen_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    last_seen_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class ProspectingSnapshot(SQLModel, table=True):
@@ -507,12 +475,12 @@ class ProspectingSnapshot(SQLModel, table=True):
     __tablename__ = "prospecting_snapshots"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     shared_contact_id: uuid.UUID = Field(
         alias="contact_id",
         sa_column=Column("contact_id", Uuid(), index=True, nullable=False),
     )
-    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
+    contact_id: ClassVar[Synonym[uuid.UUID]] = synonym("shared_contact_id")
     created_by: uuid.UUID | None = Field(default=None, index=True)
     company_url: str | None = Field(default=None, sa_type=Text)
     sources_json: list[dict[str, Any]] = Field(
@@ -521,9 +489,7 @@ class ProspectingSnapshot(SQLModel, table=True):
     research_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     email_draft: str = Field(sa_type=Text)
     voice_opener: str = Field(sa_type=Text)
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True), index=True
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc, index=True))
 
 
 class ContactProgression(SQLModel, table=True):
@@ -543,15 +509,11 @@ class ContactProgression(SQLModel, table=True):
         alias="contact_id",
         sa_column=Column("contact_id", Uuid(), index=True, nullable=False),
     )
-    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
+    contact_id: ClassVar[Synonym[uuid.UUID]] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     current_state: ContactProgressionState
-    last_action_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
-    )
-    updated_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    last_action_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
+    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class ContactStateHistory(SQLModel, table=True):
@@ -560,19 +522,17 @@ class ContactStateHistory(SQLModel, table=True):
     __tablename__ = "contact_state_history"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     shared_contact_id: uuid.UUID = Field(
         alias="contact_id",
         sa_column=Column("contact_id", Uuid(), index=True, nullable=False),
     )
-    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
+    contact_id: ClassVar[Synonym[uuid.UUID]] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     from_state: ContactProgressionState
     to_state: ContactProgressionState
     reason: str | None = Field(default=None, max_length=255)
-    triggered_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    triggered_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class OutboxEvent(SQLModel, table=True):
@@ -594,10 +554,8 @@ class OutboxEvent(SQLModel, table=True):
     event_type: str = Field(max_length=128)  # "contact.progressed" | "action.queued"
     event_data: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     idempotency_key: str = Field(max_length=255, index=True)
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
-    published_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
+    published_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
 
 
 class IdempotencyRecord(SQLModel, table=True):
@@ -621,13 +579,9 @@ class IdempotencyRecord(SQLModel, table=True):
     state: str = Field(default="in_progress", max_length=32)
     response_data: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     failure_reason: str | None = Field(default=None, max_length=128)
-    lease_expires_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
-    )
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
-    completed_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    lease_expires_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
+    completed_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
 
 
 class ActionQueue(SQLModel, table=True):
@@ -653,7 +607,7 @@ class ActionQueue(SQLModel, table=True):
         alias="contact_id",
         sa_column=Column("contact_id", Uuid(), index=True, nullable=False),
     )
-    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
+    contact_id: ClassVar[Synonym[uuid.UUID]] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     action_type: str = Field(max_length=64)  # "send_email" | "make_call" | "send_sms"
     channel: str = Field(max_length=32)  # "email" | "phone" | "sms"
@@ -661,16 +615,10 @@ class ActionQueue(SQLModel, table=True):
     status: str = Field(default="pending", max_length=32, index=True)
     retry_count: int = Field(default=0)
     failure_reason: str | None = Field(default=None, sa_type=Text)
-    next_retry_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True), index=True
-    )
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
-    executed_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    dead_lettered_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
-    )
+    next_retry_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None, index=True))
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
+    executed_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
+    dead_lettered_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
 
 
 class ProviderCredential(SQLModel, table=True):
@@ -679,16 +627,14 @@ class ProviderCredential(SQLModel, table=True):
     __tablename__ = "provider_credentials"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     provider: NotificationProvider
     channel: str = Field(max_length=32)  # "email" | "sms" | "voice" | "scheduling"
     encrypted_api_key: str = Field(sa_type=Text)
     encrypted_api_secret: str | None = Field(default=None, sa_type=Text)
     config_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class WorkspaceRuntimeConfig(SQLModel, table=True):
@@ -696,16 +642,12 @@ class WorkspaceRuntimeConfig(SQLModel, table=True):
 
     __tablename__ = "workspace_runtime_configs"
 
-    workspace_id: str = Field(primary_key=True, sa_type=String(64))
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, primary_key=True))
     encrypted_deepgram_api_key: str | None = Field(default=None, sa_type=Text)
     encrypted_groq_api_key: str | None = Field(default=None, sa_type=Text)
     team_notification_email: str | None = Field(default=None, max_length=255)
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
-    updated_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
+    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class WorkspaceProviderSelection(SQLModel, table=True):
@@ -727,16 +669,12 @@ class WorkspaceProviderSelection(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     capability: ProviderCapability
     provider: NotificationProvider
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
-    updated_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
+    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class WorkerHeartbeat(SQLModel, table=True):
@@ -747,20 +685,12 @@ class WorkerHeartbeat(SQLModel, table=True):
     worker_key: str = Field(primary_key=True, max_length=64)
     status: str = Field(default="starting", max_length=32)
     poll_interval_seconds: int = Field(default=30)
-    last_seen_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True), index=True
-    )
-    last_success_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
-    )
-    last_error_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
-    )
+    last_seen_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc, index=True))
+    last_success_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
+    last_error_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
     last_error_message: str | None = Field(default=None, sa_type=Text)
     last_processed_count: int = Field(default=0)
-    updated_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    updated_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class ProviderEventLog(SQLModel, table=True):
@@ -777,7 +707,7 @@ class ProviderEventLog(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     provider: NotificationProvider
     provider_event_id: str = Field(max_length=255, index=True)
     event_type: str = Field(max_length=128)  # "bounce" | "delivered" | "opened"
@@ -785,9 +715,7 @@ class ProviderEventLog(SQLModel, table=True):
     normalized_event: dict[str, Any] = Field(
         default_factory=dict, sa_column=Column(JSON)
     )
-    received_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    received_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 # ---------------------------------------------------------------------------
@@ -810,9 +738,9 @@ class ContactEvent(SQLModel, table=True):
         alias="contact_id",
         sa_column=Column("contact_id", Uuid(), index=True, nullable=False),
     )
-    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
+    contact_id: ClassVar[Synonym[uuid.UUID]] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     event_type: str = Field(max_length=128)
     channel: str | None = Field(default=None, max_length=32)
     actor: str | None = Field(default=None, max_length=128)
@@ -824,9 +752,7 @@ class ContactEvent(SQLModel, table=True):
     event_metadata: dict[str, Any] | None = Field(
         default=None, sa_column=Column(JSON, name="metadata")
     )
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class RoutingDecision(SQLModel, table=True):
@@ -844,9 +770,9 @@ class RoutingDecision(SQLModel, table=True):
         alias="contact_id",
         sa_column=Column("contact_id", Uuid(), index=True, nullable=False),
     )
-    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
+    contact_id: ClassVar[Synonym[uuid.UUID]] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     decision_type: str = Field(max_length=128)
     outcome: str | None = Field(default=None, max_length=128)
     reason_code: str | None = Field(default=None, max_length=255)
@@ -854,9 +780,7 @@ class RoutingDecision(SQLModel, table=True):
     rule_condition: str | None = Field(default=None, sa_type=Text)
     signal_summary: str | None = Field(default=None, sa_type=Text)
     confidence_tier: str | None = Field(default=None, max_length=32)
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 # ---------------------------------------------------------------------------
@@ -879,10 +803,8 @@ class KpiDailySnapshot(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    date: datetime = Field(
-        sa_type=DateTime(timezone=False)
-    )  # DATE stored as datetime at midnight UTC
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    date: datetime = Field(sa_column=Column(DateTime(timezone=False), nullable=False))  # DATE stored as datetime at midnight UTC
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     campaign_id: uuid.UUID | None = Field(
         default=None, foreign_key="campaigns.id", index=True
     )
@@ -893,9 +815,7 @@ class KpiDailySnapshot(SQLModel, table=True):
     provider_errors: int = Field(default=0)
     booking_sla_met: int = Field(default=0)
     booking_sla_breached: int = Field(default=0)
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 class ImportRowError(SQLModel):
@@ -1510,17 +1430,15 @@ class DeadLetterEvent(SQLModel, table=True):
         alias="contact_id",
         sa_column=Column("contact_id", Uuid(), index=True, nullable=False),
     )
-    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
-    workspace_id: str = Field(sa_type=String(64), index=True)
+    contact_id: ClassVar[Synonym[uuid.UUID]] = synonym("shared_contact_id")
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     action_type: str = Field(max_length=64)
     failure_reason: str | None = Field(default=None, sa_type=Text)
     event_type: str = Field(
         default="dead_lettered", max_length=32
     )  # dead_lettered|retried|dismissed
     operator_id: uuid.UUID | None = Field(default=None)
-    created_at: datetime = Field(
-        default_factory=get_datetime_utc, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=False, default=get_datetime_utc))
 
 
 # --- Public schemas ---

@@ -11,6 +11,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 
 from app.domain.voice.script_parser import ScriptParsed
+from app.infrastructure.providers.base import LlmAdapter, SttAdapter, TtsAdapter
 from app.infrastructure.providers.deepgram_stt import DeepgramSTTAdapter
 from app.infrastructure.providers.deepgram_tts import DeepgramTTSAdapter
 from app.infrastructure.providers.groq_llm import GroqLLMAdapter
@@ -112,9 +113,9 @@ class ConversationEngine:
         script: ScriptParsed,
         contact_name: str,
         contact_company: str,
-        stt: DeepgramSTTAdapter | None = None,
-        tts: DeepgramTTSAdapter | None = None,
-        llm: GroqLLMAdapter | None = None,
+        stt: SttAdapter | None = None,
+        tts: TtsAdapter | None = None,
+        llm: LlmAdapter | None = None,
     ) -> None:
         self._script = script
         self._contact_name = contact_name
@@ -301,6 +302,6 @@ class ConversationEngine:
         await self._stt.close()
 
     @property
-    def stt(self) -> DeepgramSTTAdapter:
+    def stt(self) -> SttAdapter:
         """Stt."""
         return self._stt

@@ -30,23 +30,17 @@ class PlatformSharedAccount(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
-    external_key: str = Field(sa_type=String(255), index=True, unique=True)
-    display_name: str = Field(sa_type=String(255))
-    status: str = Field(default="active", sa_type=String(32))
-    account_key: str | None = Field(default=None, sa_type=String(255))
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
+    external_key: str = Field(sa_column=Column(String(255), nullable=False, index=True, unique=True))
+    display_name: str = Field(sa_column=Column(String(255), nullable=False))
+    status: str = Field(default="active", sa_column=Column(String(32), nullable=False, default="active"))
+    account_key: str | None = Field(default=None, sa_column=Column(String(255), nullable=True, default=None))
     website_url: str | None = Field(default=None, sa_type=Text)
-    industry: str | None = Field(default=None, sa_type=String(255))
+    industry: str | None = Field(default=None, sa_column=Column(String(255), nullable=True, default=None))
     summary: str | None = Field(default=None, sa_type=Text)
     tags_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
-    created_at: datetime = Field(
-        default_factory=utc_now,
-        sa_type=DateTime(timezone=True),
-    )
-    updated_at: datetime = Field(
-        default_factory=utc_now,
-        sa_type=DateTime(timezone=True),
-    )
+    created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False, default=utc_now))
+    updated_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False, default=utc_now))
 
 
 class PlatformSharedContact(SQLModel, table=True):
@@ -60,29 +54,23 @@ class PlatformSharedContact(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
-    external_key: str = Field(sa_type=String(255), index=True, unique=True)
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
+    external_key: str = Field(sa_column=Column(String(255), nullable=False, index=True, unique=True))
     parent_account_id: uuid.UUID | None = Field(default=None)
-    display_name: str = Field(sa_type=String(255))
-    email: str = Field(sa_type=String(255), index=True)
-    phone: str | None = Field(default=None, sa_type=String(64))
-    company_name: str | None = Field(default=None, sa_type=String(255))
-    first_name: str | None = Field(default=None, sa_type=String(255))
-    last_name: str | None = Field(default=None, sa_type=String(255))
-    timezone: str = Field(default="UTC", sa_type=String(64))
-    source_channel: str | None = Field(default=None, sa_type=String(64))
+    display_name: str = Field(sa_column=Column(String(255), nullable=False))
+    email: str = Field(sa_column=Column(String(255), nullable=False, index=True))
+    phone: str | None = Field(default=None, sa_column=Column(String(64), nullable=True, default=None))
+    company_name: str | None = Field(default=None, sa_column=Column(String(255), nullable=True, default=None))
+    first_name: str | None = Field(default=None, sa_column=Column(String(255), nullable=True, default=None))
+    last_name: str | None = Field(default=None, sa_column=Column(String(255), nullable=True, default=None))
+    timezone: str = Field(default="UTC", sa_column=Column(String(64), nullable=False, default="UTC"))
+    source_channel: str | None = Field(default=None, sa_column=Column(String(64), nullable=True, default=None))
     tags_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     intent_json: list[str] = Field(default_factory=list, sa_column=Column(JSON))
-    last_seen_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    status: str = Field(default="active", sa_type=String(32))
-    created_at: datetime = Field(
-        default_factory=utc_now,
-        sa_type=DateTime(timezone=True),
-    )
-    updated_at: datetime = Field(
-        default_factory=utc_now,
-        sa_type=DateTime(timezone=True),
-    )
+    last_seen_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
+    status: str = Field(default="active", sa_column=Column(String(32), nullable=False, default="active"))
+    created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False, default=utc_now))
+    updated_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False, default=utc_now))
 
 
 class PlatformSharedIdentity(SQLModel, table=True):
@@ -104,20 +92,14 @@ class PlatformSharedIdentity(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
-    entity_type: str = Field(sa_type=String(32), index=True)
-    external_key: str = Field(sa_type=String(255), index=True)
-    display_name: str = Field(sa_type=String(255))
-    status: str = Field(default="active", sa_type=String(32))
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
+    entity_type: str = Field(sa_column=Column(String(32), nullable=False, index=True))
+    external_key: str = Field(sa_column=Column(String(255), nullable=False, index=True))
+    display_name: str = Field(sa_column=Column(String(255), nullable=False))
+    status: str = Field(default="active", sa_column=Column(String(32), nullable=False, default="active"))
     data_json: dict[str, object] = Field(default_factory=dict, sa_column=Column(JSON))
-    created_at: datetime = Field(
-        default_factory=utc_now,
-        sa_type=DateTime(timezone=True),
-    )
-    updated_at: datetime = Field(
-        default_factory=utc_now,
-        sa_type=DateTime(timezone=True),
-    )
+    created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False, default=utc_now))
+    updated_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False, default=utc_now))
 
 
 class PlatformExternalLink(SQLModel, table=True):
@@ -133,12 +115,9 @@ class PlatformExternalLink(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    entity_type: str = Field(sa_type=String(32), index=True)
+    entity_type: str = Field(sa_column=Column(String(32), nullable=False, index=True))
     entity_id: uuid.UUID = Field(index=True)
-    source_app: str = Field(sa_type=String(32), index=True)
-    source_record_id: str = Field(sa_type=String(255), index=True)
-    workspace_id: str = Field(sa_type=String(64), index=True)
-    created_at: datetime = Field(
-        default_factory=utc_now,
-        sa_type=DateTime(timezone=True),
-    )
+    source_app: str = Field(sa_column=Column(String(32), nullable=False, index=True))
+    source_record_id: str = Field(sa_column=Column(String(255), nullable=False, index=True))
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
+    created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False, default=utc_now))

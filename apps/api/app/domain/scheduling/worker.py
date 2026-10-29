@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import update
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain.audit.audit_events import append_audit_event_to_session
 from app.domain.commercial_agents.capacity import (
@@ -79,10 +79,10 @@ def _claim(
     candidate = session.exec(
         select(CalendarBookingJob.id, CalendarBookingJob.tenant_id)
         .where(
-            CalendarBookingJob.status.in_(["PENDING", "RETRY_SCHEDULED"]),
+            col(CalendarBookingJob.status).in_(["PENDING", "RETRY_SCHEDULED"]),
             CalendarBookingJob.available_at <= now,
         )
-        .order_by(CalendarBookingJob.created_at, CalendarBookingJob.id)
+        .order_by(col(CalendarBookingJob.created_at), col(CalendarBookingJob.id))
         .with_for_update(skip_locked=True)
         .limit(1)
     ).first()
@@ -99,9 +99,9 @@ def _claim(
     result = session.exec(
         update(CalendarBookingJob)
         .where(
-            CalendarBookingJob.id == candidate_id,
-            CalendarBookingJob.status.in_(["PENDING", "RETRY_SCHEDULED"]),
-            CalendarBookingJob.available_at <= now,
+            col(CalendarBookingJob.id) == candidate_id,
+            col(CalendarBookingJob.status).in_(["PENDING", "RETRY_SCHEDULED"]),
+            col(CalendarBookingJob.available_at) <= now,
         )
         .values(
             status="IN_PROGRESS",
@@ -310,7 +310,7 @@ def _prepare_command(
         "title": meeting_type.name,
         "timezone": meeting_type.timezone,
     }
-    return CalendarBookingCommand(**base, command_digest=_digest(base))
+    return CalendarBookingCommand.model_validate({**base, "command_digest": _digest(base)})
 
 
 def _overlaps(starts_at: datetime, ends_at: datetime, busy: BusyInterval) -> bool:
@@ -343,10 +343,10 @@ def _finalize(
     claimed = session.exec(
         update(CalendarBookingJob)
         .where(
-            CalendarBookingJob.id == job.id,
-            CalendarBookingJob.status == "IN_PROGRESS",
-            CalendarBookingJob.lease_token == token,
-            CalendarBookingJob.lease_expires_at >= now,
+            col(CalendarBookingJob.id) == job.id,
+            col(CalendarBookingJob.status) == "IN_PROGRESS",
+            col(CalendarBookingJob.lease_token) == token,
+            col(CalendarBookingJob.lease_expires_at) >= now,
         )
         .values(
             status="COMPLETED",
@@ -575,7 +575,7 @@ def recover_expired_booking_leases(
     jobs = session.exec(
         select(CalendarBookingJob).where(
             CalendarBookingJob.status == "IN_PROGRESS",
-            CalendarBookingJob.lease_expires_at < at,
+            col(CalendarBookingJob.lease_expires_at) < at,
         )
     ).all()
     for job in jobs:

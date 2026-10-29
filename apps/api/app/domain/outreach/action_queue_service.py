@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain_models import ActionQueue, DeadLetterEvent
 
@@ -56,7 +56,7 @@ def list_pending_actions(
                 ActionQueue.workspace_id == workspace_id,
                 ActionQueue.status == "pending",
             )
-            .order_by(ActionQueue.created_at)
+            .order_by(col(ActionQueue.created_at))
             .limit(limit)
         ).all()
     )

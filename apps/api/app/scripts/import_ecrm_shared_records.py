@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
@@ -100,6 +101,13 @@ def _external_key(
     )
 
 
+def _increment_summary(summary: dict[str, object], counter_key: str) -> None:
+    value = summary[counter_key]
+    if not isinstance(value, int):
+        raise TypeError("Import summary counter must be an integer")
+    summary[counter_key] = value + 1
+
+
 def _report_skip(
     summary: dict[str, object],
     *,
@@ -113,7 +121,7 @@ def _report_skip(
         "LEAD": "skipped_leads",
         "ORDER": "skipped_orders",
     }[entity_type]
-    summary[counter_key] = int(summary[counter_key]) + 1
+    _increment_summary(summary, counter_key)
     issues = summary["issues"]
     assert isinstance(issues, list)
     issues.append(
@@ -158,7 +166,7 @@ def run_import(
 
     with _session_scope(session) as active_session:
         repo = PlatformSharedRepository(active_session)
-        imported_accounts: dict[str, object] = {}
+        imported_accounts: dict[str, uuid.UUID] = {}
 
         for record in fetch_records("CUSTOMER"):
             if _record_workspace_id(record) != workspace_id:
@@ -173,6 +181,7 @@ def run_import(
                 )
                 continue
             data = _record_data(record)
+            raw_tags = data.get("tags", [])
             account = repo.upsert_account(
                 workspace_id=workspace_id,
                 external_key=_external_key(
@@ -195,8 +204,8 @@ def run_import(
                 summary=(
                     str(data.get("summary")) if data.get("summary") is not None else None
                 ),
-                tags=[tag for tag in data.get("tags", []) if isinstance(tag, str)]
-                if isinstance(data.get("tags"), list)
+                tags=[tag for tag in raw_tags if isinstance(tag, str)]
+                if isinstance(raw_tags, list)
                 else [],
                 created_at=_timestamp(record, "createdAt", "created_at"),
                 updated_at=_timestamp(record, "updatedAt", "updated_at", "createdAt", "created_at"),
@@ -215,7 +224,7 @@ def run_import(
                     source_record_id=legacy_id.strip(),
                 )
             imported_accounts[source_record_id] = account.id
-            summary["accounts"] += 1
+            _increment_summary(summary, "accounts")
 
         for record in fetch_records("CONTACT"):
             if _record_workspace_id(record) != workspace_id:
@@ -230,6 +239,8 @@ def run_import(
                 )
                 continue
             data = _record_data(record)
+            raw_tags = data.get("tags", [])
+            raw_intents = data.get("intents", [])
             parent_account_id = None
             parent_source_record_id = _string_value(record.get("parentId"))
             if parent_source_record_id is not None:
@@ -275,11 +286,11 @@ def run_import(
                 source_channel=(
                     str(data.get("sourceChannel")) if data.get("sourceChannel") is not None else None
                 ),
-                tags=[tag for tag in data.get("tags", []) if isinstance(tag, str)]
-                if isinstance(data.get("tags"), list)
+                tags=[tag for tag in raw_tags if isinstance(tag, str)]
+                if isinstance(raw_tags, list)
                 else [],
-                intents=[intent for intent in data.get("intents", []) if isinstance(intent, str)]
-                if isinstance(data.get("intents"), list)
+                intents=[intent for intent in raw_intents if isinstance(intent, str)]
+                if isinstance(raw_intents, list)
                 else [],
                 last_seen_at=_timestamp(data, "lastSeenAt", "last_seen_at"),
                 status=str(record.get("status") or "active"),
@@ -300,7 +311,7 @@ def run_import(
                     source_app="emailvoice",
                     source_record_id=legacy_id.strip(),
                 )
-            summary["contacts"] += 1
+            _increment_summary(summary, "contacts")
 
         for entity_type, summary_key in (("LEAD", "leads"), ("ORDER", "orders")):
             for record in fetch_records(entity_type):
@@ -349,7 +360,7 @@ def run_import(
                         source_app="emailvoice",
                         source_record_id=legacy_id.strip(),
                     )
-                summary[summary_key] += 1
+                _increment_summary(summary, summary_key)
 
         if dry_run:
             active_session.rollback()

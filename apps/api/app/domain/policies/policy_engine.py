@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, time, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.domain_models import (
@@ -19,7 +20,7 @@ def _normalize_datetime(value: datetime) -> datetime:
     return value
 
 
-def _contact_timezone(contact: dict, fallback: str = "UTC") -> ZoneInfo:
+def _contact_timezone(contact: dict[str, Any], fallback: str = "UTC") -> ZoneInfo:
     timezone_name = str(contact.get("timezone") or fallback)
     try:
         return ZoneInfo(timezone_name)
@@ -41,7 +42,7 @@ def _next_eligible_at(*, requested_at: datetime, local_now: datetime, end: time)
     return candidate_local.astimezone(requested_at.tzinfo or UTC)
 
 
-def _is_suppressed(contact: dict) -> bool:
+def _is_suppressed(contact: dict[str, Any]) -> bool:
     if bool(contact.get("suppressed", False)):
         return True
     if bool(contact.get("do_not_contact", False)):
@@ -52,7 +53,7 @@ def _is_suppressed(contact: dict) -> bool:
     return False
 
 
-def evaluate_policies(*, policies: list[GovernancePolicy], contact: dict, campaign_daily_count: int, system_daily_count: int, requested_at: datetime | None = None) -> PolicyDecision:
+def evaluate_policies(*, policies: list[GovernancePolicy], contact: dict[str, Any], campaign_daily_count: int, system_daily_count: int, requested_at: datetime | None = None) -> PolicyDecision:
     """Evaluate policies."""
     requested_at = _normalize_datetime(requested_at or datetime.now(UTC))
 

@@ -49,7 +49,7 @@ class LeadPreparationJobStatus(str, Enum):
     UNKNOWN_OUTCOME = "UNKNOWN_OUTCOME"
 
 
-class LeadScoringPolicy(SQLModel, table=True):  # type: ignore[call-arg]
+class LeadScoringPolicy(SQLModel, table=True):
     __tablename__ = "lead_scoring_policy"
     __table_args__ = (
         UniqueConstraint(
@@ -79,7 +79,7 @@ class LeadScoringPolicy(SQLModel, table=True):  # type: ignore[call-arg]
     created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
 
 
-class LeadEvidenceItem(SQLModel, table=True):  # type: ignore[call-arg]
+class LeadEvidenceItem(SQLModel, table=True):
     __tablename__ = "lead_evidence_item"
     __table_args__ = (
         UniqueConstraint(
@@ -112,7 +112,7 @@ class LeadEvidenceItem(SQLModel, table=True):  # type: ignore[call-arg]
     created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
 
 
-class LeadScoreVersion(SQLModel, table=True):  # type: ignore[call-arg]
+class LeadScoreVersion(SQLModel, table=True):
     __tablename__ = "lead_score_version"
     __table_args__ = (
         UniqueConstraint(
@@ -151,7 +151,7 @@ class LeadScoreVersion(SQLModel, table=True):  # type: ignore[call-arg]
     created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
 
 
-class LeadPreparationPackage(SQLModel, table=True):  # type: ignore[call-arg]
+class LeadPreparationPackage(SQLModel, table=True):
     __tablename__ = "lead_preparation_package"
     __table_args__ = (
         UniqueConstraint(
@@ -184,7 +184,7 @@ class LeadPreparationPackage(SQLModel, table=True):  # type: ignore[call-arg]
     created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
 
 
-class LeadPreparationJob(SQLModel, table=True):  # type: ignore[call-arg]
+class LeadPreparationJob(SQLModel, table=True):
     __tablename__ = "lead_preparation_job"
     __table_args__ = (
         UniqueConstraint(
@@ -257,7 +257,7 @@ class LeadPreparationJob(SQLModel, table=True):  # type: ignore[call-arg]
     )
 
 
-class LeadOutcomeObservation(SQLModel, table=True):  # type: ignore[call-arg]
+class LeadOutcomeObservation(SQLModel, table=True):
     """Immutable observed result used for evaluation, never automatic policy edits."""
 
     __tablename__ = "lead_outcome_observation"
@@ -298,7 +298,7 @@ class LeadOutcomeObservation(SQLModel, table=True):  # type: ignore[call-arg]
     )
 
 
-class LeadPolicyEvaluationEvidence(SQLModel, table=True):  # type: ignore[call-arg]
+class LeadPolicyEvaluationEvidence(SQLModel, table=True):
     """Immutable evidence that one candidate policy was evaluated against a contact."""
 
     __tablename__ = "lead_policy_evaluation_evidence"
@@ -322,7 +322,7 @@ class LeadPolicyEvaluationEvidence(SQLModel, table=True):  # type: ignore[call-a
     )
 
 
-class LeadPolicyChangeEvidence(SQLModel, table=True):  # type: ignore[call-arg]
+class LeadPolicyChangeEvidence(SQLModel, table=True):
     """Immutable actor/reason evidence for a policy lifecycle transition."""
 
     __tablename__ = "lead_policy_change_evidence"

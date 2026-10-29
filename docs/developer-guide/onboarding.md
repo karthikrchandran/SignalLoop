@@ -13,7 +13,7 @@ Install in this order. Versions listed are the minimum that has been verified.
 | `uv` (Python package manager) | latest | `scoop install uv` or `pipx install uv` |
 | Node.js | 20+ | `scoop install nodejs-lts` |
 | npm | 10+ | bundled with Node |
-| PostgreSQL | 14+ | `scoop install postgresql` |
+| PostgreSQL | 18 repository baseline | Install version-18 binaries for a new instance; keep the binaries matching an existing native data directory. |
 | Redis | any recent | `scoop install redis` (Windows port) |
 | Mailpit | latest | `scoop install mailpit` (or download from mailpit.axllent.org) |
 | Ollama | latest | optional for local LLM demos; install from ollama.com |
@@ -33,6 +33,8 @@ redis-server --version
 ollama --version
 ```
 
+Compose and CI use PostgreSQL 18 with pgvector. Do not downgrade an existing newer native installation or switch binaries against an existing different-major data directory. A major-version change requires a separate backup and supported migration plan. Verify `vector` extension availability before using knowledge-base vector search. Native PostgreSQL/Redis remains the normal local path; Docker (including Docker in WSL) is optional.
+
 ## 2. Clone the repository
 
 ```powershell
@@ -48,7 +50,7 @@ cd eMailVoice
 Copy the example file and edit values you care about.
 
 ```powershell
-Copy-Item .env.example .env
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
 Required edits for a local-only run:
@@ -160,6 +162,8 @@ End-of-day shutdown:
 .\StopApp.ps1
 .\StopServer.ps1
 ```
+
+The shared native PostgreSQL cluster stays running by default so eCRM is not interrupted. Add `-StopSharedPostgres` only after stopping every dependent app.
 
 ## 10. What to read next
 

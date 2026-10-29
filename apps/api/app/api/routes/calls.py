@@ -5,9 +5,11 @@ from __future__ import annotations
 import html
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlmodel import SQLModel, func, select
+from pydantic import TypeAdapter
+from sqlmodel import SQLModel, col, func, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
@@ -121,7 +123,7 @@ def _get_call_request_or_404(
 ) -> CallRequest:
     req = session.exec(
         select(CallRequest)
-        .join(Campaign, CallRequest.campaign_id == Campaign.id)
+        .join(Campaign, col(CallRequest.campaign_id) == col(Campaign.id))
         .where(
             CallRequest.id == call_request_id,
             Campaign.workspace_id == workspace_id,
@@ -154,7 +156,7 @@ def _call_action_intent_key(call_request_id: uuid.UUID, action: str) -> str:
     return f"call_request:{call_request_id}:{action}"
 
 
-def _provider_send_accepted(result: dict) -> bool:
+def _provider_send_accepted(result: dict[str, Any]) -> bool:
     status_code = int(result.get("status_code") or 0)
     return 200 <= status_code < 300
 
@@ -325,7 +327,7 @@ def _prepare_call_action_intent(
     campaign_id: uuid.UUID,
     action: str,
     event_type: str,
-    event_data: dict,
+    event_data: dict[str, Any],
 ) -> OutboxEvent | None:
     intent_key = _call_action_intent_key(call_request_id, action)
     existing = session.exec(
@@ -459,14 +461,14 @@ def list_calls(
     """Return a list of calls."""
     query = (
         select(CallRequest, CallSession)
-        .join(Campaign, CallRequest.campaign_id == Campaign.id)
-        .outerjoin(CallSession, CallRequest.id == CallSession.call_request_id)
+        .join(Campaign, col(CallRequest.campaign_id) == col(Campaign.id))
+        .outerjoin(CallSession, col(CallRequest.id) == col(CallSession.call_request_id))
         .where(Campaign.workspace_id == workspace_id)
     )
     count_query = (
-        select(func.count(CallRequest.id))
-        .join(Campaign, CallRequest.campaign_id == Campaign.id)
-        .where(Campaign.workspace_id == workspace_id)
+        select(func.count(col(CallRequest.id)))
+        .join(Campaign, col(CallRequest.campaign_id) == col(Campaign.id))
+        .where(col(Campaign.workspace_id) == workspace_id)
     )
 
     if campaign_id:
@@ -476,18 +478,18 @@ def list_calls(
         # Use inner join instead of the base outerjoin when filtering by outcome
         query = (
             select(CallRequest, CallSession)
-            .join(Campaign, CallRequest.campaign_id == Campaign.id)
-            .join(CallSession, CallRequest.id == CallSession.call_request_id)
+            .join(Campaign, col(CallRequest.campaign_id) == col(Campaign.id))
+            .join(CallSession, col(CallRequest.id) == col(CallSession.call_request_id))
             .where(
                 Campaign.workspace_id == workspace_id, CallSession.outcome == outcome
             )
         )
         count_query = (
-            select(func.count(CallRequest.id))
-            .join(Campaign, CallRequest.campaign_id == Campaign.id)
-            .join(CallSession, CallRequest.id == CallSession.call_request_id)
+            select(func.count(col(CallRequest.id)))
+            .join(Campaign, col(CallRequest.campaign_id) == col(Campaign.id))
+            .join(CallSession, col(CallRequest.id) == col(CallSession.call_request_id))
             .where(
-                Campaign.workspace_id == workspace_id, CallSession.outcome == outcome
+                col(Campaign.workspace_id) == workspace_id, col(CallSession.outcome) == outcome
             )
         )
         if campaign_id:
@@ -496,7 +498,7 @@ def list_calls(
 
     total = session.exec(count_query).one()
     results = session.exec(
-        query.order_by(CallRequest.created_at.desc()).offset(skip).limit(limit)
+        query.order_by(col(CallRequest.created_at).desc()).offset(skip).limit(limit)
     ).all()
 
     data = []
@@ -559,7 +561,7 @@ async def send_demo_email(
     call_request_id: uuid.UUID,
 ) -> dict[str, str]:
     """Send demo email."""
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, str]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -572,7 +574,7 @@ async def send_demo_email(
             workspace_id=workspace_id,
             call_request_id=call_request_id,
         ),
-    )
+    ))
 
 
 async def _send_demo_email_once(
@@ -654,7 +656,7 @@ async def flag_for_sales(
     call_request_id: uuid.UUID,
 ) -> dict[str, str]:
     """Flag for sales."""
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, str]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -667,7 +669,7 @@ async def flag_for_sales(
             workspace_id=workspace_id,
             call_request_id=call_request_id,
         ),
-    )
+    ))
 
 
 async def _flag_for_sales_once(
@@ -748,7 +750,7 @@ async def pause_contact_sequence(
     call_request_id: uuid.UUID,
 ) -> dict[str, str]:
     """Pause contact sequence."""
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, str]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -761,7 +763,7 @@ async def pause_contact_sequence(
             workspace_id=workspace_id,
             call_request_id=call_request_id,
         ),
-    )
+    ))
 
 
 def _pause_contact_sequence_once(
@@ -776,8 +778,8 @@ def _pause_contact_sequence_once(
     # Pause any active sequences for this contact
     states = session.exec(
         select(ContactSequenceState)
-        .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
-        .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+        .join(EmailSequence, col(ContactSequenceState.sequence_id) == col(EmailSequence.id))
+        .join(Campaign, col(EmailSequence.campaign_id) == col(Campaign.id))
         .where(
             ContactSequenceState.contact_id == req.contact_id,
             ContactSequenceState.status == SequenceStatus.active,

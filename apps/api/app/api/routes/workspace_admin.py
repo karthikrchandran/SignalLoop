@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep, get_current_active_superuser
 from app.api.request_context import WorkspaceIdDep
@@ -228,7 +228,7 @@ def _audit(
     event_name: str,
     workspace_id: str,
     current_user: User,
-    payload: dict,
+    payload: dict[str, Any],
 ) -> None:
     append_audit_event_to_session(
         session,
@@ -250,14 +250,17 @@ def list_workspaces(session: SessionDep, current_user: CurrentUser) -> Workspace
     else:
         workspaces = session.exec(
             select(Workspace)
-            .join(WorkspaceMembership, WorkspaceMembership.workspace_id == Workspace.id)
+            .join(WorkspaceMembership, col(WorkspaceMembership.workspace_id) == col(Workspace.id))
             .where(
                 WorkspaceMembership.user_id == current_user.id,
                 WorkspaceMembership.status == WORKSPACE_STATUS_ACTIVE,
             )
             .order_by(Workspace.id)
         ).all()
-    return WorkspacesPublic(data=list(workspaces), count=len(workspaces))
+    return WorkspacesPublic(
+        data=[WorkspacePublic.model_validate(workspace) for workspace in workspaces],
+        count=len(workspaces),
+    )
 
 
 @router.post(
@@ -353,9 +356,9 @@ def list_workspace_members(
 
     query = (
         select(WorkspaceMembership, User)
-        .join(User, User.id == WorkspaceMembership.user_id)
+        .join(User, col(User.id) == col(WorkspaceMembership.user_id))
         .where(WorkspaceMembership.workspace_id == normalize_workspace_id(workspace_id))
-        .order_by(WorkspaceMembership.created_at.desc())
+        .order_by(col(WorkspaceMembership.created_at).desc())
     )
     if status_filter != "all":
         query = query.where(WorkspaceMembership.status == status_filter)

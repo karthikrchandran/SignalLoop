@@ -11,6 +11,8 @@
       "!**/src/components/ui/**/*",
       "!openapi.json",
       "!**/playwright-report",
+      "!**/playwright/.auth",
+      "!**/test-results",
       "!**/playwright.config.ts"
     ]
   },

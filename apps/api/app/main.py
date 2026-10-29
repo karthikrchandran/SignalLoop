@@ -1,5 +1,6 @@
 """Module: ``main``."""
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import sentry_sdk
@@ -33,7 +34,7 @@ if settings.SENTRY_DSN and settings.ENVIRONMENT != "local":
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """FastAPI lifespan context manager."""
     from sqlmodel import Session  # noqa: PLC0415
     with Session(engine) as session:

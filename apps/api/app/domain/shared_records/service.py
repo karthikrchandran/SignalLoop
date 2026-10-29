@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypedDict
 
 from sqlmodel import Session
 
@@ -30,7 +31,7 @@ from app.integrations.ecrm_shared_records import EcrmSharedRecordNotFound
 
 
 @contextmanager
-def _local_session(session: Session | None = None):
+def _local_session(session: Session | None = None) -> Iterator[Session]:
     managed_session = session or Session(engine)
     owns_session = session is None
     try:
@@ -42,6 +43,14 @@ def _local_session(session: Session | None = None):
 
 def _local_repo(session: Session | None = None) -> PlatformSharedRepository:
     return PlatformSharedRepository(session or Session(engine))
+
+
+class SharedContactQuery(TypedDict, total=False):
+    entity_type: str
+    q: str | None
+    status: str
+    limit: int
+    parent_id: str
 
 
 def _platform_contact_to_public(
@@ -521,7 +530,7 @@ def list_shared_contacts(
             )
         return [_platform_contact_to_public(row, repo=repo) for row in rows]
 
-    request: dict[str, object] = {
+    request: SharedContactQuery = {
         "entity_type": "CONTACT",
         "q": search,
         "status": "active",
@@ -557,13 +566,13 @@ def get_shared_contact(
     if settings.USE_LOCAL_SHARED_RECORDS:
         with _local_session(session) as local_session:
             repo = _local_repo(local_session)
-            contact = repo.get_contact_by_public_id(
+            platform_contact = repo.get_contact_by_public_id(
                 workspace_id=workspace_id,
                 public_id=contact_id,
             )
-        if contact is None:
+        if platform_contact is None:
             return None
-        return _platform_contact_to_public(contact, repo=repo)
+        return _platform_contact_to_public(platform_contact, repo=repo)
 
     try:
         response = ecrm_shared_records.get_shared_record(str(contact_id))
@@ -660,13 +669,13 @@ def list_shared_accounts(
                 search=search,
                 limit=limit,
             )
-            rows: list[Customer360AccountRowPublic] = []
+            local_rows: list[Customer360AccountRowPublic] = []
             for account in accounts:
                 contact_count = repo.count_contacts_for_account(
                     workspace_id=workspace_id,
                     account_public_id=account["id"],
                 )
-                rows.append(
+                local_rows.append(
                     Customer360AccountRowPublic(
                         **_platform_account_to_public(account, repo=repo).model_dump(),
                         contact_count=contact_count,
@@ -675,7 +684,7 @@ def list_shared_accounts(
                         top_next_action=None,
                     )
                 )
-        return rows
+        return local_rows
 
     rows: list[Customer360AccountRowPublic] = []
     try:
@@ -705,8 +714,8 @@ def list_shared_accounts(
         return rows
 
     for record in customer_records:
-        account = shared_account_to_public(record, workspace_id=workspace_id)
-        if account.workspace_id != workspace_id:
+        public_account = shared_account_to_public(record, workspace_id=workspace_id)
+        if public_account.workspace_id != workspace_id:
             continue
         contacts = list_shared_contacts(
             workspace_id=workspace_id,
@@ -715,7 +724,7 @@ def list_shared_accounts(
         )
         rows.append(
             Customer360AccountRowPublic(
-                **account.model_dump(),
+                **public_account.model_dump(),
                 contact_count=len(contacts),
                 last_activity_at=None,
                 channel_counts={},
@@ -734,13 +743,13 @@ def get_shared_account(
     if settings.USE_LOCAL_SHARED_RECORDS:
         with _local_session(session) as local_session:
             repo = _local_repo(local_session)
-            account = repo.get_account_by_public_id(
+            platform_account = repo.get_account_by_public_id(
                 workspace_id=workspace_id,
                 public_id=account_id,
             )
-        if account is None:
+        if platform_account is None:
             return None
-        return _platform_account_to_public(account, repo=repo)
+        return _platform_account_to_public(platform_account, repo=repo)
 
     try:
         record = ecrm_shared_records.get_shared_record(str(account_id))
@@ -759,25 +768,25 @@ def get_shared_account_profile(
     if settings.USE_LOCAL_SHARED_RECORDS:
         with _local_session(session) as local_session:
             repo = _local_repo(local_session)
-            account = repo.get_account_by_public_id(
+            platform_account = repo.get_account_by_public_id(
                 workspace_id=workspace_id,
                 public_id=account_id,
             )
-            if account is None:
+            if platform_account is None:
                 return None
-            contacts = repo.list_contacts(
+            platform_contacts = repo.list_contacts(
                 workspace_id=workspace_id,
                 search=None,
                 parent_public_id=account_id,
                 limit=100,
             )
         return Customer360AccountProfilePublic(
-            account=_platform_account_to_public(account, repo=repo),
+            account=_platform_account_to_public(platform_account, repo=repo),
             contacts=[
                 shared_contact_to_customer_360(
                     _platform_contact_to_public(contact, repo=repo)
                 )
-                for contact in contacts
+                for contact in platform_contacts
             ],
             channel_summaries={
                 "chatbot": _empty_channel_summary("chatbot", "Chatbot"),

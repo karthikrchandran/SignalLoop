@@ -8,7 +8,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
@@ -85,58 +85,58 @@ def _compute_health(
 
     # Active count: pending items in action_queue for this campaign
     active_count = session.exec(
-        select(func.count(ActionQueue.id)).where(
-            ActionQueue.campaign_id == campaign_id,
-            ActionQueue.workspace_id == workspace_id,
-            ActionQueue.status == "pending",
+        select(func.count(col(ActionQueue.id))).where(
+            col(ActionQueue.campaign_id) == campaign_id,
+            col(ActionQueue.workspace_id) == workspace_id,
+            col(ActionQueue.status) == "pending",
         )
     ).one()
 
     # Dead-letter count: items currently in dead_letter status
     dead_letter_count = session.exec(
-        select(func.count(ActionQueue.id)).where(
-            ActionQueue.campaign_id == campaign_id,
-            ActionQueue.workspace_id == workspace_id,
-            ActionQueue.status == "dead_letter",
+        select(func.count(col(ActionQueue.id))).where(
+            col(ActionQueue.campaign_id) == campaign_id,
+            col(ActionQueue.workspace_id) == workspace_id,
+            col(ActionQueue.status) == "dead_letter",
         )
     ).one()
 
     # Success / failure counts from action_queue (last 1h and 24h)
     success_count_1h = session.exec(
-        select(func.count(ActionQueue.id)).where(
-            ActionQueue.campaign_id == campaign_id,
-            ActionQueue.workspace_id == workspace_id,
-            ActionQueue.status == "completed",
-            ActionQueue.executed_at >= one_hour_ago,
+        select(func.count(col(ActionQueue.id))).where(
+            col(ActionQueue.campaign_id) == campaign_id,
+            col(ActionQueue.workspace_id) == workspace_id,
+            col(ActionQueue.status) == "completed",
+            col(ActionQueue.executed_at) >= one_hour_ago,
         )
     ).one()
     success_count_24h = session.exec(
-        select(func.count(ActionQueue.id)).where(
-            ActionQueue.campaign_id == campaign_id,
-            ActionQueue.workspace_id == workspace_id,
-            ActionQueue.status == "completed",
-            ActionQueue.executed_at >= twenty_four_hours_ago,
+        select(func.count(col(ActionQueue.id))).where(
+            col(ActionQueue.campaign_id) == campaign_id,
+            col(ActionQueue.workspace_id) == workspace_id,
+            col(ActionQueue.status) == "completed",
+            col(ActionQueue.executed_at) >= twenty_four_hours_ago,
         )
     ).one()
     failure_count_24h = session.exec(
-        select(func.count(ActionQueue.id)).where(
-            ActionQueue.campaign_id == campaign_id,
-            ActionQueue.workspace_id == workspace_id,
-            ActionQueue.status.in_(["failed", "dead_letter"]),
-            ActionQueue.created_at >= twenty_four_hours_ago,
+        select(func.count(col(ActionQueue.id))).where(
+            col(ActionQueue.campaign_id) == campaign_id,
+            col(ActionQueue.workspace_id) == workspace_id,
+            col(ActionQueue.status).in_(["failed", "dead_letter"]),
+            col(ActionQueue.created_at) >= twenty_four_hours_ago,
         )
     ).one()
 
     # Provider errors by type from routing_decisions (last 24h, reason_code grouping)
     provider_rows = session.exec(
-        select(RoutingDecision.reason_code, func.count(RoutingDecision.id))
+        select(col(RoutingDecision.reason_code), func.count(col(RoutingDecision.id)))
         .where(
-            RoutingDecision.campaign_id == campaign_id,
-            RoutingDecision.workspace_id == workspace_id,
-            RoutingDecision.outcome == "failed",
-            RoutingDecision.created_at >= twenty_four_hours_ago,
+            col(RoutingDecision.campaign_id) == campaign_id,
+            col(RoutingDecision.workspace_id) == workspace_id,
+            col(RoutingDecision.outcome) == "failed",
+            col(RoutingDecision.created_at) >= twenty_four_hours_ago,
         )
-        .group_by(RoutingDecision.reason_code)
+        .group_by(col(RoutingDecision.reason_code))
     ).all()
     provider_errors_by_type: dict[str, int] = {
         (code or "UNKNOWN"): count for code, count in provider_rows
@@ -194,10 +194,10 @@ def list_dead_letters(
     offset = (page - 1) * limit
 
     total = session.exec(
-        select(func.count(ActionQueue.id)).where(
-            ActionQueue.campaign_id == campaign_id,
-            ActionQueue.workspace_id == workspace_id,
-            ActionQueue.status == "dead_letter",
+        select(func.count(col(ActionQueue.id))).where(
+            col(ActionQueue.campaign_id) == campaign_id,
+            col(ActionQueue.workspace_id) == workspace_id,
+            col(ActionQueue.status) == "dead_letter",
         )
     ).one()
 
@@ -208,7 +208,7 @@ def list_dead_letters(
             ActionQueue.workspace_id == workspace_id,
             ActionQueue.status == "dead_letter",
         )
-        .order_by(ActionQueue.dead_lettered_at)
+        .order_by(col(ActionQueue.dead_lettered_at))
         .offset(offset)
         .limit(limit)
     ).all()
@@ -243,7 +243,7 @@ async def retry_dead_letter(
     current_user: CurrentUser,
     idempotency_key: IdempotencyKeyDep,
 ) -> DeadLetterItemPublic:
-    return await run_idempotent_mutation(
+    return DeadLetterItemPublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -253,7 +253,7 @@ async def retry_dead_letter(
         mutation=lambda: _retry_dead_letter_once(
             campaign_id, item_id, request, session, workspace_id, current_user
         ),
-    )
+    ))
 
 
 async def _retry_dead_letter_once(
@@ -347,7 +347,7 @@ async def dismiss_dead_letter(
     current_user: CurrentUser,
     idempotency_key: IdempotencyKeyDep,
 ) -> DeadLetterItemPublic:
-    return await run_idempotent_mutation(
+    return DeadLetterItemPublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -357,7 +357,7 @@ async def dismiss_dead_letter(
         mutation=lambda: _dismiss_dead_letter_once(
             campaign_id, item_id, request, session, workspace_id, current_user
         ),
-    )
+    ))
 
 
 async def _dismiss_dead_letter_once(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.core.db import engine
 from app.domain.installations.projection_dispatch import (
@@ -31,7 +31,7 @@ class ProjectionWorker:
 
         installations = session.exec(
             select(ProductInstallation)
-            .join(Tenant, Tenant.id == ProductInstallation.tenant_id)
+            .join(Tenant, col(Tenant.id) == col(ProductInstallation.tenant_id))
             .where(
                 ProductInstallation.status == "ACTIVE",
                 ProductInstallation.product_code == ProductCode.REVENUE_OS,

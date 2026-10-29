@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime, timedelta, timezone
-from typing import Literal
+from typing import Any, Literal
 
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlalchemy import select as sa_select
+from sqlmodel import Session, col, select
 
 from app.domain_models import (
     ActionQueue,
@@ -37,24 +38,24 @@ def _agg_snapshots(
     start: date,
     end: date,
     campaign_id: uuid.UUID | None,
-) -> dict:
+) -> dict[str, Any]:
     """Sum all KPI counters from materialized snapshots for a given date range."""
-    stmt = select(
-        func.coalesce(func.sum(KpiDailySnapshot.contacts_processed), 0),
-        func.coalesce(func.sum(KpiDailySnapshot.intent_signals), 0),
-        func.coalesce(func.sum(KpiDailySnapshot.qualified_contacts), 0),
-        func.coalesce(func.sum(KpiDailySnapshot.bookings_confirmed), 0),
-        func.coalesce(func.sum(KpiDailySnapshot.provider_errors), 0),
-        func.coalesce(func.sum(KpiDailySnapshot.booking_sla_met), 0),
-        func.coalesce(func.sum(KpiDailySnapshot.booking_sla_breached), 0),
+    stmt = sa_select(
+        func.coalesce(func.sum(col(KpiDailySnapshot.contacts_processed)), 0),
+        func.coalesce(func.sum(col(KpiDailySnapshot.intent_signals)), 0),
+        func.coalesce(func.sum(col(KpiDailySnapshot.qualified_contacts)), 0),
+        func.coalesce(func.sum(col(KpiDailySnapshot.bookings_confirmed)), 0),
+        func.coalesce(func.sum(col(KpiDailySnapshot.provider_errors)), 0),
+        func.coalesce(func.sum(col(KpiDailySnapshot.booking_sla_met)), 0),
+        func.coalesce(func.sum(col(KpiDailySnapshot.booking_sla_breached)), 0),
     ).where(
-        KpiDailySnapshot.workspace_id == workspace_id,
-        KpiDailySnapshot.date >= datetime(start.year, start.month, start.day, tzinfo=None),
-        KpiDailySnapshot.date <= datetime(end.year, end.month, end.day, tzinfo=None),
+        col(KpiDailySnapshot.workspace_id) == workspace_id,
+        col(KpiDailySnapshot.date) >= datetime(start.year, start.month, start.day, tzinfo=None),
+        col(KpiDailySnapshot.date) <= datetime(end.year, end.month, end.day, tzinfo=None),
     )
     if campaign_id is not None:
-        stmt = stmt.where(KpiDailySnapshot.campaign_id == campaign_id)
-    row = session.exec(stmt).first()
+        stmt = stmt.where(col(KpiDailySnapshot.campaign_id) == campaign_id)
+    row = session.execute(stmt).first()
     if row is None:
         return _zero_kpi()
     (
@@ -96,7 +97,7 @@ def _agg_today_live(
     session: Session,
     workspace_id: str,
     campaign_id: uuid.UUID | None,
-) -> dict:
+) -> dict[str, Any]:
     """Compute today's partial KPIs live from operational tables."""
     _ensure_campaign_workspace(session, workspace_id, campaign_id)
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -113,53 +114,53 @@ def _agg_today_live(
 
     # We need to filter by workspace — join to Campaign for workspace_id
     contacts_stmt = contacts_stmt.join(
-        Campaign, ActionQueue.campaign_id == Campaign.id
+        Campaign, col(ActionQueue.campaign_id) == col(Campaign.id)
     ).where(Campaign.workspace_id == workspace_id)
 
     contacts_processed = session.exec(contacts_stmt).first() or 0
 
     # intent_signals: routing decisions with decision_type = "intent_detected" today
-    signals_stmt = select(func.count(RoutingDecision.id)).where(
-        RoutingDecision.workspace_id == workspace_id,
-        RoutingDecision.decision_type == "intent_detected",
-        RoutingDecision.created_at >= today_start,
-        RoutingDecision.created_at <= today_end,
+    signals_stmt = select(func.count(col(RoutingDecision.id))).where(
+        col(RoutingDecision.workspace_id) == workspace_id,
+        col(RoutingDecision.decision_type) == "intent_detected",
+        col(RoutingDecision.created_at) >= today_start,
+        col(RoutingDecision.created_at) <= today_end,
     )
     if campaign_id is not None:
         signals_stmt = signals_stmt.where(RoutingDecision.campaign_id == campaign_id)
     intent_signals = session.exec(signals_stmt).first() or 0
 
     # qualified_contacts: routing decisions with outcome = "qualified"
-    qualified_stmt = select(func.count(RoutingDecision.id)).where(
-        RoutingDecision.workspace_id == workspace_id,
-        RoutingDecision.outcome == "qualified",
-        RoutingDecision.created_at >= today_start,
-        RoutingDecision.created_at <= today_end,
+    qualified_stmt = select(func.count(col(RoutingDecision.id))).where(
+        col(RoutingDecision.workspace_id) == workspace_id,
+        col(RoutingDecision.outcome) == "qualified",
+        col(RoutingDecision.created_at) >= today_start,
+        col(RoutingDecision.created_at) <= today_end,
     )
     if campaign_id is not None:
         qualified_stmt = qualified_stmt.where(RoutingDecision.campaign_id == campaign_id)
     qualified_contacts = session.exec(qualified_stmt).first() or 0
 
     # bookings_confirmed: routing decisions with outcome = "booked"
-    bookings_stmt = select(func.count(RoutingDecision.id)).where(
-        RoutingDecision.workspace_id == workspace_id,
-        RoutingDecision.outcome == "booked",
-        RoutingDecision.created_at >= today_start,
-        RoutingDecision.created_at <= today_end,
+    bookings_stmt = select(func.count(col(RoutingDecision.id))).where(
+        col(RoutingDecision.workspace_id) == workspace_id,
+        col(RoutingDecision.outcome) == "booked",
+        col(RoutingDecision.created_at) >= today_start,
+        col(RoutingDecision.created_at) <= today_end,
     )
     if campaign_id is not None:
         bookings_stmt = bookings_stmt.where(RoutingDecision.campaign_id == campaign_id)
     bookings_confirmed = session.exec(bookings_stmt).first() or 0
 
     # provider_errors: failed action_queue rows
-    errors_stmt = select(func.count(ActionQueue.id)).join(
-        Campaign, ActionQueue.campaign_id == Campaign.id
+    errors_stmt = select(func.count(col(ActionQueue.id))).join(
+        Campaign, col(ActionQueue.campaign_id) == col(Campaign.id)
     ).where(
-        Campaign.workspace_id == workspace_id,
-        ActionQueue.workspace_id == workspace_id,
-        ActionQueue.status == "failed",
-        ActionQueue.created_at >= today_start,
-        ActionQueue.created_at <= today_end,
+        col(Campaign.workspace_id) == workspace_id,
+        col(ActionQueue.workspace_id) == workspace_id,
+        col(ActionQueue.status) == "failed",
+        col(ActionQueue.created_at) >= today_start,
+        col(ActionQueue.created_at) <= today_end,
     )
     if campaign_id is not None:
         errors_stmt = errors_stmt.where(ActionQueue.campaign_id == campaign_id)
@@ -188,10 +189,10 @@ def get_kpi_trend(
     end: date,
     granularity: Granularity,
     campaign_id: uuid.UUID | None = None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return bucketed KPI data points between start and end (inclusive)."""
     bucket_days = _BUCKET_DAYS[granularity]
-    buckets: list[dict] = []
+    buckets: list[dict[str, Any]] = []
     current = start
     today = date.today()
 
@@ -229,7 +230,7 @@ def get_kpi_summary(
     end: date,
     _granularity: Granularity,
     campaign_id: uuid.UUID | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Return current_period KPIs, prior_period KPIs, and delta_pct for each metric."""
     period_days = (end - start).days + 1
     prior_end = start - timedelta(days=1)
@@ -252,7 +253,7 @@ def get_kpi_summary(
     for metric in current_kpi:
         curr_val = current_kpi.get(metric)
         prior_val = prior_kpi.get(metric)
-        if curr_val is not None and prior_val not in (None, 0):
+        if curr_val is not None and prior_val is not None and prior_val != 0:
             delta_pct[metric] = round(((curr_val or 0) - prior_val) / prior_val * 100, 2)
         else:
             delta_pct[metric] = None
@@ -281,7 +282,7 @@ def compute_daily_snapshot(
     day_end = datetime(target_date.year, target_date.month, target_date.day, 23, 59, 59, 999999, tzinfo=timezone.utc)
 
     contacts_stmt = select(func.count(func.distinct(ActionQueue.contact_id))).join(
-        Campaign, ActionQueue.campaign_id == Campaign.id
+        Campaign, col(ActionQueue.campaign_id) == col(Campaign.id)
     ).where(
         Campaign.workspace_id == workspace_id,
         ActionQueue.workspace_id == workspace_id,
@@ -292,44 +293,44 @@ def compute_daily_snapshot(
         contacts_stmt = contacts_stmt.where(ActionQueue.campaign_id == campaign_id)
     contacts_processed = int(session.exec(contacts_stmt).first() or 0)
 
-    signals_stmt = select(func.count(RoutingDecision.id)).where(
-        RoutingDecision.workspace_id == workspace_id,
-        RoutingDecision.decision_type == "intent_detected",
-        RoutingDecision.created_at >= day_start,
-        RoutingDecision.created_at <= day_end,
+    signals_stmt = select(func.count(col(RoutingDecision.id))).where(
+        col(RoutingDecision.workspace_id) == workspace_id,
+        col(RoutingDecision.decision_type) == "intent_detected",
+        col(RoutingDecision.created_at) >= day_start,
+        col(RoutingDecision.created_at) <= day_end,
     )
     if campaign_id is not None:
         signals_stmt = signals_stmt.where(RoutingDecision.campaign_id == campaign_id)
     intent_signals = int(session.exec(signals_stmt).first() or 0)
 
-    qualified_stmt = select(func.count(RoutingDecision.id)).where(
-        RoutingDecision.workspace_id == workspace_id,
-        RoutingDecision.outcome == "qualified",
-        RoutingDecision.created_at >= day_start,
-        RoutingDecision.created_at <= day_end,
+    qualified_stmt = select(func.count(col(RoutingDecision.id))).where(
+        col(RoutingDecision.workspace_id) == workspace_id,
+        col(RoutingDecision.outcome) == "qualified",
+        col(RoutingDecision.created_at) >= day_start,
+        col(RoutingDecision.created_at) <= day_end,
     )
     if campaign_id is not None:
         qualified_stmt = qualified_stmt.where(RoutingDecision.campaign_id == campaign_id)
     qualified_contacts = int(session.exec(qualified_stmt).first() or 0)
 
-    bookings_stmt = select(func.count(RoutingDecision.id)).where(
-        RoutingDecision.workspace_id == workspace_id,
-        RoutingDecision.outcome == "booked",
-        RoutingDecision.created_at >= day_start,
-        RoutingDecision.created_at <= day_end,
+    bookings_stmt = select(func.count(col(RoutingDecision.id))).where(
+        col(RoutingDecision.workspace_id) == workspace_id,
+        col(RoutingDecision.outcome) == "booked",
+        col(RoutingDecision.created_at) >= day_start,
+        col(RoutingDecision.created_at) <= day_end,
     )
     if campaign_id is not None:
         bookings_stmt = bookings_stmt.where(RoutingDecision.campaign_id == campaign_id)
     bookings_confirmed = int(session.exec(bookings_stmt).first() or 0)
 
-    errors_stmt = select(func.count(ActionQueue.id)).join(
-        Campaign, ActionQueue.campaign_id == Campaign.id
+    errors_stmt = select(func.count(col(ActionQueue.id))).join(
+        Campaign, col(ActionQueue.campaign_id) == col(Campaign.id)
     ).where(
-        Campaign.workspace_id == workspace_id,
-        ActionQueue.workspace_id == workspace_id,
-        ActionQueue.status == "failed",
-        ActionQueue.created_at >= day_start,
-        ActionQueue.created_at <= day_end,
+        col(Campaign.workspace_id) == workspace_id,
+        col(ActionQueue.workspace_id) == workspace_id,
+        col(ActionQueue.status) == "failed",
+        col(ActionQueue.created_at) >= day_start,
+        col(ActionQueue.created_at) <= day_end,
     )
     if campaign_id is not None:
         errors_stmt = errors_stmt.where(ActionQueue.campaign_id == campaign_id)
@@ -354,7 +355,7 @@ def compute_daily_snapshot(
 # ---------------------------------------------------------------------------
 
 
-def _zero_kpi() -> dict:
+def _zero_kpi() -> dict[str, Any]:
     return _compute_kpi(0, 0, 0, 0, 0, 0, 0)
 
 
@@ -366,7 +367,7 @@ def _compute_kpi(
     provider_errors: int,
     booking_sla_met: int,
     booking_sla_breached: int,
-) -> dict:
+) -> dict[str, Any]:
     signal_yield_rate = (
         round(intent_signals / contacts_processed * 100, 2) if contacts_processed else 0.0
     )
@@ -391,7 +392,7 @@ def _compute_kpi(
     }
 
 
-def _merge_kpis(a: dict, b: dict) -> dict:
+def _merge_kpis(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
     return _compute_kpi(
         int(a.get("contacts_processed", 0)) + int(b.get("contacts_processed", 0)),
         int(a.get("intent_signals", 0)) + int(b.get("intent_signals", 0)),

@@ -25,7 +25,7 @@ from fastapi import HTTPException, Request, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain_models import IdempotencyRecord
 
@@ -139,11 +139,11 @@ async def run_idempotent_mutation(
             existing.state == "retryable_failure"
             and existing.request_hash == request_hash
         ):
-            claimed = session.execute(
+            claimed = session.exec(
                 update(IdempotencyRecord)
                 .where(
-                    IdempotencyRecord.id == existing.id,
-                    IdempotencyRecord.state == "retryable_failure",
+                    col(IdempotencyRecord.id) == existing.id,
+                    col(IdempotencyRecord.state) == "retryable_failure",
                 )
                 .values(
                     state="in_progress",

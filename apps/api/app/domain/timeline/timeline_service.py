@@ -10,7 +10,7 @@ from typing import Any
 
 from fastapi import Request
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain.signals.models import SignalEvent
 from app.domain.signals.scheduling import SchedulingRequest
@@ -370,17 +370,17 @@ def _fetch_state_history(
         return [], 0
 
     count_stmt = (
-        select(func.count(ContactStateHistory.id))
+        select(func.count(col(ContactStateHistory.id)))
         .select_from(ContactStateHistory)
-        .join(Campaign, ContactStateHistory.campaign_id == Campaign.id)
+        .join(Campaign, col(ContactStateHistory.campaign_id) == col(Campaign.id))
         .where(
-            ContactStateHistory.shared_contact_id == shared_contact_id,
-            Campaign.workspace_id == workspace_id,
+            col(ContactStateHistory.shared_contact_id) == shared_contact_id,
+            col(Campaign.workspace_id) == workspace_id,
         )
     )
     stmt = (
         select(ContactStateHistory)
-        .join(Campaign, ContactStateHistory.campaign_id == Campaign.id)
+        .join(Campaign, col(ContactStateHistory.campaign_id) == col(Campaign.id))
         .where(
             ContactStateHistory.shared_contact_id == shared_contact_id,
             Campaign.workspace_id == workspace_id,
@@ -399,7 +399,7 @@ def _fetch_state_history(
         stmt = stmt.where(ContactStateHistory.triggered_at <= cursor_key[0])
 
     rows = session.exec(
-        stmt.order_by(ContactStateHistory.triggered_at.desc()).limit(source_limit)
+        stmt.order_by(col(ContactStateHistory.triggered_at).desc()).limit(source_limit)
     ).all()
     return list(rows), _count(session, count_stmt)
 
@@ -416,9 +416,9 @@ def _fetch_contact_events(
     source_limit: int,
 ) -> tuple[list[ContactEvent], int]:
     shared_contact_id = contact_id
-    count_stmt = select(func.count(ContactEvent.id)).where(
-        ContactEvent.shared_contact_id == shared_contact_id,
-        ContactEvent.workspace_id == workspace_id,
+    count_stmt = select(func.count(col(ContactEvent.id))).where(
+        col(ContactEvent.shared_contact_id) == shared_contact_id,
+        col(ContactEvent.workspace_id) == workspace_id,
     )
     stmt = select(ContactEvent).where(
         ContactEvent.shared_contact_id == shared_contact_id,
@@ -428,8 +428,8 @@ def _fetch_contact_events(
         count_stmt = count_stmt.where(ContactEvent.campaign_id == campaign_id)
         stmt = stmt.where(ContactEvent.campaign_id == campaign_id)
     if event_types:
-        count_stmt = count_stmt.where(ContactEvent.event_type.in_(event_types))
-        stmt = stmt.where(ContactEvent.event_type.in_(event_types))
+        count_stmt = count_stmt.where(col(ContactEvent.event_type).in_(event_types))
+        stmt = stmt.where(col(ContactEvent.event_type).in_(event_types))
     if from_dt:
         count_stmt = count_stmt.where(ContactEvent.created_at >= from_dt)
         stmt = stmt.where(ContactEvent.created_at >= from_dt)
@@ -439,7 +439,7 @@ def _fetch_contact_events(
     if cursor_key:
         stmt = stmt.where(ContactEvent.created_at <= cursor_key[0])
 
-    rows = session.exec(stmt.order_by(ContactEvent.created_at.desc()).limit(source_limit)).all()
+    rows = session.exec(stmt.order_by(col(ContactEvent.created_at).desc()).limit(source_limit)).all()
     return list(rows), _count(session, count_stmt)
 
 
@@ -458,9 +458,9 @@ def _fetch_routing_decisions(
     if event_types and not event_types.intersection({"routing", "routing_decision"}):
         return [], 0
 
-    count_stmt = select(func.count(RoutingDecision.id)).where(
-        RoutingDecision.shared_contact_id == shared_contact_id,
-        RoutingDecision.workspace_id == workspace_id,
+    count_stmt = select(func.count(col(RoutingDecision.id))).where(
+        col(RoutingDecision.shared_contact_id) == shared_contact_id,
+        col(RoutingDecision.workspace_id) == workspace_id,
     )
     stmt = select(RoutingDecision).where(
         RoutingDecision.shared_contact_id == shared_contact_id,
@@ -471,8 +471,8 @@ def _fetch_routing_decisions(
         stmt = stmt.where(RoutingDecision.campaign_id == campaign_id)
     if event_types:
         decision_types = event_types.intersection({"routing", "routing_decision"})
-        count_stmt = count_stmt.where(RoutingDecision.decision_type.in_(decision_types))
-        stmt = stmt.where(RoutingDecision.decision_type.in_(decision_types))
+        count_stmt = count_stmt.where(col(RoutingDecision.decision_type).in_(decision_types))
+        stmt = stmt.where(col(RoutingDecision.decision_type).in_(decision_types))
     if from_dt:
         count_stmt = count_stmt.where(RoutingDecision.created_at >= from_dt)
         stmt = stmt.where(RoutingDecision.created_at >= from_dt)
@@ -482,7 +482,7 @@ def _fetch_routing_decisions(
     if cursor_key:
         stmt = stmt.where(RoutingDecision.created_at <= cursor_key[0])
 
-    rows = session.exec(stmt.order_by(RoutingDecision.created_at.desc()).limit(source_limit)).all()
+    rows = session.exec(stmt.order_by(col(RoutingDecision.created_at).desc()).limit(source_limit)).all()
     return list(rows), _count(session, count_stmt)
 
 
@@ -499,17 +499,17 @@ def _fetch_signal_events(
 ) -> tuple[list[SignalEvent], int]:
     shared_contact_id = contact_id
     count_stmt = (
-        select(func.count(SignalEvent.id))
+        select(func.count(col(SignalEvent.id)))
         .select_from(SignalEvent)
-        .join(Campaign, SignalEvent.campaign_id == Campaign.id)
+        .join(Campaign, col(SignalEvent.campaign_id) == col(Campaign.id))
         .where(
-            SignalEvent.shared_contact_id == shared_contact_id,
-            Campaign.workspace_id == workspace_id,
+            col(SignalEvent.shared_contact_id) == shared_contact_id,
+            col(Campaign.workspace_id) == workspace_id,
         )
     )
     stmt = (
         select(SignalEvent)
-        .join(Campaign, SignalEvent.campaign_id == Campaign.id)
+        .join(Campaign, col(SignalEvent.campaign_id) == col(Campaign.id))
         .where(
             SignalEvent.shared_contact_id == shared_contact_id,
             Campaign.workspace_id == workspace_id,
@@ -519,8 +519,8 @@ def _fetch_signal_events(
         count_stmt = count_stmt.where(SignalEvent.campaign_id == campaign_id)
         stmt = stmt.where(SignalEvent.campaign_id == campaign_id)
     if event_types and not event_types.intersection({"signal", "signal_event"}):
-        count_stmt = count_stmt.where(SignalEvent.signal_type.in_(event_types))
-        stmt = stmt.where(SignalEvent.signal_type.in_(event_types))
+        count_stmt = count_stmt.where(col(SignalEvent.signal_type).in_(event_types))
+        stmt = stmt.where(col(SignalEvent.signal_type).in_(event_types))
     if from_dt:
         count_stmt = count_stmt.where(SignalEvent.created_at >= from_dt)
         stmt = stmt.where(SignalEvent.created_at >= from_dt)
@@ -530,7 +530,7 @@ def _fetch_signal_events(
     if cursor_key:
         stmt = stmt.where(SignalEvent.created_at <= cursor_key[0])
 
-    rows = session.exec(stmt.order_by(SignalEvent.created_at.desc()).limit(source_limit)).all()
+    rows = session.exec(stmt.order_by(col(SignalEvent.created_at).desc()).limit(source_limit)).all()
     return list(rows), _count(session, count_stmt)
 
 
@@ -553,17 +553,17 @@ def _fetch_scheduling_requests(
         return [], 0
 
     count_stmt = (
-        select(func.count(SchedulingRequest.id))
+        select(func.count(col(SchedulingRequest.id)))
         .select_from(SchedulingRequest)
-        .join(Campaign, SchedulingRequest.campaign_id == Campaign.id)
+        .join(Campaign, col(SchedulingRequest.campaign_id) == col(Campaign.id))
         .where(
-            SchedulingRequest.shared_contact_id == shared_contact_id,
-            Campaign.workspace_id == workspace_id,
+            col(SchedulingRequest.shared_contact_id) == shared_contact_id,
+            col(Campaign.workspace_id) == workspace_id,
         )
     )
     stmt = (
         select(SchedulingRequest)
-        .join(Campaign, SchedulingRequest.campaign_id == Campaign.id)
+        .join(Campaign, col(SchedulingRequest.campaign_id) == col(Campaign.id))
         .where(
             SchedulingRequest.shared_contact_id == shared_contact_id,
             Campaign.workspace_id == workspace_id,
@@ -575,8 +575,8 @@ def _fetch_scheduling_requests(
     if event_types:
         selected_statuses = event_types.intersection(status_values)
         if selected_statuses:
-            count_stmt = count_stmt.where(SchedulingRequest.status.in_(selected_statuses))
-            stmt = stmt.where(SchedulingRequest.status.in_(selected_statuses))
+            count_stmt = count_stmt.where(col(SchedulingRequest.status).in_(selected_statuses))
+            stmt = stmt.where(col(SchedulingRequest.status).in_(selected_statuses))
     if from_dt:
         count_stmt = count_stmt.where(SchedulingRequest.created_at >= from_dt)
         stmt = stmt.where(SchedulingRequest.created_at >= from_dt)
@@ -586,7 +586,7 @@ def _fetch_scheduling_requests(
     if cursor_key:
         stmt = stmt.where(SchedulingRequest.created_at <= cursor_key[0])
 
-    rows = session.exec(stmt.order_by(SchedulingRequest.created_at.desc()).limit(source_limit)).all()
+    rows = session.exec(stmt.order_by(col(SchedulingRequest.created_at).desc()).limit(source_limit)).all()
     return list(rows), _count(session, count_stmt)
 
 
@@ -609,19 +609,19 @@ def _fetch_call_sessions(
 
     timestamp_col = func.coalesce(CallSession.twilio_status_updated_at, CallSession.created_at)
     count_stmt = (
-        select(func.count(CallSession.id))
+        select(func.count(col(CallSession.id)))
         .select_from(CallSession)
-        .join(CallRequest, CallSession.call_request_id == CallRequest.id)
-        .join(Campaign, CallRequest.campaign_id == Campaign.id)
+        .join(CallRequest, col(CallSession.call_request_id) == col(CallRequest.id))
+        .join(Campaign, col(CallRequest.campaign_id) == col(Campaign.id))
         .where(
-            CallRequest.shared_contact_id == shared_contact_id,
-            Campaign.workspace_id == workspace_id,
+            col(CallRequest.shared_contact_id) == shared_contact_id,
+            col(Campaign.workspace_id) == workspace_id,
         )
     )
     stmt = (
         select(CallSession, CallRequest)
-        .join(CallRequest, CallSession.call_request_id == CallRequest.id)
-        .join(Campaign, CallRequest.campaign_id == Campaign.id)
+        .join(CallRequest, col(CallSession.call_request_id) == col(CallRequest.id))
+        .join(Campaign, col(CallRequest.campaign_id) == col(Campaign.id))
         .where(
             CallRequest.shared_contact_id == shared_contact_id,
             Campaign.workspace_id == workspace_id,
@@ -654,8 +654,8 @@ def _find_call_session(
     shared_contact_id = contact_id
     stmt = (
         select(CallSession, CallRequest)
-        .join(CallRequest, CallSession.call_request_id == CallRequest.id)
-        .join(Campaign, CallRequest.campaign_id == Campaign.id)
+        .join(CallRequest, col(CallSession.call_request_id) == col(CallRequest.id))
+        .join(Campaign, col(CallRequest.campaign_id) == col(Campaign.id))
         .where(
             CallRequest.shared_contact_id == shared_contact_id,
             Campaign.workspace_id == workspace_id,
@@ -667,7 +667,7 @@ def _find_call_session(
         stmt = stmt.where(CallSession.id == call_session_id)
     if call_request_id:
         stmt = stmt.where(CallRequest.id == call_request_id)
-    return session.exec(stmt.order_by(CallSession.created_at.desc())).first()
+    return session.exec(stmt.order_by(col(CallSession.created_at).desc())).first()
 
 
 def _find_transcript_excerpt(
@@ -807,100 +807,100 @@ def get_timeline_event_detail(
 
     if prefix == _CSH:
         shared_contact_id = contact_id
-        row = session.exec(
+        csh_row = session.exec(
             select(ContactStateHistory)
-            .join(Campaign, ContactStateHistory.campaign_id == Campaign.id)
+            .join(Campaign, col(ContactStateHistory.campaign_id) == col(Campaign.id))
             .where(
                 ContactStateHistory.id == row_id,
                 ContactStateHistory.shared_contact_id == shared_contact_id,
                 Campaign.workspace_id == workspace_id,
             )
         ).first()
-        if not row:
+        if not csh_row:
             return None
-        base = _csh_to_event(row)
+        base = _csh_to_event(csh_row)
         return TimelineEventDetailPublic(
             **base.model_dump(),
-            reason_code_explanation=_reason_code_explanation(row.reason),
+            reason_code_explanation=_reason_code_explanation(csh_row.reason),
         )
 
     if prefix == _CE:
-        row = session.get(ContactEvent, row_id)
+        ce_row = session.get(ContactEvent, row_id)
         if (
-            not row
-            or row.shared_contact_id != contact_id
-            or row.workspace_id != workspace_id
+            not ce_row
+            or ce_row.shared_contact_id != contact_id
+            or ce_row.workspace_id != workspace_id
         ):
             return None
-        base = _ce_to_event(row)
+        base = _ce_to_event(ce_row)
         return TimelineEventDetailPublic(
             **base.model_dump(),
-            reason_code_explanation=_reason_code_explanation(row.reason_code, row.event_metadata),
+            reason_code_explanation=_reason_code_explanation(ce_row.reason_code, ce_row.event_metadata),
             transcript_excerpt=(
-                _find_transcript_excerpt(session, contact_id, workspace_id, row.campaign_id, row.event_metadata)
-                if row.channel in {"voice", "call", "telephony"}
+                _find_transcript_excerpt(session, contact_id, workspace_id, ce_row.campaign_id, ce_row.event_metadata)
+                if ce_row.channel in {"voice", "call", "telephony"}
                 else None
             ),
         )
 
     if prefix == _RD:
-        row = session.get(RoutingDecision, row_id)
+        rd_row = session.get(RoutingDecision, row_id)
         if (
-            not row
-            or row.shared_contact_id != contact_id
-            or row.workspace_id != workspace_id
+            not rd_row
+            or rd_row.shared_contact_id != contact_id
+            or rd_row.workspace_id != workspace_id
         ):
             return None
-        base = _rd_to_event(row)
+        base = _rd_to_event(rd_row)
         return TimelineEventDetailPublic(
             **base.model_dump(),
-            rule_name=row.rule_name,
-            rule_condition=row.rule_condition,
-            signal_summary=row.signal_summary,
+            rule_name=rd_row.rule_name,
+            rule_condition=rd_row.rule_condition,
+            signal_summary=rd_row.signal_summary,
             reason_code_explanation=_reason_code_explanation(
-                row.reason_code,
-                fallback=row.signal_summary or row.rule_condition,
+                rd_row.reason_code,
+                fallback=rd_row.signal_summary or rd_row.rule_condition,
             ),
         )
 
     if prefix == _SIG:
-        row = session.exec(
+        sig_row = session.exec(
             select(SignalEvent)
-            .join(Campaign, SignalEvent.campaign_id == Campaign.id)
+            .join(Campaign, col(SignalEvent.campaign_id) == col(Campaign.id))
             .where(
-                SignalEvent.id == row_id,
-                SignalEvent.shared_contact_id == contact_id,
-                Campaign.workspace_id == workspace_id,
+                col(SignalEvent.id) == row_id,
+                col(SignalEvent.shared_contact_id) == contact_id,
+                col(Campaign.workspace_id) == workspace_id,
             )
         ).first()
-        if not row:
+        if not sig_row:
             return None
-        base = _signal_to_event(row)
-        signal_summary = _metadata_value(row.signal_metadata, "summary", "signal_summary")
+        base = _signal_to_event(sig_row)
+        signal_summary = _metadata_value(sig_row.signal_metadata, "summary", "signal_summary")
         return TimelineEventDetailPublic(
             **base.model_dump(),
             signal_summary=signal_summary,
             reason_code_explanation=_reason_code_explanation(
-                row.signal_type,
-                row.signal_metadata,
-                fallback=f"{row.signal_type.replace('_', ' ')} detected with {row.confidence:.0%} confidence.",
+                sig_row.signal_type,
+                sig_row.signal_metadata,
+                fallback=f"{sig_row.signal_type.replace('_', ' ')} detected with {sig_row.confidence:.0%} confidence.",
             ),
         )
 
     if prefix == _SCHED:
-        row = session.exec(
+        sched_row = session.exec(
             select(SchedulingRequest)
-            .join(Campaign, SchedulingRequest.campaign_id == Campaign.id)
+            .join(Campaign, col(SchedulingRequest.campaign_id) == col(Campaign.id))
             .where(
-                SchedulingRequest.id == row_id,
-                SchedulingRequest.shared_contact_id == contact_id,
-                Campaign.workspace_id == workspace_id,
+                col(SchedulingRequest.id) == row_id,
+                col(SchedulingRequest.shared_contact_id) == contact_id,
+                col(Campaign.workspace_id) == workspace_id,
             )
         ).first()
-        if not row:
+        if not sched_row:
             return None
-        base = _scheduling_to_event(row)
-        status = row.status.value if hasattr(row.status, "value") else str(row.status)
+        base = _scheduling_to_event(sched_row)
+        status = sched_row.status.value if hasattr(sched_row.status, "value") else str(sched_row.status)
         return TimelineEventDetailPublic(
             **base.model_dump(),
             reason_code_explanation=f"Scheduling request is currently {status}.",

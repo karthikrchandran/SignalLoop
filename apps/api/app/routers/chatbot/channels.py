@@ -40,7 +40,7 @@ from app.routers.chatbot.router import (
     require_chatbot_agent,
 )
 
-router = APIRouter(prefix="/channels", tags=["chatbot-channels"])
+router: APIRouter = APIRouter(prefix="/channels", tags=["chatbot-channels"])
 
 
 def _mask_channel(row: ChatbotChannelConfig) -> ChatbotChannelPublic:
@@ -61,7 +61,7 @@ def _mask_channel(row: ChatbotChannelConfig) -> ChatbotChannelPublic:
 
 
 def _audit(
-    session,
+    session: SessionDep,
     *,
     event_name: str,
     workspace_id: str,
@@ -86,7 +86,7 @@ def _audit(
 
 
 def _upsert_credential(
-    session,
+    session: SessionDep,
     *,
     workspace_id: str,
     body: ChatbotChannelCreate | ChatbotChannelUpdate,
@@ -95,7 +95,12 @@ def _upsert_credential(
     if body.credentials is None:
         return existing.credential_id if existing else None
 
-    channel_type = body.channel_type if isinstance(body, ChatbotChannelCreate) else existing.channel_type
+    if isinstance(body, ChatbotChannelCreate):
+        channel_type = body.channel_type
+    elif existing is not None:
+        channel_type = existing.channel_type
+    else:
+        raise ValueError("An existing channel is required for credential updates")
     provider = provider_for_channel(channel_type)
     if existing and existing.credential_id:
         previous = session.get(ProviderCredential, existing.credential_id)
@@ -107,14 +112,15 @@ def _upsert_credential(
     if body.credentials.webhook_secret:
         config_json["webhook_secret_present"] = True
 
+    api_secret = body.credentials.webhook_secret or body.credentials.api_secret
     credential = ProviderCredential(
         workspace_id=workspace_id,
         provider=provider,
         channel="chatbot",
         encrypted_api_key=encrypt(body.credentials.api_key),
         encrypted_api_secret=(
-            encrypt(body.credentials.webhook_secret or body.credentials.api_secret)
-            if body.credentials.webhook_secret or body.credentials.api_secret
+            encrypt(api_secret)
+            if api_secret
             else None
         ),
         config_json=config_json,

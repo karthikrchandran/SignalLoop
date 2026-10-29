@@ -9,7 +9,8 @@ from collections.abc import Callable
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
-from sqlmodel import select
+from pydantic import TypeAdapter
+from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.api.request_context import IdempotencyKeyDep
@@ -90,7 +91,7 @@ def list_catalog(
             .where(AgentCatalogDefinition.lifecycle_status == "PUBLISHED")
             .order_by(
                 AgentCatalogDefinition.agent_type,
-                AgentCatalogDefinition.catalog_version,
+                col(AgentCatalogDefinition.catalog_version),
             )
         ).all()
     )
@@ -131,7 +132,7 @@ async def provision_entitlement(
         raise HTTPException(
             status_code=403, detail="Platform administration is required"
         )
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -145,7 +146,7 @@ async def provision_entitlement(
             payload=payload,
         ),
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 def _provision_entitlement_once(
@@ -232,7 +233,7 @@ def list_deployments(
         session.exec(
             select(AgentDeployment)
             .where(AgentDeployment.tenant_id == tenant_id)
-            .order_by(AgentDeployment.created_at)
+            .order_by(col(AgentDeployment.created_at))
         ).all()
     )
 
@@ -251,7 +252,7 @@ async def create_deployment(
     idempotency_key: IdempotencyKeyDep,
 ) -> dict[str, Any]:
     _authorize_agent_admin(session, user, tenant_id)
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -265,7 +266,7 @@ async def create_deployment(
             payload=payload,
         ),
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 def _create_deployment_once(
@@ -393,7 +394,7 @@ async def _run_lifecycle_mutation(
         )
         return _deployment_public(deployment)
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -402,7 +403,7 @@ async def _run_lifecycle_mutation(
         request_payload=request_payload or {},
         mutation=mutate_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post("/tenants/{tenant_id}/deployments/{deployment_id}/validate")

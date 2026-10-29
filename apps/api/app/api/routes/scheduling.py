@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import TypeAdapter
 from sqlmodel import select
 
 from app.api.deps import CurrentUser, SessionDep
@@ -73,7 +74,7 @@ def _calendar_provider() -> CalendarProvider:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
-def _require_tenant_workspace(session, tenant_id: uuid.UUID, workspace_id: str) -> None:
+def _require_tenant_workspace(session: SessionDep, tenant_id: uuid.UUID, workspace_id: str) -> None:
     binding = session.exec(
         select(TenantWorkspaceBinding).where(
             TenantWorkspaceBinding.tenant_id == tenant_id,
@@ -163,16 +164,17 @@ def create_request(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    req = scheduling_service.create_scheduling_request(session, data=data)
+    req = scheduling_service.create_scheduling_request(session, data=data, commit=False)
+    session.flush()
     append_audit_event_to_session(
         session,
         actor_id=current_user.id,
         actor_role=audit_actor_role(current_user),
-        event_type="scheduling_request.created",
-        aggregate_id=req.id,
-        aggregate_type="SchedulingRequest",
+        event_name="scheduling_request.created",
+        resource_id=str(req.id),
+        resource_type="SchedulingRequest",
         workspace_id=workspace_id,
-        details={"source": data.source},
+        payload={"source": data.source},
     )
     session.commit()
     session.refresh(req)
@@ -194,17 +196,17 @@ def update_request(
         raise HTTPException(status_code=404, detail="Scheduling request not found")
 
     updated = scheduling_service.update_scheduling_request(
-        session, request_id=request_id, data=data
+        session, request_id=request_id, data=data, commit=False
     )
     append_audit_event_to_session(
         session,
         actor_id=current_user.id,
         actor_role=audit_actor_role(current_user),
-        event_type="scheduling_request.updated",
-        aggregate_id=updated.id,
-        aggregate_type="SchedulingRequest",
+        event_name="scheduling_request.updated",
+        resource_id=str(updated.id),
+        resource_type="SchedulingRequest",
         workspace_id=workspace_id,
-        details=data.model_dump(exclude_none=True),
+        payload=data.model_dump(exclude_none=True),
     )
     session.commit()
     session.refresh(updated)
@@ -272,7 +274,7 @@ async def create_meeting_type(
         )
         return {"id": str(row.id), "status": row.status}
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -281,7 +283,7 @@ async def create_meeting_type(
         request_payload=data.model_dump(mode="json"),
         mutation=create_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post("/agent/tenants/{tenant_id}/provider-bindings", status_code=201)
@@ -330,7 +332,7 @@ async def create_provider_binding(
         )
         return {"id": str(row.id), "status": row.status}
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -339,7 +341,7 @@ async def create_provider_binding(
         request_payload=data.model_dump(mode="json"),
         mutation=create_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post("/agent/tenants/{tenant_id}/requests/{request_id}/offers", status_code=201)
@@ -432,7 +434,7 @@ async def create_calendar_offer(
             "expires_at": offer.expires_at.isoformat(),
         }
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -441,7 +443,7 @@ async def create_calendar_offer(
         request_payload=data.model_dump(mode="json"),
         mutation=create_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post("/agent/tenants/{tenant_id}/offers/{offer_id}/confirm", status_code=201)
@@ -526,7 +528,7 @@ async def confirm_calendar_offer(
             "status": job.status,
         }
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -535,7 +537,7 @@ async def confirm_calendar_offer(
         request_payload=data.model_dump(mode="json"),
         mutation=confirm_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post("/agent/tenants/{tenant_id}/jobs/{job_id}/cancel", status_code=201)
@@ -592,7 +594,7 @@ async def cancel_calendar_job(
         )
         return {"job_id": str(job.id), "status": job.status}
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -601,7 +603,7 @@ async def cancel_calendar_job(
         request_payload=data.model_dump(mode="json"),
         mutation=cancel_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 @router.post("/agent/tenants/{tenant_id}/jobs/{job_id}/reconcile")
@@ -643,7 +645,7 @@ async def reconcile_calendar_job(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return {"job_id": str(job.id), "status": job.status}
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -652,7 +654,7 @@ async def reconcile_calendar_job(
         request_payload=data.model_dump(mode="json"),
         mutation=reconcile_once,
         safe_to_retry_on_failure=False,
-    )
+    ))
 
 
 @router.post("/agent/tenants/{tenant_id}/jobs/{job_id}/replay")
@@ -690,7 +692,7 @@ async def replay_calendar_job(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return {"job_id": str(job.id), "status": job.status}
 
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, Any]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -699,7 +701,7 @@ async def replay_calendar_job(
         request_payload=data.model_dump(mode="json"),
         mutation=replay_once,
         safe_to_retry_on_failure=True,
-    )
+    ))
 
 
 # ---------------------------------------------------------------------------

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlmodel import Session
 
 from app.api.deps import SessionDep
 from app.domain.audit.audit_events import (
@@ -13,6 +14,7 @@ from app.domain.audit.audit_events import (
     audit_actor_role,
 )
 from app.domain.chatbot.channel_readiness import build_channel_readiness
+from app.domain.chatbot.models import ChatbotChannelConfig
 from app.domain.chatbot.prompts import validate_ai_disclosure
 from app.domain.chatbot.repositories import (
     get_or_create_bot_config,
@@ -33,10 +35,10 @@ from app.routers.chatbot.router import (
     require_chatbot_agent,
 )
 
-router = APIRouter(prefix="/config", tags=["chatbot-config"])
+router: APIRouter = APIRouter(prefix="/config", tags=["chatbot-config"])
 
 
-def _channel_public(row) -> ChatbotChannelPublic:
+def _channel_public(row: ChatbotChannelConfig) -> ChatbotChannelPublic:
     return ChatbotChannelPublic(
         id=row.id,
         workspace_id=row.workspace_id,
@@ -53,7 +55,7 @@ def _channel_public(row) -> ChatbotChannelPublic:
     )
 
 
-def _business_hours(raw: dict) -> ChatbotBusinessHoursConfig:
+def _business_hours(raw: dict[str, Any]) -> ChatbotBusinessHoursConfig:
     return ChatbotBusinessHoursConfig(
         enabled=bool(raw.get("enabled", False)),
         timezone=str(raw.get("timezone") or "UTC"),
@@ -63,7 +65,7 @@ def _business_hours(raw: dict) -> ChatbotBusinessHoursConfig:
     )
 
 
-def _lead_capture(raw: dict) -> ChatbotLeadCaptureConfig:
+def _lead_capture(raw: dict[str, Any]) -> ChatbotLeadCaptureConfig:
     return ChatbotLeadCaptureConfig(
         enabled=bool(raw.get("enabled", True)),
         min_turns=int(raw.get("min_turns") or 3),
@@ -75,7 +77,7 @@ def _lead_capture(raw: dict) -> ChatbotLeadCaptureConfig:
     )
 
 
-def _config_public(workspace_id: str, session) -> ChatbotConfigPublic:
+def _config_public(workspace_id: str, session: Session) -> ChatbotConfigPublic:
     row = get_or_create_bot_config(workspace_id, session)
     return ChatbotConfigPublic(
         workspace_id=workspace_id,

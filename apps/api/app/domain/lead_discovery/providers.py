@@ -7,7 +7,6 @@ import hashlib
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any
 
 from app.domain.lead_discovery.models import (
     DiscoveryProviderType,

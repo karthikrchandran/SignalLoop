@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from redis.asyncio import Redis
 
 from app.api.deps import SessionDep
 from app.domain.audit.audit_events import (
@@ -12,6 +13,7 @@ from app.domain.audit.audit_events import (
     audit_actor_role,
 )
 from app.domain.chatbot.schemas import (
+    ChatbotDeadLetterPublic,
     ChatbotDeadLetterRetryPublic,
     ChatbotDeadLettersPublic,
 )
@@ -22,12 +24,12 @@ from app.routers.chatbot.router import (
     require_chatbot_operator,
 )
 
-router = APIRouter(prefix="/dead-letters", tags=["chatbot-dead-letters"])
+router: APIRouter = APIRouter(prefix="/dead-letters", tags=["chatbot-dead-letters"])
 
 
-def _redis_client(request: Request):
+def _redis_client(request: Request) -> Redis:
     manager = getattr(request.app.state, "redis_manager", None)
-    redis = getattr(manager, "client", None)
+    redis: Redis | None = getattr(manager, "client", None)
     if redis is None:
         raise HTTPException(status_code=503, detail="Redis is not available")
     return redis
@@ -41,7 +43,10 @@ async def list_workspace_dead_letters(
 ) -> ChatbotDeadLettersPublic:
     """List dead-lettered chatbot messages for the active workspace."""
     rows = await list_dead_letters(_redis_client(request), workspace_id)
-    return ChatbotDeadLettersPublic(data=rows, count=len(rows))
+    return ChatbotDeadLettersPublic(
+        data=[ChatbotDeadLetterPublic.model_validate(row) for row in rows],
+        count=len(rows),
+    )
 
 
 @router.post("/{dead_letter_id}/retry", response_model=ChatbotDeadLetterRetryPublic)

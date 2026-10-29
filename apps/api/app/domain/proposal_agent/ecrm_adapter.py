@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import importlib
 import os
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -50,6 +50,7 @@ class EcrmProposalApprovalReceipt(BaseModel):
     approved_by: str
 
 
+@runtime_checkable
 class EcrmProposalAdapter(Protocol):
     def apply(self, command: EcrmProposalCommand) -> EcrmProposalReceipt: ...
 
@@ -74,8 +75,8 @@ def load_ecrm_proposal_adapter() -> EcrmProposalAdapter:
         raise EcrmProposalAdapterConfigurationError(
             "eCRM proposal adapter factory is invalid"
         )
-    adapter = factory()
-    if not all(
+    adapter: object = factory()
+    if not isinstance(adapter, EcrmProposalAdapter) or not all(
         callable(getattr(adapter, name, None)) for name in ("apply", "lookup_receipt")
     ):
         raise EcrmProposalAdapterConfigurationError(

@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain.sequences.models import (
     ContactSequenceState,
@@ -26,7 +27,7 @@ from app.workers.call_worker import DAILY_CALL_CAP
 from app.workers.sequence_worker import DEFAULT_DAILY_CAP as EMAIL_DAILY_CAP
 
 
-def get_email_metrics(session: Session, campaign_id: uuid.UUID) -> dict:
+def get_email_metrics(session: Session, campaign_id: uuid.UUID) -> dict[str, Any]:
     """Aggregate email metrics for a campaign."""
     sequences = session.exec(
         select(EmailSequence.id).where(EmailSequence.campaign_id == campaign_id)
@@ -41,9 +42,9 @@ def get_email_metrics(session: Session, campaign_id: uuid.UUID) -> dict:
     states = session.exec(
         select(
             ContactSequenceState.status,
-            func.count(ContactSequenceState.id),
+            func.count(col(ContactSequenceState.id)),
         )
-        .where(ContactSequenceState.sequence_id.in_(seq_ids))
+        .where(col(ContactSequenceState.sequence_id).in_(seq_ids))
         .group_by(ContactSequenceState.status)
     ).all()
 
@@ -53,10 +54,10 @@ def get_email_metrics(session: Session, campaign_id: uuid.UUID) -> dict:
     sends = session.exec(
         select(
             SendRequest.status,
-            func.count(SendRequest.id),
+            func.count(col(SendRequest.id)),
         )
-        .join(ContactSequenceState, SendRequest.contact_sequence_state_id == ContactSequenceState.id)
-        .where(ContactSequenceState.sequence_id.in_(seq_ids))
+        .join(ContactSequenceState, col(SendRequest.contact_sequence_state_id) == col(ContactSequenceState.id))
+        .where(col(ContactSequenceState.sequence_id).in_(seq_ids))
         .group_by(SendRequest.status)
     ).all()
 
@@ -72,13 +73,13 @@ def get_email_metrics(session: Session, campaign_id: uuid.UUID) -> dict:
     }
 
 
-def get_call_metrics(session: Session, campaign_id: uuid.UUID) -> dict:
+def get_call_metrics(session: Session, campaign_id: uuid.UUID) -> dict[str, Any]:
     """Aggregate call metrics for a campaign."""
     # Call request counts
     call_statuses = session.exec(
         select(
             CallRequest.status,
-            func.count(CallRequest.id),
+            func.count(col(CallRequest.id)),
         )
         .where(CallRequest.campaign_id == campaign_id)
         .group_by(CallRequest.status)
@@ -90,9 +91,9 @@ def get_call_metrics(session: Session, campaign_id: uuid.UUID) -> dict:
     outcomes = session.exec(
         select(
             CallSession.outcome,
-            func.count(CallSession.id),
+            func.count(col(CallSession.id)),
         )
-        .join(CallRequest, CallSession.call_request_id == CallRequest.id)
+        .join(CallRequest, col(CallSession.call_request_id) == col(CallRequest.id))
         .where(CallRequest.campaign_id == campaign_id)
         .group_by(CallSession.outcome)
     ).all()
@@ -110,13 +111,13 @@ def get_call_metrics(session: Session, campaign_id: uuid.UUID) -> dict:
     }
 
 
-def get_signal_summary(session: Session, campaign_id: uuid.UUID) -> dict:
+def get_signal_summary(session: Session, campaign_id: uuid.UUID) -> dict[str, Any]:
     """Signal type breakdown for a campaign."""
     results = session.exec(
         select(
             SignalEvent.channel,
             SignalEvent.signal_type,
-            func.count(SignalEvent.id),
+            func.count(col(SignalEvent.id)),
         )
         .where(SignalEvent.campaign_id == campaign_id)
         .group_by(SignalEvent.channel, SignalEvent.signal_type)
@@ -130,29 +131,29 @@ def get_signal_summary(session: Session, campaign_id: uuid.UUID) -> dict:
     return summary
 
 
-def get_daily_cap_status(session: Session, *, workspace_id: str) -> dict:
+def get_daily_cap_status(session: Session, *, workspace_id: str) -> dict[str, Any]:
     """Current daily send/call counts vs caps."""
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
     email_count = session.exec(
-        select(func.count(SendRequest.id))
-        .join(ContactSequenceState, SendRequest.contact_sequence_state_id == ContactSequenceState.id)
-        .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
-        .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+        select(func.count(col(SendRequest.id)))
+        .join(ContactSequenceState, col(SendRequest.contact_sequence_state_id) == col(ContactSequenceState.id))
+        .join(EmailSequence, col(ContactSequenceState.sequence_id) == col(EmailSequence.id))
+        .join(Campaign, col(EmailSequence.campaign_id) == col(Campaign.id))
         .where(
-            SendRequest.status == SendRequestStatus.sent,
-            SendRequest.created_at >= today_start,
-            Campaign.workspace_id == workspace_id,
+            col(SendRequest.status) == SendRequestStatus.sent,
+            col(SendRequest.created_at) >= today_start,
+            col(Campaign.workspace_id) == workspace_id,
         )
     ).one()
 
     call_count = session.exec(
-        select(func.count(CallRequest.id))
-        .join(Campaign, CallRequest.campaign_id == Campaign.id)
+        select(func.count(col(CallRequest.id)))
+        .join(Campaign, col(CallRequest.campaign_id) == col(Campaign.id))
         .where(
-            CallRequest.status.in_([CallRequestStatus.in_progress, CallRequestStatus.completed]),
-            CallRequest.created_at >= today_start,
-            Campaign.workspace_id == workspace_id,
+            col(CallRequest.status).in_([CallRequestStatus.in_progress, CallRequestStatus.completed]),
+            col(CallRequest.created_at) >= today_start,
+            col(Campaign.workspace_id) == workspace_id,
         )
     ).one()
 

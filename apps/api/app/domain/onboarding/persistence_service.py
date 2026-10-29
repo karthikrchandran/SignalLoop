@@ -106,7 +106,7 @@ def execute(session: Session, run: OnboardingRunRecord, providers: FakeProviderH
     run.attempt_count += 1
     run.status = StageStatus.RUNNING.value
     run.lease_expires_at = _now() + _LEASE_DURATION
-    stages = session.exec(select(OnboardingStageRecord).where(OnboardingStageRecord.run_id == run.id)).all()
+    stages = list(session.exec(select(OnboardingStageRecord).where(OnboardingStageRecord.run_id == run.id)).all())
     stage_order = {stage.value: index for index, stage in enumerate(OnboardingStage)}
     stages.sort(key=lambda stage: stage_order[stage.stage])
     if any(stage.result_code == "UNKNOWN_EXTERNAL_OUTCOME" for stage in stages):

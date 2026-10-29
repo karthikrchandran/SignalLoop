@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime
+from sqlalchemy import Column
 from sqlmodel import Field, SQLModel
 
 from app.core.local_email import LocalUserEmail
@@ -39,9 +40,13 @@ class UserRegister(SQLModel):
 
 
 # Properties to receive via API on update, all are optional
-class UserUpdate(UserBase):
+class UserUpdate(SQLModel):
     """Request payload for updating user."""
     email: LocalUserEmail | None = Field(default=None, max_length=255)
+    is_active: bool = True
+    is_superuser: bool = False
+    full_name: str | None = Field(default=None, max_length=255)
+    role: str = Field(default="operator", max_length=50)
     password: str | None = Field(default=None, min_length=8, max_length=128)
 
 
@@ -63,10 +68,7 @@ class User(UserBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     hashed_password: str
     auth_session_version: int = Field(default=1, ge=1, nullable=False)
-    created_at: datetime | None = Field(
-        default_factory=get_datetime_utc,
-        sa_type=DateTime(timezone=True),  # type: ignore
-    )
+    created_at: datetime | None = Field(default_factory=get_datetime_utc, sa_column=Column(DateTime(timezone=True), nullable=True, default=get_datetime_utc))
 
 
 # Properties to return via API, id is always required

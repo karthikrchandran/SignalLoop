@@ -35,7 +35,7 @@ class ProposalJobStatus(str, Enum):
     UNKNOWN_EXTERNAL_OUTCOME = "UNKNOWN_EXTERNAL_OUTCOME"
 
 
-class ProposalGenerationJob(SQLModel, table=True):  # type: ignore[call-arg]
+class ProposalGenerationJob(SQLModel, table=True):
     __tablename__ = "proposal_generation_job"
     __table_args__ = (
         UniqueConstraint(
@@ -105,7 +105,7 @@ class ProposalGenerationJob(SQLModel, table=True):  # type: ignore[call-arg]
     )
 
 
-class ProposalGenerationEvidence(SQLModel, table=True):  # type: ignore[call-arg]
+class ProposalGenerationEvidence(SQLModel, table=True):
     __tablename__ = "proposal_generation_evidence"
     __table_args__ = (
         UniqueConstraint(
@@ -143,7 +143,7 @@ class ProposalGenerationEvidence(SQLModel, table=True):  # type: ignore[call-arg
     )
 
 
-class ProposalGenerationReceipt(SQLModel, table=True):  # type: ignore[call-arg]
+class ProposalGenerationReceipt(SQLModel, table=True):
     __tablename__ = "proposal_generation_receipt"
     __table_args__ = (
         UniqueConstraint("job_id", name="uq_proposal_receipt_job"),
@@ -183,7 +183,7 @@ class ProposalGenerationReceipt(SQLModel, table=True):  # type: ignore[call-arg]
     )
 
 
-class ProposalEmailHandoff(SQLModel, table=True):  # type: ignore[call-arg]
+class ProposalEmailHandoff(SQLModel, table=True):
     __tablename__ = "proposal_email_handoff"
     __table_args__ = (
         UniqueConstraint(
@@ -225,7 +225,7 @@ class ProposalEmailHandoff(SQLModel, table=True):  # type: ignore[call-arg]
     )
 
 
-class ProposalDraftReview(SQLModel, table=True):  # type: ignore[call-arg]
+class ProposalDraftReview(SQLModel, table=True):
     __tablename__ = "proposal_draft_review"
     __table_args__ = (UniqueConstraint("job_id", name="uq_proposal_draft_review_job"),)
 
@@ -260,7 +260,7 @@ class ProposalDraftReview(SQLModel, table=True):  # type: ignore[call-arg]
     )
 
 
-class ProposalGroundingSource(SQLModel, table=True):  # type: ignore[call-arg]
+class ProposalGroundingSource(SQLModel, table=True):
     __tablename__ = "proposal_grounding_source"
     __table_args__ = (
         UniqueConstraint(

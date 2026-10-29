@@ -44,7 +44,7 @@ async def pause_global(
     body: PauseRequest,
 ) -> ControlStatePublic:
     """Pause global."""
-    return await run_idempotent_mutation(
+    return ControlStatePublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -57,7 +57,7 @@ async def pause_global(
             workspace_id=workspace_id,
             body=body,
         ),
-    )
+    ))
 
 
 def _pause_global_once(
@@ -108,7 +108,7 @@ async def resume_global(
     idempotency_key: IdempotencyKeyDep,
 ) -> ControlStatePublic:
     """Resume global."""
-    return await run_idempotent_mutation(
+    return ControlStatePublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -119,7 +119,7 @@ async def resume_global(
             current_user=current_user,
             workspace_id=workspace_id,
         ),
-    )
+    ))
 
 
 def _resume_global_once(
@@ -173,7 +173,7 @@ async def pause_campaign(
     body: PauseRequest,
 ) -> ControlStatePublic:
     """Pause campaign."""
-    return await run_idempotent_mutation(
+    return ControlStatePublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -187,7 +187,7 @@ async def pause_campaign(
             workspace_id=workspace_id,
             body=body,
         ),
-    )
+    ))
 
 
 def _pause_campaign_once(
@@ -245,7 +245,7 @@ async def resume_campaign(
     idempotency_key: IdempotencyKeyDep,
 ) -> ControlStatePublic:
     """Resume campaign."""
-    return await run_idempotent_mutation(
+    return ControlStatePublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -258,7 +258,7 @@ async def resume_campaign(
             campaign_id=campaign_id,
             workspace_id=workspace_id,
         ),
-    )
+    ))
 
 
 def _resume_campaign_once(

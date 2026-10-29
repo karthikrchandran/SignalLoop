@@ -4,7 +4,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-sans:
+    "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -195,7 +196,11 @@
   }
 
   .workspace-metric:hover {
-    border-color: color-mix(in srgb, var(--primary) 40%, var(--workspace-border));
+    border-color: color-mix(
+      in srgb,
+      var(--primary) 40%,
+      var(--workspace-border)
+    );
   }
 
   .workspace-link-card {
@@ -207,7 +212,11 @@
   }
 
   .workspace-link-card:hover {
-    border-color: color-mix(in srgb, var(--primary) 50%, var(--workspace-border));
+    border-color: color-mix(
+      in srgb,
+      var(--primary) 50%,
+      var(--workspace-border)
+    );
   }
 
   .workspace-canvas [data-slot="card"] {

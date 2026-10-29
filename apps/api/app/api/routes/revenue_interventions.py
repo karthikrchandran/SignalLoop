@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Query, status
@@ -236,19 +236,19 @@ def _operational_readiness(
     return {"status": "READY", "requires_operator_action": False, "reasons": []}
 
 
-@router.get("")
+@router.get("", response_model=None)
 def list_interventions(
     session: SessionDep,
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
-):
+) -> dict[str, Any]:
     tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.essentials.read", x_support_grant_id)
     store = RevenueInterventionStore(session)
     return {"data": [_public(tenant, item) for item in store.list_interventions(tenant_id=tenant.id)]}
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=None)
 def propose_intervention(
     body: InterventionProposal,
     session: SessionDep,
@@ -256,7 +256,7 @@ def propose_intervention(
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
-):
+) -> dict[str, Any]:
     tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.essentials.read", x_support_grant_id)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key is required")
@@ -276,14 +276,14 @@ def propose_intervention(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.get("/operations/dispatches")
+@router.get("/operations/dispatches", response_model=None)
 def list_dispatches(
     session: SessionDep,
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     dispatch_status: str | None = Query(default=None, alias="status"),
     x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
-):
+) -> dict[str, Any]:
     tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
     store = RevenueInterventionStore(session)
     all_rows = store.list_dispatches(tenant_id=tenant.id)
@@ -300,13 +300,13 @@ def list_dispatches(
     }
 
 
-@router.get("/operations/health")
+@router.get("/operations/health", response_model=None)
 def operational_health(
     session: SessionDep,
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
-):
+) -> dict[str, Any]:
     """Return tenant-scoped execution readiness and durable failure state."""
     tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
     dispatch_counts = _grouped_status_counts(session, RevenueInterventionDispatch, tenant.id)
@@ -395,7 +395,7 @@ def operational_health(
     }
 
 
-@router.post("/operations/dispatches/{dispatch_id}/retry")
+@router.post("/operations/dispatches/{dispatch_id}/retry", response_model=None)
 def retry_dispatch(
     dispatch_id: UUID,
     body: InterventionAction,
@@ -404,7 +404,7 @@ def retry_dispatch(
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
-):
+) -> dict[str, Any]:
     tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key is required")
@@ -424,14 +424,14 @@ def retry_dispatch(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-@router.get("/{intervention_id}")
+@router.get("/{intervention_id}", response_model=None)
 def get_intervention(
     intervention_id: UUID,
     session: SessionDep,
     current_user: CurrentUser,
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
-):
+) -> dict[str, Any]:
     tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.essentials.read", x_support_grant_id)
     try:
         item = RevenueInterventionStore(session).get_intervention(
@@ -443,7 +443,7 @@ def get_intervention(
         raise HTTPException(status_code=404, detail="Intervention not found") from exc
 
 
-@router.post("/{intervention_id}/approve")
+@router.post("/{intervention_id}/approve", response_model=None)
 def approve(
     intervention_id: UUID,
     body: InterventionAction,
@@ -452,7 +452,7 @@ def approve(
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
-):
+) -> dict[str, Any]:
     tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key is required")
@@ -470,7 +470,7 @@ def approve(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-@router.post("/{intervention_id}/reject")
+@router.post("/{intervention_id}/reject", response_model=None)
 def reject(
     intervention_id: UUID,
     body: InterventionAction,
@@ -479,7 +479,7 @@ def reject(
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
-):
+) -> dict[str, Any]:
     tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key is required")
@@ -499,7 +499,7 @@ def reject(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-@router.post("/{intervention_id}/cancel")
+@router.post("/{intervention_id}/cancel", response_model=None)
 def cancel(
     intervention_id: UUID,
     body: InterventionAction,
@@ -508,7 +508,7 @@ def cancel(
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
-):
+) -> dict[str, Any]:
     tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key is required")
@@ -528,7 +528,7 @@ def cancel(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-@router.post("/{intervention_id}/outcome")
+@router.post("/{intervention_id}/outcome", response_model=None)
 def outcome(
     intervention_id: UUID,
     body: InterventionOutcome,
@@ -537,7 +537,7 @@ def outcome(
     x_tenant_key: str | None = Header(default=None, alias="X-Tenant-Key"),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     x_support_grant_id: Annotated[str | None, Header(alias="X-Support-Grant-Id")] = None,
-):
+) -> dict[str, Any]:
     tenant = _tenant_context(session, current_user, x_tenant_key, "revenueos.admin.manage", x_support_grant_id)
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key is required")

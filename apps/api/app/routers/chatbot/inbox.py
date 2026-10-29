@@ -51,15 +51,15 @@ from app.routers.chatbot.router import (
     require_chatbot_agent,
 )
 
-router = APIRouter(prefix="/inbox", tags=["chatbot-inbox"])
+router: APIRouter = APIRouter(prefix="/inbox", tags=["chatbot-inbox"])
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _enum_value(value) -> str:
-    return value.value if hasattr(value, "value") else str(value)
+def _enum_value(value: object) -> str:
+    return str(getattr(value, "value", value))
 
 
 def _to_utc(value: datetime) -> datetime:
@@ -99,7 +99,7 @@ def _opt_out(session: Session, conversation: ChatbotConversation) -> ChatbotOptO
             ChatbotOptOut.workspace_id == conversation.workspace_id,
             ChatbotOptOut.channel_type == conversation.channel_type,
             ChatbotOptOut.visitor_id == conversation.visitor_id,
-            ChatbotOptOut.reopt_in_invited_at.is_(None),
+            col(ChatbotOptOut.reopt_in_invited_at).is_(None),
         )
     ).first()
 
@@ -131,7 +131,7 @@ def _last_message(session: Session, conversation: ChatbotConversation) -> Chatbo
         .where(
             ChatbotMessage.workspace_id == conversation.workspace_id,
             ChatbotMessage.conversation_id == conversation.id,
-            ChatbotMessage.deleted_at.is_(None),
+            col(ChatbotMessage.deleted_at).is_(None),
         )
         .order_by(col(ChatbotMessage.created_at).desc())
     ).first()
@@ -179,9 +179,9 @@ def _detail(session: Session, conversation: ChatbotConversation) -> ChatbotThrea
             .where(
                 ChatbotMessage.workspace_id == conversation.workspace_id,
                 ChatbotMessage.conversation_id == conversation.id,
-                ChatbotMessage.deleted_at.is_(None),
+                col(ChatbotMessage.deleted_at).is_(None),
             )
-            .order_by(ChatbotMessage.created_at)
+            .order_by(col(ChatbotMessage.created_at))
         ).all()
     )
     return ChatbotThreadDetailPublic(**summary.model_dump(), messages=[_message_public(row) for row in messages])
@@ -200,21 +200,21 @@ def _filtered_threads(
 ) -> tuple[list[ChatbotConversation], str | None]:
     stmt = select(ChatbotConversation).where(
         ChatbotConversation.workspace_id == workspace_id,
-        ChatbotConversation.deleted_at.is_(None),
+        col(ChatbotConversation.deleted_at).is_(None),
     )
     if channel_type:
         stmt = stmt.where(ChatbotConversation.channel_type == channel_type)
     if status_filter:
         stmt = stmt.where(ChatbotConversation.status == status_filter)
     if date_from:
-        stmt = stmt.where(ChatbotConversation.last_message_at >= date_from)
+        stmt = stmt.where(col(ChatbotConversation.last_message_at) >= date_from)
     if date_to:
-        stmt = stmt.where(ChatbotConversation.last_message_at <= date_to)
+        stmt = stmt.where(col(ChatbotConversation.last_message_at) <= date_to)
     decoded_cursor = _decode_cursor(cursor)
     if decoded_cursor:
         cursor_time, cursor_id = decoded_cursor
         stmt = stmt.where(
-            (ChatbotConversation.last_message_at < cursor_time)
+            (col(ChatbotConversation.last_message_at) < cursor_time)
             | (
                 (ChatbotConversation.last_message_at == cursor_time)
                 & (ChatbotConversation.id < cursor_id)
@@ -440,9 +440,9 @@ def export_threads(
                 .where(
                     ChatbotMessage.workspace_id == workspace_id,
                     ChatbotMessage.conversation_id == conversation.id,
-                    ChatbotMessage.deleted_at.is_(None),
+                    col(ChatbotMessage.deleted_at).is_(None),
                 )
-                .order_by(ChatbotMessage.created_at)
+                .order_by(col(ChatbotMessage.created_at))
             ).all()
         )
         for message in messages:

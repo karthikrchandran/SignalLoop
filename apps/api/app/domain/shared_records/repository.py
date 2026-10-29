@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypeVar
 
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, select
+from sqlmodel import Session, SQLModel, col, select
 
 from app.domain.shared_records.models import (
     PlatformExternalLink,
@@ -14,6 +15,8 @@ from app.domain.shared_records.models import (
     PlatformSharedContact,
     PlatformSharedIdentity,
 )
+
+SharedModel = TypeVar("SharedModel", bound=SQLModel)
 
 
 def _utc_now() -> datetime:
@@ -307,8 +310,8 @@ class PlatformSharedRepository:
         if search:
             search_term = f"%{search.lower()}%"
             statement = statement.where(
-                (PlatformSharedContact.email.ilike(search_term))
-                | (PlatformSharedContact.display_name.ilike(search_term))
+                (col(PlatformSharedContact.email).ilike(search_term))
+                | (col(PlatformSharedContact.display_name).ilike(search_term))
             )
         if parent_public_id is not None:
             parent_row_id = self._find_entity_id_by_public_id(
@@ -321,7 +324,7 @@ class PlatformSharedRepository:
             statement = statement.where(
                 PlatformSharedContact.parent_account_id == parent_row_id
             )
-        statement = statement.order_by(PlatformSharedContact.created_at.desc()).limit(
+        statement = statement.order_by(col(PlatformSharedContact.created_at).desc()).limit(
             limit
         )
         return [self._serialize_contact(row) for row in self.session.exec(statement).all()]
@@ -357,9 +360,9 @@ class PlatformSharedRepository:
         if search:
             search_term = f"%{search.lower()}%"
             statement = statement.where(
-                PlatformSharedAccount.display_name.ilike(search_term)
+                col(PlatformSharedAccount.display_name).ilike(search_term)
             )
-        statement = statement.order_by(PlatformSharedAccount.updated_at.desc()).limit(
+        statement = statement.order_by(col(PlatformSharedAccount.updated_at).desc()).limit(
             limit
         )
         return [self._serialize_account(row) for row in self.session.exec(statement).all()]
@@ -538,13 +541,13 @@ class PlatformSharedRepository:
         entity_type: str,
         entity_id: uuid.UUID,
     ) -> list[PlatformExternalLink]:
-        return self.session.exec(
+        return list(self.session.exec(
             select(PlatformExternalLink).where(
-                PlatformExternalLink.workspace_id == workspace_id,
-                PlatformExternalLink.entity_type == entity_type,
-                PlatformExternalLink.entity_id == entity_id,
+                col(PlatformExternalLink.workspace_id) == workspace_id,
+                col(PlatformExternalLink.entity_type) == entity_type,
+                col(PlatformExternalLink.entity_id) == entity_id,
             )
-        ).all()
+        ).all())
 
     def _insert_account(
         self,
@@ -622,7 +625,12 @@ class PlatformSharedRepository:
             get_existing=lambda: self._get_contact_by_external_key(external_key),
         )
 
-    def _insert_or_get_existing(self, *, create_row, get_existing):  # noqa: ANN001
+    def _insert_or_get_existing(
+        self,
+        *,
+        create_row: Callable[[], SharedModel],
+        get_existing: Callable[[], SharedModel | None],
+    ) -> SharedModel:
         row = create_row()
         try:
             with self.session.begin_nested():
@@ -788,20 +796,20 @@ class PlatformSharedRepository:
         if emailvoice_link is not None:
             return emailvoice_link.entity_id
 
-        model = (
+        model: type[PlatformSharedContact] | type[PlatformSharedAccount] = (
             PlatformSharedContact if entity_type == "CONTACT" else PlatformSharedAccount
         )
-        rows = self.session.exec(
-            select(model).where(model.workspace_id == workspace_id)  # type: ignore[attr-defined]
+        entity_ids = self.session.exec(
+            select(col(model.id)).where(col(model.workspace_id) == workspace_id)
         ).all()
-        for row in rows:
+        for entity_id in entity_ids:
             resolved = self._public_id_for_entity(
                 workspace_id=workspace_id,
                 entity_type=entity_type,
-                entity_id=row.id,
+                entity_id=entity_id,
             )
             if resolved == public_id:
-                return row.id
+                return entity_id
         return None
 
     @staticmethod

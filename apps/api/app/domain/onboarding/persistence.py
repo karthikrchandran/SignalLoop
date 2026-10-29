@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import JSON, Column, DateTime, String, UniqueConstraint
 from sqlmodel import Field, SQLModel
@@ -50,7 +51,7 @@ class OnboardingEvidenceRecord(SQLModel, table=True):
     stage: str = Field(max_length=64, nullable=False)
     result_code: str = Field(max_length=64, nullable=False)
     digest: str = Field(max_length=64, nullable=False)
-    payload: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
     created_at: datetime = Field(default_factory=utc_now, sa_column=Column(DateTime(timezone=True), nullable=False))
 
 

@@ -67,12 +67,8 @@ class EmailSequence(SQLModel, table=True):
     name: str = Field(max_length=255)
     active: bool = Field(default=True)
     created_by: uuid.UUID = Field()
-    created_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
-    updated_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
+    updated_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
 
 
 class SequenceStep(SQLModel, table=True):
@@ -87,9 +83,7 @@ class SequenceStep(SQLModel, table=True):
     delay_days: int = Field(default=0)
     subject_template: str = Field(max_length=255)
     body_template: str = Field(sa_type=Text)
-    created_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
 
 
 class ContactSequenceState(SQLModel, table=True):
@@ -120,21 +114,15 @@ class ContactSequenceState(SQLModel, table=True):
         alias="contact_id",
         sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
     )
-    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
+    contact_id: ClassVar[Synonym[uuid.UUID]] = synonym("shared_contact_id")
     sequence_id: uuid.UUID = Field(foreign_key="email_sequences.id", index=True)
     current_step: int = Field(default=1)
-    next_send_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    next_send_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
     status: SequenceStatus = Field(default=SequenceStatus.active)
     signal_type: str | None = Field(default=None, max_length=128)
-    signal_detected_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
-    )
-    created_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
-    updated_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    signal_detected_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
+    updated_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
 
 
 class SendRequest(SQLModel, table=True):
@@ -170,10 +158,8 @@ class SendRequest(SQLModel, table=True):
     provider_message_id: str | None = Field(default=None, max_length=255)
     status: SendRequestStatus = Field(default=SendRequestStatus.pending)
     retry_count: int = Field(default=0)
-    created_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
-    sent_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
+    sent_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
 
 
 class EmailEvent(SQLModel, table=True):
@@ -188,7 +174,7 @@ class EmailEvent(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     send_request_id: uuid.UUID = Field(foreign_key="send_requests.id", index=True)
     event_type: str = Field(max_length=64)
-    timestamp: datetime = Field(sa_type=DateTime(timezone=True))
+    timestamp: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
     raw_payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
 
 

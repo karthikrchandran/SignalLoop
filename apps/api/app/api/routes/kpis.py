@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 
@@ -35,20 +35,21 @@ def _cache_key(
     return base
 
 
-async def _get_cached(request: Request, key: str) -> dict | None:
+async def _get_cached(request: Request, key: str) -> dict[str, Any] | None:
     try:
         redis = request.app.state.redis_manager.client
         if redis is None:
             return None
         raw = await redis.get(key)
         if raw:
-            return json.loads(raw)
+            cached = json.loads(raw)
+            return cached if isinstance(cached, dict) else None
     except Exception:  # noqa: BLE001
         pass
     return None
 
 
-async def _set_cached(request: Request, key: str, data: dict) -> None:
+async def _set_cached(request: Request, key: str, data: dict[str, Any]) -> None:
     try:
         redis = request.app.state.redis_manager.client
         if redis is None:
@@ -74,7 +75,7 @@ async def get_kpi_summary_endpoint(
     end: Annotated[date, Query(description="End date (YYYY-MM-DD)")],
     granularity: Annotated[Granularity, Query(description="Bucket granularity")] = "weekly",
     campaign_id: Annotated[uuid.UUID | None, Query(description="Filter by campaign")] = None,
-) -> dict:
+) -> dict[str, Any]:
     """Return current-period KPIs, prior-period KPIs, and period-over-period delta_pct."""
     _ensure_workspace_path_matches_header(ws_id, workspace_id)
 
@@ -103,7 +104,7 @@ async def get_kpi_trend_endpoint(
     end: Annotated[date, Query(description="End date (YYYY-MM-DD)")],
     granularity: Annotated[Granularity, Query(description="Bucket granularity")] = "weekly",
     campaign_id: Annotated[uuid.UUID | None, Query(description="Filter by campaign")] = None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return bucketed KPI trend data points for charting."""
     _ensure_workspace_path_matches_header(ws_id, workspace_id)
 

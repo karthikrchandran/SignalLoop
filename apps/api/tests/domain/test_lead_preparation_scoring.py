@@ -36,7 +36,7 @@ def _contact(**overrides: object) -> Contact:
 
 
 def test_default_policy_reproduces_current_explainable_score() -> None:
-    now = datetime(2026, 8, 16, 12, tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
     contact = _contact(last_seen_at=now - timedelta(days=2))
     policy = build_default_scoring_policy(
         tenant_id=uuid.uuid4(), workspace_id=contact.workspace_id, version=1

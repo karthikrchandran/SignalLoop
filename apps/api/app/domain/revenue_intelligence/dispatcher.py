@@ -53,6 +53,9 @@ class InterventionAttemptEnvelope:
 
     @classmethod
     def from_persisted(cls, value: dict[str, object]) -> InterventionAttemptEnvelope:
+        knowledge_release_refs = value["knowledge_release_refs"]
+        if not isinstance(knowledge_release_refs, (list, tuple)):
+            raise ValueError("attempt envelope knowledge release refs must be a sequence")
         return cls(
             attempt_id=UUID(str(value["attempt_id"])),
             intervention_id=UUID(str(value["intervention_id"])),
@@ -60,7 +63,7 @@ class InterventionAttemptEnvelope:
             channel=str(value["channel"]),
             destination_ref=str(value["destination_ref"]),
             policy_decision_ref=str(value["policy_decision_ref"]),
-            knowledge_release_refs=tuple(str(item) for item in value["knowledge_release_refs"]),
+            knowledge_release_refs=tuple(str(item) for item in knowledge_release_refs),
             idempotency_key=str(value["idempotency_key"]),
             scheduled_for=datetime.fromisoformat(str(value["scheduled_for"])),
             action=str(value["action"]),

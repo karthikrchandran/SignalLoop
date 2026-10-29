@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any, Literal, Protocol, cast
+from typing import Any, Literal, Protocol
 from uuid import UUID
 
 import httpx
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain.installations.workload_identity import create_workload_assertion
 from app.domain.tenants.models import (
@@ -77,10 +77,7 @@ def _projection_audience(installation: ProductInstallation) -> Literal[
     "commitarc", "revenueos", "signalloop"
 ]:
     """Normalize the VARCHAR-backed product code before signing a strict claim."""
-    return cast(
-        Literal["commitarc", "revenueos", "signalloop"],
-        ProductCode(installation.product_code).value,
-    )
+    return ProductCode(installation.product_code).value
 
 
 def claim_due_projections(
@@ -92,11 +89,11 @@ def claim_due_projections(
         session.exec(
             select(SuiteProjectionOutbox)
             .where(
-                SuiteProjectionOutbox.status.in_(("PENDING", "RETRY_SCHEDULED")),
-                (SuiteProjectionOutbox.next_attempt_at.is_(None))
-                | (SuiteProjectionOutbox.next_attempt_at <= now),
+                col(SuiteProjectionOutbox.status).in_(("PENDING", "RETRY_SCHEDULED")),
+                (col(SuiteProjectionOutbox.next_attempt_at).is_(None))
+                | (col(SuiteProjectionOutbox.next_attempt_at) <= now),
             )
-            .order_by(SuiteProjectionOutbox.created_at)
+            .order_by(col(SuiteProjectionOutbox.created_at))
             .limit(limit)
             .with_for_update(skip_locked=True)
         ).all()
@@ -118,7 +115,7 @@ def recover_expired_projection_leases(session: Session) -> int:
         session.exec(
             select(SuiteProjectionOutbox).where(
                 SuiteProjectionOutbox.status == "IN_FLIGHT",
-                SuiteProjectionOutbox.lease_expires_at <= now,
+                col(SuiteProjectionOutbox.lease_expires_at) <= now,
             )
         ).all()
     )

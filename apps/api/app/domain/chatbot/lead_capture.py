@@ -88,9 +88,7 @@ def _extract_contact_details(text: str | None) -> tuple[str | None, str | None, 
     scrubbed = PHONE_RE.sub("", scrubbed)
     scrubbed = re.sub(r"\b(my name is|i am|i'm|this is|name is|email is|phone is|number is)\b", "", scrubbed, flags=re.I)
     name = " ".join(part for part in scrubbed.replace(",", " ").split() if part.isalpha())
-    if len(name) < 2:
-        name = None
-    return name, email_value, phone_value
+    return name if len(name) >= 2 else None, email_value, phone_value
 
 
 def _split_name(name: str | None) -> tuple[str | None, str | None]:
@@ -167,7 +165,10 @@ class LeadCaptureStateMachine:
         intent = detect_intent(text, keywords)
         if not intent:
             return None
-        min_turns = int(self._config.get("min_turns") or 3)
+        raw_min_turns = self._config.get("min_turns") or 3
+        if not isinstance(raw_min_turns, (str, int, float, bytes, bytearray)):
+            raise TypeError("Minimum lead-capture turns must be numeric")
+        min_turns = int(raw_min_turns)
         if intent in DEFAULT_INTENT_KEYWORDS.values() or conversation.turn_count >= min_turns:
             return intent
         return None

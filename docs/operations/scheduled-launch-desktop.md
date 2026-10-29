@@ -31,7 +31,7 @@ Launch desktop
   -> Cloudflare Tunnel
 
 Managed services
-  -> Neon Free PostgreSQL
+  -> managed PostgreSQL 18 with an appropriate availability and recovery tier
   -> customer-owned SMTP or Amazon SES
   -> Twilio telephone calls and media streams
   -> Deepgram streaming speech-to-text and text-to-speech
@@ -39,54 +39,40 @@ Managed services
 ```
 
 The laptop must not connect directly to the launch database during normal
-development. Use a separate local database or a separate Neon development
-project on the laptop.
+development. Use a separate local database or a separate managed development
+database on the laptop. Keep SignalLoop's database and credentials separate
+from eCRM and from other customer deployments.
 
-## Why Neon is recommended
+## Provider-neutral PostgreSQL
 
 SignalLoop already uses PostgreSQL through SQLModel, SQLAlchemy, Alembic, and
-the `psycopg` driver. Replacing PostgreSQL with a different database would
-require application and migration changes without reducing immediate cost.
+the `psycopg` driver. No Supabase or Neon-specific database API is required.
+PostgreSQL 18 is the repository's reproducible Compose/CI baseline; the native
+development startup remains supported without containers.
 
-Neon and Supabase are both managed PostgreSQL services. Choosing Neon means
-PostgreSQL remains the database engine, but no PostgreSQL server needs to run
-on the desktop.
+Select a managed PostgreSQL provider using:
 
-Neon is the recommended launch choice because:
+- Availability commitments, maintenance behavior, and connection limits.
+- Encrypted connectivity and documented certificate requirements.
+- Backups, retention, recovery objectives, and tested restores.
+- PostgreSQL 18 and `vector` extension availability for knowledge-base search.
+- Region, network access controls, monitoring, and an approved operating budget.
 
-- It is a direct fit for the existing application.
-- Its Free plan scales inactive compute to zero.
-- Its Free plan is designed for intermittent development and demo workloads.
-- The application does not currently need Supabase Auth, Storage, or Realtime.
-- It keeps database management separate from the launch desktop.
+Do not rely on an auto-pausing free database for continuous availability.
+Free or scale-to-zero services are suitable only when their limitations have
+been explicitly accepted for an intermittent demo, not as the default customer
+database. This runbook does not choose or provision a hosted provider.
 
-As of July 2026, Neon Free includes 100 compute-unit hours and 0.5 GB storage
-per project. Neon gives an example of approximately three hours per day at an
-average of one compute unit. Database compute is active only while queries are
-running, so a four-to-six-hour application window can still fit when usage is
-light and intermittent. Verify current limits before creating the project:
-
-https://neon.com/pricing
-
-### When Supabase is reasonable
-
-Supabase Free is an acceptable alternative if SignalLoop later adopts its Auth,
-Storage, or Realtime capabilities. Its Free plan currently includes a 500 MB
-database, but free projects can pause after one week of inactivity and do not
-include automatic backups.
-
-Do not migrate application authentication or storage to Supabase merely to use
-its database. That would increase scope without lowering the current cost.
-
-https://supabase.com/pricing
+The managed database is independent of the desktop's operating window; stopping
+the application must not stop or delete the system of record.
 
 ## Expected monthly cash cost
 
 | Item | Launch choice | Expected cost |
 |---|---|---:|
 | Web, API, and workers | Launch desktop | $0 |
-| Database | Neon Free | $0 |
-| Redis | Local container | $0 |
+| Database | Selected managed PostgreSQL tier | Provider-dependent |
+| Redis | Native local service or optional container | $0 infrastructure fee on the existing desktop |
 | Proposal and email drafting | Ollama on the desktop | $0 API cost |
 | Secure public ingress | Cloudflare Tunnel | $0 |
 | Email | Customer SMTP or low-volume SES | $0-$2 |
@@ -95,7 +81,7 @@ https://supabase.com/pricing
 | Electricity | Four-to-six-hour operating window | $2-$8 |
 | Domain | Existing domain preferred | $0-$2 equivalent |
 | Monitoring and backup tools | Local and existing storage | $0 |
-| **Expected fixed total** | Before live call minutes | **$3-$16 per month** |
+| **Expected fixed total** | Before live call minutes | **Recalculate after selecting the database tier, backups, and storage** |
 
 Code-generation LLM usage on the development laptop is excluded from this
 operating estimate. LLM use inside the customer workflow, including proposal
@@ -161,7 +147,7 @@ until the existing desktop has been tested with the real workload.
 Create or identify:
 
 1. A private Git repository account with read access from the desktop.
-2. A Neon account protected by multi-factor authentication.
+2. A managed PostgreSQL provider account protected by multi-factor authentication.
 3. A Cloudflare account and a domain managed by Cloudflare DNS.
 4. A customer-approved SMTP relay, or an Amazon SES account.
 5. A Twilio account with a voice-capable number.
@@ -182,13 +168,15 @@ Install:
 - Node.js 20 or later and npm.
 - Python 3.11.
 - `uv`.
-- Docker Desktop with the WSL 2 backend.
+- Native Redis, or Docker Compose/Docker in WSL for the optional container path.
 - Ollama for Windows for non-real-time drafting.
 - `cloudflared`.
-- PostgreSQL client tools for `pg_dump` and `pg_restore`.
+- PostgreSQL client tools matching the managed database major version for `pg_dump` and `pg_restore`.
 
-Only the PostgreSQL client tools are required. Do not install or start a local
-PostgreSQL server when Neon is the launch database.
+Only PostgreSQL client tools are required on the launch desktop when using a
+managed database. This does not change the native PostgreSQL development setup.
+Docker is needed only for the container commands in this guide; native Redis
+and a separately managed static web server can be used instead.
 
 Twilio, Deepgram, and Groq are external APIs. They do not require GPU drivers
 or local model installation. SignalLoop connects to them using provider
@@ -198,7 +186,7 @@ credentials.
 
 Do not install:
 
-- A local PostgreSQL server. Neon is the system of record.
+- A second local launch PostgreSQL server when the managed database is the system of record.
 - NVIDIA CUDA or other GPU runtimes when the desktop has no supported GPU.
 - A locally hosted real-time conversational LLM.
 - A locally hosted telephony server or SIP carrier.
@@ -216,37 +204,43 @@ node --version
 npm --version
 python --version
 uv --version
-docker version
+redis-server --version
 ollama --version
 cloudflared --version
 pg_dump --version
 ```
 
-## Prepare the Neon database
+If choosing the optional container path, also verify `docker version` in the
+Windows or WSL shell where Docker is available.
 
-1. Create one Neon project for the launch environment.
-2. Name it clearly, for example `signalloop-launch`.
-3. Keep autoscaling conservative and scale-to-zero enabled.
+## Prepare the managed PostgreSQL database
+
+1. Provision a separate PostgreSQL 18 database for the launch environment.
+2. Name it clearly, for example `signalloop-launch`, with unique credentials.
+3. Configure the approved availability tier, monitoring, backups, and retention.
 4. Copy the host, port, database, user, and password separately.
 5. Do not store the full connection string in source control or documentation.
-6. Enable multi-factor authentication on the Neon account.
+6. Enable multi-factor authentication on the provider account and verify `vector` extension availability before enabling knowledge-base vector search.
 
 SignalLoop currently builds its database URI from separate environment values:
 
 ```env
-POSTGRES_SERVER=<neon-host>
+POSTGRES_SERVER=<provider-host>
 POSTGRES_PORT=5432
-POSTGRES_DB=<neon-database>
-POSTGRES_USER=<neon-user>
-POSTGRES_PASSWORD=<neon-password>
+POSTGRES_DB=<launch-database>
+POSTGRES_USER=<launch-user>
+POSTGRES_PASSWORD=<launch-password>
+POSTGRES_SSLMODE=require
 ```
 
-Use the connection values issued by Neon. Do not copy example values.
+Use the connection values issued by your provider. Do not copy example values.
 
-Neon requires encrypted database connectivity. The current `psycopg` connection
-negotiates TLS with the Neon endpoint. Before broader customer use, add explicit
-`sslmode=require` support to the application configuration so the requirement
-is visible and testable rather than implicit.
+`POSTGRES_SSLMODE` is validated and included in the database URI used by the API,
+workers, and Alembic. `require` encrypts the connection; prefer `verify-full` with
+the provider's CA configuration for certificate and hostname verification. See
+the [environment reference](../developer-guide/environment-variables.md) for
+`PGSSLROOTCERT` process-environment setup. Never disable TLS to bypass a
+certificate error. An empty mode retains existing local driver behavior.
 
 ### Apply migrations
 
@@ -279,11 +273,12 @@ SERVER_HOST=api.<your-domain>
 BACKEND_CORS_ORIGINS=["https://app.<your-domain>"]
 VITE_API_URL=https://api.<your-domain>
 
-POSTGRES_SERVER=<neon-host>
+POSTGRES_SERVER=<provider-host>
 POSTGRES_PORT=5432
-POSTGRES_DB=<neon-database>
-POSTGRES_USER=<neon-user>
-POSTGRES_PASSWORD=<neon-password>
+POSTGRES_DB=<launch-database>
+POSTGRES_USER=<launch-user>
+POSTGRES_PASSWORD=<launch-password>
+POSTGRES_SSLMODE=require
 
 REDIS_URL=redis://127.0.0.1:6379/0
 
@@ -320,7 +315,17 @@ confirming the desktop has 32 GB RAM and the draft response time is acceptable.
 Redis is ephemeral coordination state, not the system of record. Keep it local
 on the launch desktop.
 
-Create the container once:
+Use your existing native Redis service, configured to bind to `127.0.0.1`.
+For a foreground native instance in a dedicated PowerShell window:
+
+```powershell
+$redisData = Join-Path $env:USERPROFILE ".local-services"
+New-Item -ItemType Directory -Force -Path $redisData | Out-Null
+redis-server --bind 127.0.0.1 --port 6379 --appendonly yes --dir $redisData
+```
+
+Do not start a second instance if the intended Redis service is already running.
+Alternatively, create the optional container once:
 
 ```powershell
 docker run -d `
@@ -474,7 +479,9 @@ The build output is `apps/web/dist`.
 The current `StartApp.ps1` starts the Vite development server and the API with
 reload enabled. Do not use it for the launch environment.
 
-Until a dedicated launch script is added, serve the built web image locally:
+Serve `apps/web/dist` with a production static server configured to fall back to
+`index.html` for SPA routes, or use the optional built web container below.
+Do not replace native PostgreSQL/Redis startup merely to use this container:
 
 ```powershell
 docker build `
@@ -569,7 +576,7 @@ Run these steps in order:
 
 3. Start Redis.
 4. Start Ollama.
-5. Start the built web container.
+5. Start the production static web server or optional built web container.
 6. Start the API.
 7. Start the call worker and any other required workers.
 8. Check the local health endpoint:
@@ -596,13 +603,16 @@ If any required health check fails, do not start the tunnel.
 3. Confirm no work remains in a running state.
 4. Stop Cloudflare Tunnel first.
 5. Stop the API and workers.
-6. Stop the web container:
+6. Stop the static web server. If using the optional web container:
 
    ```powershell
    docker stop signalloop-web
    ```
 
-7. Stop Redis:
+7. Stop only the Redis instance owned by this launch environment; do not stop
+   a shared development service. For an owned native instance, use
+   `redis-cli -h 127.0.0.1 -p 6379 shutdown` with its configured authentication.
+   If using the optional Redis container:
 
    ```powershell
    docker stop signalloop-redis
@@ -614,7 +624,8 @@ If any required health check fails, do not start the tunnel.
 
 ## Backup and restore
 
-Neon's short Free-plan restore window is useful but is not the only backup.
+Configure provider-managed backups and retention against the agreed recovery
+objectives. A provider restore window is not the only backup.
 
 Create one logical database backup after each operating window:
 
@@ -638,7 +649,7 @@ Keep:
 - At least one encrypted copy off the launch desktop.
 - A monthly restore-test record.
 
-Test restoration into a separate Neon branch or separate recovery database.
+Test restoration into a separate recovery database.
 Never test a restore over the active launch database.
 
 ## Deployment boundary
@@ -683,7 +694,8 @@ release process.
 - [ ] Laptop and desktop use different database projects.
 - [ ] Desktop runs a reviewed release commit with a clean worktree.
 - [ ] `.env` contains no default secrets.
-- [ ] Neon migrations complete successfully.
+- [ ] Migrations complete successfully against the intended managed PostgreSQL database.
+- [ ] Hosted PostgreSQL TLS, backup retention, and availability settings meet the approved requirements.
 - [ ] Redis listens only on `127.0.0.1`.
 - [ ] Ollama is not publicly reachable.
 - [ ] Qwen3 produces an acceptable draft from approved facts.
@@ -709,11 +721,12 @@ release process.
 
 ## Upgrade triggers
 
-Stay on the scheduled desktop and Neon Free only while all of these remain true:
+Stay on the scheduled desktop with the selected database tier only while all
+of these remain true:
 
 - Availability is explicitly scheduled.
-- Database storage remains below 400 MB.
-- Neon usage remains below 75 compute-unit hours per month.
+- Database storage and connection/compute usage stay within approved capacity.
+- The database's availability and recovery settings meet the agreed requirements.
 - Voice usage remains within the funded monthly allowance.
 - One temporary outage would not create material customer harm.
 - Manual support remains manageable.
@@ -723,14 +736,15 @@ Upgrade the database or hosting when any of these occurs:
 
 - The first meaningful recurring payment is received.
 - The customer needs unattended or 24/7 operation.
-- Database storage or compute approaches the free limit.
+- Database storage, connections, or compute approaches the selected tier's limit.
 - Voice usage becomes material enough to require customer-owned credentials,
   negotiated rates, or pass-through billing.
-- Backup retention must exceed the free restore window.
+- Backup retention or recovery objectives exceed the configured restore coverage.
 - More than one customer depends on the same desktop.
 - The workflow handles material financial, regulated, or high-risk data.
 - Desktop or home-network failures begin affecting customer outcomes.
 
-The first paid upgrade should usually be managed application hosting and a paid
-database tier. Do not buy enterprise tools before revenue or risk justifies
-them.
+A database tier that meets the agreed requirements is a prerequisite, not a
+promise of free hosting. If desktop availability becomes insufficient, move
+application hosting to a managed runtime. Do not buy enterprise tools before
+revenue or risk justifies them.

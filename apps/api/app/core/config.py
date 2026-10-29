@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = ""
+    POSTGRES_SSLMODE: Literal[
+        "disable", "allow", "prefer", "require", "verify-ca", "verify-full"
+    ] | None = None
     REDIS_URL: str = "redis://redis:6379/0"
     DEFAULT_WORKSPACE_ID: str = "default"
 
@@ -99,6 +102,11 @@ class Settings(BaseSettings):
             host=self.POSTGRES_SERVER,
             port=self.POSTGRES_PORT,
             path=self.POSTGRES_DB,
+            query=(
+                f"sslmode={self.POSTGRES_SSLMODE}"
+                if self.POSTGRES_SSLMODE is not None
+                else None
+            ),
         )
 
     SMTP_TLS: bool = True

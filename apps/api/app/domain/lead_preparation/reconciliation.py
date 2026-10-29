@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlmodel import Field, Session, SQLModel, func, select
+from sqlmodel import Field, Session, SQLModel, col, func, select
 
 from app.domain.audit.audit_events import append_audit_event_to_session
 from app.domain.commercial_agents.models import AgentUsageLedger, AgentUsageState
@@ -48,48 +48,48 @@ def build_lead_preparation_reconciliation_report(
         LeadPreparationJob.workspace_id == workspace_id,
     )
     unknown = session.exec(
-        select(func.count(LeadPreparationJob.id)).where(
+        select(func.count(col(LeadPreparationJob.id))).where(
             *base,
-            LeadPreparationJob.status
+            col(LeadPreparationJob.status)
             == LeadPreparationJobStatus.UNKNOWN_OUTCOME.value,
         )
     ).one()
     missing_packages = session.exec(
-        select(func.count(LeadPreparationJob.id)).where(
+        select(func.count(col(LeadPreparationJob.id))).where(
             *base,
-            LeadPreparationJob.status.in_(
+            col(LeadPreparationJob.status).in_(
                 [
                     LeadPreparationJobStatus.COMPLETED.value,
                     LeadPreparationJobStatus.ROUTED.value,
                 ]
             ),
-            LeadPreparationJob.package_id.is_(None),
+            col(LeadPreparationJob.package_id).is_(None),
         )
     ).one()
     usage_mismatches = session.exec(
-        select(func.count(LeadPreparationJob.id))
+        select(func.count(col(LeadPreparationJob.id)))
         .select_from(LeadPreparationJob)
         .outerjoin(
             AgentUsageLedger,
-            AgentUsageLedger.id == LeadPreparationJob.usage_reservation_id,
+            col(AgentUsageLedger.id) == col(LeadPreparationJob.usage_reservation_id),
         )
         .where(
             *base,
-            LeadPreparationJob.status.in_(
+            col(LeadPreparationJob.status).in_(
                 [
                     LeadPreparationJobStatus.COMPLETED.value,
                     LeadPreparationJobStatus.ROUTED.value,
                 ]
             ),
-            (LeadPreparationJob.usage_reservation_id.is_(None))
-            | (AgentUsageLedger.state.is_(None))
-            | (AgentUsageLedger.state != AgentUsageState.FINALIZED.value),
+            (col(LeadPreparationJob.usage_reservation_id).is_(None))
+            | (col(AgentUsageLedger.state).is_(None))
+            | (col(AgentUsageLedger.state) != AgentUsageState.FINALIZED.value),
         )
     ).one()
     dead_letters = session.exec(
-        select(func.count(LeadPreparationJob.id)).where(
+        select(func.count(col(LeadPreparationJob.id))).where(
             *base,
-            LeadPreparationJob.status == LeadPreparationJobStatus.DEAD_LETTER.value,
+            col(LeadPreparationJob.status) == LeadPreparationJobStatus.DEAD_LETTER.value,
         )
     ).one()
     return LeadPreparationReconciliationReport(

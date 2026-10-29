@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
 from typing import Any
 
 from sqlmodel import Session, select
@@ -20,7 +19,6 @@ from app.domain.lead_discovery.providers import (
     WaterfallDiscoveryGateway,
 )
 from app.domain.lead_discovery.resolution import resolve_lead_entity
-from app.domain.lead_discovery.scoring import score_discovered_lead
 from app.domain.lead_discovery.schemas import (
     DiscoveredLeadDTO,
     DiscoverySearchCriteria,
@@ -31,6 +29,7 @@ from app.domain.lead_discovery.schemas import (
     LeadPromotionResponse,
     LeadScoringResponse,
 )
+from app.domain.lead_discovery.scoring import score_discovered_lead
 from app.domain_models import Contact
 
 logger = logging.getLogger(__name__)
@@ -112,6 +111,13 @@ async def search_leads_for_workspace(
     # 2. Query discovery gateway
     leads_raw = await gw.search_leads(workspace_id, criteria)
 
+    for lead_dto in leads_raw:
+        if lead_dto.workspace_id != workspace_id:
+            raise ValueError("Discovery provider returned a lead for another workspace")
+        existing = session.get(DiscoveredLeadRecord, lead_dto.id)
+        if existing is not None and existing.workspace_id != workspace_id:
+            raise ValueError("Discovery provider returned an ID belonging to another workspace")
+
     processed_leads: list[DiscoveredLeadDTO] = []
     for lead_dto in leads_raw:
         # 3. Entity resolution vs CRM
@@ -137,7 +143,12 @@ async def search_leads_for_workspace(
         lead_dto.conversation_starters = scoring_res.conversation_starters
 
         # 5. Upsert to DiscoveredLeadRecord in DB
-        existing_rec = session.get(DiscoveredLeadRecord, lead_dto.id)
+        existing_rec = session.exec(
+            select(DiscoveredLeadRecord).where(
+                DiscoveredLeadRecord.id == lead_dto.id,
+                DiscoveredLeadRecord.workspace_id == workspace_id,
+            )
+        ).first()
         if not existing_rec:
             existing_rec = session.exec(
                 select(DiscoveredLeadRecord).where(
@@ -208,7 +219,7 @@ async def search_leads_for_workspace(
 
 
 async def enrich_entity_for_workspace(
-    _session: Session,
+    session: Session,
     *,
     workspace_id: str,
     request: EnrichmentRequest,
@@ -216,7 +227,15 @@ async def enrich_entity_for_workspace(
 ) -> EnrichmentResponse | None:
     """Enrich entity via waterfall provider gateway."""
     gw = gateway or WaterfallDiscoveryGateway()
-    return await gw.enrich_lead(request)
+    result = await gw.enrich_lead(request)
+    append_audit_event_to_session(
+        session,
+        event_name="lead_discovery.enriched",
+        workspace_id=workspace_id,
+        payload={"found": result is not None},
+    )
+    session.commit()
+    return result
 
 
 def score_lead_for_workspace(
@@ -299,23 +318,16 @@ def promote_lead_to_contact(
     lead.promoted_at = utc_now()
     session.add(lead)
 
-    # Record audit event if available
-    try:
-        append_audit_event_to_session(
-            session=session,
-            workspace_id=workspace_id,
-            event_type="lead_discovery.promoted",
-            actor="system",
-            details={
-                "lead_id": str(lead.id),
-                "contact_id": str(contact.id),
-                "company": lead.company_name,
-                "email": lead.email,
-                "fit_score": lead.fit_score,
-            },
-        )
-    except Exception as audit_err:
-        logger.debug("Audit event skipped: %s", audit_err)
+    append_audit_event_to_session(
+        session=session,
+        workspace_id=workspace_id,
+        event_name="lead_discovery.promoted",
+        payload={
+            "lead_id": str(lead.id),
+            "contact_id": str(contact.id),
+            "fit_score": lead.fit_score,
+        },
+    )
 
     session.commit()
 

@@ -98,9 +98,9 @@ def count_chunks_for_source(workspace_id: str, session: Session, source_id: obje
     """Count chunks for one source without crossing workspace boundaries."""
     return int(
         session.exec(
-            select(func.count(ChatbotKnowledgeChunk.id)).where(
-                ChatbotKnowledgeChunk.workspace_id == workspace_id,
-                ChatbotKnowledgeChunk.source_id == source_id,
+            select(func.count(col(ChatbotKnowledgeChunk.id))).where(
+                col(ChatbotKnowledgeChunk.workspace_id) == workspace_id,
+                col(ChatbotKnowledgeChunk.source_id) == source_id,
             )
         ).one()
     )
@@ -123,7 +123,7 @@ def list_conversations(workspace_id: str, session: Session) -> list[ChatbotConve
             select(ChatbotConversation)
             .where(
                 ChatbotConversation.workspace_id == workspace_id,
-                ChatbotConversation.deleted_at.is_(None),
+                col(ChatbotConversation.deleted_at).is_(None),
             )
             .order_by(col(ChatbotConversation.last_message_at).desc())
         ).all()
@@ -140,7 +140,7 @@ def get_conversation_by_id(
         select(ChatbotConversation).where(
             ChatbotConversation.workspace_id == workspace_id,
             ChatbotConversation.id == conversation_id,
-            ChatbotConversation.deleted_at.is_(None),
+            col(ChatbotConversation.deleted_at).is_(None),
         )
     ).first()
 
@@ -190,7 +190,7 @@ def list_recent_messages(
             .where(
                 ChatbotMessage.workspace_id == workspace_id,
                 ChatbotMessage.conversation_id == conversation_id,
-                ChatbotMessage.deleted_at.is_(None),
+                col(ChatbotMessage.deleted_at).is_(None),
             )
             .order_by(col(ChatbotMessage.created_at).desc())
             .limit(limit)
@@ -203,10 +203,10 @@ def count_open_escalations(workspace_id: str, session: Session) -> int:
     """Count unresolved escalations for sidebar badges and inbox summaries."""
     return int(
         session.exec(
-            select(func.count(ChatbotConversation.id)).where(
-                ChatbotConversation.workspace_id == workspace_id,
-                ChatbotConversation.status == ChatbotConversationStatus.escalated,
-                ChatbotConversation.deleted_at.is_(None),
+            select(func.count(col(ChatbotConversation.id))).where(
+                col(ChatbotConversation.workspace_id) == workspace_id,
+                col(ChatbotConversation.status) == ChatbotConversationStatus.escalated,
+                col(ChatbotConversation.deleted_at).is_(None),
             )
         ).one()
     )
@@ -226,7 +226,7 @@ def is_visitor_opted_out(
                 ChatbotOptOut.workspace_id == workspace_id,
                 ChatbotOptOut.channel_type == channel_type,
                 ChatbotOptOut.visitor_id == visitor_id,
-                ChatbotOptOut.reopt_in_invited_at.is_(None),
+                col(ChatbotOptOut.reopt_in_invited_at).is_(None),
             )
         ).first()
         is not None
@@ -262,7 +262,7 @@ def record_opt_out(
         channel_type=channel_type,
         visitor_id=visitor_id,
         reason=reason,
-        source_message_id=source_message_id,  # type: ignore[arg-type]
+        source_message_id=source_message_id,
     )
     session.add(row)
     session.flush()
@@ -276,7 +276,7 @@ def list_opt_outs(workspace_id: str, session: Session) -> list[ChatbotOptOut]:
             select(ChatbotOptOut)
             .where(
                 ChatbotOptOut.workspace_id == workspace_id,
-                ChatbotOptOut.reopt_in_invited_at.is_(None),
+                col(ChatbotOptOut.reopt_in_invited_at).is_(None),
             )
             .order_by(col(ChatbotOptOut.created_at).desc())
         ).all()

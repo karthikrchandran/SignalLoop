@@ -8,6 +8,7 @@ from collections.abc import AsyncGenerator, Callable
 from typing import Any
 
 import websockets
+from websockets.legacy.client import WebSocketClientProtocol
 
 from app.core.config import settings
 from app.infrastructure.providers.base import SttAdapter
@@ -31,7 +32,7 @@ class DeepgramSTTAdapter(SttAdapter):
         on_transcript: Callable[[str, bool], Any] | None = None,
     ) -> None:
         self._api_key = require_provider_key(api_key or settings.DEEPGRAM_API_KEY, "DEEPGRAM_API_KEY")
-        self._ws = None
+        self._ws: WebSocketClientProtocol | None = None
         self._on_transcript = on_transcript
 
     async def connect(self) -> None:
@@ -49,7 +50,7 @@ class DeepgramSTTAdapter(SttAdapter):
         headers = {"Authorization": f"Token {self._api_key}"}
         self._ws = await websockets.connect(
             f"{DEEPGRAM_WS_URL}{params}",
-            additional_headers=headers,
+            extra_headers=headers,
             open_timeout=STT_CONNECT_TIMEOUT_SECONDS,
             close_timeout=STT_CLOSE_TIMEOUT_SECONDS,
         )

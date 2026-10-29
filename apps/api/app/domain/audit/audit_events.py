@@ -26,21 +26,18 @@ class AuditEvent(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    event_name: str = Field(sa_type=String(255))
-    workspace_id: str = Field(sa_type=String(64))
+    event_name: str = Field(sa_column=Column(String(255), nullable=False))
+    workspace_id: str = Field(sa_column=Column(String(64), nullable=False))
     actor_id: uuid.UUID | None = Field(default=None)
-    actor_role: str | None = Field(default=None, sa_type=String(64))
-    resource_type: str | None = Field(default=None, sa_type=String(128))
-    resource_id: str | None = Field(default=None, sa_type=String(255))
-    correlation_id: str | None = Field(default=None, sa_type=String(255))
+    actor_role: str | None = Field(default=None, sa_column=Column(String(64), nullable=True, default=None))
+    resource_type: str | None = Field(default=None, sa_column=Column(String(128), nullable=True, default=None))
+    resource_id: str | None = Field(default=None, sa_column=Column(String(255), nullable=True, default=None))
+    correlation_id: str | None = Field(default=None, sa_column=Column(String(255), nullable=True, default=None))
     payload: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSON().with_variant(JSONB(), "postgresql")),
     )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC),
-        sa_type=DateTime(timezone=True),
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_column=Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)))
 
 
 def audit_actor_role(user: Any) -> str:

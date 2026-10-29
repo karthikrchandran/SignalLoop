@@ -8,7 +8,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain.audit.audit_events import AuditEvent, append_audit_event_to_session
 from app.domain.tenants.models import (
@@ -376,7 +376,7 @@ class RevenueInterventionStore:
             self.session.exec(
                 select(RevenueInterventionRecord)
                 .where(RevenueInterventionRecord.tenant_id == tenant_id)
-                .order_by(RevenueInterventionRecord.created_at.desc())
+                .order_by(col(RevenueInterventionRecord.created_at).desc())
             ).all()
         )
 
@@ -394,7 +394,7 @@ class RevenueInterventionStore:
         if status is not None:
             statement = statement.where(RevenueInterventionDispatch.status == status.upper())
         return list(
-            self.session.exec(statement.order_by(RevenueInterventionDispatch.created_at.desc())).all()
+            self.session.exec(statement.order_by(col(RevenueInterventionDispatch.created_at).desc())).all()
         )
 
     def retry_dead_letter_dispatch(
@@ -467,11 +467,11 @@ class RevenueInterventionStore:
                 select(RevenueInterventionDispatch)
                 .where(
                     RevenueInterventionDispatch.tenant_id == tenant_id,
-                    RevenueInterventionDispatch.status.in_(("PENDING", "RETRY_SCHEDULED")),
-                    (RevenueInterventionDispatch.next_attempt_at.is_(None))
-                    | (RevenueInterventionDispatch.next_attempt_at <= now),
+                    col(RevenueInterventionDispatch.status).in_(("PENDING", "RETRY_SCHEDULED")),
+                    (col(RevenueInterventionDispatch.next_attempt_at).is_(None))
+                    | (col(RevenueInterventionDispatch.next_attempt_at) <= now),
                 )
-                .order_by(RevenueInterventionDispatch.created_at)
+                .order_by(col(RevenueInterventionDispatch.created_at))
                 .limit(limit)
                 .with_for_update(skip_locked=True)
             ).all()
@@ -509,7 +509,7 @@ class RevenueInterventionStore:
             select(TenantOperationalControl.id)
             .where(
                 TenantOperationalControl.tenant_id == tenant_id,
-                TenantOperationalControl.product_code.in_(
+                col(TenantOperationalControl.product_code).in_(
                     (ProductCode.REVENUE_OS, ProductCode.SIGNAL_LOOP)
                 ),
                 TenantOperationalControl.paused == True,  # noqa: E712
@@ -524,7 +524,7 @@ class RevenueInterventionStore:
             self.session.exec(
                 select(RevenueInterventionDispatch).where(
                     RevenueInterventionDispatch.status == "IN_FLIGHT",
-                    RevenueInterventionDispatch.lease_expires_at <= now,
+                    col(RevenueInterventionDispatch.lease_expires_at) <= now,
                 )
             ).all()
         )
@@ -766,7 +766,8 @@ class RevenueInterventionStore:
             raise ValueError(f"dispatch is not awaiting reconciliation (state={dispatch.status})")
         if "revenueos.admin.manage" not in operator_capabilities:
             raise PermissionError("revenueos.admin.manage capability is required")
-        if not receipt or not isinstance(receipt.get("provider_receipt_id"), str) or not receipt["provider_receipt_id"].strip():
+        receipt_id = receipt.get("provider_receipt_id") if receipt else None
+        if receipt is None or not isinstance(receipt_id, str) or not receipt_id.strip():
             raise ValueError("durable provider receipt is required for reconciliation")
         if provider_accepted:
             return self.record_dispatch_success(

@@ -35,7 +35,15 @@ const workspaces: WorkspaceCard[] = [
     href: "/lead-discovery",
     action: "Open Lead Discovery",
     icon: Compass,
-    roles: ["marketing", "engagement", "sdr", "sales", "sales_leader", "revops", "admin"],
+    roles: [
+      "marketing",
+      "engagement",
+      "sdr",
+      "sales",
+      "sales_leader",
+      "revops",
+      "admin",
+    ],
   },
   {
     title: "EngageHub",
@@ -166,7 +174,10 @@ export default function RevenueOsHomePage() {
                   <div className="rounded-xl border border-primary/20 bg-primary/10 p-2.5 text-primary transition-transform duration-200 group-hover:scale-105">
                     <Icon className="size-5" />
                   </div>
-                  <Badge variant="secondary" className="text-[10px] font-semibold uppercase tracking-wider">
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px] font-semibold uppercase tracking-wider"
+                  >
                     {workspace.stage}
                   </Badge>
                 </div>
@@ -188,7 +199,10 @@ export default function RevenueOsHomePage() {
 
       <section className="relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-r from-card via-card to-primary/5 p-6 shadow-xs">
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider border-primary/30 text-primary">
+          <Badge
+            variant="outline"
+            className="text-[10px] font-semibold uppercase tracking-wider border-primary/30 text-primary"
+          >
             Autonomous Engine
           </Badge>
         </div>
@@ -196,9 +210,9 @@ export default function RevenueOsHomePage() {
           Agent workforce
         </h2>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground sm:text-sm">
-          Capture: Outreach, Campaign &amp; Funnel, Chat &amp; Bot. Qualify: Lead
-          Scoring, Pipeline, Proposal. Fulfill: Order Tracking, Payment, ERP
-          Sync. Performance: Incentive, Target Tracking, Analytics.
+          Capture: Outreach, Campaign &amp; Funnel, Chat &amp; Bot. Qualify:
+          Lead Scoring, Pipeline, Proposal. Fulfill: Order Tracking, Payment,
+          ERP Sync. Performance: Incentive, Target Tracking, Analytics.
         </p>
       </section>
     </WorkspacePage>

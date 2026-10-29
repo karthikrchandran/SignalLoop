@@ -61,6 +61,20 @@ def test_init_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
         GroqLLMAdapter()
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [None, [], {"choices": [None]}, {"choices": [{"message": None}]},
+     {"choices": [{"message": {"content": None}}]}],
+)
+def test_chat_completion_invalid_response_shape(
+    monkeypatch: pytest.MonkeyPatch, payload: object,
+) -> None:
+    response = MagicMock(status_code=200)
+    response.json.return_value = payload
+    _patch(monkeypatch, _Client(response))
+    assert _run(GroqLLMAdapter().chat_completion(system_prompt="s", messages=[])) == ""
+
+
 def test_chat_completion_returns_assistant_text(monkeypatch: pytest.MonkeyPatch) -> None:
     """200 with at least one choice returns the message content."""
     resp = MagicMock(status_code=200)

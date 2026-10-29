@@ -9,9 +9,10 @@ import hmac
 import logging
 import uuid
 from datetime import datetime, time, timedelta, timezone
+from typing import Any
 
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.core.config import settings
 from app.core.db import engine
@@ -128,7 +129,7 @@ def _daily_call_count(
     campaign_id: uuid.UUID | None = None,
 ) -> int:
     today = datetime.now(timezone.utc).date()
-    statement = select(func.count(CallRequest.id))
+    statement = select(func.count(col(CallRequest.id)))
     statement = statement.where(
         func.date(CallRequest.created_at) == today,
         CallRequest.status != CallRequestStatus.queued,
@@ -171,7 +172,7 @@ def _is_outreach_paused(
     return campaign_pause is not None
 
 
-def _policy_daily_call_cap(payload: dict, *, campaign_scope: bool) -> int | None:
+def _policy_daily_call_cap(payload: dict[str, Any], *, campaign_scope: bool) -> int | None:
     keys = (
         (
             "campaignDailyCallCap",
@@ -313,7 +314,7 @@ async def _process_batch() -> int:
                     CallRequest.status == CallRequestStatus.queued,
                     CallRequest.scheduled_at <= datetime.now(timezone.utc),
                 )
-                .order_by(CallRequest.scheduled_at)
+                .order_by(col(CallRequest.scheduled_at))
                 .limit(BATCH_SIZE)
             ).all()
             workspace_failed = False

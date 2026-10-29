@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep, require_admin
 from app.api.request_context import IdempotencyKeyDep, WorkspaceIdDep
@@ -41,7 +41,7 @@ def _build_template_public(session: SessionDep, template: Template) -> TemplateP
     version = session.exec(
         select(TemplateVersion)
         .where(TemplateVersion.template_id == template.id)
-        .order_by(TemplateVersion.version_number.desc())
+        .order_by(col(TemplateVersion.version_number).desc())
     ).first()
     current_version = None
     if version:
@@ -88,7 +88,7 @@ async def create_template(
     body: TemplateCreate,
 ) -> TemplatePublic:
     """Create template."""
-    return await run_idempotent_mutation(
+    return TemplatePublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -101,7 +101,7 @@ async def create_template(
             workspace_id=workspace_id,
             body=body,
         ),
-    )
+    ))
 
 
 def _create_template_once(
@@ -164,7 +164,7 @@ async def update_template(
     body: TemplateUpdate,
 ) -> TemplatePublic:
     """Update template."""
-    return await run_idempotent_mutation(
+    return TemplatePublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -181,7 +181,7 @@ async def update_template(
             workspace_id=workspace_id,
             body=body,
         ),
-    )
+    ))
 
 
 def _update_template_once(
@@ -198,7 +198,7 @@ def _update_template_once(
     latest = session.exec(
         select(TemplateVersion)
         .where(TemplateVersion.template_id == template_id)
-        .order_by(TemplateVersion.version_number.desc())
+        .order_by(col(TemplateVersion.version_number).desc())
     ).first()
     if not latest:
         raise HTTPException(status_code=404, detail="Template version not found")
@@ -225,10 +225,10 @@ def _update_template_once(
         if token_errors:
             raise HTTPException(status_code=400, detail=token_errors)
         existing_tokens = session.exec(select(TemplateToken).where(TemplateToken.template_id == template_id)).all()
-        for token in existing_tokens:
-            session.delete(token)
-        for token in body.tokens:
-            session.add(TemplateToken(template_id=template_id, **token.model_dump()))
+        for existing_token in existing_tokens:
+            session.delete(existing_token)
+        for definition in body.tokens:
+            session.add(TemplateToken(template_id=template_id, **definition.model_dump()))
     append_audit_event_to_session(
         session,
         event_name="template_updated",
@@ -258,7 +258,7 @@ async def clone_template(
     idempotency_key: IdempotencyKeyDep,
 ) -> TemplatePublic:
     """Clone template."""
-    return await run_idempotent_mutation(
+    return TemplatePublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -271,7 +271,7 @@ async def clone_template(
             template_id=template_id,
             workspace_id=workspace_id,
         ),
-    )
+    ))
 
 
 def _clone_template_once(
@@ -287,7 +287,7 @@ def _clone_template_once(
     latest = session.exec(
         select(TemplateVersion)
         .where(TemplateVersion.template_id == template_id)
-        .order_by(TemplateVersion.version_number.desc())
+        .order_by(col(TemplateVersion.version_number).desc())
     ).first()
     cloned = Template(workspace_id=workspace_id, name=f"{template.name} Copy", channel=template.channel, created_by=current_user.id)
     session.add(cloned)
@@ -340,7 +340,7 @@ def preview_template(
     latest = session.exec(
         select(TemplateVersion)
         .where(TemplateVersion.template_id == template_id)
-        .order_by(TemplateVersion.version_number.desc())
+        .order_by(col(TemplateVersion.version_number).desc())
     ).first()
     if not latest:
         raise HTTPException(status_code=404, detail="Template version not found")
@@ -365,7 +365,7 @@ async def publish_template(
     idempotency_key: IdempotencyKeyDep,
 ) -> TemplatePublic:
     """Publish template."""
-    return await run_idempotent_mutation(
+    return TemplatePublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -382,7 +382,7 @@ async def publish_template(
             version_id=version_id,
             workspace_id=workspace_id,
         ),
-    )
+    ))
 
 
 def _publish_template_once(

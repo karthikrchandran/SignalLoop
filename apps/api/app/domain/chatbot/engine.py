@@ -95,10 +95,9 @@ class _FallbackGroundedLlm(LlmAdapter):
         temperature: float = 0.4,
         **_: Any,
     ) -> str:
-        _ = (messages, max_tokens, temperature)
         marker = "[Source 1:"
         if marker in system_prompt:
-            _, rest = system_prompt.split(marker, 1)
+            _source_header, rest = system_prompt.split(marker, 1)
             content = rest.split("]\n", 1)[-1].split("\n\n", 1)[0].strip()
             if content:
                 return content[:500]
@@ -289,7 +288,7 @@ class ConversationEngine:
         threshold = confidence_threshold(bot_config)
         if retrieval.best_confidence < threshold:
             conversation.consecutive_low_confidence_count += 1
-            reply = await self._escalation_reply(
+            escalation_result = await self._escalation_reply(
                 inbound,
                 bot_config,
                 conversation,
@@ -297,7 +296,7 @@ class ConversationEngine:
                 started,
                 reason="low_confidence",
             )
-            return reply
+            return escalation_result
 
         conversation.consecutive_low_confidence_count = 0
         history = await self._history(inbound, conversation)
@@ -551,7 +550,8 @@ class ConversationEngine:
     ) -> None:
         key = session_key(inbound.workspace_id, inbound.channel_type, inbound.visitor_id)
         stored = await _redis_get_json(self._redis, key)
-        history = stored.get("history") if isinstance(stored.get("history"), list) else []
+        stored_history = stored.get("history")
+        history = stored_history if isinstance(stored_history, list) else []
         history = [
             *history,
             {"role": "user", "content": inbound.text or ""},

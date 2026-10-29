@@ -6,5 +6,12 @@ from slowapi.errors import RateLimitExceeded  # noqa: F401 — re-exported
 from slowapi.middleware import SlowAPIMiddleware  # noqa: F401 — re-exported
 from slowapi.util import get_remote_address
 
+__all__ = [
+    "RateLimitExceeded",
+    "SlowAPIMiddleware",
+    "_rate_limit_exceeded_handler",
+    "limiter",
+]
+
 # Shared limiter instance — import this in route modules.
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])

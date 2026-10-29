@@ -221,7 +221,7 @@ async def upsert_provider_credentials(
     request: Request,
     idempotency_key: IdempotencyKeyDep,
 ) -> ProviderCredentialPublic:
-    return await run_idempotent_mutation(
+    return ProviderCredentialPublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -235,7 +235,7 @@ async def upsert_provider_credentials(
             session=session,
             body=body,
         ),
-    )
+    ))
 
 
 def _upsert_provider_credentials_once(
@@ -521,7 +521,7 @@ async def upsert_provider_selection(
     request: Request,
     idempotency_key: IdempotencyKeyDep,
 ) -> ProviderSelectionPublic:
-    return await run_idempotent_mutation(
+    return ProviderSelectionPublic.model_validate(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -531,7 +531,7 @@ async def upsert_provider_selection(
         mutation=lambda: _upsert_provider_selection_once(
             workspace_id, workspace_header, current_user, session, body
         ),
-    )
+    ))
 
 
 def _upsert_provider_selection_once(

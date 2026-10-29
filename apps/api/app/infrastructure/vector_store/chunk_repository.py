@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass
 
 from sqlalchemy import text
-from sqlmodel import Session, delete, select
+from sqlmodel import Session, col, delete, select
 
 from app.domain.chatbot.models import ChatbotKnowledgeChunk, ChatbotKnowledgeSource
 
@@ -35,9 +35,9 @@ def replace_chunks(
     """Replace chunks for one source and index version."""
     session.exec(
         delete(ChatbotKnowledgeChunk).where(
-            ChatbotKnowledgeChunk.workspace_id == workspace_id,
-            ChatbotKnowledgeChunk.source_id == source_id,
-            ChatbotKnowledgeChunk.index_version == index_version,
+            col(ChatbotKnowledgeChunk.workspace_id) == workspace_id,
+            col(ChatbotKnowledgeChunk.source_id) == source_id,
+            col(ChatbotKnowledgeChunk.index_version) == index_version,
         )
     )
     rows: list[ChatbotKnowledgeChunk] = []
@@ -154,7 +154,7 @@ def search_chunks(
 
     rows = session.exec(
         select(ChatbotKnowledgeChunk, ChatbotKnowledgeSource)
-        .join(ChatbotKnowledgeSource, ChatbotKnowledgeChunk.source_id == ChatbotKnowledgeSource.id)
+        .join(ChatbotKnowledgeSource, col(ChatbotKnowledgeChunk.source_id) == col(ChatbotKnowledgeSource.id))
         .where(
             ChatbotKnowledgeChunk.workspace_id == workspace_id,
             ChatbotKnowledgeSource.workspace_id == workspace_id,

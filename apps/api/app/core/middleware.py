@@ -5,7 +5,7 @@ from contextvars import ContextVar
 from uuid import uuid4
 
 from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 request_id_var: ContextVar[str] = ContextVar("request_id", default="")
 
@@ -18,7 +18,7 @@ def get_request_id() -> str:
 class RequestTracingMiddleware(BaseHTTPMiddleware):
     """Extract or generate a correlation ID and propagate it through the request."""
 
-    async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[override]
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         """Dispatch the incoming request."""
         request_id = (
             request.headers.get("X-Request-ID")
@@ -36,7 +36,7 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add OWASP-recommended security headers to every response."""
 
-    async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[override]
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         """Dispatch the incoming request."""
         response = await call_next(request)
         response.headers.setdefault("X-Frame-Options", "DENY")

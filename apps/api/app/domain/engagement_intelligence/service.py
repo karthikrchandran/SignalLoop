@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypedDict
 
-from sqlmodel import Session, SQLModel, select
+from sqlmodel import Session, SQLModel, col, select
 
 from app.domain.audit.audit_events import AuditEvent
 from app.domain.chatbot.models import (
@@ -33,6 +33,18 @@ from app.domain_models import (
     ProspectingSnapshot,
     ProviderEventLog,
 )
+
+
+class ProviderHealthBucket(TypedDict):
+    success: int
+    failure: int
+    last_event_at: datetime | None
+
+
+class ContactRiskBucket(TypedDict):
+    contact: Contact
+    score: int
+    reasons: list[str]
 
 
 class NextBestActionPublic(SQLModel):
@@ -215,7 +227,7 @@ def _latest_message(
     return session.exec(
         select(ChatbotMessage)
         .where(ChatbotMessage.conversation_id == conversation.id)
-        .order_by(ChatbotMessage.created_at.desc())
+        .order_by(col(ChatbotMessage.created_at).desc())
     ).first()
 
 
@@ -255,57 +267,57 @@ def _load_workspace_data(
             select(ChatbotConversation)
             .where(
                 ChatbotConversation.workspace_id == workspace_id,
-                ChatbotConversation.deleted_at.is_(None),
+                col(ChatbotConversation.deleted_at).is_(None),
             )
-            .order_by(ChatbotConversation.last_message_at.desc())
+            .order_by(col(ChatbotConversation.last_message_at).desc())
             .limit(25)
         ).all()
     )
     call_rows = list(
         session.exec(
             select(CallRequest, CallSession)
-            .outerjoin(CallSession, CallRequest.id == CallSession.call_request_id)
-            .join(Campaign, CallRequest.campaign_id == Campaign.id)
+            .outerjoin(CallSession, col(CallRequest.id) == col(CallSession.call_request_id))
+            .join(Campaign, col(CallRequest.campaign_id) == col(Campaign.id))
             .where(Campaign.workspace_id == workspace_id)
-            .order_by(CallRequest.created_at.desc())
+            .order_by(col(CallRequest.created_at).desc())
             .limit(25)
         ).all()
     )
-    calls = [
+    calls: list[tuple[CallRequest, CallSession | None, Contact]] = [
         (
             call_request,
             call_session,
-            contact_map.get(call_request.shared_contact_id),
+            matched_contact,
         )
         for call_request, call_session in call_rows
-        if contact_map.get(call_request.shared_contact_id) is not None
+        if (matched_contact := contact_map.get(call_request.shared_contact_id)) is not None
     ]
     snapshots = list(
         session.exec(
             select(ProspectingSnapshot)
             .where(ProspectingSnapshot.workspace_id == workspace_id)
-            .order_by(ProspectingSnapshot.created_at.desc())
+            .order_by(col(ProspectingSnapshot.created_at).desc())
             .limit(25)
         ).all()
     )
     sequence_rows = list(
         session.exec(
             select(ContactSequenceState)
-            .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
-            .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+            .join(EmailSequence, col(ContactSequenceState.sequence_id) == col(EmailSequence.id))
+            .join(Campaign, col(EmailSequence.campaign_id) == col(Campaign.id))
             .where(Campaign.workspace_id == workspace_id)
         ).all()
     )
     sequence_states = [
-        (state, contact_map.get(state.shared_contact_id))
+        (state, matched_contact)
         for state in sequence_rows
-        if contact_map.get(state.shared_contact_id) is not None
+        if (matched_contact := contact_map.get(state.shared_contact_id)) is not None
     ]
     offer_packs = list(
         session.exec(
             select(OfferPack)
             .where(OfferPack.workspace_id == workspace_id)
-            .order_by(OfferPack.created_at.desc())
+            .order_by(col(OfferPack.created_at).desc())
             .limit(5)
         ).all()
     )
@@ -313,7 +325,7 @@ def _load_workspace_data(
         session.exec(
             select(AuditEvent)
             .where(AuditEvent.workspace_id == workspace_id)
-            .order_by(AuditEvent.created_at.desc())
+            .order_by(col(AuditEvent.created_at).desc())
             .limit(25)
         ).all()
     )
@@ -321,7 +333,7 @@ def _load_workspace_data(
         session.exec(
             select(ProviderEventLog)
             .where(ProviderEventLog.workspace_id == workspace_id)
-            .order_by(ProviderEventLog.received_at.desc())
+            .order_by(col(ProviderEventLog.received_at).desc())
             .limit(50)
         ).all()
     )
@@ -330,31 +342,31 @@ def _load_workspace_data(
             select(SendRequest, ContactSequenceState)
             .join(
                 ContactSequenceState,
-                SendRequest.contact_sequence_state_id == ContactSequenceState.id,
+                col(SendRequest.contact_sequence_state_id) == col(ContactSequenceState.id),
             )
-            .join(EmailSequence, ContactSequenceState.sequence_id == EmailSequence.id)
-            .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+            .join(EmailSequence, col(ContactSequenceState.sequence_id) == col(EmailSequence.id))
+            .join(Campaign, col(EmailSequence.campaign_id) == col(Campaign.id))
             .where(Campaign.workspace_id == workspace_id)
-            .order_by(SendRequest.created_at.desc())
+            .order_by(col(SendRequest.created_at).desc())
             .limit(50)
         ).all()
     )
     send_requests = [
-        (send_request, state, contact_map.get(state.shared_contact_id))
+        (send_request, state, matched_contact)
         for send_request, state in send_rows
-        if contact_map.get(state.shared_contact_id) is not None
+        if (matched_contact := contact_map.get(state.shared_contact_id)) is not None
     ]
     progression_rows = list(
         session.exec(
             select(ContactProgression)
-            .join(Campaign, ContactProgression.campaign_id == Campaign.id)
+            .join(Campaign, col(ContactProgression.campaign_id) == col(Campaign.id))
             .where(Campaign.workspace_id == workspace_id)
         ).all()
     )
     progressions = [
-        (progression, contact_map.get(progression.shared_contact_id))
+        (progression, matched_contact)
         for progression in progression_rows
-        if contact_map.get(progression.shared_contact_id) is not None
+        if (matched_contact := contact_map.get(progression.shared_contact_id)) is not None
     ]
     return (
         contact_map,
@@ -379,6 +391,7 @@ def _build_next_best_actions(
     sequence_states: list[tuple[ContactSequenceState, Contact]],
     session: Session,
 ) -> list[NextBestActionPublic]:
+    contact: Contact | None
     active_sequence_contact_ids = {
         contact.id
         for state, contact in sequence_states
@@ -887,12 +900,9 @@ def _build_provider_health(
         "spam_report",
         "undelivered",
     }
-    buckets: dict[
-        tuple[str, str],
-        dict[str, int | datetime | None],
-    ] = {}
+    buckets: dict[tuple[str, str], ProviderHealthBucket] = {}
 
-    def bucket(provider: str, channel: str) -> dict[str, int | datetime | None]:
+    def bucket(provider: str, channel: str) -> ProviderHealthBucket:
         return buckets.setdefault(
             (provider, channel),
             {"success": 0, "failure": 0, "last_event_at": None},
@@ -1029,7 +1039,7 @@ def _build_pipeline_risks(
     progressions: list[tuple[ContactProgression, Contact]],
     contact_map: dict[uuid.UUID, Contact],
 ) -> list[PipelineRiskPublic]:
-    rows: dict[uuid.UUID, dict[str, object]] = {}
+    rows: dict[uuid.UUID, ContactRiskBucket] = {}
 
     def add_risk(contact: Contact | None, points: int, reason: str) -> None:
         if contact is None:

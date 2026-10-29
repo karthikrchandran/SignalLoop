@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain.policies.consent_sync_service import is_contact_actionable
 from app.domain.policies.policy_engine import evaluate_policies
@@ -110,7 +110,7 @@ class ConfiguredInterventionEnforcementGate(PersistedSignalEnforcementGate):
                 select(GovernancePolicy).where(
                     GovernancePolicy.workspace_id == self.workspace_id,
                     GovernancePolicy.status == PolicyStatus.active,
-                    (GovernancePolicy.campaign_id.is_(None))
+                    (col(GovernancePolicy.campaign_id).is_(None))
                     | (GovernancePolicy.campaign_id == campaign_id),
                 )
             ).all()
@@ -123,7 +123,7 @@ class ConfiguredInterventionEnforcementGate(PersistedSignalEnforcementGate):
                 .select_from(ActionQueue)
                 .where(
                     ActionQueue.workspace_id == self.workspace_id,
-                    ActionQueue.executed_at >= start_of_day,
+                    col(ActionQueue.executed_at) >= start_of_day,
                 )
             ).one()
         )
@@ -136,7 +136,7 @@ class ConfiguredInterventionEnforcementGate(PersistedSignalEnforcementGate):
                     .where(
                         ActionQueue.workspace_id == self.workspace_id,
                         ActionQueue.campaign_id == campaign_id,
-                        ActionQueue.executed_at >= start_of_day,
+                        col(ActionQueue.executed_at) >= start_of_day,
                     )
                 ).one()
             )

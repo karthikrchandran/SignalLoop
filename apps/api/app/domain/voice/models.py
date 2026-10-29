@@ -71,12 +71,8 @@ class VoiceScript(SQLModel, table=True):
     content: str = Field(sa_type=Text)
     active: bool = Field(default=True)
     created_by: uuid.UUID = Field()
-    created_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
-    updated_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
+    updated_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
 
 
 class CallRequest(SQLModel, table=True):
@@ -109,15 +105,13 @@ class CallRequest(SQLModel, table=True):
         alias="contact_id",
         sa_column=Column("contact_id", Uuid(), index=True, nullable=False)
     )
-    contact_id: ClassVar[Synonym] = synonym("shared_contact_id")
+    contact_id: ClassVar[Synonym[uuid.UUID]] = synonym("shared_contact_id")
     campaign_id: uuid.UUID = Field(foreign_key="campaigns.id", index=True)
     voice_script_id: uuid.UUID = Field(foreign_key="voice_scripts.id")
     trigger_reason: str = Field(max_length=64)
     status: CallRequestStatus = Field(default=CallRequestStatus.queued)
-    scheduled_at: datetime = Field(sa_type=DateTime(timezone=True))
-    created_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    scheduled_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
 
 
 class CallSession(SQLModel, table=True):
@@ -143,9 +137,7 @@ class CallSession(SQLModel, table=True):
     twilio_call_sid: str = Field(max_length=64, default="")
     twilio_account_sid: str | None = Field(default=None, max_length=64)
     twilio_status: str | None = Field(default=None, max_length=32)
-    twilio_status_updated_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)
-    )
+    twilio_status_updated_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
     duration_seconds: int = Field(default=0)
     outcome: CallOutcome | None = Field(default=None)
     recording_url: str | None = Field(default=None, max_length=1024)
@@ -157,19 +149,11 @@ class CallSession(SQLModel, table=True):
     postcall_status: str | None = Field(default=None, max_length=32)
     post_call_processed: bool = Field(default=False)
     media_stream_nonce_hash: str | None = Field(default=None, max_length=64)
-    media_stream_token_expires_at: datetime | None = Field(  # type: ignore[call-overload]
-        default=None, sa_type=DateTime(timezone=True)
-    )
-    media_stream_token_consumed_at: datetime | None = Field(  # type: ignore[call-overload]
-        default=None, sa_type=DateTime(timezone=True)
-    )
+    media_stream_token_expires_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
+    media_stream_token_consumed_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
     callback_correlation_hash: str | None = Field(default=None, max_length=64, index=True)
-    callback_correlation_expires_at: datetime | None = Field(  # type: ignore[call-overload]
-        default=None, sa_type=DateTime(timezone=True)
-    )
-    created_at: datetime = Field(
-        default_factory=_utcnow, sa_type=DateTime(timezone=True)
-    )
+    callback_correlation_expires_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True, default=None))
+    created_at: datetime = Field(default_factory=_utcnow, sa_column=Column(DateTime(timezone=True), nullable=False, default=_utcnow))
 
 
 @event.listens_for(VoiceScript, "before_insert")

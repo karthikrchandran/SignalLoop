@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from app.domain.contacts.progression_service import transition_contact_state
 from app.domain.scheduling.availability import AvailableSlot
@@ -86,7 +86,7 @@ def create_scheduling_offer(
     previous = session.exec(
         select(SchedulingOffer)
         .where(SchedulingOffer.scheduling_request_id == request_id)
-        .order_by(SchedulingOffer.version.desc())
+        .order_by(col(SchedulingOffer.version).desc())
         .limit(1)
     ).first()
     version = 1 if previous is None else previous.version + 1
@@ -285,8 +285,8 @@ def list_scheduling_requests(
     """Return scheduling requests filtered by workspace, status, and campaign."""
     base_query = (
         select(SchedulingRequest)
-        .join(Contact, SchedulingRequest.contact_id == Contact.id)
-        .join(Campaign, SchedulingRequest.campaign_id == Campaign.id)
+        .join(Contact, col(SchedulingRequest.contact_id) == col(Contact.id))
+        .join(Campaign, col(SchedulingRequest.campaign_id) == col(Campaign.id))
         .where(
             SchedulingRequest.workspace_id == workspace_id,
             Campaign.workspace_id == workspace_id,

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain.audit.audit_events import append_audit_event_to_session
 from app.domain.chatbot.models import (
@@ -54,8 +54,8 @@ def purge_workspace_conversations(
         session.exec(
             select(ChatbotConversation).where(
                 ChatbotConversation.workspace_id == workspace_id,
-                ChatbotConversation.deleted_at.is_(None),
-                ChatbotConversation.last_message_at < cutoff,
+                col(ChatbotConversation.deleted_at).is_(None),
+                col(ChatbotConversation.last_message_at) < cutoff,
             )
         ).all()
     )
@@ -66,8 +66,8 @@ def purge_workspace_conversations(
             session.exec(
                 select(ChatbotMessage).where(
                     ChatbotMessage.workspace_id == workspace_id,
-                    ChatbotMessage.deleted_at.is_(None),
-                    ChatbotMessage.conversation_id.in_(conversation_ids),
+                    col(ChatbotMessage.deleted_at).is_(None),
+                    col(ChatbotMessage.conversation_id).in_(conversation_ids),
                 )
             ).all()
         )
@@ -75,9 +75,9 @@ def purge_workspace_conversations(
     for row in conversations:
         row.deleted_at = current
         session.add(row)
-    for row in messages:
-        row.deleted_at = current
-        session.add(row)
+    for message in messages:
+        message.deleted_at = current
+        session.add(message)
 
     result = RetentionPurgeResult(
         workspace_id=workspace_id,
@@ -99,4 +99,3 @@ def purge_workspace_conversations(
         },
     )
     return result
-

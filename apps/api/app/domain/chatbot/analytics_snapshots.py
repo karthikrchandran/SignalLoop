@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain.chatbot.models import (
     ChatbotAnalyticsSnapshot,
@@ -70,9 +70,9 @@ def refresh_chatbot_analytics_snapshots(
         session.exec(
             select(ChatbotConversation).where(
                 ChatbotConversation.workspace_id == workspace_id,
-                ChatbotConversation.deleted_at.is_(None),
-                ChatbotConversation.last_message_at >= start_at,
-                ChatbotConversation.last_message_at < end_at,
+                col(ChatbotConversation.deleted_at).is_(None),
+                col(ChatbotConversation.last_message_at) >= start_at,
+                col(ChatbotConversation.last_message_at) < end_at,
             )
         ).all()
     )
@@ -102,8 +102,8 @@ def refresh_chatbot_analytics_snapshots(
         bot_messages = session.exec(
             select(ChatbotMessage.conversation_id).where(
                 ChatbotMessage.workspace_id == workspace_id,
-                ChatbotMessage.conversation_id.in_(list(conversation_channels.keys())),
-                ChatbotMessage.deleted_at.is_(None),
+                col(ChatbotMessage.conversation_id).in_(list(conversation_channels.keys())),
+                col(ChatbotMessage.deleted_at).is_(None),
                 ChatbotMessage.sender == ChatbotMessageSender.bot,
                 ChatbotMessage.created_at >= start_at,
                 ChatbotMessage.created_at < end_at,
@@ -166,9 +166,9 @@ def refresh_all_chatbot_analytics_snapshots(
         for workspace_id in session.exec(
             select(ChatbotConversation.workspace_id)
             .where(
-                ChatbotConversation.deleted_at.is_(None),
-                ChatbotConversation.last_message_at >= start_at,
-                ChatbotConversation.last_message_at < end_at,
+                col(ChatbotConversation.deleted_at).is_(None),
+                col(ChatbotConversation.last_message_at) >= start_at,
+                col(ChatbotConversation.last_message_at) < end_at,
             )
             .distinct()
         ).all()

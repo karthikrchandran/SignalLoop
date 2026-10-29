@@ -18,7 +18,7 @@ def parse_csv(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]:
     """Parse csv."""
     decoded = file_bytes.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(decoded))
-    headers = reader.fieldnames or []
+    headers = list(reader.fieldnames or [])
     rows = [dict(row) for row in reader]
     return headers, rows
 

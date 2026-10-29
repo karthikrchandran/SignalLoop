@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from app.domain.commercial_agents.models import (
     AgentCapacityOverride,
@@ -117,7 +117,7 @@ def _capacity_limit(
             AgentCapacityOverride.deployment_id == deployment.id,
             AgentCapacityOverride.capacity_metric == capacity_metric,
         )
-        .order_by(AgentCapacityOverride.effective_from.desc())
+        .order_by(col(AgentCapacityOverride.effective_from).desc())
     ).all()
     for override in overrides:
         if _as_utc(override.effective_from) <= at and (
@@ -175,7 +175,7 @@ def reserve_capacity(
             AgentUsageLedger.deployment_id == deployment.id,
             AgentUsageLedger.billing_day == billing_day,
             AgentUsageLedger.capacity_metric == capacity_metric,
-            AgentUsageLedger.state.in_(
+            col(AgentUsageLedger.state).in_(
                 [
                     AgentUsageState.RESERVED.value,
                     AgentUsageState.FINALIZED.value,

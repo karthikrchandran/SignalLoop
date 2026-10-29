@@ -8,6 +8,7 @@ exception handling, and the close timeout fallback.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -42,6 +43,7 @@ def test_init_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_connect_passes_url_and_headers(monkeypatch: pytest.MonkeyPatch) -> None:
     """connect() builds the right URL and Authorization header."""
+    assert "extra_headers" in inspect.signature(stt_mod.websockets.connect).parameters
     fake_ws = MagicMock()
     connect_mock = AsyncMock(return_value=fake_ws)
     monkeypatch.setattr(stt_mod.websockets, "connect", connect_mock)
@@ -53,7 +55,8 @@ def test_connect_passes_url_and_headers(monkeypatch: pytest.MonkeyPatch) -> None
     assert args[0].startswith(DEEPGRAM_WS_URL + "?")
     assert "model=nova-2" in args[0]
     assert "encoding=mulaw" in args[0]
-    assert kwargs["additional_headers"]["Authorization"] == "Token dg-key"
+    assert kwargs["extra_headers"]["Authorization"] == "Token dg-key"
+    assert "additional_headers" not in kwargs
     assert a._ws is fake_ws
 
 

@@ -5,6 +5,18 @@ to restore over the active SignalLoop database. It is an operator-run
 rehearsal, not a substitute for provider backup retention or a production
 failover plan.
 
+## Native PostgreSQL baseline
+
+Local development uses the existing native PostgreSQL 18 cluster on port `5432`; Docker and a Supabase account are not required. SignalLoop and eCRM may share that server, but must keep separate databases and application credentials. Use matching PostgreSQL 18 backup/restore binaries. Restore into a new database, never over the other application's database.
+
+The optional PostgreSQL 18 Compose volume is independent of native data and of older container volumes. Switching an image or connection string does not migrate existing data. Verify recovery before any major-version change.
+
+## Schema-history drift
+
+An existing table with a missing Alembic revision is a schema/history discrepancy, not a reason to reset the database or blindly stamp `head`. In particular, tests that create current model tables outside Alembic must use disposable databases, not the normal application database.
+
+Rehearse repair on an isolated restore: create a clean reference using the full migration history, compare columns, types, defaults, keys, indexes, checks, functions, triggers, and policies, and validate every new constraint against preserved data. Review data migrations separately. Only reconcile recorded revisions after the repaired schema matches that reference and existing row contents have been verified unchanged. Keep the pre-repair dump, environment backup, repair plan, and verification evidence privately. Re-run application login and authenticated reads before declaring recovery complete.
+
 ## Preconditions
 
 - Create a PostgreSQL custom-format logical backup with `pg_dump` and store it
@@ -29,7 +41,7 @@ $env:DATABASE_URL = '<source connection from approved secret store>'
 $env:RECOVERY_DATABASE_URL = '<isolated recovery connection from approved secret store>'
 uv run python tooling/backup_restore_evidence.py `
   --backup D:\SignalLoopBackups\signalloop-20260812.dump `
-  --migration-head phase1_revenue_onboarding_merge_20260812 `
+  --migration-head p1_lead_discovery_engine_20261010 `
   --row-validation docs\operations\evidence\recovery-row-counts.json `
   --evidence docs\operations\evidence\backup-restore-preflight.json `
   --emit-restore-plan

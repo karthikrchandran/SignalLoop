@@ -371,7 +371,7 @@ async def _send_resource_email(
     )
 
 
-def get_trigger_rules() -> list[dict]:
+def get_trigger_rules() -> list[dict[str, Any]]:
     """Return list of trigger rules with enabled status."""
     return [
         {

@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain_models import OutboxEvent
 
@@ -59,9 +59,9 @@ def list_unpublished_events(
             select(OutboxEvent)
             .where(
                 OutboxEvent.workspace_id == workspace_id,
-                OutboxEvent.published_at.is_(None),
+                col(OutboxEvent.published_at).is_(None),
             )
-            .order_by(OutboxEvent.created_at)
+            .order_by(col(OutboxEvent.created_at))
             .limit(limit)
         ).all()
     )

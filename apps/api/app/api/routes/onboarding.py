@@ -4,7 +4,7 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 from sqlmodel import select
 
 from app.api.deps import AdminUser, CurrentUser, SessionDep
@@ -99,7 +99,7 @@ async def reconcile_run_stage(
     stage = session.get(OnboardingStageRecord, stage_id)
     if stage is None or stage.run_id != run.id:
         raise HTTPException(status_code=404, detail="Onboarding stage not found")
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, object]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -118,7 +118,7 @@ async def reconcile_run_stage(
             stage=stage,
             body=body,
         ),
-    )
+    ))
 
 
 def _reconcile_once(

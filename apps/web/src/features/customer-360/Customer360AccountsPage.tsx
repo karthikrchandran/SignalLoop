@@ -133,9 +133,7 @@ export default function Customer360AccountsPage() {
             <Building2 className="size-4" />
             Account workspace
           </div>
-          <h1 className="text-xl font-semibold tracking-tight">
-            Customer 360
-          </h1>
+          <h1 className="text-xl font-semibold tracking-tight">Customer 360</h1>
           <p className="text-sm text-muted-foreground">
             {count} account{count === 1 ? "" : "s"} in the active workspace
           </p>

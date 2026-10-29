@@ -21,7 +21,7 @@ from app.domain.workspaces.service import (
 )
 from app.models import User
 
-router = APIRouter(prefix="/chatbot", tags=["chatbot"])
+router: APIRouter = APIRouter(prefix="/chatbot", tags=["chatbot"])
 
 CHATBOT_ADMIN_ROLES = {"admin", "super_admin"}
 CHATBOT_AGENT_ROLES = {"admin", "super_admin", "agent", "support_agent", "operator"}

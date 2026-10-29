@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.domain.audit.audit_events import append_audit_event_to_session
 from app.domain.prospecting.schemas import (
@@ -218,7 +218,7 @@ def _timeline_sources(
             ContactEvent.workspace_id == workspace_id,
             ContactEvent.shared_contact_id == shared_contact_id,
         )
-        .order_by(ContactEvent.created_at.desc())
+        .order_by(col(ContactEvent.created_at).desc())
         .limit(5)
     ).all()
     state_history = session.exec(
@@ -227,7 +227,7 @@ def _timeline_sources(
             ContactStateHistory.workspace_id == workspace_id,
             ContactStateHistory.shared_contact_id == shared_contact_id,
         )
-        .order_by(ContactStateHistory.triggered_at.desc())
+        .order_by(col(ContactStateHistory.triggered_at).desc())
         .limit(5)
     ).all()
 
@@ -508,7 +508,7 @@ def enroll_selected_prospects(
     if sequence_id is not None:
         sequence = session.exec(
             select(EmailSequence)
-            .join(Campaign, EmailSequence.campaign_id == Campaign.id)
+            .join(Campaign, col(EmailSequence.campaign_id) == col(Campaign.id))
             .where(
                 EmailSequence.id == sequence_id,
                 EmailSequence.campaign_id == campaign_id,
@@ -617,7 +617,7 @@ def list_prospecting_snapshots(
         )
     return list(
         session.exec(
-            statement.order_by(ProspectingSnapshot.created_at.desc()).limit(limit)
+            statement.order_by(col(ProspectingSnapshot.created_at).desc()).limit(limit)
         ).all()
     )
 

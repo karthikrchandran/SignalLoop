@@ -80,6 +80,20 @@ def test_chat_completion_missing_message(monkeypatch: pytest.MonkeyPatch) -> Non
     assert _run(OllamaLLMAdapter().chat_completion(system_prompt="s", messages=[])) == ""
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [None, [], {"message": []}, {"message": {"content": None}},
+     {"message": {"content": ["not text"]}}],
+)
+def test_chat_completion_invalid_response_shape(
+    monkeypatch: pytest.MonkeyPatch, payload: object,
+) -> None:
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = payload
+    _patch(monkeypatch, _Client(resp))
+    assert _run(OllamaLLMAdapter().chat_completion(system_prompt="s", messages=[])) == ""
+
+
 def test_chat_completion_invalid_json(monkeypatch: pytest.MonkeyPatch) -> None:
     resp = MagicMock(status_code=200)
     resp.json.side_effect = ValueError("bad")

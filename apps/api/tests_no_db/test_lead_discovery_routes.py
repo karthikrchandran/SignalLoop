@@ -185,7 +185,8 @@ def test_lead_discovery_webhook_ingestion_route() -> None:
     }
 
     response = client.post(
-        "/lead-discovery/webhooks/internal?workspace_id=ws-webhook",
+        "/lead-discovery/webhooks/internal",
+        headers={"X-Workspace-Id": "ws-webhook"},
         json=webhook_payload,
     )
     assert response.status_code == 200
@@ -200,4 +201,3 @@ def test_lead_discovery_webhook_ingestion_route() -> None:
     assert lead_rec.email == "sarah.lead@innovate.tech"
     assert lead_rec.company_name == "Innovate Tech"
     assert len(lead_rec.conversation_starters_json) > 0
-

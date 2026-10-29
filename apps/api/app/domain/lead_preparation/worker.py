@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import update
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from app.domain.audit.audit_events import append_audit_event_to_session
 from app.domain.commercial_agents.capacity import finalize_capacity, reserve_capacity
@@ -56,10 +56,10 @@ def _finalize_job_status(
     result = session.exec(
         update(LeadPreparationJob)
         .where(
-            LeadPreparationJob.id == job.id,
-            LeadPreparationJob.status == LeadPreparationJobStatus.IN_PROGRESS.value,
-            LeadPreparationJob.lease_token == job.lease_token,
-            LeadPreparationJob.lease_expires_at >= now,
+            col(LeadPreparationJob.id) == job.id,
+            col(LeadPreparationJob.status) == LeadPreparationJobStatus.IN_PROGRESS.value,
+            col(LeadPreparationJob.lease_token) == job.lease_token,
+            col(LeadPreparationJob.lease_expires_at) >= now,
         )
         .values(
             status=status.value,
@@ -90,9 +90,9 @@ def _record_failure(
     session.exec(
         update(LeadPreparationJob)
         .where(
-            LeadPreparationJob.id == job.id,
-            LeadPreparationJob.status == LeadPreparationJobStatus.IN_PROGRESS.value,
-            LeadPreparationJob.lease_token == lease_token,
+            col(LeadPreparationJob.id) == job.id,
+            col(LeadPreparationJob.status) == LeadPreparationJobStatus.IN_PROGRESS.value,
+            col(LeadPreparationJob.lease_token) == lease_token,
         )
         .values(
             status=(

@@ -67,9 +67,19 @@ function priorityVariant(priority: ProspectingPriority) {
   return "outline"
 }
 
-function BulletList({ items, variant = "neutral" }: { items: string[]; variant?: "neutral" | "danger" | "success" }) {
+function BulletList({
+  items,
+  variant = "neutral",
+}: {
+  items: string[]
+  variant?: "neutral" | "danger" | "success"
+}) {
   if (!items.length) {
-    return <p className="text-xs text-muted-foreground italic">No items identified yet.</p>
+    return (
+      <p className="text-xs text-muted-foreground italic">
+        No items identified yet.
+      </p>
+    )
   }
   return (
     <ul className="space-y-2 text-xs">
@@ -80,8 +90,8 @@ function BulletList({ items, variant = "neutral" }: { items: string[]; variant?:
             variant === "danger"
               ? "border-amber-500/25 bg-amber-500/[0.04] text-foreground"
               : variant === "success"
-              ? "border-emerald-500/25 bg-emerald-500/[0.04] text-foreground"
-              : "border-border/70 bg-muted/30 text-foreground/90"
+                ? "border-emerald-500/25 bg-emerald-500/[0.04] text-foreground"
+                : "border-border/70 bg-muted/30 text-foreground/90"
           }`}
         >
           <span
@@ -89,8 +99,8 @@ function BulletList({ items, variant = "neutral" }: { items: string[]; variant?:
               variant === "danger"
                 ? "bg-amber-500"
                 : variant === "success"
-                ? "bg-emerald-500"
-                : "bg-primary"
+                  ? "bg-emerald-500"
+                  : "bg-primary"
             }`}
           />
           <span className="leading-relaxed font-normal">{item}</span>
@@ -143,7 +153,9 @@ function DraftPanel({
           {copied ? (
             <>
               <CheckCircle2 className="size-3 text-emerald-500" />
-              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">Copied!</span>
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                Copied!
+              </span>
             </>
           ) : (
             <>
@@ -464,11 +476,14 @@ export default function ProspectingPage() {
         },
       ]}
     >
-
       {feedback && (
         <Alert className="border-primary/30 bg-primary/5 text-primary text-xs flex items-center justify-between">
           <span>{feedback}</span>
-          <button type="button" onClick={() => setFeedback("")} className="text-xs text-muted-foreground hover:text-foreground">
+          <button
+            type="button"
+            onClick={() => setFeedback("")}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
             Dismiss
           </button>
         </Alert>
@@ -548,7 +563,10 @@ export default function ProspectingPage() {
                   Clear
                 </button>
                 {selectedContactIds.length > 0 && (
-                  <Badge variant="secondary" className="text-[10px] h-4 px-1 ml-0.5 font-bold">
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px] h-4 px-1 ml-0.5 font-bold"
+                  >
                     {selectedContactIds.length}
                   </Badge>
                 )}
@@ -581,8 +599,12 @@ export default function ProspectingPage() {
             {filteredContacts.length === 0 && (
               <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/80 p-8 text-center text-xs text-muted-foreground">
                 <Compass className="size-6 text-muted-foreground/40 mb-2" />
-                <p className="font-medium text-foreground">No leads found in this view</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Try clearing filters or search criteria.</p>
+                <p className="font-medium text-foreground">
+                  No leads found in this view
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Try clearing filters or search criteria.
+                </p>
               </div>
             )}
 
@@ -593,7 +615,6 @@ export default function ProspectingPage() {
               return (
                 <div
                   key={contact.id}
-                  onClick={() => setSelectedContactId(contact.id)}
                   className={`group relative flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-left transition-all ${
                     isSelectedRow
                       ? "border-primary bg-primary/[0.04] shadow-xs ring-1 ring-primary/20"
@@ -601,12 +622,7 @@ export default function ProspectingPage() {
                   }`}
                 >
                   {/* Select Checkbox */}
-                  <div
-                    className="pt-0.5"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                    }}
-                  >
+                  <div className="pt-0.5">
                     <input
                       type="checkbox"
                       className="size-4 rounded border-border accent-primary cursor-pointer"
@@ -617,8 +633,13 @@ export default function ProspectingPage() {
                   </div>
 
                   {/* Contact Summary Info */}
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex items-start justify-between gap-1.5">
+                  <button
+                    type="button"
+                    aria-pressed={isSelectedRow}
+                    onClick={() => setSelectedContactId(contact.id)}
+                    className="min-w-0 flex-1 space-y-1 text-left"
+                  >
+                    <span className="flex items-start justify-between gap-1.5">
                       <span className="truncate text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
                         {contactLabel(contact)}
                       </span>
@@ -628,13 +649,13 @@ export default function ProspectingPage() {
                       >
                         {priorityLabel(contact.priority)}
                       </Badge>
-                    </div>
+                    </span>
 
-                    <div className="truncate text-[11px] text-muted-foreground">
+                    <span className="block truncate text-[11px] text-muted-foreground">
                       {contact.email}
-                    </div>
+                    </span>
 
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="flex flex-wrap items-center gap-1.5 pt-1">
                       <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[10px] font-bold text-foreground">
                         <Flame className="size-2.5 text-amber-500" />
                         Score {contact.lead_score}
@@ -651,8 +672,8 @@ export default function ProspectingPage() {
                           Voice ready
                         </span>
                       )}
-                    </div>
-                  </div>
+                    </span>
+                  </button>
                 </div>
               )
             })}
@@ -668,10 +689,15 @@ export default function ProspectingPage() {
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-bold tracking-tight text-foreground">
-                      {selectedContact ? contactLabel(selectedContact) : "Select a Prospect to Prepare"}
+                      {selectedContact
+                        ? contactLabel(selectedContact)
+                        : "Select a Prospect to Prepare"}
                     </h2>
                     {selectedContact && (
-                      <Badge variant={priorityVariant(selectedContact.priority)} className="text-xs">
+                      <Badge
+                        variant={priorityVariant(selectedContact.priority)}
+                        className="text-xs"
+                      >
                         {priorityLabel(selectedContact.priority)}
                       </Badge>
                     )}
@@ -717,7 +743,9 @@ export default function ProspectingPage() {
                     variant="outline"
                     className="h-9 gap-1.5 text-xs hover:border-primary/50"
                     onClick={() => void runSelectedResearch()}
-                    disabled={selectedContactIds.length === 0 || bulkResearching}
+                    disabled={
+                      selectedContactIds.length === 0 || bulkResearching
+                    }
                   >
                     {bulkResearching ? (
                       <Loader2 className="size-3.5 animate-spin" />
@@ -726,7 +754,10 @@ export default function ProspectingPage() {
                     )}
                     Build briefs for selected
                     {selectedContactIds.length > 0 && (
-                      <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4">
+                      <Badge
+                        variant="secondary"
+                        className="ml-1 text-[10px] px-1.5 py-0 h-4"
+                      >
                         {selectedContactIds.length}
                       </Badge>
                     )}
@@ -737,7 +768,10 @@ export default function ProspectingPage() {
               {/* Company Website URL & Scoring Signals */}
               <div className="mt-4 pt-3 border-t border-border/50 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="prospecting-company-url" className="text-xs shrink-0 text-muted-foreground font-medium">
+                  <Label
+                    htmlFor="prospecting-company-url"
+                    className="text-xs shrink-0 text-muted-foreground font-medium"
+                  >
                     Company website:
                   </Label>
                   <div className="relative">
@@ -753,12 +787,17 @@ export default function ProspectingPage() {
                   </div>
                 </div>
 
-                {selectedContact?.priority_reasons && selectedContact.priority_reasons.length > 0 && (
-                  <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-                    <span className="font-semibold text-foreground">Signals:</span>
-                    <span>{selectedContact.priority_reasons.join(" • ")}</span>
-                  </div>
-                )}
+                {selectedContact?.priority_reasons &&
+                  selectedContact.priority_reasons.length > 0 && (
+                    <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                      <span className="font-semibold text-foreground">
+                        Signals:
+                      </span>
+                      <span>
+                        {selectedContact.priority_reasons.join(" • ")}
+                      </span>
+                    </div>
+                  )}
               </div>
             </div>
 
@@ -774,21 +813,27 @@ export default function ProspectingPage() {
                       Outreach handoff
                     </span>
                     <span className="ml-1.5 text-[11px] text-muted-foreground">
-                      (enrolling {selectedContactIds.length || 1} selected lead{selectedContactIds.length === 1 ? "" : "s"})
+                      (enrolling {selectedContactIds.length || 1} selected lead
+                      {selectedContactIds.length === 1 ? "" : "s"})
                     </span>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center gap-1.5">
-                    <Label htmlFor="prospecting-campaign" className="text-xs text-muted-foreground">
+                    <Label
+                      htmlFor="prospecting-campaign"
+                      className="text-xs text-muted-foreground"
+                    >
                       Campaign
                     </Label>
                     <select
                       id="prospecting-campaign"
                       className="h-8 rounded-md border border-border/80 bg-background px-2.5 text-xs"
                       value={selectedCampaignId}
-                      onChange={(event) => setSelectedCampaignId(event.target.value)}
+                      onChange={(event) =>
+                        setSelectedCampaignId(event.target.value)
+                      }
                       disabled={campaigns.length === 0}
                     >
                       {campaigns.length === 0 ? (
@@ -804,15 +849,23 @@ export default function ProspectingPage() {
                   </div>
 
                   <div className="flex items-center gap-1.5">
-                    <Label htmlFor="prospecting-sequence" className="text-xs text-muted-foreground">
+                    <Label
+                      htmlFor="prospecting-sequence"
+                      className="text-xs text-muted-foreground"
+                    >
                       Sequence
                     </Label>
                     <select
                       id="prospecting-sequence"
                       className="h-8 rounded-md border border-border/80 bg-background px-2.5 text-xs"
                       value={selectedSequenceId}
-                      onChange={(event) => setSelectedSequenceId(event.target.value)}
-                      disabled={!selectedCampaignId || selectedCampaignSequences.length === 0}
+                      onChange={(event) =>
+                        setSelectedSequenceId(event.target.value)
+                      }
+                      disabled={
+                        !selectedCampaignId ||
+                        selectedCampaignSequences.length === 0
+                      }
                     >
                       {selectedCampaignSequences.length === 0 ? (
                         <option value="">No sequence</option>
@@ -830,7 +883,11 @@ export default function ProspectingPage() {
                     size="sm"
                     className="h-8 gap-1.5 text-xs"
                     onClick={() => void addSelectedToOutreach()}
-                    disabled={selectedContactIds.length === 0 || !selectedCampaignId || enrolling}
+                    disabled={
+                      selectedContactIds.length === 0 ||
+                      !selectedCampaignId ||
+                      enrolling
+                    }
                   >
                     {enrolling ? (
                       <Loader2 className="size-3.5 animate-spin" />
@@ -855,7 +912,11 @@ export default function ProspectingPage() {
                         Account summary
                       </h3>
                       <span className="text-[11px] text-muted-foreground">
-                        Synthesized {new Date(result.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        Synthesized{" "}
+                        {new Date(result.created_at).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
                     </div>
                     <p className="text-sm font-medium leading-relaxed text-foreground">
@@ -864,8 +925,12 @@ export default function ProspectingPage() {
                     <div className="flex items-start gap-2 pt-1 text-xs text-muted-foreground">
                       <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0 mt-0.5" />
                       <div>
-                        <span className="font-semibold text-foreground">Recommended Next Action:</span>{" "}
-                        <span className="text-foreground/90">{result.suggested_next_action}</span>
+                        <span className="font-semibold text-foreground">
+                          Recommended Next Action:
+                        </span>{" "}
+                        <span className="text-foreground/90">
+                          {result.suggested_next_action}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -878,7 +943,10 @@ export default function ProspectingPage() {
                           <Zap className="size-3.5 text-amber-500" />
                           Pain points
                         </h4>
-                        <Badge variant="outline" className="text-[10px] font-mono">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-mono"
+                        >
                           {result.pain_points.length} identified
                         </Badge>
                       </div>
@@ -891,7 +959,10 @@ export default function ProspectingPage() {
                           <Layers className="size-3.5 text-blue-500" />
                           Likely objections
                         </h4>
-                        <Badge variant="outline" className="text-[10px] font-mono">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-mono"
+                        >
                           {result.objections.length} anticipated
                         </Badge>
                       </div>
@@ -905,15 +976,24 @@ export default function ProspectingPage() {
                       <Sparkles className="size-3.5 text-primary" />
                       Personalization
                     </h4>
-                    <BulletList items={result.personalization_bullets} variant="success" />
+                    <BulletList
+                      items={result.personalization_bullets}
+                      variant="success"
+                    />
                   </div>
 
                   {/* Grounding Sources */}
                   {result.sources && result.sources.length > 0 && (
                     <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">Grounding sources:</span>
+                      <span className="font-medium text-foreground">
+                        Grounding sources:
+                      </span>
                       {result.sources.map((source, sIdx) => (
-                        <Badge key={sIdx} variant="secondary" className="text-[10px]">
+                        <Badge
+                          key={sIdx}
+                          variant="secondary"
+                          className="text-[10px]"
+                        >
                           {source.label}
                         </Badge>
                       ))}
@@ -940,14 +1020,18 @@ export default function ProspectingPage() {
                         icon={Mail}
                         value={result.email_draft}
                         copyLabel="Copy email draft"
-                        onCopy={() => void copyDraft("Email draft", result.email_draft)}
+                        onCopy={() =>
+                          void copyDraft("Email draft", result.email_draft)
+                        }
                       />
                       <DraftPanel
                         title="Voice opener"
                         icon={Phone}
                         value={result.voice_opener}
                         copyLabel="Copy voice opener"
-                        onCopy={() => void copyDraft("Voice opener", result.voice_opener)}
+                        onCopy={() =>
+                          void copyDraft("Voice opener", result.voice_opener)
+                        }
                       />
                     </div>
                   </div>
@@ -962,7 +1046,12 @@ export default function ProspectingPage() {
                     Build a brief for the selected lead.
                   </h3>
                   <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-muted-foreground">
-                    Select a contact from the left queue and click <strong className="text-foreground">"Build lead brief"</strong> to synthesize account background, objection handling, tailored cold email drafts, and voice dialer scripts.
+                    Select a contact from the left queue and click{" "}
+                    <strong className="text-foreground">
+                      "Build lead brief"
+                    </strong>{" "}
+                    to synthesize account background, objection handling,
+                    tailored cold email drafts, and voice dialer scripts.
                   </p>
 
                   <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
@@ -972,7 +1061,11 @@ export default function ProspectingPage() {
                       disabled={!selectedContactId || researching}
                       className="gap-1.5 text-xs font-semibold"
                     >
-                      {researching ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                      {researching ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="size-3.5" />
+                      )}
                       Synthesize Brief Now
                     </Button>
                   </div>
@@ -988,7 +1081,9 @@ export default function ProspectingPage() {
                 <Clock3 className="size-3.5 text-primary" />
                 <span>Research history ({history.length})</span>
               </div>
-              {loadingHistory && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+              {loadingHistory && (
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+              )}
             </CardHeader>
             <CardContent className="p-3">
               {history.length ? (
@@ -1005,8 +1100,12 @@ export default function ProspectingPage() {
                       onClick={() => setResult(snapshot)}
                     >
                       <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
-                        <span className="font-semibold text-foreground">Snapshot</span>
-                        <span>{new Date(snapshot.created_at).toLocaleString()}</span>
+                        <span className="font-semibold text-foreground">
+                          Snapshot
+                        </span>
+                        <span>
+                          {new Date(snapshot.created_at).toLocaleString()}
+                        </span>
                       </div>
                       <div className="mt-1 text-xs text-foreground/90 font-medium truncate">
                         {snapshot.account_summary}

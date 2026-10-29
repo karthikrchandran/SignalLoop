@@ -24,6 +24,10 @@ from app.domain.ecrm_installations.service import (
     InstallationProjectionWorker,
     StaleReceiptFence,
 )
+from tests.conftest import (
+    _ensure_pgvector_extension,
+    _metadata_tables_for_available_extensions,
+)
 
 pytestmark = pytest.mark.skipif(
     engine.dialect.name != "postgresql", reason="requires PostgreSQL locking semantics"
@@ -32,8 +36,12 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture()
 def postgres_session() -> Session:
-    SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
+        pgvector_available = _ensure_pgvector_extension(session)
+        SQLModel.metadata.create_all(
+            engine,
+            tables=_metadata_tables_for_available_extensions(pgvector_available),
+        )
         yield session
 
 
@@ -125,6 +133,7 @@ def test_postgres_concurrent_receipt_replay_returns_one_deterministic_ack(
     suffix = uuid4().hex
     binding = _binding(suffix)
     EcrmInstallationRepository(postgres_session).save_binding(binding)
+    cell_id = binding.ecrm_cell_id
     postgres_session.commit()
     barrier = Barrier(2)
 
@@ -136,7 +145,7 @@ def test_postgres_concurrent_receipt_replay_returns_one_deterministic_ack(
             )
             barrier.wait()
             receipt = service.receive(
-                ecrm_cell_id=binding.ecrm_cell_id,
+                ecrm_cell_id=cell_id,
                 credential="token",
                 idempotency_key=(f"idem-{suffix}" if same_idempotency_key else f"idem-{index}-{suffix}"),
                 envelope=_envelope(suffix),
@@ -164,6 +173,7 @@ def test_postgres_concurrent_conflicting_same_version_keeps_one_receipt(
     suffix = uuid4().hex
     binding = _binding(suffix)
     EcrmInstallationRepository(postgres_session).save_binding(binding)
+    cell_id = binding.ecrm_cell_id
     postgres_session.commit()
     barrier = Barrier(2)
 
@@ -176,7 +186,7 @@ def test_postgres_concurrent_conflicting_same_version_keeps_one_receipt(
             barrier.wait()
             try:
                 receipt = service.receive(
-                    ecrm_cell_id=binding.ecrm_cell_id,
+                    ecrm_cell_id=cell_id,
                     credential="token",
                     idempotency_key=f"version-{index}-{suffix}",
                     envelope=DestinationEnvelope(

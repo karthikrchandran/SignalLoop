@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import base64
+import sqlite3
 import uuid
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Literal, NoReturn
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, TypeAdapter, model_validator
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlmodel import select
 
@@ -39,7 +40,7 @@ from app.domain.workspaces.models import Workspace
 router = APIRouter(prefix="/tenant-admin", tags=["tenant-admin"])
 
 
-def _raise_workspace_binding_conflict(exc: Exception) -> None:
+def _raise_workspace_binding_conflict(exc: Exception) -> NoReturn:
     raise HTTPException(status_code=409, detail="Workspace binding conflicted; retry") from exc
 
 
@@ -293,7 +294,7 @@ async def attest_workspace_binding(
     ).one_or_none()
     if installation is None:
         raise HTTPException(status_code=404, detail="Installation not found")
-    return await run_idempotent_mutation(
+    return TypeAdapter(dict[str, object]).validate_python(await run_idempotent_mutation(
         request,
         session=session,
         idempotency_key=idempotency_key,
@@ -311,7 +312,7 @@ async def attest_workspace_binding(
             installation=installation,
             payload=payload,
         ),
-    )
+    ))
 
 
 def _attest_workspace_binding_once(
@@ -323,6 +324,12 @@ def _attest_workspace_binding_once(
     payload: TenantWorkspaceBindingChange,
 ) -> dict[str, object]:
     """Persist the binding and audit atomically after all relationship checks."""
+    connection = session.connection()
+    driver = connection.connection.driver_connection
+    if isinstance(driver, sqlite3.Connection) and not driver.in_transaction:
+        # Legacy sqlite3 transaction mode otherwise commits the first SAVEPOINT
+        # independently of the outer session, leaving a binding without its audit.
+        connection.exec_driver_sql("BEGIN")
     session.exec(select(Tenant).where(Tenant.id == tenant.id).with_for_update()).one()
     if installation.product_code != ProductCode.SIGNAL_LOOP:
         raise HTTPException(status_code=409, detail="Only SignalLoop installations can bind workspaces")
@@ -443,7 +450,7 @@ def provision_membership(
 
 
 @router.post(
-    "/tenants/{tenant_id}/branding/drafts", status_code=status.HTTP_201_CREATED
+    "/tenants/{tenant_id}/branding/drafts", status_code=status.HTTP_201_CREATED, response_model=None
 )
 def create_branding_draft(
     *,
@@ -451,7 +458,7 @@ def create_branding_draft(
     user: CurrentUser,
     tenant_id: uuid.UUID,
     payload: BrandingDraftCreate,
-):
+) -> TenantBrandingVersion:
     _authorize(session, user, tenant_id, "tenant.settings.manage")
     latest = session.exec(
         select(TenantBrandingVersion)
@@ -470,14 +477,14 @@ def create_branding_draft(
     return draft
 
 
-@router.post("/tenants/{tenant_id}/branding/assets")
+@router.post("/tenants/{tenant_id}/branding/assets", response_model=None)
 def upload_branding_asset(
     *,
     session: SessionDep,
     user: CurrentUser,
     tenant_id: uuid.UUID,
     payload: BrandingAssetUpload,
-):
+) -> dict[str, str | int]:
     _authorize(session, user, tenant_id, "tenant.settings.manage")
     try:
         content = base64.b64decode(payload.content_base64, validate=True)
@@ -497,14 +504,14 @@ def upload_branding_asset(
     }
 
 
-@router.post("/tenants/{tenant_id}/branding/{version_id}/publish")
+@router.post("/tenants/{tenant_id}/branding/{version_id}/publish", response_model=None)
 def publish_branding(
     *,
     session: SessionDep,
     user: CurrentUser,
     tenant_id: uuid.UUID,
     version_id: uuid.UUID,
-):
+) -> TenantBrandingVersion:
     _authorize(session, user, tenant_id, "tenant.settings.manage")
     draft = session.get(TenantBrandingVersion, version_id)
     if (
@@ -541,14 +548,14 @@ def publish_branding(
     return draft
 
 
-@router.post("/tenants/{tenant_id}/branding/{version_id}/validate")
+@router.post("/tenants/{tenant_id}/branding/{version_id}/validate", response_model=None)
 def validate_branding(
     *,
     session: SessionDep,
     user: CurrentUser,
     tenant_id: uuid.UUID,
     version_id: uuid.UUID,
-):
+) -> TenantBrandingVersion:
     _authorize(session, user, tenant_id, "tenant.settings.manage")
     draft = session.get(TenantBrandingVersion, version_id)
     if (
@@ -568,14 +575,14 @@ def validate_branding(
     return draft
 
 
-@router.post("/tenants/{tenant_id}/branding/{version_id}/rollback")
+@router.post("/tenants/{tenant_id}/branding/{version_id}/rollback", response_model=None)
 def rollback_branding(
     *,
     session: SessionDep,
     user: CurrentUser,
     tenant_id: uuid.UUID,
     version_id: uuid.UUID,
-):
+) -> TenantBrandingVersion:
     _authorize(session, user, tenant_id, "tenant.settings.manage")
     source = session.get(TenantBrandingVersion, version_id)
     if (
